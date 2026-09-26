@@ -1187,6 +1187,45 @@ SourceFile(0,131) symbol=ValueModule:"/p" locals=[C=Class:C:1,a=BlockScopedVaria
 
 ---
 
+## 15.15 M6 计划：Layer 5（`Program` + `Checker`）
+
+### 量级（实测）
+
+| 文件 | 行数 | 归属 |
+|---|---|---|
+| `checker.ts` | **54,434** | M6（`createTypeChecker` 54,000 行里的 96% 都在一个函数体里） |
+| `utilities.ts` | 12,447 | M6 需要其中 ≥200 个名字（`createEvaluator`/`createNameResolver`/`createDiagnosticCollection`/`compareDiagnostics`/`createTextWriter`…） |
+| `program.ts` | 5,201 | M6 |
+| `moduleNameResolver.ts` | 3,428 | M6-late |
+| `moduleSpecifiers.ts` | 1,470 | M6-late（checker 只用到两处） |
+| `expressionToTypeNode.ts` | 1,330 | M6（M4f 的等待项） |
+| `programDiagnostics.ts` / `symbolWalker.ts` | 427 / 198 | M6 |
+| `resolutionCache.ts` / `commandLineParser.ts` | 1,716 / 4,300 | M8（program 只在宿主给出 cache 时才用那两个工厂） |
+
+合计约 7.5 万行 —— 是 M4（25,600）的三倍，因此按 §8 的分期（基础类型 → 泛型 → 高级特性）切成八片：
+
+| 片 | 内容 | 依赖 | 并行 |
+|---|---|---|---|
+| **M6-0** 前置 | 手写 `Type`/`Signature` + 约 28 个子类、`SymbolLinks`/`NodeLinks` 与按 id 惰性分配的表、`TransientSymbol`、`SymbolTrackerImpl`、`SymbolTable` 保序形态 + 槽位迁移、`Checker/CheckerEnums.cs`、`Checker.cs` 状态骨架与 partial 布局 | 无（**瓶颈**） | 内部两半可并行 |
+| **M6-1** Program | `program.ts` 宿主/诊断/mode/loader/状态族 + `createProgram` + `program` 字面量、`programDiagnostics.ts` 全量、`moduleNameResolver.ts` 全量、`commandLineParser` 的无条件薄片 | M6-0 | 与 M6-2/3/4/6 |
+| **M6-2** 类型构造与查询 | `createType`/`createObjectType`/`getUnionType`/`getIntersectionType`/`instantiateType`/`getIndexType`/`getConditionalType`、链接访问器、`getTypeOfSymbol`/`getDeclaredTypeOfSymbol`/`createSignature`/`getPropertiesOfType`/`getSignaturesOfType`/`getReturnTypeOfSignature` | M6-0 | 与 M6-1 |
+| **M6-3** 类型关系 | `isTypeRelatedTo`/`recursiveTypeRelatedTo`/`structuredTypeRelatedTo`/`isSignatureAssignableTo`/`compareSignaturesRelated` + 三张关系缓存 | M6-2 | 与 M6-1 |
+| **M6-4** 推断与调用解析 | `inferTypes`/`inferTypeArguments`/`getContextualType`、`resolveSignature`/`resolveCall`/`chooseOverload` | M6-2/3 | 推断半边与 M6-5 并行 |
+| **M6-5** 检查器主体 | `checkExpression` 家族、各 `checkXDeclaration`、`checkSourceFile`、诊断收集与排序去重、`initializeTypeChecker` 与返回的 `TypeChecker` 组装 | M6-2/3/4 | 声明半边与 M6-6 并行 |
+| **M6-6** 节点构建器 + EmitResolver + 字符串化 | `typeToTypeNode`/`symbolToNode` 家族、`createResolver`、`NodeBuilderContext`/`SymbolTrackerImpl`；`typeToString` 等受 printer 门控 | M6-2/3/5 | 与 M6-5 的声明半边 |
+| **M6-7** 外环差分 + 文档 | 新建 `tools/TypeDiff`（形制照 `tools/BindDiff`：FNV-1a 哈希、只落盘分歧、node 分批、自报峰值、256 MiB 栈线程）；把 §15.12 的符号 dump 探针扩成类型 dump | M6-1/2 | 与 M6-3…6 |
+
+### 侦察揪出的静默高危项
+
+`SymbolTable` 在端口里是 `Dictionary<string, ISymbol>`（**无序**），而 TS 的 `SymbolTable = Map<__String, Symbol>` 按插入序迭代 —— checker 的属性列表、联合归约与显示字符串都从它派生。`tools/BindDiff` 看不见这个差异，因为它的 dump 对 key 排了序。因此 M6-0 必须先把 `SymbolTable` 换成保序形态并迁移全部槽位与调用点，**在 checker 开始写 members 之前**。这条与 M5 的教训同类：缺失/错误的模型槽会晚爆，而这次它连差分都躲得过。
+
+### 两项裁定
+
+1. **受 printer 门控的字符串化**（`typeToString`/`symbolToString`/`signatureToString`/`typePredicateToString` 用到 `checker.ts:6194-6264` 的 `createPrinter*`，属 M7）：采用端口既有惯例 —— **显式命名 + 测试钉住的 loud blocker**（先例是 `FactoryUtilities.IsJSDocTypeAssertion`，§15.9），并逐条进本节的残留清单。不使用静默降级：静默的错字符串会污染 `.types` baseline，而 loud blocker 会在 M7 接上时立刻变成绿灯。
+2. **`moduleSpecifiers` 的两个调用点**（`checker.ts:8534`/`8638`）：归 M6-late，作为 M6-6 的契约项，不在 M6 主体里提前引入那 1,470 行。
+
+---
+
 ## 16. `const enum` 成员作类型：typed enum
 
 ### 16.1 TS 的两条路径
