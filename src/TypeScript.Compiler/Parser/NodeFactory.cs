@@ -35,6 +35,14 @@ internal partial class NodeFactory
     /// <summary>How this factory was configured (see <see cref="NodeFactoryFlags"/>).</summary>
     public NodeFactoryFlags Flags => _flags;
 
+    /// <summary>ported from: factory/nodeFactory.ts:496 — the <c>parenthesizerRules()</c> the factory keeps lazily.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS memoizes this per factory and can switch it off with
+    /// <see cref="NodeFactoryFlags.NoParenthesizerRules"/>. Until M4d ports <c>parenthesizerRules.ts</c> every factory
+    /// answers the identity rules — see <see cref="NullParenthesizerRules"/> for what that costs.
+    /// </remarks>
+    public IParenthesizerRules Parenthesizer { get; } = NullParenthesizerRules.Instance;
+
     //
     // Node creation
     //
@@ -77,6 +85,77 @@ internal partial class NodeFactory
     /// <summary>ported from: factory/nodeFactory.ts:1436 — <c>createBaseToken</c>.</summary>
     private static T CreateBaseToken<T>(SyntaxKind kind)
         where T : Node, new() => CreateBaseNode<T>(kind);
+
+    //
+    // Signature elements
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:1621 — <c>createTypeParameterDeclaration</c>.</summary>
+    public TypeParameterDeclaration CreateTypeParameterDeclaration(
+        List<ModifierToken>? modifiers,
+        object? name,
+        ITypeNode? constraint = null,
+        ITypeNode? defaultType = null)
+    {
+        var node = CreateBaseDeclaration<TypeParameterDeclaration>(SyntaxKind.TypeParameter);
+        node.Modifiers = AsNodeArray(modifiers);
+        node.Name = AsName(name);
+        node.Constraint = constraint;
+        node.Default = defaultType;
+        node.TransformFlags = TransformFlags.ContainsTypeScript;
+
+        node.Expression = null; // initialized by parser to report grammar errors
+        node.JsDoc = null;      // initialized by parser (JsDocContainer)
+        return node;
+    }
+
+    //
+    // Type elements
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:1701 — <c>createPropertySignature</c>.</summary>
+    public PropertySignature CreatePropertySignature(
+        List<ModifierToken>? modifiers,
+        object? name,
+        PunctuationToken? questionToken = null,
+        ITypeNode? type = null)
+    {
+        var node = CreateBaseDeclaration<PropertySignature>(SyntaxKind.PropertySignature);
+        node.Modifiers = AsNodeArray(modifiers);
+        node.Name = AsName(name);
+        node.Type = type;
+        node.QuestionToken = questionToken;
+        node.TransformFlags = TransformFlags.ContainsTypeScript;
+
+        node.Initializer = null; // initialized by parser to report grammar errors
+        node.JsDoc = null;       // initialized by parser (JsDocContainer)
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1802 — <c>createMethodSignature</c>.</summary>
+    public MethodSignature CreateMethodSignature(
+        List<ModifierToken>? modifiers,
+        object? name,
+        PunctuationToken? questionToken,
+        List<TypeParameterDeclaration>? typeParameters,
+        List<ParameterDeclaration>? parameters,
+        ITypeNode? type)
+    {
+        var node = CreateBaseDeclaration<MethodSignature>(SyntaxKind.MethodSignature);
+        node.Modifiers = AsNodeArray(modifiers);
+        node.Name = AsName(name);
+        node.QuestionToken = questionToken;
+        node.TypeParameters = AsNodeArray(typeParameters);
+        node.Parameters = AsNodeArray(parameters);
+        node.Type = type;
+        node.TransformFlags = TransformFlags.ContainsTypeScript;
+
+        node.JsDoc = null;         // initialized by parser (JsDocContainer)
+        node.Locals = null;        // initialized by binder (LocalsContainer)
+        node.NextContainer = null; // initialized by binder (LocalsContainer)
+        node.TypeArguments = null; // used in quick info
+        return node;
+    }
 
     //
     // Literals
@@ -342,6 +421,10 @@ internal partial class NodeFactory
 
     /// <summary>ported from: factory/nodeFactory.ts:7157 — <c>asToken</c>.</summary>
     private Node? AsToken(object? value) => value is SyntaxKind kind ? CreateToken(kind) : value as Node;
+
+    /// <summary>ported from: factory/nodeFactory.ts:7153 — <c>asInitializer</c>.</summary>
+    private Expression? AsInitializer(Expression? node)
+        => node is null ? null : Parenthesizer.ParenthesizeExpressionForDisallowedComma(node);
 
     //
     // Transform flags of a name
