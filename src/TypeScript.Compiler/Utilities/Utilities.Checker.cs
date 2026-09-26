@@ -648,6 +648,15 @@ internal static partial class Utilities
     // utilitiesPublic.ts: JSDoc tags, entity names, accessors, type nodes (1106-1765)
     // ---------------------------------------------------------------------------------------------
 
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1963-1966 — <c>isCallLikeOrFunctionLikeExpression</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's guard narrows to <c>CallLikeExpression | FunctionExpression | ArrowFunction</c>; the port answers
+    /// <c>bool</c> (mapping rule (d)), which is what the two landed callers pass to <c>FindAncestor</c>. Both disjuncts are
+    /// the sibling <c>Checker/Utilities.Checker.cs</c> members of the same names, in the reference's order.
+    /// </remarks>
+    public static bool IsCallLikeOrFunctionLikeExpression(Node node)
+        => IsCallLikeExpression(node) || IsFunctionExpressionOrArrowFunction(node);
+
     /// <summary>ported from: src/compiler/utilitiesPublic.ts:1106-1108 — <c>hasJSDocParameterTags</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: TS's <c>!!getFirstJSDocTag(node, isJSDocParameterTag)</c> is the port's private
