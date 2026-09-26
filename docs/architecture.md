@@ -640,6 +640,20 @@ M4c 开工前把"退化成 `object?`"的每一处都复核了一遍：`INodeFact
 
 没有跟着改的是**非节点类型**：`CommentRange`、`DiagnosticMessage`、`MultiMap` 这类值包装，`EmitNode`（节点上的附加槽），以及 `TypedEnum` 的 359 个成员 —— 它们的 `sealed` 表达的是"本来就没有子类"，与 TS 的约束表达力无关。
 
+### 12.8 能力基与分类台阶：字面量的 `Expression` 链
+
+§12.4 的位置规则只看一个接口**是否出现在首位**。于是 `LiteralExpression extends LiteralLikeNode, PrimaryExpression, Declaration` 里的 `LiteralLikeNode` 被判成类，而它恰好排在首位 —— 生成物成了 `StringLiteral → LiteralExpression → LiteralLikeNode → Node`：**整条 `Expression` 链断掉**，所有 `is Expression` 判断都会失败，而 checker 与 transformer 到处依赖它。
+
+TS 在这一行里同时继承了两件事：**能力**（`LiteralLikeNode` 带来 `text`）与**分类台阶**（`PrimaryExpression` → `Expression`）。C# 只允许一个基类，所以要选分类台阶、把能力降为接口 —— 这个判据 TS 没有写出来，移植版用一份显式清单表达：`s_capabilityBases = ["LiteralLikeNode"]`（与 `s_forcedClasses` 同形，§11.3 已有先例）。清单里的类型在 `RoleOf` 上就是接口，于是它被**实现**（`ILiteralLikeNode` 保住了 `text`）而不是被继承。
+
+基类的选择随之改成 `TsTypeModel.BaseReferenceOf`：先看直接基里的分类台阶，没有就沿接口链上溯（`LiteralExpression` 经 `PrimaryExpression` 拿到 `Expression`）。修完的链是
+
+```
+StringLiteral → LiteralExpression → MemberExpression → LeftHandSideExpression → … → Expression → Node
+```
+
+`CallExpression` / `Identifier` / `ArrayLiteralExpression` 的链不受影响。**这份清单是维护点**：TS 增一个新的"能力基"时要补进来，否则那一族的链会静默失效 —— 它不会编译错，只会让下游的多态判断答错。
+
 ---
 
 ## 13. 宿主替换：`sys.ts` 的 Node 绑定（M2c，已完成）
