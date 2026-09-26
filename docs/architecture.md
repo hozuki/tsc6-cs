@@ -1441,6 +1441,24 @@ printer 门控的 `TypeToString`/`SymbolToString`/`SignatureToString`/`TypePredi
 
 **轮内阶梯**：3,042/187/2,679 → 3,122/108/2,678（模板字面量槽 + binder 环境模块）→ **3,135/85/2,688**。
 
+### M6-late 当前状态与续做指引（本步按用户指示停下）
+
+**仓库停在 `8e6ea86`，工作区干净**；构建 0 错误 / 0 警告、测试 **1,044/1,044**、`Gen --check` 无漂移、`AstDiff` **19,585/19,585**、`BindDiff` **19,230/19,230**、`TypeDiff` 全 `conformance` 语料 **`same=3135 diverged=85 port-crash=2688`**（崩溃 100% 是 M7 printer 门控）。
+
+**四轮收敛总账**：`same` 1,058 → 2,588 → 2,938 → 3,042 → **3,135**；`diverged` 801 → 638 → 295 → 187 → **85**；`port-crash` 4,049 → **2,688**，其中**非门控崩溃已归零**（全语料 `InvalidCastException`/`NullReferenceException` = 0）。
+
+**已授权、尚未落地的一项决定（续做时从这里开始）——实参级延迟：** 参考在调用点就急切算出诊断实参里的 `typeToString(...)`/`symbolToString(...)`（如 `checker.ts:26105` 的 `typeAsString = typeToString(getWidenedType(type))`，`ReportImplicitAny` 一类独占 1,170 个文件；实测 83 条首崩链）。授权把这些实参改为惰性（仅在消息文本真的被读取时才计算）。**实施前提（绑定）**：
+
+1. **printer 门控保持响亮**——任何读取消息文本的路径仍须撞上 M7 阻断并**抛出**；不得实现 printer、不得吞异常、不得给占位文本；
+2. 不读文本的路径可观察行为不变；
+3. dump 格式保持 **v1**（不为它改任何记录形状）；
+4. 排序/去重的平局读取点**不得移动**（参考 `utilities.ts:8787-8794` / `8917-8926`）；
+5. 必须报告**三个测量点**：(a) 起始树、(b) 仅落地延迟、(c) 每轮修复后——其中 (b) 预期使 `diverged` **变差**（被掩蔽的真实缺陷首次显形），这是目的而非回归，不得隐瞒。
+
+**收益（已实测，非估计）：** 让四个门控临时改**返回 writer** 时全语料为 `same=3774 diverged=1679 port-crash=455` —— 即门控当前掩蔽着约 **1,041 条真实分歧**。
+
+**其余待办（不属本工作流）：** §15.15 的 M7/M8 响亮阻断清单（printer 门控的四个字符串化、`expressionToTypeNode`（M4f）、`moduleSpecifiers` 的两处调用点、`Program.Emit`/`EmitBuildInfo`/`GetDeclarationDiagnostics`/`GetEmitHost`/`GetTsBuildInfoEmitOutputFilePath`、`GetBuildInfo`（M8））、`Model/NodeInterfaces.cs:3526` 的生成器缺陷（`GetIndexInfosOfIndexSymbol`）、以及 §15.15 的残留账与未认领名单。
+
 ## 16. `const enum` 成员作类型：typed enum
 
 ### 16.1 TS 的两条路径
