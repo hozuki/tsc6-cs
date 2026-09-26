@@ -460,6 +460,34 @@ dotnet run --project tools/Gen -- --check    # 只校验不写入（CI / 本地�
    - 代价：`Identifier` 的 C# 基类因此是 `Node` 而非 `PrimaryExpression`（后者降为接口）。分类接口本身没有实字段（只有 brand），所以类型关系通过接口完整保留，不丢信息。
    - `PunctuationToken`/`KeywordToken`/`ModifierToken`/`NodeArray` 只经**类型别名**到达（`type DotToken = PunctuationToken<SyntaxKind.DotToken>`），位置规则看不到，用显式清单标为类。这也是 token 家族只需要少数几个类、而不是 187 个空类的原因。
    - 泛型参数在比较基名时必须剥离（`PunctuationToken<TKind>` → `PunctuationToken`），否则继承图与角色判定全线失配。
+
+6. **类型模型的输入源是 TypeScript 编译器自己的解析器，不是 C# 侧的行扫描。** 最初生成器用行扫描 + 正则啃 `types.ts`，在修掉五个坑之后仍然是脆弱的：成员省略分号、泛型参数里嵌套尖括号、单行接口、`}` 与下一个声明同行、`const enum` 值跨行。既然 checkout 的 `lib/typescript.js` 就是完整的 6.0.3 编译器，改由 `tools/Gen/extract.cjs`（Node）用它解析并输出 JSON，C# 侧只做反序列化。
+   - 提取出的模型与行扫描在**接口数与别名数上完全一致**（523 / 274），但**成员数从 3011 降到 1832** —— 行扫描把 `foo(x): void;` 这类方法签名也当成了数据成员，而 `ts.isPropertySignature` 正确排除了它们。
+   - `node` 依赖被限定在生成环节：`src/` 下没有任何东西依赖它，提取出的 JSON 写在 `artifacts/`（不提交）。
+
+---
+
+## 12. M2b 现状（节点模型，进行中）
+
+### 12.1 已完成
+
+| 项 | 结果 |
+|---|---|
+| 类型模型提取 | `tools/Gen/extract.cjs` + `TsModel`；75 个枚举 / 537 个接口 / 276 个别名（三个源文件合并） |
+| 类型映射器 | `TsTypeMapper`：联合降级为共同基类、`~`、泛型、数组、函数类型、`Map`→`Dictionary` 等 |
+| 角色分类 | 268 个类（继承链）/ 255 个接口（mixin）；`CallExpression → LeftHandSideExpression → UpdateExpression → UnaryExpression → Expression → Node` |
+| 生成物 | `Model/NodeInterfaces.cs`、`Model/NodeClasses.cs`，以及全部 73 个枚举 |
+| 一致性校验 | `GeneratedTablesTests` 直接用生成器重跑并逐字节比对（走 TS 解析器路径） |
+
+### 12.2 未完成
+
+**生成的节点层尚未编译通过**（约 50 个 `CS0738`），问题集中在一类：
+
+> TS 允许子接口**收窄**成员类型 —— `FunctionDeclaration.body` 是 `Block`，而 `FunctionLikeDeclarationBase.body` 是 `ConciseBody`。C# 要求实现成员与**每一个**接口精确匹配，于是同一个名字在不同接口上各有一个类型时就没有单一合法答案。
+
+已按「同名成员取最宽类型（多候选时降为 `object?`）」处理，基类链与接口链的组合仍有约 50 处遗漏。
+
+因此在 `TypeScript.Compiler.csproj` 里暂时 `Compile Remove` 了这组文件（`NodeInterfaces.cs`、`NodeClasses.cs`、`Node.cs`、`NodeArray.cs`、`Token.cs`），**仓库保持全绿**。解决后删掉那段 `ItemGroup` 即可启用。
 3. **字符串值枚举生成为 `readonly struct` 包装，而不是 C# enum，也不是裸 `const string`。** TS 里有 4 个这样的枚举（`Extension`、`InternalSymbolName`、`PrivateIdentifierKind`、`ForegroundColorEscapeSequences`）。
    - C# enum 不能携带字符串值 —— 无法表示 `"__call"`、`"export="`、`"\u001b[90m"`。
    - 裸 `const string` 会丢掉名义类型，`fileExtensionIs` 这类函数的签名就退化成 `string, string`，没有任何东西能区分 `Extension` 与随手写的字面量。

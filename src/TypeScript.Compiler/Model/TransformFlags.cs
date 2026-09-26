@@ -26,7 +26,7 @@ internal enum TransformFlags : uint
     ContainsES2015 = 1u << 10,
     ContainsGenerator = 1u << 11,
     ContainsDestructuringAssignment = 1u << 12,
-    ContainsTypeScriptClassSyntax = 1u << 13,  // Property Initializers, Parameter Property Initializers
+    ContainsTypeScriptClassSyntax = 1u << 13,
     ContainsLexicalThis = 1u << 14,
     ContainsRestOrSpread = 1u << 15,
     ContainsObjectRestOrSpread = 1u << 16,
@@ -43,7 +43,7 @@ internal enum TransformFlags : uint
     ContainsLexicalSuper = 1u << 27,
     ContainsUpdateExpressionForIdentifier = 1u << 28,
     ContainsPrivateIdentifierInExpression = 1u << 29,
-    HasComputedFlags = 1u << 31,  // Transform flags have been computed.
+    HasComputedFlags = 1u << 31,
     AssertTypeScript = ContainsTypeScript,
     AssertJsx = ContainsJsx,
     AssertESNext = ContainsESNext,

@@ -13,13 +13,13 @@ namespace TypeScript.Compiler;
 internal enum SignatureFlags : uint
 {
     None = 0u,
-    HasRestParameter = 1u << 0,  // Indicates last parameter is rest parameter
-    HasLiteralTypes = 1u << 1,  // Indicates signature is specialized
-    Abstract = 1u << 2,  // Indicates signature comes from an abstract class, abstract construct signature, or abstract constructor type
-    IsInnerCallChain = 1u << 3,  // Indicates signature comes from a CallChain nested in an outer OptionalChain
-    IsOuterCallChain = 1u << 4,  // Indicates signature comes from a CallChain that is the outermost chain of an optional expression
-    IsUntypedSignatureInJSFile = 1u << 5,  // Indicates signature is from a js file and has no types
-    IsNonInferrable = 1u << 6,  // Indicates signature comes from a non-inferrable type
+    HasRestParameter = 1u << 0,
+    HasLiteralTypes = 1u << 1,
+    Abstract = 1u << 2,
+    IsInnerCallChain = 1u << 3,
+    IsOuterCallChain = 1u << 4,
+    IsUntypedSignatureInJSFile = 1u << 5,
+    IsNonInferrable = 1u << 6,
     IsSignatureCandidateForOverloadFailure = 1u << 7,
     PropagatingFlags = HasRestParameter | HasLiteralTypes | Abstract | IsUntypedSignatureInJSFile | IsSignatureCandidateForOverloadFailure,
     CallChainFlags = IsInnerCallChain | IsOuterCallChain,

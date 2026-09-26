@@ -1,17 +1,16 @@
-using System.Text;
-
 namespace TypeScript.Compiler.Tools;
 
 /// <summary>
-/// Generates the C# data tables that mirror TS's <c>const enum</c> declarations.
+/// Generates the C# tables and node model that mirror the TypeScript compiler's own type declarations.
 /// </summary>
 /// <remarks>
 /// Usage:
 /// <code>
-/// dotnet run --project tools/Gen -- [--ts-root &lt;TypeScript repo&gt;] [--out &lt;dir&gt;] [--check]
+/// dotnet run --project tools/Gen -- [--ts-root &lt;TypeScript repo&gt;] [--out &lt;dir&gt;] [--check] [--stats]
 /// </code>
-/// <c>--check</c> regenerates in memory and reports drift instead of writing, so it can be wired into CI
-/// (and into the unit tests) to catch a stale generated file.
+/// The type model is extracted by <c>tools/Gen/extract.cjs</c>, which loads the TypeScript compiler from the
+/// checkout's own <c>lib/typescript.js</c>. <c>--check</c> regenerates in memory and reports drift instead of
+/// writing, so it can be wired into CI (and into the unit tests) to catch a stale generated file.
 /// </remarks>
 internal static class Program
 {
@@ -63,15 +62,32 @@ internal static class Program
             return 2;
         }
 
+        TsModel model;
+        try
+        {
+            // The extracted JSON is a build artifact: it is derived from the checkout on every run, so it is
+            // written under artifacts/ rather than committed (unlike the C# it produces).
+            model = TsModel.Extract(
+                repoRoot,
+                tsRoot,
+                Path.Combine(repoRoot, "artifacts", "ts-model.json"),
+                Generator.TypeModelSources);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or FileNotFoundException)
+        {
+            Console.Error.WriteLine($"gen: {ex.Message}");
+            return 2;
+        }
+
         if (stats)
         {
-            return PrintInterfaceStats(tsRoot);
+            return PrintStats(model);
         }
 
         List<GeneratedFile> files;
         try
         {
-            files = Generator.Generate(tsRoot, outRoot, warn: m => Console.Error.WriteLine($"gen: {m}"));
+            files = Generator.Generate(model, outRoot, warn: m => Console.Error.WriteLine($"gen: {m}"));
         }
         catch (Exception ex) when (ex is InvalidOperationException or FileNotFoundException)
         {
@@ -101,94 +117,54 @@ internal static class Program
             }
 
             Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-            File.WriteAllText(targetPath, file.Content, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            File.WriteAllText(targetPath, file.Content, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
             Console.WriteLine($"gen: wrote {file.RelativePath}");
         }
 
         return hadDrift ? 1 : 0;
     }
 
-    /// <summary>Reports how much of <c>types.ts</c> the interface parser currently understands.</summary>
-    private static int PrintInterfaceStats(string tsRoot)
+    /// <summary>Reports what the type model contains — a diagnostic aid when the generator misbehaves.</summary>
+    private static int PrintStats(TsModel model)
     {
-        var path = Path.Combine(tsRoot, "src", "compiler", "types.ts");
-        var interfaces = TsInterfaceParser.Parse(File.ReadAllText(path));
-
-        var concrete = interfaces.Where(static i => i.HasConcreteKind).ToList();
-        var abstractOnes = interfaces.Where(static i => !i.HasConcreteKind).ToList();
-
-        Console.WriteLine($"interfaces parsed      : {interfaces.Count}");
-        Console.WriteLine($"  concrete nodes       : {concrete.Count}");
-        Console.WriteLine($"  capability/abstract  : {abstractOnes.Count}");
-        Console.WriteLine($"members total          : {interfaces.Sum(static i => i.Members.Count)}");
-        Console.WriteLine($"empty interfaces       : {interfaces.Count(static i => i.Members.Count == 0)}");
-        Console.WriteLine($"interfaces with bases  : {interfaces.Count(static i => i.Extends.Count != 0)}");
-        Console.WriteLine($"interfaces w/ generics : {interfaces.Count(static i => i.TypeParameters.Count != 0)}");
+        Console.WriteLine();
+        Console.WriteLine($"source                 : {model.Source}");
+        Console.WriteLine($"enums                  : {model.Enums.Count}");
+        Console.WriteLine($"interfaces             : {model.Interfaces.Count}");
+        Console.WriteLine($"  concrete nodes       : {model.Interfaces.Count(static i => i.HasConcreteKind)}");
+        Console.WriteLine($"  members              : {model.Interfaces.Sum(static i => i.Members.Count)}");
+        Console.WriteLine($"type aliases           : {model.Aliases.Count}");
 
         Console.WriteLine();
         Console.WriteLine("largest interfaces:");
-        foreach (var i in interfaces.OrderByDescending(static i => i.Members.Count).Take(10))
+        foreach (var iface in model.Interfaces.OrderByDescending(static i => i.Members.Count).Take(6))
         {
-            Console.WriteLine($"  {i.Name,-42} {i.Members.Count,3} members, extends [{string.Join(", ", i.Extends)}]");
+            Console.WriteLine($"  {iface.Name,-40} {iface.Members.Count,3} members");
         }
-
-        Console.WriteLine();
-        Console.WriteLine("kinds not covered by a concrete interface (declared as type aliases):");
-        var source = File.ReadAllText(path);
-        var kindNames = TsEnumParser.Parse(source, "SyntaxKind").Members.Select(static m => m.Name).ToHashSet(StringComparer.Ordinal);
-        var fromInterfaces = concrete.Select(static i => i.ConcreteKind!).ToHashSet(StringComparer.Ordinal);
-        var missing = kindNames.Where(k => !fromInterfaces.Contains(k)).ToList();
-        Console.WriteLine($"  {missing.Count} of {kindNames.Count} SyntaxKind members");
-        Console.WriteLine($"  sample: {string.Join(", ", missing.Take(25))}");
 
         Console.WriteLine();
         Console.WriteLine("member type shapes:");
-        var shapes = interfaces
+        var shapes = model.Interfaces
             .SelectMany(static i => i.Members)
             .GroupBy(static m => ClassifyShape(m.Type))
             .OrderByDescending(static g => g.Count());
-        foreach (var group in shapes)
-        {
-            Console.WriteLine($"  {group.Key,-22} {group.Count(),5}");
-        }
+        foreach (var group in shapes) Console.WriteLine($"  {group.Key,-22} {group.Count(),5}");
 
-        Console.WriteLine();
-        Console.WriteLine("sample members of each shape:");
-        foreach (var group in shapes)
-        {
-            var sample = group.First();
-            Console.WriteLine($"  {group.Key,-22} {sample.Name}: {Truncate(sample.Type, 80)}");
-        }
-
-        Console.WriteLine();
-        Console.WriteLine("type aliases:");
-        var aliases = TsTypeAliasParser.Parse(source);
-        Console.WriteLine($"  parsed               : {aliases.Count}");
-        var aliasShapes = aliases
-            .GroupBy(static a => ClassifyShape(a.Value))
-            .OrderByDescending(static g => g.Count());
-        foreach (var group in aliasShapes)
-        {
-            Console.WriteLine($"  {group.Key,-22} {group.Count(),5}   e.g. {group.First().Name} = {Truncate(group.First().Value, 60)}");
-        }
+        var typeModel = new TsTypeModel(model.Interfaces, model.Aliases);
+        var classes = model.Interfaces.Count(i => typeModel.RoleOf(i.Name) == TypeRole.Class);
+        var mixins = model.Interfaces.Count(i => typeModel.RoleOf(i.Name) == TypeRole.Interface);
 
         Console.WriteLine();
         Console.WriteLine("type model (D1: chain steps -> class, mixins -> interface):");
-        var model = new TsTypeModel(interfaces, aliases);
-        var classes = interfaces.Where(i => model.RoleOf(i.Name) == TypeRole.Class).ToList();
-        var mixins = interfaces.Where(i => model.RoleOf(i.Name) == TypeRole.Interface).ToList();
-        Console.WriteLine($"  classes              : {classes.Count}");
-        Console.WriteLine($"  interfaces (mixins)  : {mixins.Count}");
-        Console.WriteLine($"  mixes sample         : {string.Join(", ", mixins.Take(14).Select(static i => i.Name))}");
+        Console.WriteLine($"  classes              : {classes}");
+        Console.WriteLine($"  interfaces (mixins)  : {mixins}");
+        Console.WriteLine($"  CallExpression chain : {string.Join(" -> ", typeModel.ClassChainOf("CallExpression").Take(9))}");
+        Console.WriteLine($"  mixins of Identifier : {string.Join(", ", typeModel.InterfaceClosureOf("Identifier", transitive: true))}");
 
-        var withBase = classes.Where(i => model.ClassBaseOf(i.Name) is not (null or "Node")).ToList();
-        Console.WriteLine($"  classes w/ base      : {withBase.Count}");
-        Console.WriteLine($"  base sample          : {string.Join(", ", withBase.Take(6).Select(i => $"{i.Name}->{model.ClassBaseOf(i.Name)}"))}");
-
-        Console.WriteLine($"  chain depth check    : CallExpression -> {string.Join(" -> ", model.ClassChainOf("CallExpression").Take(9))}");
-        Console.WriteLine($"  mixins of Identifier : {string.Join(", ", model.InterfaceClosureOf("Identifier", transitive: true))}");
-        Console.WriteLine($"  dual-role classes    : {model.DualRoleClasses.Count} -> {string.Join(", ", model.DualRoleClasses.Take(8))}");
-        Console.WriteLine($"  probe                : PrimaryExpression={model.RoleOf("PrimaryExpression")} Token={model.RoleOf("Token")} Identifier.base={model.ClassBaseOf("Identifier")}");
+        Console.WriteLine();
+        Console.WriteLine("enum kinds:");
+        Console.WriteLine($"  string-valued        : {model.Enums.Count(static e => e.IsStringValued)}");
+        Console.WriteLine($"  numeric              : {model.Enums.Count(static e => !e.IsStringValued)}");
 
         return 0;
     }
@@ -198,7 +174,6 @@ internal static class Program
         var t = type.Trim();
         if (t.Contains("=>", StringComparison.Ordinal)) return "function";
         if (t.Contains("keyof ", StringComparison.Ordinal)) return "keyof";
-        if (t.Contains(" extends ", StringComparison.Ordinal)) return "conditional";
         if (t.Contains('{')) return "object-literal";
         if (t.StartsWith("readonly ", StringComparison.Ordinal) && t.EndsWith("[]", StringComparison.Ordinal)) return "readonly-array";
         if (t.EndsWith("[]", StringComparison.Ordinal)) return "array";
@@ -207,9 +182,6 @@ internal static class Program
         if (t.Contains('<')) return "generic";
         return "simple";
     }
-
-    private static string Truncate(string text, int max)
-        => text.Length <= max ? text : text[..max] + "…";
 
     private static string FindRepoRoot()
     {
@@ -243,6 +215,6 @@ internal static class Program
         Console.WriteLine("  --ts-root  TypeScript checkout to read (default: tools/ts-source.txt)");
         Console.WriteLine($"  --out      output root, relative to the repo (default: {Generator.DefaultOutputRoot})");
         Console.WriteLine("  --check    verify generated files are up to date without writing");
-        Console.WriteLine("  --stats    report how much of types.ts the interface parser understands");
+        Console.WriteLine("  --stats    report the extracted type model without generating");
     }
 }

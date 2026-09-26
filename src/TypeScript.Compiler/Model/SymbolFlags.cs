@@ -13,34 +13,34 @@ namespace TypeScript.Compiler;
 internal enum SymbolFlags : uint
 {
     None = 0u,
-    FunctionScopedVariable = 1u << 0,  // Variable (var) or parameter
-    BlockScopedVariable = 1u << 1,  // A block-scoped variable (let or const)
-    Property = 1u << 2,  // Property or enum member
-    EnumMember = 1u << 3,  // Enum member
-    Function = 1u << 4,  // Function
-    Class = 1u << 5,  // Class
-    Interface = 1u << 6,  // Interface
-    ConstEnum = 1u << 7,  // Const enum
-    RegularEnum = 1u << 8,  // Enum
-    ValueModule = 1u << 9,  // Instantiated module
-    NamespaceModule = 1u << 10,  // Uninstantiated module
-    TypeLiteral = 1u << 11,  // Type Literal or mapped type
-    ObjectLiteral = 1u << 12,  // Object Literal
-    Method = 1u << 13,  // Method
-    Constructor = 1u << 14,  // Constructor
-    GetAccessor = 1u << 15,  // Get accessor
-    SetAccessor = 1u << 16,  // Set accessor
-    Signature = 1u << 17,  // Call, construct, or index signature
-    TypeParameter = 1u << 18,  // Type parameter
-    TypeAlias = 1u << 19,  // Type alias
-    ExportValue = 1u << 20,  // Exported value marker (see comment in declareModuleMember in binder)
-    Alias = 1u << 21,  // An alias for another symbol (see comment in isAliasSymbolDeclaration in checker)
-    Prototype = 1u << 22,  // Prototype property (no source representation)
-    ExportStar = 1u << 23,  // Export * declaration
-    Optional = 1u << 24,  // Optional property
-    Transient = 1u << 25,  // Transient symbol (created during type check)
-    Assignment = 1u << 26,  // Assignment treated as declaration (eg `this.prop = 1`)
-    ModuleExports = 1u << 27,  // Symbol for CommonJS `module` of `module.exports`
+    FunctionScopedVariable = 1u << 0,
+    BlockScopedVariable = 1u << 1,
+    Property = 1u << 2,
+    EnumMember = 1u << 3,
+    Function = 1u << 4,
+    Class = 1u << 5,
+    Interface = 1u << 6,
+    ConstEnum = 1u << 7,
+    RegularEnum = 1u << 8,
+    ValueModule = 1u << 9,
+    NamespaceModule = 1u << 10,
+    TypeLiteral = 1u << 11,
+    ObjectLiteral = 1u << 12,
+    Method = 1u << 13,
+    Constructor = 1u << 14,
+    GetAccessor = 1u << 15,
+    SetAccessor = 1u << 16,
+    Signature = 1u << 17,
+    TypeParameter = 1u << 18,
+    TypeAlias = 1u << 19,
+    ExportValue = 1u << 20,
+    Alias = 1u << 21,
+    Prototype = 1u << 22,
+    ExportStar = 1u << 23,
+    Optional = 1u << 24,
+    Transient = 1u << 25,
+    Assignment = 1u << 26,
+    ModuleExports = 1u << 27,
     All = unchecked((uint)-1),
     Enum = RegularEnum | ConstEnum,
     Variable = FunctionScopedVariable | BlockScopedVariable,
@@ -55,10 +55,10 @@ internal enum SymbolFlags : uint
     PropertyExcludes = None,
     EnumMemberExcludes = Value | Type,
     FunctionExcludes = (uint)Value & ~((uint)Function | (uint)ValueModule | (uint)Class),
-    ClassExcludes = ((uint)Value | (uint)Type) & ~((uint)ValueModule | (uint)Interface | (uint)Function),  // class-interface mergability done in checker.ts
+    ClassExcludes = ((uint)Value | (uint)Type) & ~((uint)ValueModule | (uint)Interface | (uint)Function),
     InterfaceExcludes = (uint)Type & ~((uint)Interface | (uint)Class),
-    RegularEnumExcludes = ((uint)Value | (uint)Type) & ~((uint)RegularEnum | (uint)ValueModule),  // regular enums merge only with regular enums and modules
-    ConstEnumExcludes = ((uint)Value | (uint)Type) & ~(uint)ConstEnum,  // const enums merge only with const enums
+    RegularEnumExcludes = ((uint)Value | (uint)Type) & ~((uint)RegularEnum | (uint)ValueModule),
+    ConstEnumExcludes = ((uint)Value | (uint)Type) & ~(uint)ConstEnum,
     ValueModuleExcludes = (uint)Value & ~((uint)Function | (uint)Class | (uint)RegularEnum | (uint)ValueModule),
     NamespaceModuleExcludes = 0u,
     MethodExcludes = (uint)Value & ~(uint)Method,
@@ -73,12 +73,8 @@ internal enum SymbolFlags : uint
     BlockScoped = BlockScopedVariable | Class | Enum,
     PropertyOrAccessor = Property | Accessor,
     ClassMember = Method | Accessor | Property,
-    /// <summary>@internal</summary>
     ExportSupportsDefaultModifier = Class | Function | Interface,
-    /// <summary>@internal</summary>
     ExportDoesNotSupportDefaultModifier = unchecked((uint)~(uint)ExportSupportsDefaultModifier),
-    /// <summary>@internal</summary>
     Classifiable = Class | Enum | TypeAlias | Interface | TypeParameter | Module | Alias,
-    /// <summary>@internal</summary>
     LateBindingContainer = Class | Interface | TypeLiteral | ObjectLiteral | Function,
 }

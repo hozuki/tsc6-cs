@@ -95,7 +95,7 @@ internal enum SyntaxKind : int
     CaretEqualsToken = 79,
     Identifier = 80,
     PrivateIdentifier = 81,
-    /// <summary>Only the special JSDoc comment text scanner produces JSDocCommentTextTokes. One of these tokens spans all text after a tag comment's start and before the next @ @internal</summary>
+    /// <summary>Only the special JSDoc comment text scanner produces JSDocCommentTextTokes. One of these tokens spans all text after a tag comment's start and before the next @</summary>
     JSDocCommentTextToken = 82,
     BreakKeyword = 83,
     CaseKeyword = 84,
@@ -180,7 +180,7 @@ internal enum SyntaxKind : int
     BigIntKeyword = 163,
     OverrideKeyword = 164,
     OfKeyword = 165,
-    DeferKeyword = 166,  // LastKeyword and LastToken and LastContextualKeyword
+    DeferKeyword = 166,
     QualifiedName = 167,
     ComputedPropertyName = 168,
     TypeParameter = 169,
@@ -317,11 +317,8 @@ internal enum SyntaxKind : int
     CatchClause = 300,
     ImportAttributes = 301,
     ImportAttribute = 302,
-    /// <summary>@deprecated</summary>
     AssertClause = ImportAttributes,
-    /// <summary>@deprecated</summary>
     AssertEntry = ImportAttribute,
-    /// <summary>@deprecated</summary>
     ImportTypeAssertionContainer = 303,
     PropertyAssignment = 304,
     ShorthandPropertyAssignment = 305,
@@ -331,17 +328,16 @@ internal enum SyntaxKind : int
     Bundle = 309,
     JSDocTypeExpression = 310,
     JSDocNameReference = 311,
-    JSDocMemberName = 312,  // C#p
-    JSDocAllType = 313,  // The * type
-    JSDocUnknownType = 314,  // The ? type
+    JSDocMemberName = 312,
+    JSDocAllType = 313,
+    JSDocUnknownType = 314,
     JSDocNullableType = 315,
     JSDocNonNullableType = 316,
     JSDocOptionalType = 317,
     JSDocFunctionType = 318,
     JSDocVariadicType = 319,
-    JSDocNamepathType = 320,  // https://jsdoc.app/about-namepaths.html
+    JSDocNamepathType = 320,
     JSDoc = 321,
-    /// <summary>@deprecated Use SyntaxKind.JSDoc</summary>
     JSDocComment = JSDoc,
     JSDocText = 322,
     JSDocTypeLiteral = 323,
@@ -412,8 +408,6 @@ internal enum SyntaxKind : int
     LastJSDocNode = JSDocImportTag,
     FirstJSDocTagNode = JSDocTag,
     LastJSDocTagNode = JSDocImportTag,
-    /// <summary>@internal</summary>
     FirstContextualKeyword = AbstractKeyword,
-    /// <summary>@internal</summary>
     LastContextualKeyword = LastKeyword,
 }

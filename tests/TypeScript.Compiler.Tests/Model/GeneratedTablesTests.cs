@@ -19,7 +19,12 @@ public class GeneratedTablesTests
         }
 
         var repoRoot = FindRepoRoot();
-        var files = Generator.Generate(tsRoot);
+        var model = TsModel.Extract(
+            repoRoot,
+            tsRoot,
+            Path.Combine(repoRoot, "artifacts", "ts-model.test.json"),
+            Generator.TypeModelSources);
+        var files = Generator.Generate(model);
 
         Assert.NotEmpty(files);
         foreach (var file in files)

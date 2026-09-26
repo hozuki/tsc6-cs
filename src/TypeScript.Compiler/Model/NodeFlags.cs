@@ -13,55 +13,45 @@ namespace TypeScript.Compiler;
 internal enum NodeFlags : uint
 {
     None = 0u,
-    Let = 1u << 0,  // Variable declaration
-    Const = 1u << 1,  // Variable declaration
-    Using = 1u << 2,  // Variable declaration
-    AwaitUsing = Const | Using,  // Variable declaration (NOTE: on a single node these flags would otherwise be mutually exclusive)
-    NestedNamespace = 1u << 3,  // Namespace declaration
-    Synthesized = 1u << 4,  // Node was synthesized during transformation
-    Namespace = 1u << 5,  // Namespace declaration
-    OptionalChain = 1u << 6,  // Chained MemberExpression rooted to a pseudo-OptionalExpression
-    ExportContext = 1u << 7,  // Export context (initialized by binding)
-    ContainsThis = 1u << 8,  // Interface contains references to "this"
-    HasImplicitReturn = 1u << 9,  // If function implicitly returns on one of codepaths (initialized by binding)
-    HasExplicitReturn = 1u << 10,  // If function has explicit reachable return on one of codepaths (initialized by binding)
-    GlobalAugmentation = 1u << 11,  // Set if module declaration is an augmentation for the global scope
-    HasAsyncFunctions = 1u << 12,  // If the file has async functions (initialized by binding)
-    DisallowInContext = 1u << 13,  // If node was parsed in a context where 'in-expressions' are not allowed
-    YieldContext = 1u << 14,  // If node was parsed in the 'yield' context created when parsing a generator
-    DecoratorContext = 1u << 15,  // If node was parsed as part of a decorator
-    AwaitContext = 1u << 16,  // If node was parsed in the 'await' context created when parsing an async function
-    DisallowConditionalTypesContext = 1u << 17,  // If node was parsed in a context where conditional types are not allowed
-    ThisNodeHasError = 1u << 18,  // If the parser encountered an error when parsing the code that created this node
-    JavaScriptFile = 1u << 19,  // If node was parsed in a JavaScript
-    ThisNodeOrAnySubNodesHasError = 1u << 20,  // If this node or any of its children had an error
-    HasAggregatedChildData = 1u << 21,  // If we've computed data from children and cached it in this node
-    /// <summary>@internal</summary>
+    Let = 1u << 0,
+    Const = 1u << 1,
+    Using = 1u << 2,
+    AwaitUsing = Const | Using,
+    NestedNamespace = 1u << 3,
+    Synthesized = 1u << 4,
+    Namespace = 1u << 5,
+    OptionalChain = 1u << 6,
+    ExportContext = 1u << 7,
+    ContainsThis = 1u << 8,
+    HasImplicitReturn = 1u << 9,
+    HasExplicitReturn = 1u << 10,
+    GlobalAugmentation = 1u << 11,
+    HasAsyncFunctions = 1u << 12,
+    DisallowInContext = 1u << 13,
+    YieldContext = 1u << 14,
+    DecoratorContext = 1u << 15,
+    AwaitContext = 1u << 16,
+    DisallowConditionalTypesContext = 1u << 17,
+    ThisNodeHasError = 1u << 18,
+    JavaScriptFile = 1u << 19,
+    ThisNodeOrAnySubNodesHasError = 1u << 20,
+    HasAggregatedChildData = 1u << 21,
     PossiblyContainsDynamicImport = 1u << 22,
-    /// <summary>@internal</summary>
     PossiblyContainsImportMeta = 1u << 23,
-    JSDoc = 1u << 24,  // If node was parsed inside jsdoc
-    /// <summary>@internal</summary>
-    Ambient = 1u << 25,  // If node was inside an ambient context -- a declaration file, or inside something with the `declare` modifier.
-    /// <summary>@internal</summary>
-    InWithStatement = 1u << 26,  // If any ancestor of node was the `statement` of a WithStatement (not the `expression`)
-    JsonFile = 1u << 27,  // If node was parsed in a Json
-    /// <summary>@internal</summary>
-    TypeCached = 1u << 28,  // If a type was cached for node at any point
-    /// <summary>@internal</summary>
-    Deprecated = 1u << 29,  // If has '@deprecated' JSDoc tag
-    /// <summary>@internal</summary>
-    Unreachable = 1u << 30,  // If node is unreachable according to the binder
+    JSDoc = 1u << 24,
+    Ambient = 1u << 25,
+    InWithStatement = 1u << 26,
+    JsonFile = 1u << 27,
+    TypeCached = 1u << 28,
+    Deprecated = 1u << 29,
+    Unreachable = 1u << 30,
     BlockScoped = Let | Const | Using,
     Constant = Const | Using,
     ReachabilityCheckFlags = HasImplicitReturn | HasExplicitReturn,
     ReachabilityAndEmitFlags = ReachabilityCheckFlags | HasAsyncFunctions,
     ContextFlags = DisallowInContext | DisallowConditionalTypesContext | YieldContext | DecoratorContext | AwaitContext | JavaScriptFile | InWithStatement | Ambient,
     TypeExcludesFlags = YieldContext | AwaitContext,
-    /// <summary>@internal</summary>
     PermanentlySetIncrementalFlags = PossiblyContainsDynamicImport | PossiblyContainsImportMeta,
-    /// <summary>@internal</summary>
-    IdentifierHasExtendedUnicodeEscape = ContainsThis,  // Indicates whether the identifier contains an extended unicode escape sequence
-    /// <summary>@internal</summary>
-    IdentifierIsInJSDocNamespace = HasAsyncFunctions,  // Indicates whether the identifier is part of a JSDoc namespace
+    IdentifierHasExtendedUnicodeEscape = ContainsThis,
+    IdentifierIsInJSDocNamespace = HasAsyncFunctions,
 }

@@ -41,12 +41,12 @@ internal static class EnumEmitter
             // Keep the TS expression rather than its numeric value: expressions stay readable next to the
             // source, and aliases (`JSDocComment = JSDoc`) keep pointing at their target. Members with no
             // explicit value are implicit increments and are emitted as plain numbers.
-            var literal = member.ValueExpression is null
+            var literal = member.ValueText is null
                 ? member.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
-                : ExpressionEvaluator.Rewrite(member.ValueExpression, memberValues, spec.UnderlyingType!);
+                : ExpressionEvaluator.Rewrite(member.ValueText, memberValues, spec.UnderlyingType!);
 
             var line = $"    {member.Name} = {literal},";
-            if (member.TrailingComment is { Length: > 0 }) line += "  // " + member.TrailingComment;
+            if (member.Trailing is { Length: > 0 }) line += "  // " + member.Trailing;
             sb.AppendLine(line);
         }
 
@@ -89,7 +89,7 @@ internal static class EnumEmitter
             AppendDoc(sb, member);
 
             var line = $"    public static readonly {spec.Name} {member.Name} = new({TsStringLiteral.ToCSharp(member.StringValue!)});";
-            if (member.TrailingComment is { Length: > 0 }) line += "  // " + member.TrailingComment;
+            if (member.Trailing is { Length: > 0 }) line += "  // " + member.Trailing;
             sb.AppendLine(line);
         }
 
@@ -143,7 +143,11 @@ internal static class EnumEmitter
         return sb.ToString().Replace("\r\n", "\n");
     }
 
-    /// <summary>Escapes text for use inside an XML doc comment.</summary>
+    /// <summary>
+    /// Escapes text for use inside an XML doc comment, collapsing it to one line: TS doc comments are
+    /// routinely multi-paragraph, and a raw newline would end the <c>///</c> comment mid-sentence.
+    /// </summary>
     private static string Escape(string text)
-        => text.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+        => text.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;")
+            .Replace('\r', ' ').Replace('\n', ' ').Trim();
 }

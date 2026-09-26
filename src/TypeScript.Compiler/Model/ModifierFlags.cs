@@ -13,47 +13,36 @@ namespace TypeScript.Compiler;
 internal enum ModifierFlags : uint
 {
     None = 0u,
-    Public = 1u << 0,  // Property/Method
-    Private = 1u << 1,  // Property/Method
-    Protected = 1u << 2,  // Property/Method
-    Readonly = 1u << 3,  // Property/Method
-    Override = 1u << 4,  // Override method.
-    Export = 1u << 5,  // Declarations
-    Abstract = 1u << 6,  // Class/Method/ConstructSignature
-    Ambient = 1u << 7,  // Declarations
-    Static = 1u << 8,  // Property/Method
-    Accessor = 1u << 9,  // Property
-    Async = 1u << 10,  // Property/Method/Function
-    Default = 1u << 11,  // Function/Class (export default declaration)
-    Const = 1u << 12,  // Const enum
-    In = 1u << 13,  // Contravariance modifier
-    Out = 1u << 14,  // Covariance modifier
-    Decorator = 1u << 15,  // Contains a decorator.
-    Deprecated = 1u << 16,  // Deprecated tag.
-    /// <summary>@internal</summary>
-    JSDocPublic = 1u << 23,  // if this value changes, `selectEffectiveModifierFlags` must change accordingly
-    /// <summary>@internal</summary>
+    Public = 1u << 0,
+    Private = 1u << 1,
+    Protected = 1u << 2,
+    Readonly = 1u << 3,
+    Override = 1u << 4,
+    Export = 1u << 5,
+    Abstract = 1u << 6,
+    Ambient = 1u << 7,
+    Static = 1u << 8,
+    Accessor = 1u << 9,
+    Async = 1u << 10,
+    Default = 1u << 11,
+    Const = 1u << 12,
+    In = 1u << 13,
+    Out = 1u << 14,
+    Decorator = 1u << 15,
+    Deprecated = 1u << 16,
+    JSDocPublic = 1u << 23,
     JSDocPrivate = 1u << 24,
-    /// <summary>@internal</summary>
     JSDocProtected = 1u << 25,
-    /// <summary>@internal</summary>
     JSDocReadonly = 1u << 26,
-    /// <summary>@internal</summary>
     JSDocOverride = 1u << 27,
-    /// <summary>@internal</summary>
     SyntacticOrJSDocModifiers = Public | Private | Protected | Readonly | Override,
-    /// <summary>@internal</summary>
     SyntacticOnlyModifiers = Export | Ambient | Abstract | Static | Accessor | Async | Default | Const | In | Out | Decorator,
-    /// <summary>@internal</summary>
     SyntacticModifiers = SyntacticOrJSDocModifiers | SyntacticOnlyModifiers,
-    /// <summary>@internal</summary>
     JSDocCacheOnlyModifiers = JSDocPublic | JSDocPrivate | JSDocProtected | JSDocReadonly | JSDocOverride,
-    /// <summary>@internal</summary>
     JSDocOnlyModifiers = Deprecated,
-    /// <summary>@internal</summary>
     NonCacheOnlyModifiers = SyntacticOrJSDocModifiers | SyntacticOnlyModifiers | JSDocOnlyModifiers,
-    HasComputedJSDocModifiers = 1u << 28,  // Indicates the computed modifier flags include modifiers from JSDoc.
-    HasComputedFlags = 1u << 29,  // Modifier flags have been computed
+    HasComputedJSDocModifiers = 1u << 28,
+    HasComputedFlags = 1u << 29,
     AccessibilityModifier = Public | Private | Protected,
     ParameterPropertyModifier = AccessibilityModifier | Readonly | Override,
     NonPublicAccessibilityModifier = Private | Protected,

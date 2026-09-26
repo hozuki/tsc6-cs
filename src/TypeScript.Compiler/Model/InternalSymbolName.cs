@@ -18,24 +18,24 @@ internal readonly struct InternalSymbolName : IEquatable<InternalSymbolName>
     /// <summary>The underlying string value, i.e. the value TS gives this enum member.</summary>
     public string Value => _value ?? string.Empty;
 
-    public static readonly InternalSymbolName Call = new("__call");  // Call signatures
-    public static readonly InternalSymbolName Constructor = new("__constructor");  // Constructor implementations
-    public static readonly InternalSymbolName New = new("__new");  // Constructor signatures
-    public static readonly InternalSymbolName Index = new("__index");  // Index signatures
-    public static readonly InternalSymbolName ExportStar = new("__export");  // Module export * declarations
-    public static readonly InternalSymbolName Global = new("__global");  // Global self-reference
-    public static readonly InternalSymbolName Missing = new("__missing");  // Indicates missing symbol
-    public static readonly InternalSymbolName Type = new("__type");  // Anonymous type literal symbol
-    public static readonly InternalSymbolName Object = new("__object");  // Anonymous object literal declaration
-    public static readonly InternalSymbolName JSXAttributes = new("__jsxAttributes");  // Anonymous JSX attributes object literal declaration
-    public static readonly InternalSymbolName Class = new("__class");  // Unnamed class expression
-    public static readonly InternalSymbolName Function = new("__function");  // Unnamed function expression
-    public static readonly InternalSymbolName Computed = new("__computed");  // Computed property name declaration with dynamic name
-    public static readonly InternalSymbolName Resolving = new("__resolving__");  // Indicator symbol used to mark partially resolved type aliases
-    public static readonly InternalSymbolName ExportEquals = new("export=");  // Export assignment symbol
-    public static readonly InternalSymbolName Default = new("default");  // Default export symbol (technically not wholly internal, but included here for usability)
+    public static readonly InternalSymbolName Call = new("__call");
+    public static readonly InternalSymbolName Constructor = new("__constructor");
+    public static readonly InternalSymbolName New = new("__new");
+    public static readonly InternalSymbolName Index = new("__index");
+    public static readonly InternalSymbolName ExportStar = new("__export");
+    public static readonly InternalSymbolName Global = new("__global");
+    public static readonly InternalSymbolName Missing = new("__missing");
+    public static readonly InternalSymbolName Type = new("__type");
+    public static readonly InternalSymbolName Object = new("__object");
+    public static readonly InternalSymbolName JSXAttributes = new("__jsxAttributes");
+    public static readonly InternalSymbolName Class = new("__class");
+    public static readonly InternalSymbolName Function = new("__function");
+    public static readonly InternalSymbolName Computed = new("__computed");
+    public static readonly InternalSymbolName Resolving = new("__resolving__");
+    public static readonly InternalSymbolName ExportEquals = new("export=");
+    public static readonly InternalSymbolName Default = new("default");
     public static readonly InternalSymbolName This = new("this");
-    public static readonly InternalSymbolName InstantiationExpression = new("__instantiationExpression");  // Instantiation expressions
+    public static readonly InternalSymbolName InstantiationExpression = new("__instantiationExpression");
     public static readonly InternalSymbolName ImportAttributes = new("__importAttributes");
 
     public bool Equals(InternalSymbolName other) => string.Equals(_value, other._value, StringComparison.Ordinal);

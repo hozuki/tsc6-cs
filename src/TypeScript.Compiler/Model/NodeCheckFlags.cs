@@ -13,30 +13,30 @@ namespace TypeScript.Compiler;
 internal enum NodeCheckFlags : uint
 {
     None = 0u,
-    TypeChecked = 1u << 0,  // Node has been type checked
-    LexicalThis = 1u << 1,  // Lexical 'this' reference
-    CaptureThis = 1u << 2,  // Lexical 'this' used in body
-    CaptureNewTarget = 1u << 3,  // Lexical 'new.target' used in body
-    SuperInstance = 1u << 4,  // Instance 'super' reference
-    SuperStatic = 1u << 5,  // Static 'super' reference
-    ContextChecked = 1u << 6,  // Contextual types have been assigned
-    MethodWithSuperPropertyAccessInAsync = 1u << 7,  // A method that contains a SuperProperty access in an async context.
-    MethodWithSuperPropertyAssignmentInAsync = 1u << 8,  // A method that contains a SuperProperty assignment in an async context.
-    CaptureArguments = 1u << 9,  // Lexical 'arguments' used in body
-    EnumValuesComputed = 1u << 10,  // Values for enum members have been computed, and any errors have been reported for them.
-    LexicalModuleMergesWithClass = 1u << 11,  // Instantiated lexical module declaration is merged with a previous class declaration.
-    LoopWithCapturedBlockScopedBinding = 1u << 12,  // Loop that contains block scoped variable captured in closure
-    ContainsCapturedBlockScopeBinding = 1u << 13,  // Part of a loop that contains block scoped variable captured in closure
-    CapturedBlockScopedBinding = 1u << 14,  // Block-scoped binding that is captured in some function
-    BlockScopedBindingInLoop = 1u << 15,  // Block-scoped binding with declaration nested inside iteration statement
-    NeedsLoopOutParameter = 1u << 16,  // Block scoped binding whose value should be explicitly copied outside of the converted loop
-    AssignmentsMarked = 1u << 17,  // Parameter assignments have been marked
-    ContainsConstructorReference = 1u << 18,  // Class or class element that contains a binding that references the class constructor.
-    ConstructorReference = 1u << 29,  // Binding to a class constructor inside of the class's body.
-    ContainsClassWithPrivateIdentifiers = 1u << 20,  // Marked on all block-scoped containers containing a class with private identifiers.
-    ContainsSuperPropertyInStaticInitializer = 1u << 21,  // Marked on all block-scoped containers containing a static initializer with 'super.x' or 'super[x]'.
+    TypeChecked = 1u << 0,
+    LexicalThis = 1u << 1,
+    CaptureThis = 1u << 2,
+    CaptureNewTarget = 1u << 3,
+    SuperInstance = 1u << 4,
+    SuperStatic = 1u << 5,
+    ContextChecked = 1u << 6,
+    MethodWithSuperPropertyAccessInAsync = 1u << 7,
+    MethodWithSuperPropertyAssignmentInAsync = 1u << 8,
+    CaptureArguments = 1u << 9,
+    EnumValuesComputed = 1u << 10,
+    LexicalModuleMergesWithClass = 1u << 11,
+    LoopWithCapturedBlockScopedBinding = 1u << 12,
+    ContainsCapturedBlockScopeBinding = 1u << 13,
+    CapturedBlockScopedBinding = 1u << 14,
+    BlockScopedBindingInLoop = 1u << 15,
+    NeedsLoopOutParameter = 1u << 16,
+    AssignmentsMarked = 1u << 17,
+    ContainsConstructorReference = 1u << 18,
+    ConstructorReference = 1u << 29,
+    ContainsClassWithPrivateIdentifiers = 1u << 20,
+    ContainsSuperPropertyInStaticInitializer = 1u << 21,
     InCheckIdentifier = 1u << 22,
-    PartiallyTypeChecked = 1u << 23,  // Node has been partially type checked
+    PartiallyTypeChecked = 1u << 23,
     /// <summary>These flags are LazyNodeCheckFlags and can be calculated lazily by `hasNodeCheckFlag`</summary>
     LazyFlags = SuperInstance | SuperStatic | MethodWithSuperPropertyAccessInAsync | MethodWithSuperPropertyAssignmentInAsync | ContainsSuperPropertyInStaticInitializer | CaptureArguments | ContainsCapturedBlockScopeBinding | NeedsLoopOutParameter | ContainsConstructorReference | ConstructorReference | CapturedBlockScopedBinding | BlockScopedBindingInLoop | LoopWithCapturedBlockScopedBinding,
 }
