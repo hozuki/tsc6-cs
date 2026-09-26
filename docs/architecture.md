@@ -756,7 +756,7 @@ M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质�
 | M4c | `factory/nodeFactory.ts` → `Parser/NodeFactory.cs`（最大单件，再按 create/update 家族细分） | 7,542 | 已完成（§15.8：生成物已纳入编译，428 个成员里 417 个已移植，余 11 个逐条指名等 M4d/M5/M7/M4e） |
 | M4d | `factory/utilities.ts` + `nodeConverters.ts` + `parenthesizerRules.ts`，以及 `nodeFactory.ts` 里生成器表达不了的那半 | 2,656 | **已完成**（§15.9：三个文件全部移植；工厂尾部补齐，生成的 11 个存根清零；残留逐条指名） |
 | M4e | `parser.ts` → `Parser/*`（递归下降主体：声明 / 语句 / 表达式 / 类型 / JSDoc 各自成批） | 10,823 | **已完成**（§15.10：九个 partial 文件、JSDoc 与增量重解析都在；与真编译器的差分验证逐字节一致；集成期抓出并修掉 6 个真 bug） |
-| M4f | `emitHelpers.ts` + `expressionToTypeNode.ts` | 2,821 | **前置已落地，本体暂后**：`expressionToTypeNode.ts` 的唯一入口是 `createSyntacticTypeNodeBuilder(options: CompilerOptions, resolver)` —— 同时要 M8 的选项模型、M5 的 resolver 与 JSDoc 家族；`emitHelpers.ts` 里两处 `context.getCompilerOptions()` 也选 helper 文本。前置成员已在 `Utilities/Utilities.cs`（`IsInJSFile`、`IsFunctionLike`/`IsFunctionLikeKind`/`IsFunctionLikeDeclaration`、`FindAncestor`、`ForEachReturnStatement`、`GetFunctionFlags`＋`Model/FunctionFlags.cs`、`IsNewScopeNode`、`getEffective*tNode` 家族与它要的 `ParameterIsThisKeyword`/`GetSetAccessorValueParameter`）与 `Model/EmitHelper.cs`（`EmitHelper`＋`EmitHelperUniqueNameCallback`）、`Model/EmitHelperFactoryContext.cs` 落地，各带 `ported from` 与 PORT-NOTE。**两处没落地**，理由写在代码里：`hasDynamicName` 要 `getNameOfDeclaration`（§15.9 残留表第 1 行，M5）；`getEffective*tNode` 的 JS/JSDoc 回退要 `getJSDocType`/`getJSDocReturnType`（M5，分支显式抛错而不是静默答 null）。TS 的 `introducesNewScope` 实名是 `isNewScopeNode`，其 `IntroducesNewScopeNode` 别名在移植版只出现在 `enterNewScope` 的 `Node?` 槽，故没有对应类型 |
+| M4f | `emitHelpers.ts` + `expressionToTypeNode.ts` | 2,821 | **一半已完成**：`emitHelpers.ts` 以 §15.14 落地（helper 的 name/importName/scoped/priority/text/dependencies 全量复刻 + 补上 `GetEmitJsx`）。`expressionToTypeNode.ts` 仍等 M6 —— 它的唯一入口 `createSyntacticTypeNodeBuilder(options, resolver)` 需要 checker 侧的 resolver，其余前置（选项模型、JSDoc 家族、`findAncestor`/`forEachReturnStatement`/`getFunctionFlags`/`hasDynamicName`/`introducesNewScope`/`getEffective*tNode`）都已随 M5 与 M4f 前置到位 |
 | M4g | baseline 外环。**先做 §7 的 P1a**（解析差分，工具 `tools/AstDiff`，对 `tests/cases/**` 全量跑），P1b 的 `.errors.txt`/`.js` 等发射器落地后再做 | — | P1a **已完成**（§15.11：19,585 个用例逐字节一致；期间修掉 7 个缺陷） |
 
 顺序的理由：`nodeFactory` 的 459 个 import 里有 47 个来自 `nodeTests`、8 个来自 `emitNode`，而 `nodeTests` 只依赖 `types.ts`（227 个函数里 228 个 import 中的 228 个）—— 先把最底层的表与槽位立起来，往上的每批就只依赖已经存在的东西。
@@ -1155,6 +1155,35 @@ SourceFile(0,131) symbol=ValueModule:"/p" locals=[C=Class:C:1,a=BlockScopedVaria
 - **flow 节点 id 是进程级的**（与参考一致）：`BindDiff` 的 dump 因此不能跨文件比较 id，工具只比较同一次运行内的相对编号。
 - **`.symbols` baseline 仍属 §7 的 P2**：`BindDiff` 比的是 binder 写下的槽，不含 checker 的符号解析结果。
 - M5-0 已记的 `TransientSymbol`/`SymbolLinks` 属 M6；`convertToJson`（M8）、`IsJSDocTypeAssertion` 的 JSDoc 归属家族、`SupportedDeclarationExtensions` 三处 M4e 残留不变。
+
+---
+
+## 15.14 M4f：`factory/emitHelpers.ts`
+
+### 交付
+
+`emitHelpers.ts`（1,491 行）→ `Parser/EmitHelpers.cs` + `EmitHelpers.CreateEmitHelperFactory(IEmitHelperFactoryContext)`（对齐 TS 的 `createEmitHelperFactory`）。每个 helper 的 `name`/`importName`/`scoped`/`priority`/**`text`**/`dependencies` 照参考复刻；文本用 C# 逐字字符串承载，两处由选项选择的文本（低于 ES2015 才请求的 `__assign`、`jsx: Preserve` 分支）由测试钉住。顺带补上 M4f 唯一缺的前置 `Utilities.GetEmitJsx`（`utilities.ts` 的 `jsx` 计算项），与既有三个读选项辅助同形。
+
+### 为什么这半个现在能做、另半个不能
+
+- `emitHelpers.ts` 只读两处选项：`getEmitScriptTarget(context.getCompilerOptions())` 与 `context.getCompilerOptions().jsx`。两者在 M5-1b 与本次到位，加上 M4f 前置落下的 `EmitHelper`/`IEmitHelperFactoryContext`/`EmitFlags`/`InternalEmitFlags`/`GeneratedIdentifierFlags`/`JsxEmit` 与 `Parser/EmitNodes.cs` 的 `setEmitFlags`，它不再依赖任何后续层。
+- `expressionToTypeNode.ts` 的唯一入口 `createSyntacticTypeNodeBuilder(options, resolver)` 里的 `resolver` 是 checker 侧的类型解析回调 —— 仍等 M6。
+
+### 验证
+
+| 项 | 结果 |
+|---|---|
+| `dotnet build` / `dotnet test` | 0 错误 0 警告 / **865/865** |
+| `tools/Gen --check` | 84 项无漂移 |
+| `tools/AstDiff` 全量 | 19,585 / 19,585 |
+| `tools/BindDiff` 全量 | 19,230 / 19,230（0 分歧、0 端口崩溃，端口峰值 196 MiB） |
+
+**helper 文本的验收方式**：真编译器不把这些 helper 放在 `lib/typescript.js` 的公开面上（`createEmitHelperFactory` 需要 emitter 的 `requestEmitHelper` 上下文，且多数成员要真实 AST 参数），所以**端到端**验收放在 M7 —— `.js` baseline 会把每一段文本与官方输出直接比对。本次补一个源码级机械抽查：从 `emitHelpers.ts` 的模板字面量抽出文本，与端口逐字符比，`decorateHelper`（644 字符）、`extendsHelper`（944）、`awaitHelper`（139）三例**逐字节相同**。
+
+### 遗留
+
+- `expressionToTypeNode.ts`（M6 之后）。
+- `createExternalHelpersImportDeclarationIfNeeded` 与 `getLocalNameForExternalImport`/`getExternalModuleNameLiteral` 仍等模块与选项面（§15.9 记的同一批）。
 
 ---
 
