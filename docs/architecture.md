@@ -1980,3 +1980,97 @@ return prop is not null ? GetTypeOfSymbol(prop) : GetIndexTypeOfType(type, _stri
 - `isAnonymousFunctionDefinition`(utilities.ts:5485)、`isNamedEvaluation`(utilities.ts:5564)、`isEmptyStringLiteral`(utilities.ts:3604) 此前寄居 `Transforms/NamedEvaluation.cs`（因 `Utilities` 当时未落地），现归位 `Utilities.Checker.cs`；`Transforms/NamedEvaluation.cs` 只留 `namedEvaluation.ts` 自己的成员（`classHasExplicitlyAssignedName`/`classHasDeclaredOrExplicitlyAssignedName` 等，utilities.ts 的 `isAnonymousFunctionDefinition` 反向调用后者 —— 参考里就是这条跨模块调用，端口按名具名）；8 个文件的 25 处调用点改指 `Utilities.*`。
 
 两项都是纯搬运：搬运后 **build 0/0、测试 1,520/1,520、TypeDiff `same=5908/5908` clean、EmitDiff `same=5908/5908` clean**（行为中性）。
+
+## §17.14 M7-C 最后一环：`tools/BaselineDiff`（官方 harness 选项模型 + 基线逐字节比对）
+
+前三环（`tools/TypeDiff`、`tools/EmitDiff`、声明发射）都只有**一个固定选项对象**或干脆没有 program，**没有任何一环读到语料自带的 `// @` 指令**——也就是说，端口在"参考自己的测试用哪些选项、哪些文件被拆成多单元、哪些配置会分叉"这件事上一无所证。本环补上这个缺口，且它的第三方不是参考编译器而是**文件**：`tests/baselines/reference` 里的基线。
+
+判据是三路两判：**端口 vs 基线**（本环的判决）、**参考 vs 基线**（harness 模型自检，模型错则该 case 的端口判决一文不值）、以及**多余基线**（有基线但模型从未派生出对应的 case ⇒ 配置模型漏了一个 harness 跑过的用例）。
+
+```
+dotnet run --project tools/BaselineDiff -- \
+  --cases D:/Source/GitHub/TypeScript/tests/cases/conformance \
+  --baselines D:/Source/GitHub/TypeScript/tests/baselines/reference \
+  --node-parallel 8
+```
+
+### 17.14.1 harness 模型：全部取自参考自身，并由参考半场自检
+
+| 环节 | 出处 |
+|---|---|
+| `// @` 指令、单元切分、`@link` | `src/harness/harnessIO.ts:1219-1390`（`TestCaseParser`） |
+| 选项声明与取值转换 | `src/harness/harnessIO.ts:255-325`（+ harness 自有的 15 个选项）over `src/compiler/commandLineParser.ts:1184-2900` |
+| 选项模型表（143 条，含 kind/`isFilePath`/`isCommandLineOnly`/`affects*`/custom-type 映射） | 由 `lib/typescript.js` 6.0.3 的 `optionDeclarations` 生成进 `tools/BaselineDiff/BaselineDiffOptions.cs`（不是手抄的第二份模型） |
+| `target/module/lib/strict/newLine` 默认值 | `harnessIO.ts:333-380` + `compilerImpl.ts:265-300`（`newLine=CRLF`、`noErrorTruncation`、`skipDefaultLibCheck`、`noResolve:false`） |
+| 分叉配置与文件名主干 | `src/testRunner/compilerRunner.ts:129-350` + `harnessIO.ts:1078-1175`（`<base>(key=value,…).ts`，key/value 全小写并排序） |
+| 虚拟文件系统 | `vfsUtil.ts:25-30,1261-1300,1573-1580`：文档在 `/.src`，`/.ts` 挂到 `<TypeScript>/lib`（harness 挂的是 `built/local`，本 checkout 无 `built/`）、`/.lib` 挂 `tests/lib`，除非 `@useCaseSensitiveFileNames` 否则大小写敏感 |
+| host | `fakesHosts.ts:244-430`（`jsDocParsingMode: ParseForTypeErrors`、`setParentNodes: true`、输出经 `writeFile` 收集） |
+| `.errors.txt` / `.js`（含声明输出）/ `.types`/`.symbols` | `harnessIO.ts:494-661` / `:910-1005` / `typeWriter.ts` + `harnessIO.ts:663-860` |
+| 基线头部路径 | case 文件相对**工作区根**的路径（`//// [tests/cases/conformance/…] ////`） |
+
+**参考半场自检（实测）**：对 148 文件 / 182 case 的样本（`tests/cases/conformance` 每 40 个取 1，排序后），`ts-baseline.cjs` 与签入基线**逐字节相同** —— `files=148 cases=182 same=689 diverged=0 unmodelled=0 errors=0 extra=0`（`.js` 182/182、`.errors.txt` 182/182、`.types` 182/182、`.symbols` 182/182）；60 文件分片另测 `same=276 diverged=0`。
+
+自检过程抓出并修掉 **8 处 harness 建模缺陷**（reference-vs-baseline 不一致是模型缺陷、不是端口缺陷）：①`.js`/`.types` 头部是工作区相对路径而非语料相对路径、也不是配置名；②诊断为空时 `doErrorBaseline` 必须传 `null`（即 `<no content>`）而不是打出 `(0 errors)` 段；③`CompilationResult` 必须把 `resolveJsonModule` 的 `.json` 产物算作 js 产物；④host 必须设 `jsDocParsingMode: ParseForTypeErrors` 与 `setParentNodes: true`；⑤虚拟文件系统的目录层必须认 `/` 与每个文档的祖父目录（否则 `import './a'` 解析失败、`.types` 打印 `any`）；⑥`readDirectory` 必须是真遍历；⑦类型/符号写入器的符号分支要 `Symbol(<symbolToString>, Decl(file,line,char)…)` 包装（五条声明上限、lib 文件打 `--`）；⑧`=== Performance Stats ===` 块是**程序自己的** checker 计数（阈值 1000/1000/1000/1000/1000/1500/45000、`toLocaleString("en-US")`），207 份 `.types` 基线带它。
+
+### 17.14.2 实测三态表（60 文件分片，含命令）
+
+```
+dotnet run --project tools/BaselineDiff -- --cases D:/Source/GitHub/TypeScript/tests/cases/conformance \
+  --baselines D:/Source/GitHub/TypeScript/tests/baselines/reference --out artifacts/bd-run4 --limit 60 --node-parallel 4
+```
+
+| 产物 | same | diverged | port-crash | ts-error | unpaired | unmodelled | skipped | extra-baseline |
+|---|---|---|---|---|---|---|---|---|
+| `.js` | 65 | 1 | 4 | 0 | 0 | 0 | 0 | 0 |
+| `.errors.txt` | 66 | 0 | 4 | 0 | 0 | 0 | 0 | 0 |
+| `.types` | 65 | 0 | 4 | 0 | 0 | 0 | 1 | 0 |
+| `.symbols` | 54 | 11 | 4 | 0 | 0 | 0 | 1 | 0 |
+
+`SUMMARY files=60 cases=70 same=250 diverged=12 port-crash=16 unmodelled=0 unpaired=0 extra-baseline=0 ref-diverged=0 ref-crash=0`（参考半场 276/276 逐字节相同、零分歧；`.symbols` 那 1 条 `skipped` 是该 case 全 `.d.ts`、`.js` 侧同理无基线）。
+
+**分歧只 2 类**：
+
+1. **`.symbols` 11 例（唯一类）**：合成 symbol 名的 `]` 多打一个。
+   ```
+   port:     >[Symbol.iterator] : Symbol(C[Symbol.iterator]], Decl(ES5SymbolProperty2.ts, 3, 20))
+   baseline: >[Symbol.iterator] : Symbol(C[Symbol.iterator], Decl(ES5SymbolProperty2.ts, 3, 20))
+   ```
+   复现对：`tests/cases/conformance/es6/Symbols/ES5SymbolProperty{2,3,4,5,6,7}.ts`（`target=es5`/`es2015` 两种配置）。落在 checker 的 `symbolToString`（`Checker.Stringify.cs` 的合成名渲染）；本次未定位到具体行，已登记。
+2. **`.js` 1 例**：发射产物**少了一条首部注释**。
+   ```
+   port:     "use strict"; Object.defineProperty(exports, "__esModule", { value: true });
+   baseline: "use strict"; // https://github.com/microsoft/TypeScript/issues/7840
+             Object.defineProperty(exports, "__esModule", { value: true });
+   ```
+   复现对：`tests/cases/conformance/ambient/ambientModuleDeclarationWithReservedIdentifierInDottedPath.ts`。
+
+**4 个 case 崩溃（16 = 4×4 产物）**，四类异常各一（都是"该判 kind 却直接 cast"的形状，与 §17.13.4 的历史缺陷同族）：
+
+| case | 异常 | 说明 |
+|---|---|---|
+| `es6/Symbols/ES5SymbolProperty2.ts`（`target=es5`） | `NullReferenceException` | `target=es2015` 配置不崩 |
+| `async/asyncArrow/asyncArrowFunction_allowJs.ts` | `InvalidCastException: JSDocFunctionType → IFunctionLikeDeclarationBase` | JSDoc 函数类型混入函数式节点判定 |
+| `async/.../asyncFunctionDeclarationParameterEvaluation.ts`（`target=es2015`） | `InvalidCastException: FunctionDeclaration → ShorthandPropertyAssignment` | |
+| `async/.../asyncMethodWithSuperConflict_es6.ts` | `InvalidCastException: MethodDeclaration → ShorthandPropertyAssignment` | 与上一条同一判定 |
+
+**成本**：端口半场单线程 186.5 s / 275 case（≈0.68 s/case，每 case 含 1–2 个 program + 声明重编译 + noCheck 重编译 + 两次类型/符号遍历），因此**全语料单机约 2.6 小时**，必须按 `--limit`/`--filter` 分片；参考半场 60 文件 20.6 s（4 批并行）。
+
+### 17.14.3 本轮落地的两处端口缺陷（已由集成方提交 `9dd4e37` 并复核）
+
+| # | 位置 | 缺陷 | 参考行 | 证据 |
+|---|---|---|---|---|
+| 1 | `Checker/NodeBuilder.Names.cs:346,352`（`getSpecifierForModuleSymbol` 的 ambient module 臂） | JS `substring(1, name.length - 1)` 被读成**长度**，合成 `import("m")` 字面量的 `Text` 多一个收尾引号（`m"`）；改为 `EscapedName[1..^1]` | `checker.ts:8611,8617` | `.types`/`.symbols` 对 `declare module 'm'` 打印 `typeof import("m\"")`（`exportEqualsOfModule`、`cyclicModuleImport`） |
+| 2 | `Parser/NodeFactory.cs:290-334`（`CreateTokenNode`） | 各 token 臂直接 `new PunctuationToken/KeywordTypeToken/ModifierToken/KeywordToken/Token`，绕过 `CreateBaseNode` 的 `NodeFlags.Synthesized` 标记；补 `if (_synthesizedNodes) node.Flags \|= NodeFlags.Synthesized;` | `factory/nodeFactory.ts:7393-7405`（`makeSynthetic`） | 经 `Utilities.IsParseTreeNode`/`GetParseTreeNode` 传导到 `src/harness/typeWriter.ts:35-37` 的 `nodeIsFullySynthetic`：修前每一条合成关键字类型的 `.types` 下划线打空格而非 `^`（`binaryIntegerLiteralES6.types`、`generatorTypeCheck64.types`），修后逐字节一致 |
+
+复核结果（集成方实测）：**build 0/0、测试 1,520/1,520、`tools/TypeDiff` 全语料 `same=5908/5908` clean、`tools/EmitDiff` 全语料 `same=5908/5908` clean**。
+
+### 17.14.4 本环确立的语料事实与仍未闭合项
+
+**语料事实（实测）**：① `tests/baselines/reference` 下**没有独立 `.d.ts` 基线** —— 只有 `.types` 14,016、`.symbols` 14,016、`.js` 13,806、`.errors.txt` 9,055（另有 227 份 `.js.map`/`.sourcemap.txt` 与少量 `.trace.json`）；`tests/baselines` 下那 912 个 `.d.ts` 全属 projects/transpile/api 三个 runner。声明输出是**装在 `.js` 基线里**的（`doJsEmitBaseline` 在 JavaScript 之后追加每个 `.d.ts`，再追加 `//// [DtsFileErrors]` 段）。② 无诊断的测试**根本没有** `.errors.txt`（harness 传 `null`，基线机制按 `<no content>` 比较），"基线缺失"就是正确答案。③ 头部路径是工作区相对路径；④ 207 份 `.types` 带 Performance Stats 块。
+
+**仍未闭合**：
+
+* **全语料尚未跑通**：只实测了 60 文件分片；分片命令与三态表见 §17.14.2。全语料需 ~2.6 小时单线程，应分片或并行。
+* **12 条分歧（2 类）+ 4 个崩溃 case（4 类）**：见 §17.14.2 表，均已给复现对；`.symbols` 的 `]` 与"丢首部注释"各一处，四类崩溃同族（缺 kind 判定的强转）。
+* **模型未覆盖（报告而非默认）**：`tsconfig.json` 单元（语料 10 个文件，端口无 `parseJsonSourceFileConfigFileContent`，M8）；`// @link:` 符号链接（语料 0）；`@paths`/`@plugins`（object 型选项，参考自己的 `optionValue` 就抛）；`@pretty: true`（1 个文件，缺 `getErrorSummaryText`/`getErrorCountForSummary`/`getFilesInErrorForSummary`）；`noCheck` 比对里的 diff（9 份 `.js` 基线打印 jsdiff 的 `createTwoFilesPatch`，该包是参考的 npm 依赖、未随仓引入 ⇒ 这些 case 记为 `unmodelled`，不会"少打一段 patch 也算 same"）。
+* **挂起的辅助检查**：`--limit`/`--filter` 分片下不验"多余基线"（分片必然覆盖不到多数基线），报告会显式说明。

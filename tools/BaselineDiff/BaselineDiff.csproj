@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>BaselineDiff</AssemblyName>
+    <RootNamespace>TypeScript.Compiler.Tools</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\TypeScript.Compiler\TypeScript.Compiler.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- node 侧的参考半场（官方 harness 选项模型 + 基线文本）；随生成物一起发布，Program.cs 默认就从 AppContext.BaseDirectory 找它。 -->
+    <None Include="ts-baseline.cjs" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
