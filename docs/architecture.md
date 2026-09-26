@@ -1077,7 +1077,15 @@ M5-1 之后的 M5-2/3/4 互不依赖，可并行；M5-5 是唯一的汇合点。
 ### 两个规划发现
 
 1. **选项模型要提前**：binder 一开局就读 `getEmitScriptTarget(options)`（`binder.ts:571-618`）与 `getAlwaysStrict(options)`（620-628），而 `CompilerOptions` 在 §8 里属 M8。TS 的 `CompilerOptions` 是约 120 个可选槽的**接口**，真正庞大的是 `CommandLineOption` 的解析元数据（M8 的 CLI/tsconfig）。因此 M5 需要的是**接口本身 + 少量读选项的辅助**（`getEmitScriptTarget`/`getStrictOptionValue`/`getAlwaysStrict`），不是那套解析器 —— 这也顺带解掉 M4f 的两处阻塞（§15.11 末尾）。
-2. **M5 的验证怎么办**：`.symbols` baseline 属 §7 的 P2（依赖 checker）。P1a 的做法可以直接搬：先用真 `lib/typescript.js` 绑一个文件、把符号表与流节点图 dump 出来，与端口的 binder 逐字节比 —— 与 `tools/AstDiff` 同形，等 M5-1 落地后加一条 `BindDiff`。
+2. **M5 的验证怎么办**：`.symbols` baseline 属 §7 的 P2（依赖 checker）。P1a 的做法可以直接搬，而且出口已经探明（`artifacts/ts-symbol-dump.cjs` 是一个跑通的最小探针）：真 `lib/typescript.js` 的 `createProgram` + `getTypeChecker()` 会触发绑定，之后每个节点都带 binder 写下的 `symbol` 与 `locals`，于是可以 dump 出 `(kind, pos, end, symbol 的 flags 名/名字/声明数, locals 的键值表)` 并按名字排序保证确定性 —— 与 `tools/AstDiff` 同形的 `BindDiff`：端口侧 dump 同一批字段，逐字节比。示例输出（一个 5 行的输入）：
+
+```
+SourceFile(0,131) symbol=ValueModule:"/p" locals=[C=Class:C:1,a=BlockScopedVariable:a:1,f=Function:f:1,x=AliasExcludes:x:1]
+  VariableDeclaration(13,23) symbol=BlockScopedVariable:a locals=[]
+  FunctionDeclaration(24,63) symbol=Function:f locals=[p=FunctionScopedVariable:p:1,q=BlockScopedVariable:q:1]
+```
+
+同一套比对对 M6（checker）也是现成的：`getTypeChecker()` 之后要什么字段加什么字段。
 
 ---
 
