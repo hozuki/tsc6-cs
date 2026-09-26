@@ -1,3 +1,5 @@
+using System.Globalization;
+
 // `Flags` is the instance property below (TS's `factory.flags`), and it shadows the `Core/Flags.cs` helper class
 // inside this type — the same collision the port accepted for the property name.
 using CoreFlags = TypeScript.Compiler.Flags;
@@ -75,6 +77,290 @@ internal partial class NodeFactory
     /// <summary>ported from: factory/nodeFactory.ts:1436 — <c>createBaseToken</c>.</summary>
     private static T CreateBaseToken<T>(SyntaxKind kind)
         where T : Node, new() => CreateBaseNode<T>(kind);
+
+    //
+    // Literals
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:1233 — <c>createNumericLiteral</c>.</summary>
+    /// <remarks>
+    /// The parameter is <c>object?</c> because TS takes <c>string | number</c>; the generated interface carries the
+    /// same shape, with `int` and `string` overloads next to it (§12.5).
+    /// </remarks>
+    public NumericLiteral CreateNumericLiteral(object? value, TokenFlags? numericLiteralFlags = null)
+    {
+        var text = value is int number ? number.ToString(CultureInfo.InvariantCulture) : value as string;
+        Debug.Assert(
+            text is null || text.Length == 0 || text[0] != CharacterCodes.Minus,
+            "Negative numbers should be created in combination with createPrefixUnaryExpression");
+
+        var node = CreateBaseDeclaration<NumericLiteral>(SyntaxKind.NumericLiteral);
+        node.Text = text;
+        node.NumericLiteralFlags = numericLiteralFlags ?? TokenFlags.None;
+        if ((node.NumericLiteralFlags & TokenFlags.BinaryOrOctalSpecifier) != 0)
+        {
+            node.TransformFlags |= TransformFlags.ContainsES2015;
+        }
+
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1244 — <c>createBigIntLiteral</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS takes <c>string | PseudoBigInt</c>. The port's <c>PseudoBigInt</c> is not a value type — only the
+    /// digit-parsing half is ported (<c>Core/PseudoBigInt.cs</c>) — so this takes the literal text, and a caller
+    /// holding a pseudo-BigInt spells it <c>PseudoBigInt.Parse(value) + "n"</c>.
+    /// </remarks>
+    public BigIntLiteral CreateBigIntLiteral(string? value)
+    {
+        var node = CreateBaseToken<BigIntLiteral>(SyntaxKind.BigIntLiteral);
+        node.Text = value;
+        node.TransformFlags |= TransformFlags.ContainsES2020;
+        return node;
+    }
+
+    private StringLiteral CreateBaseStringLiteral(string? text, bool? isSingleQuote)
+    {
+        var node = CreateBaseDeclaration<StringLiteral>(SyntaxKind.StringLiteral);
+        node.Text = text;
+        node.SingleQuote = isSingleQuote;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1259 — <c>createStringLiteral</c>.</summary>
+    public StringLiteral CreateStringLiteral(string? text, bool? isSingleQuote = null, bool? hasExtendedUnicodeEscape = null)
+    {
+        var node = CreateBaseStringLiteral(text, isSingleQuote);
+        node.HasExtendedUnicodeEscape = hasExtendedUnicodeEscape;
+        if (hasExtendedUnicodeEscape == true) node.TransformFlags |= TransformFlags.ContainsES2015;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1267 — <c>createStringLiteralFromNode</c>.</summary>
+    public StringLiteral CreateStringLiteralFromNode(Node? sourceNode, bool? isSingleQuote = null)
+    {
+        var node = CreateBaseStringLiteral(Utilities.GetTextOfIdentifierOrLiteral(sourceNode!), isSingleQuote);
+        node.TextSourceNode = sourceNode;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1274 — <c>createRegularExpressionLiteral</c>.</summary>
+    public RegularExpressionLiteral CreateRegularExpressionLiteral(string? text)
+    {
+        var node = CreateBaseToken<RegularExpressionLiteral>(SyntaxKind.RegularExpressionLiteral);
+        node.Text = text;
+        return node;
+    }
+
+    //
+    // Identifiers
+    //
+
+    private static Identifier CreateBaseIdentifier(string escapedText)
+    {
+        var node = CreateBaseNode<Identifier>(SyntaxKind.Identifier);
+        node.EscapedText = escapedText;
+        node.JsDoc = null;    // initialized by parser (JsDocContainer)
+        node.FlowNode = null; // initialized by binder (FlowContainer)
+        node.Symbol = null;   // initialized by checker
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1326 — <c>createIdentifier</c>.</summary>
+    public Identifier CreateIdentifier(string? text, SyntaxKind? originalKeywordKind = null, bool? hasExtendedUnicodeEscape = null)
+    {
+        text ??= "";
+
+        if (originalKeywordKind is null && text.Length != 0) originalKeywordKind = ScannerUtilities.StringToToken(text);
+        if (originalKeywordKind == SyntaxKind.Identifier) originalKeywordKind = null;
+
+        var node = CreateBaseIdentifier(Utilities.EscapeLeadingUnderscores(text));
+        if (hasExtendedUnicodeEscape == true) node.Flags |= NodeFlags.IdentifierHasExtendedUnicodeEscape;
+
+        // NOTE: the transform flags of type arguments are not included: an identifier's do not contribute to
+        // transformations.
+        if (node.EscapedText == "await") node.TransformFlags |= TransformFlags.ContainsPossibleTopLevelAwait;
+        if ((node.Flags & NodeFlags.IdentifierHasExtendedUnicodeEscape) != 0)
+        {
+            node.TransformFlags |= TransformFlags.ContainsES2015;
+        }
+
+        return node;
+    }
+
+    //
+    // Punctuation and keywords
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:1453 — <c>createToken</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: this is the other place, after <c>createBaseNode</c>, where having one class per kind shows (§16).
+    /// TS builds a single <c>Token</c> instance for every kind and lets the static type say what it is, so
+    /// <c>createToken(token: SyntaxKind.SuperKeyword)</c> is <em>typed</em> <c>SuperExpression</c> while the object
+    /// stays a plain token. C# cannot pretend, so the five kinds whose TS type is a node of their own get that node;
+    /// every other kind is a <c>Token</c> carrying the runtime kind.
+    /// </remarks>
+    public Node CreateToken(SyntaxKind token)
+    {
+        Debug.Assert(token >= SyntaxKind.FirstToken && token <= SyntaxKind.LastToken, "Invalid token");
+        Debug.Assert(
+            token <= SyntaxKind.FirstTemplateToken || token >= SyntaxKind.LastTemplateToken,
+            "Invalid token. Use 'createTemplateLiteralLikeNode' to create template literals.");
+        Debug.Assert(
+            token <= SyntaxKind.FirstLiteralToken || token >= SyntaxKind.LastLiteralToken,
+            "Invalid token. Use 'createLiteralLikeNode' to create literals.");
+        Debug.Assert(token != SyntaxKind.Identifier, "Invalid token. Use 'createIdentifier' to create identifiers");
+
+        var node = CreateTokenNode(token);
+
+        // `super` and `this` can be reached through the flow graph, so their flow node starts out cleared here; for
+        // everything else the binder is the one that initializes it.
+        switch (node)
+        {
+            case SuperExpression super: super.FlowNode = null; break;
+            case ThisExpression thisExpression: thisExpression.FlowNode = null; break;
+        }
+
+        var transformFlags = TokenTransformFlagsOf(token);
+        if (transformFlags != TransformFlags.None) node.TransformFlags |= transformFlags;
+        return node;
+    }
+
+    private static Node CreateTokenNode(SyntaxKind token) => token switch
+    {
+        SyntaxKind.SuperKeyword => CreateBaseNode<SuperExpression>(token),
+        SyntaxKind.ThisKeyword => CreateBaseNode<ThisExpression>(token),
+        SyntaxKind.NullKeyword => CreateBaseNode<NullLiteral>(token),
+        SyntaxKind.TrueKeyword => CreateBaseNode<TrueLiteral>(token),
+        SyntaxKind.FalseKeyword => CreateBaseNode<FalseLiteral>(token),
+        _ => new Token(token),
+    };
+
+    /// <summary>ported from: factory/nodeFactory.ts:1459 — the <c>switch (token)</c> that sets transform flags.</summary>
+    private static TransformFlags TokenTransformFlagsOf(SyntaxKind token) => token switch
+    {
+        // 'async' modifier is ES2017 (async functions) or ES2018 (async generators)
+        SyntaxKind.AsyncKeyword => TransformFlags.ContainsES2017 | TransformFlags.ContainsES2018,
+        SyntaxKind.UsingKeyword => TransformFlags.ContainsESNext,
+        SyntaxKind.PublicKeyword or SyntaxKind.PrivateKeyword or SyntaxKind.ProtectedKeyword
+            or SyntaxKind.ReadonlyKeyword or SyntaxKind.AbstractKeyword or SyntaxKind.DeclareKeyword
+            or SyntaxKind.ConstKeyword or SyntaxKind.AnyKeyword or SyntaxKind.NumberKeyword
+            or SyntaxKind.BigIntKeyword or SyntaxKind.NeverKeyword or SyntaxKind.ObjectKeyword
+            or SyntaxKind.InKeyword or SyntaxKind.OutKeyword or SyntaxKind.OverrideKeyword
+            or SyntaxKind.StringKeyword or SyntaxKind.BooleanKeyword or SyntaxKind.SymbolKeyword
+            or SyntaxKind.VoidKeyword or SyntaxKind.UnknownKeyword
+            // `undefined` is an Identifier in the expression case.
+            or SyntaxKind.UndefinedKeyword
+            => TransformFlags.ContainsTypeScript,
+        SyntaxKind.SuperKeyword => TransformFlags.ContainsES2015 | TransformFlags.ContainsLexicalSuper,
+        SyntaxKind.StaticKeyword => TransformFlags.ContainsES2015,
+        SyntaxKind.AccessorKeyword => TransformFlags.ContainsClassFields,
+        SyntaxKind.ThisKeyword => TransformFlags.ContainsLexicalThis,
+        _ => TransformFlags.None,
+    };
+
+    /// <summary>ported from: factory/nodeFactory.ts:1481 — <c>createSuper</c>.</summary>
+    /// <remarks>
+    /// The cast is safe by construction: <see cref="CreateToken"/> builds a <c>SuperExpression</c> for this kind (see
+    /// its remarks).
+    /// </remarks>
+    public SuperExpression CreateSuper() => (SuperExpression)CreateToken(SyntaxKind.SuperKeyword);
+
+    /// <summary>ported from: factory/nodeFactory.ts:1486 — <c>createThis</c>.</summary>
+    public ThisExpression CreateThis() => (ThisExpression)CreateToken(SyntaxKind.ThisKeyword);
+
+    /// <summary>ported from: factory/nodeFactory.ts:1491 — <c>createNull</c>.</summary>
+    public NullLiteral CreateNull() => (NullLiteral)CreateToken(SyntaxKind.NullKeyword);
+
+    /// <summary>ported from: factory/nodeFactory.ts:1496 — <c>createTrue</c>.</summary>
+    public TrueLiteral CreateTrue() => (TrueLiteral)CreateToken(SyntaxKind.TrueKeyword);
+
+    /// <summary>ported from: factory/nodeFactory.ts:1501 — <c>createFalse</c>.</summary>
+    public FalseLiteral CreateFalse() => (FalseLiteral)CreateToken(SyntaxKind.FalseKeyword);
+
+    //
+    // Modifiers
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:1543 — <c>createModifier</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS forwards to <c>createToken</c>, whose object is a plain token. The port's <c>ModifierToken</c> is
+    /// a class of its own, so the token is built here — with the transform flags <c>createToken</c> would have given
+    /// it, which is why that switch is a function of its own.
+    /// </remarks>
+    public ModifierToken CreateModifier(SyntaxKind kind)
+    {
+        var node = new ModifierToken(kind);
+        node.TransformFlags |= TokenTransformFlagsOf(kind);
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1555 — <c>createModifiersFromModifierFlags</c>.</summary>
+    /// <remarks>
+    /// The order matters: it is the order the emitted modifiers appear in, and TS writes them in this sequence.
+    /// </remarks>
+    public List<ModifierToken>? CreateModifiersFromModifierFlags(ModifierFlags flags)
+    {
+        var result = new List<ModifierToken>();
+        if ((flags & ModifierFlags.Export) != 0) result.Add(CreateModifier(SyntaxKind.ExportKeyword));
+        if ((flags & ModifierFlags.Ambient) != 0) result.Add(CreateModifier(SyntaxKind.DeclareKeyword));
+        if ((flags & ModifierFlags.Default) != 0) result.Add(CreateModifier(SyntaxKind.DefaultKeyword));
+        if ((flags & ModifierFlags.Const) != 0) result.Add(CreateModifier(SyntaxKind.ConstKeyword));
+        if ((flags & ModifierFlags.Public) != 0) result.Add(CreateModifier(SyntaxKind.PublicKeyword));
+        if ((flags & ModifierFlags.Private) != 0) result.Add(CreateModifier(SyntaxKind.PrivateKeyword));
+        if ((flags & ModifierFlags.Protected) != 0) result.Add(CreateModifier(SyntaxKind.ProtectedKeyword));
+        if ((flags & ModifierFlags.Abstract) != 0) result.Add(CreateModifier(SyntaxKind.AbstractKeyword));
+        if ((flags & ModifierFlags.Static) != 0) result.Add(CreateModifier(SyntaxKind.StaticKeyword));
+        if ((flags & ModifierFlags.Override) != 0) result.Add(CreateModifier(SyntaxKind.OverrideKeyword));
+        if ((flags & ModifierFlags.Readonly) != 0) result.Add(CreateModifier(SyntaxKind.ReadonlyKeyword));
+        if ((flags & ModifierFlags.Accessor) != 0) result.Add(CreateModifier(SyntaxKind.AccessorKeyword));
+        if ((flags & ModifierFlags.Async) != 0) result.Add(CreateModifier(SyntaxKind.AsyncKeyword));
+        if ((flags & ModifierFlags.In) != 0) result.Add(CreateModifier(SyntaxKind.InKeyword));
+        if ((flags & ModifierFlags.Out) != 0) result.Add(CreateModifier(SyntaxKind.OutKeyword));
+
+        return result.Count != 0 ? result : null;
+    }
+
+    //
+    // Helpers TS keeps private to the factory
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:7141 — <c>asName</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's signature is generic over <c>string | T</c> and returns <c>T | Identifier</c>. The port answers
+    /// with the node it was handed when it is not a string, which is what every call site relies on.
+    /// </remarks>
+    private Identifier? AsName(object? name) => name is string text ? CreateIdentifier(text) : name as Identifier;
+
+    /// <summary>ported from: factory/nodeFactory.ts:7146 — <c>asExpression</c>.</summary>
+    private Expression? AsExpression(object? value) => value switch
+    {
+        null => null,
+        string text => CreateStringLiteral(text, null, null),
+        int number => CreateNumericLiteral(number, null),
+        bool boolean => boolean ? CreateTrue() : CreateFalse(),
+        _ => value as Expression,
+    };
+
+    /// <summary>ported from: factory/nodeFactory.ts:7157 — <c>asToken</c>.</summary>
+    private Node? AsToken(object? value) => value is SyntaxKind kind ? CreateToken(kind) : value as Node;
+
+    //
+    // Transform flags of a name
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:7305 — <c>propagateChildrenFlags</c>.</summary>
+    private static TransformFlags PropagateChildrenFlags<T>(NodeArray<T>? children)
+        where T : Node => children is null ? TransformFlags.None : children.TransformFlags;
+
+    /// <summary>ported from: factory/nodeFactory.ts:7290 — <c>propagateIdentifierNameFlags</c>.</summary>
+    /// <remarks>An identifier name is allowed to be <c>await</c>, so it does not make its subtree contain one.</remarks>
+    private static TransformFlags PropagateIdentifierNameFlags(Node node)
+        => CoreFlags.Clear(PropagateChildFlags(node), TransformFlags.ContainsPossibleTopLevelAwait);
+
+    /// <summary>ported from: factory/nodeFactory.ts:7286 — <c>propagateNameFlags</c>.</summary>
+    private static TransformFlags PropagateNameFlags(Node? node)
+        => node is Identifier identifier ? PropagateIdentifierNameFlags(identifier) : PropagateChildFlags(node);
 
     //
     // Node arrays

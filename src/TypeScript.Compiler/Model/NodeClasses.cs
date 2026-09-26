@@ -19,7 +19,7 @@ internal partial class ArrayBindingPattern : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>ArrayLiteralExpression</c>.</summary>
-internal partial class ArrayLiteralExpression : Node, IPrimaryExpression, IReadonlyTextRange
+internal partial class ArrayLiteralExpression : MemberExpression, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ArrayLiteralExpression;
 
@@ -93,7 +93,7 @@ internal partial class AwaitExpression : UnaryExpression, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>BigIntLiteral</c>.</summary>
-internal partial class BigIntLiteral : LiteralExpression, IPrimaryExpression, IReadonlyTextRange
+internal partial class BigIntLiteral : LiteralExpression, ILiteralLikeNode, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.BigIntLiteral;
 
@@ -513,10 +513,13 @@ internal partial class ExportAssignment : Node, IDeclaration, IDeclarationStatem
     public NodeArray<Node>? Modifiers { get; set; }
     public bool? IsExportEquals { get; set; }
     public Expression? Expression { get; set; }
-    public Node? Name { get; set; }
+    public MemberExpression? Name { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
+
+    // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>ExportDeclaration</c>.</summary>
@@ -530,10 +533,13 @@ internal partial class ExportDeclaration : Node, IDeclaration, IDeclarationState
     public Expression? ModuleSpecifier { get; set; }
     public IAssertClause? AssertClause { get; set; }
     public ImportAttributes? Attributes { get; set; }
-    public Node? Name { get; set; }
+    public MemberExpression? Name { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
+
+    // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>ExportSpecifier</c>.</summary>
@@ -542,8 +548,8 @@ internal partial class ExportSpecifier : Node, IDeclaration, IJSDocContainer, IN
     public override SyntaxKind Kind => SyntaxKind.ExportSpecifier;
 
     public bool IsTypeOnly { get; set; }
-    public Node? PropertyName { get; set; }
-    public Node? Name { get; set; }
+    public MemberExpression? PropertyName { get; set; }
+    public MemberExpression? Name { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -585,7 +591,7 @@ internal partial class ExternalModuleReference : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>FalseLiteral</c>.</summary>
-internal partial class FalseLiteral : Node, IPrimaryExpression, IReadonlyTextRange
+internal partial class FalseLiteral : MemberExpression, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.FalseKeyword;
 
@@ -658,7 +664,7 @@ internal partial class FunctionDeclaration : Node, IDeclaration, IDeclarationSta
 }
 
 /// <summary>ported from types.ts: <c>FunctionExpression</c>.</summary>
-internal partial class FunctionExpression : Node, IDeclaration, IFlowContainer, IFunctionLikeDeclarationBase, IJSDocContainer, ILocalsContainer, INamedDeclaration, IPrimaryExpression, IReadonlyTextRange, ISignatureDeclarationBase
+internal partial class FunctionExpression : MemberExpression, IDeclaration, IFlowContainer, IFunctionLikeDeclarationBase, IJSDocContainer, ILocalsContainer, INamedDeclaration, IPrimaryExpression, IReadonlyTextRange, ISignatureDeclarationBase
 {
     public override SyntaxKind Kind => SyntaxKind.FunctionExpression;
 
@@ -753,7 +759,7 @@ internal partial class HeritageClause : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>Identifier</c>.</summary>
-internal partial class Identifier : Node, IDeclaration, IFlowContainer, IJSDocContainer, IPrimaryExpression, IReadonlyTextRange
+internal partial class Identifier : MemberExpression, IDeclaration, IFlowContainer, IJSDocContainer, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.Identifier;
 
@@ -781,7 +787,7 @@ internal partial class ImportAttribute : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ImportAttribute;
 
-    public Node? Name { get; set; }
+    public MemberExpression? Name { get; set; }
     public Expression? Value { get; set; }
 }
 
@@ -842,7 +848,7 @@ internal partial class ImportEqualsDeclaration : Node, IDeclaration, IDeclaratio
 }
 
 /// <summary>ported from types.ts: <c>ImportExpression</c>.</summary>
-internal partial class ImportExpression : Node, IPrimaryExpression, IReadonlyTextRange
+internal partial class ImportExpression : MemberExpression, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ImportKeyword;
 
@@ -853,7 +859,7 @@ internal partial class ImportSpecifier : Node, IDeclaration, INamedDeclaration, 
 {
     public override SyntaxKind Kind => SyntaxKind.ImportSpecifier;
 
-    public Node? PropertyName { get; set; }
+    public MemberExpression? PropertyName { get; set; }
     public Identifier? Name { get; set; }
     public bool IsTypeOnly { get; set; }
     public ISymbol? Symbol { get; set; }
@@ -1380,13 +1386,13 @@ internal partial class JsxAttribute : Node, IDeclaration, IReadonlyTextRange
     public override SyntaxKind Kind => SyntaxKind.JsxAttribute;
 
     public Node? Name { get; set; }
-    public Node? Initializer { get; set; }
+    public Expression? Initializer { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JsxAttributes</c>.</summary>
-internal partial class JsxAttributes : Node, IDeclaration, IPrimaryExpression, IReadonlyTextRange
+internal partial class JsxAttributes : MemberExpression, IDeclaration, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxAttributes;
 
@@ -1411,7 +1417,7 @@ internal partial class JsxClosingFragment : Expression, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JsxElement</c>.</summary>
-internal partial class JsxElement : Node, IPrimaryExpression, IReadonlyTextRange
+internal partial class JsxElement : MemberExpression, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxElement;
 
@@ -1430,7 +1436,7 @@ internal partial class JsxExpression : Expression, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JsxFragment</c>.</summary>
-internal partial class JsxFragment : Node, IPrimaryExpression, IReadonlyTextRange
+internal partial class JsxFragment : MemberExpression, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxFragment;
 
@@ -1466,7 +1472,7 @@ internal partial class JsxOpeningFragment : Expression, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JsxSelfClosingElement</c>.</summary>
-internal partial class JsxSelfClosingElement : Node, IPrimaryExpression, IReadonlyTextRange
+internal partial class JsxSelfClosingElement : MemberExpression, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxSelfClosingElement;
 
@@ -1487,11 +1493,14 @@ internal partial class JsxSpreadAttribute : Node, IDeclaration, INamedDeclaratio
 }
 
 /// <summary>ported from types.ts: <c>JsxText</c>.</summary>
-internal partial class JsxText : LiteralLikeNode, IReadonlyTextRange
+internal partial class JsxText : Node, ILiteralLikeNode, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxText;
 
     public bool ContainsOnlyTriviaWhiteSpaces { get; set; }
+    public string? Text { get; set; }
+    public bool? IsUnterminated { get; set; }
+    public bool? HasExtendedUnicodeEscape { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>LabeledStatement</c>.</summary>
@@ -1511,12 +1520,7 @@ internal abstract partial class LeftHandSideExpression : UpdateExpression, IRead
 }
 
 /// <summary>ported from types.ts: <c>LiteralExpression</c>.</summary>
-internal abstract partial class LiteralExpression : LiteralLikeNode, IPrimaryExpression, IReadonlyTextRange
-{
-}
-
-/// <summary>ported from types.ts: <c>LiteralLikeNode</c>.</summary>
-internal abstract partial class LiteralLikeNode : Node, IReadonlyTextRange
+internal abstract partial class LiteralExpression : MemberExpression, ILiteralLikeNode, IPrimaryExpression, IReadonlyTextRange
 {
     public string? Text { get; set; }
     public bool? IsUnterminated { get; set; }
@@ -1528,7 +1532,7 @@ internal partial class LiteralTypeNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.LiteralType;
 
-    public Node? Literal { get; set; }
+    public UpdateExpression? Literal { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>MappedTypeNode</c>.</summary>
@@ -1554,7 +1558,7 @@ internal abstract partial class MemberExpression : LeftHandSideExpression, IRead
 }
 
 /// <summary>ported from types.ts: <c>MetaProperty</c>.</summary>
-internal partial class MetaProperty : Node, IFlowContainer, IPrimaryExpression, IReadonlyTextRange
+internal partial class MetaProperty : MemberExpression, IFlowContainer, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.MetaProperty;
 
@@ -1615,7 +1619,7 @@ internal partial class MethodSignature : Node, IDeclaration, IJSDocContainer, IL
 }
 
 /// <summary>ported from types.ts: <c>MissingDeclaration</c>.</summary>
-internal partial class MissingDeclaration : Node, IDeclaration, IDeclarationStatement, IJSDocContainer, INamedDeclaration, IPrimaryExpression, IReadonlyTextRange, IStatement
+internal partial class MissingDeclaration : MemberExpression, IDeclaration, IDeclarationStatement, IJSDocContainer, INamedDeclaration, IPrimaryExpression, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.MissingDeclaration;
 
@@ -1644,7 +1648,7 @@ internal partial class ModuleDeclaration : Node, IDeclaration, IDeclarationState
     public override SyntaxKind Kind => SyntaxKind.ModuleDeclaration;
 
     public NodeArray<Node>? Modifiers { get; set; }
-    public Node? Name { get; set; }
+    public MemberExpression? Name { get; set; }
     public Node? Body { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
@@ -1691,7 +1695,7 @@ internal partial class NamespaceExport : Node, IDeclaration, INamedDeclaration, 
 {
     public override SyntaxKind Kind => SyntaxKind.NamespaceExport;
 
-    public Node? Name { get; set; }
+    public MemberExpression? Name { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 
@@ -1728,7 +1732,7 @@ internal partial class NamespaceImport : Node, IDeclaration, INamedDeclaration, 
 }
 
 /// <summary>ported from types.ts: <c>NewExpression</c>.</summary>
-internal partial class NewExpression : Node, IDeclaration, IPrimaryExpression, IReadonlyTextRange
+internal partial class NewExpression : MemberExpression, IDeclaration, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.NewExpression;
 
@@ -1740,7 +1744,7 @@ internal partial class NewExpression : Node, IDeclaration, IPrimaryExpression, I
 }
 
 /// <summary>ported from types.ts: <c>NoSubstitutionTemplateLiteral</c>.</summary>
-internal partial class NoSubstitutionTemplateLiteral : LiteralExpression, IDeclaration, IPrimaryExpression, IReadonlyTextRange, ITemplateLiteralLikeNode
+internal partial class NoSubstitutionTemplateLiteral : LiteralExpression, IDeclaration, ILiteralLikeNode, IPrimaryExpression, IReadonlyTextRange, ITemplateLiteralLikeNode
 {
     public override SyntaxKind Kind => SyntaxKind.NoSubstitutionTemplateLiteral;
 
@@ -1778,14 +1782,14 @@ internal partial class NotEmittedTypeElement : Node, IDeclaration, INamedDeclara
 }
 
 /// <summary>ported from types.ts: <c>NullLiteral</c>.</summary>
-internal partial class NullLiteral : Node, IPrimaryExpression, IReadonlyTextRange
+internal partial class NullLiteral : MemberExpression, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.NullKeyword;
 
 }
 
 /// <summary>ported from types.ts: <c>NumericLiteral</c>.</summary>
-internal partial class NumericLiteral : LiteralExpression, IDeclaration, IPrimaryExpression, IReadonlyTextRange
+internal partial class NumericLiteral : LiteralExpression, IDeclaration, ILiteralLikeNode, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.NumericLiteral;
 
@@ -1812,7 +1816,7 @@ internal partial class ObjectLiteralExpression : ObjectLiteralExpressionBase<Nod
 }
 
 /// <summary>ported from types.ts: <c>ObjectLiteralExpressionBase</c>.</summary>
-internal abstract partial class ObjectLiteralExpressionBase<T> : Node, IDeclaration, IPrimaryExpression, IReadonlyTextRange
+internal abstract partial class ObjectLiteralExpressionBase<T> : MemberExpression, IDeclaration, IPrimaryExpression, IReadonlyTextRange
 {
     public NodeArray<object?>? Properties { get; set; }
     public ISymbol? Symbol { get; set; }
@@ -1854,7 +1858,7 @@ internal partial class ParameterDeclaration : Node, IDeclaration, IJSDocContaine
 }
 
 /// <summary>ported from types.ts: <c>ParenthesizedExpression</c>.</summary>
-internal partial class ParenthesizedExpression : Node, IJSDocContainer, IPrimaryExpression, IReadonlyTextRange
+internal partial class ParenthesizedExpression : MemberExpression, IJSDocContainer, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ParenthesizedExpression;
 
@@ -1897,7 +1901,7 @@ internal partial class PrefixUnaryExpression : UpdateExpression, IReadonlyTextRa
 }
 
 /// <summary>ported from types.ts: <c>PrivateIdentifier</c>.</summary>
-internal partial class PrivateIdentifier : Node, IPrimaryExpression, IReadonlyTextRange
+internal partial class PrivateIdentifier : MemberExpression, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.PrivateIdentifier;
 
@@ -1916,7 +1920,7 @@ internal partial class PropertyAccessExpression : MemberExpression, IDeclaration
 
     public LeftHandSideExpression? Expression { get; set; }
     public PunctuationToken? QuestionDotToken { get; set; }
-    public Node? Name { get; set; }
+    public MemberExpression? Name { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -1992,7 +1996,7 @@ internal partial class QualifiedName : Node, IFlowContainer, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>RegularExpressionLiteral</c>.</summary>
-internal partial class RegularExpressionLiteral : LiteralExpression, IPrimaryExpression, IReadonlyTextRange
+internal partial class RegularExpressionLiteral : LiteralExpression, ILiteralLikeNode, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.RegularExpressionLiteral;
 
@@ -2127,7 +2131,7 @@ internal abstract partial class SourceFile : Node, IDeclaration, ILocalsContaine
     public HashSet<string>? ClassifiableNames { get; set; }
     public List<ICommentDirective>? CommentDirectives { get; set; }
     public List<LiteralExpression>? Imports { get; set; }
-    public List<Node>? ModuleAugmentations { get; set; }
+    public List<MemberExpression>? ModuleAugmentations { get; set; }
     public List<IPatternAmbientModule>? PatternAmbientModules { get; set; }
     public List<string>? AmbientModuleNames { get; set; }
     public ICheckJsDirective? CheckJsDirective { get; set; }
@@ -2169,7 +2173,7 @@ internal partial class SpreadElement : Expression, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>StringLiteral</c>.</summary>
-internal partial class StringLiteral : LiteralExpression, IDeclaration, IPrimaryExpression, IReadonlyTextRange
+internal partial class StringLiteral : LiteralExpression, IDeclaration, ILiteralLikeNode, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.StringLiteral;
 
@@ -2180,7 +2184,7 @@ internal partial class StringLiteral : LiteralExpression, IDeclaration, IPrimary
 }
 
 /// <summary>ported from types.ts: <c>SuperExpression</c>.</summary>
-internal partial class SuperExpression : Node, IFlowContainer, IPrimaryExpression, IReadonlyTextRange
+internal partial class SuperExpression : MemberExpression, IFlowContainer, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.SuperKeyword;
 
@@ -2232,12 +2236,12 @@ internal partial class TaggedTemplateExpression : MemberExpression, IReadonlyTex
 
     public LeftHandSideExpression? Tag { get; set; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
-    public Node? Template { get; set; }
+    public MemberExpression? Template { get; set; }
     public PunctuationToken? QuestionDotToken { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TemplateExpression</c>.</summary>
-internal partial class TemplateExpression : Node, IPrimaryExpression, IReadonlyTextRange
+internal partial class TemplateExpression : MemberExpression, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.TemplateExpression;
 
@@ -2246,12 +2250,15 @@ internal partial class TemplateExpression : Node, IPrimaryExpression, IReadonlyT
 }
 
 /// <summary>ported from types.ts: <c>TemplateHead</c>.</summary>
-internal partial class TemplateHead : Node, IReadonlyTextRange, ITemplateLiteralLikeNode
+internal partial class TemplateHead : Node, ILiteralLikeNode, IReadonlyTextRange, ITemplateLiteralLikeNode
 {
     public override SyntaxKind Kind => SyntaxKind.TemplateHead;
 
     public TokenFlags? TemplateFlags { get; set; }
     public string? RawText { get; set; }
+    public string? Text { get; set; }
+    public bool? IsUnterminated { get; set; }
+    public bool? HasExtendedUnicodeEscape { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TemplateLiteralTypeNode</c>.</summary>
@@ -2273,12 +2280,15 @@ internal partial class TemplateLiteralTypeSpan : Node, IReadonlyTextRange, IType
 }
 
 /// <summary>ported from types.ts: <c>TemplateMiddle</c>.</summary>
-internal partial class TemplateMiddle : Node, IReadonlyTextRange, ITemplateLiteralLikeNode
+internal partial class TemplateMiddle : Node, ILiteralLikeNode, IReadonlyTextRange, ITemplateLiteralLikeNode
 {
     public override SyntaxKind Kind => SyntaxKind.TemplateMiddle;
 
     public TokenFlags? TemplateFlags { get; set; }
     public string? RawText { get; set; }
+    public string? Text { get; set; }
+    public bool? IsUnterminated { get; set; }
+    public bool? HasExtendedUnicodeEscape { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TemplateSpan</c>.</summary>
@@ -2291,16 +2301,19 @@ internal partial class TemplateSpan : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>TemplateTail</c>.</summary>
-internal partial class TemplateTail : Node, IReadonlyTextRange, ITemplateLiteralLikeNode
+internal partial class TemplateTail : Node, ILiteralLikeNode, IReadonlyTextRange, ITemplateLiteralLikeNode
 {
     public override SyntaxKind Kind => SyntaxKind.TemplateTail;
 
     public TokenFlags? TemplateFlags { get; set; }
     public string? RawText { get; set; }
+    public string? Text { get; set; }
+    public bool? IsUnterminated { get; set; }
+    public bool? HasExtendedUnicodeEscape { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ThisExpression</c>.</summary>
-internal partial class ThisExpression : Node, IFlowContainer, IPrimaryExpression, IReadonlyTextRange
+internal partial class ThisExpression : MemberExpression, IFlowContainer, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ThisKeyword;
 
@@ -2325,7 +2338,7 @@ internal partial class ThrowStatement : Node, IFlowContainer, IJSDocContainer, I
 }
 
 /// <summary>ported from types.ts: <c>TrueLiteral</c>.</summary>
-internal partial class TrueLiteral : Node, IPrimaryExpression, IReadonlyTextRange
+internal partial class TrueLiteral : MemberExpression, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.TrueKeyword;
 

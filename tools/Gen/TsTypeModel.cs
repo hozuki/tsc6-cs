@@ -60,6 +60,9 @@ internal sealed class TsTypeModel
     // though the classification pass may have left it as an interface — `NodeArray<T>` is hand-written as a class.
     public TypeRole RoleOf(string name) => s_forcedClasses.Contains(name)
         ? TypeRole.Class
+        // A capability base is an interface even when the position rule calls it a class: it is implemented, never
+        // inherited as a base (see s_capabilityBases).
+        : s_capabilityBases.Contains(name) ? TypeRole.Interface
         : _roles.TryGetValue(name, out var role) ? role : TypeRole.Interface;
 
     public bool IsKnown(string name) => _interfaces.ContainsKey(name) || _aliases.ContainsKey(name);
@@ -246,24 +249,82 @@ internal sealed class TsTypeModel
 
             // Keep the generic arguments: a base such as ObjectLiteralExpressionBase<T> must be spelled
             // with them at the use site, and the bare name is only needed for comparisons.
-            string? baseReference = null;
-            foreach (var candidate in iface.Extends)
+            //
+            // Resolved in passes, because a base can arrive through an interface: `LiteralExpression extends
+            // LiteralLikeNode, PrimaryExpression`, and only the second one reaches `Expression` (§12.8).
+            _classBase[iface.Name] = BaseReferenceOf(iface) ?? "Node";
+
+            // A class step inherited in a non-first position needs a companion interface (see DualRoleClasses).
+            foreach (var iface2 in _interfaces.Values)
             {
-                if (RoleOf(BareName(candidate)) == TypeRole.Class) { baseReference = candidate.Trim(); break; }
+                for (var i = 1; i < iface2.Extends.Count; i++)
+                {
+                    var bare = BareName(iface2.Extends[i]);
+                    if (RoleOf(bare) == TypeRole.Class) _dualRole.Add(bare);
+                }
             }
-
-            _classBase[iface.Name] = baseReference ?? "Node";
         }
+    }
 
-        // A class step inherited in a non-first position needs a companion interface (see DualRoleClasses).
-        foreach (var iface in _interfaces.Values)
+    /// <summary>
+    /// Bases that carry a capability rather than a classification step.
+    /// </summary>
+    /// <remarks>
+    /// <c>LiteralLikeNode</c> adds <c>text</c> to a node and sits directly under <c>Node</c> — but TS puts it first in
+    /// <c>LiteralExpression extends LiteralLikeNode, PrimaryExpression, Declaration</c>, and taking it as the C# base
+    /// would leave every literal outside the <c>Expression</c> chain, which is what all the <c>is Expression</c> tests
+    /// rely on. Such a base is skipped, and the interfaces are followed instead (they reach <c>Expression</c> through
+    /// <c>PrimaryExpression</c>). Same shape as <c>s_forcedClasses</c>: a rule the TS source does not spell out, kept
+    /// as an explicit list.
+    /// </remarks>
+    private static readonly HashSet<string> s_capabilityBases = new(StringComparer.Ordinal)
+    {
+        "LiteralLikeNode",
+    };
+
+    /// <summary>The C# base reference of a class, or <c>null</c> when only <c>Node</c> is left.</summary>
+    private string? BaseReferenceOf(TsInterface iface)
+    {
+        foreach (var candidate in iface.Extends)
         {
-            for (var i = 1; i < iface.Extends.Count; i++)
-            {
-                var bare = BareName(iface.Extends[i]);
-                if (RoleOf(bare) == TypeRole.Class) _dualRole.Add(bare);
-            }
+            var bare = BareName(candidate);
+            if (RoleOf(bare) != TypeRole.Class || bare == "Node" || s_capabilityBases.Contains(bare)) continue;
+            return candidate.Trim();
         }
+
+        // No usable class among the direct bases: the classification step is behind an interface.
+        foreach (var candidate in iface.Extends)
+        {
+            var bare = BareName(candidate);
+            if (RoleOf(bare) == TypeRole.Class || !_interfaces.ContainsKey(bare)) continue;
+
+            if (ClassBaseThroughInterface(bare, new HashSet<string>(StringComparer.Ordinal)) is { } inherited) return inherited;
+        }
+
+        return null;
+    }
+
+    /// <summary>The class a chain of interfaces leads to, following them until one is found.</summary>
+    private string? ClassBaseThroughInterface(string name, HashSet<string> seen)
+    {
+        if (!seen.Add(name) || !_interfaces.TryGetValue(name, out var iface)) return null;
+
+        foreach (var candidate in iface.Extends)
+        {
+            var bare = BareName(candidate);
+            if (RoleOf(bare) != TypeRole.Class || bare == "Node" || s_capabilityBases.Contains(bare)) continue;
+            return candidate.Trim();
+        }
+
+        foreach (var candidate in iface.Extends)
+        {
+            var bare = BareName(candidate);
+            if (RoleOf(bare) == TypeRole.Class || !_interfaces.ContainsKey(bare)) continue;
+
+            if (ClassBaseThroughInterface(bare, seen) is { } inherited) return inherited;
+        }
+
+        return null;
     }
 
     /// <summary>Whether an interface sits on a categorisation chain that reaches <c>Node</c>.</summary>

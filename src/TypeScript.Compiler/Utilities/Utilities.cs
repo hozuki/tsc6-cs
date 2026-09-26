@@ -41,6 +41,50 @@ internal static partial class Utilities
         return range;
     }
 
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:842 — <c>escapeLeadingUnderscores</c>.</summary>
+    /// <remarks>
+    /// An identifier that starts with two underscores gets a third one, so it cannot collide with a magic name such as
+    /// <c>__proto__</c>. PORT-NOTE: TS returns a branded <c>__String</c>; the port's <c>__String</c> is still
+    /// <c>string</c> until D4's pool lands.
+    /// </remarks>
+    public static string EscapeLeadingUnderscores(string identifier)
+        => identifier.Length >= 2 && identifier[0] == '_' && identifier[1] == '_' ? "_" + identifier : identifier;
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:852 — <c>unescapeLeadingUnderscores</c>.</summary>
+    public static string UnescapeLeadingUnderscores(string identifier)
+        => identifier.Length >= 3 && identifier[0] == '_' && identifier[1] == '_' && identifier[2] == '_'
+            ? identifier[1..]
+            : identifier;
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:860 — <c>idText</c>.</summary>
+    public static string IdText(Node node) => UnescapeLeadingUnderscores(node switch
+    {
+        Identifier identifier => identifier.EscapedText ?? "",
+        PrivateIdentifier privateIdentifier => privateIdentifier.EscapedText ?? "",
+        _ => "",
+    });
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1359 — <c>isMemberName</c>.</summary>
+    public static bool IsMemberName(Node node) => node.Kind is SyntaxKind.Identifier or SyntaxKind.PrivateIdentifier;
+
+    /// <summary>ported from: src/compiler/utilities.ts:5439 — <c>getTextOfIdentifierOrLiteral</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's remaining branch handles a JSX namespaced name, whose helper arrives with M4e. A node that is
+    /// neither a member name nor one of the literal spellings therefore answers <c>null</c> instead of a name.
+    /// </remarks>
+    public static string? GetTextOfIdentifierOrLiteral(Node node)
+    {
+        if (IsMemberName(node)) return IdText(node);
+
+        return node switch
+        {
+            StringLiteral literal => literal.Text,
+            NumericLiteral numeric => numeric.Text,
+            NoSubstitutionTemplateLiteral template => template.Text,
+            _ => null,
+        };
+    }
+
     /// <summary>
     /// Walks up the parent chain to the enclosing source file.
     /// </summary>

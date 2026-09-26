@@ -755,7 +755,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBasePropertyAccessExpression</c>.</summary>
-    public object? CreateBasePropertyAccessExpression(LeftHandSideExpression? expression, PunctuationToken? questionDotToken, Node? name)
+    public object? CreateBasePropertyAccessExpression(LeftHandSideExpression? expression, PunctuationToken? questionDotToken, MemberExpression? name)
     {
         var node = CreateBaseDeclaration<PropertyAccessExpression>(SyntaxKind.PropertyAccessExpression);
         node.Expression = expression;
@@ -791,7 +791,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateTaggedTemplateExpression</c>.</summary>
-    public TaggedTemplateExpression UpdateTaggedTemplateExpression(TaggedTemplateExpression? node, Expression? tag, List<ITypeNode>? typeArguments, Node? template)
+    public TaggedTemplateExpression UpdateTaggedTemplateExpression(TaggedTemplateExpression? node, Expression? tag, List<ITypeNode>? typeArguments, MemberExpression? template)
     {
         return node!.Tag != tag
             || node!.TypeArguments != typeArguments
@@ -1639,7 +1639,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateModuleDeclaration</c>.</summary>
-    public ModuleDeclaration UpdateModuleDeclaration(ModuleDeclaration? node, List<Node>? modifiers, Node? name, Node? body)
+    public ModuleDeclaration UpdateModuleDeclaration(ModuleDeclaration? node, List<Node>? modifiers, MemberExpression? name, Node? body)
     {
         return node!.Modifiers != modifiers
             || node!.Name != name
@@ -1739,7 +1739,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createAssertEntry</c>.</summary>
-    public IAssertEntry CreateAssertEntry(Node? name, Expression? value)
+    public IAssertEntry CreateAssertEntry(MemberExpression? name, Expression? value)
     {
         var node = CreateBaseNode<AssertEntry>(SyntaxKind.AssertEntry);
         node.Name = name;
@@ -1749,7 +1749,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateAssertEntry</c>.</summary>
-    public IAssertEntry UpdateAssertEntry(IAssertEntry? node, Node? name, Expression? value)
+    public IAssertEntry UpdateAssertEntry(IAssertEntry? node, MemberExpression? name, Expression? value)
     {
         return node!.Name != name
             || node!.Value != value
@@ -1796,7 +1796,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createImportAttribute</c>.</summary>
-    public ImportAttribute CreateImportAttribute(Node? name, Expression? value)
+    public ImportAttribute CreateImportAttribute(MemberExpression? name, Expression? value)
     {
         var node = CreateBaseNode<ImportAttribute>(SyntaxKind.ImportAttribute);
         node.Name = name;
@@ -1806,7 +1806,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateImportAttribute</c>.</summary>
-    public ImportAttribute UpdateImportAttribute(ImportAttribute? node, Node? name, Expression? value)
+    public ImportAttribute UpdateImportAttribute(ImportAttribute? node, MemberExpression? name, Expression? value)
     {
         return node!.Name != name
             || node!.Value != value
@@ -1833,7 +1833,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createNamespaceExport</c>.</summary>
-    public NamespaceExport CreateNamespaceExport(Node? name)
+    public NamespaceExport CreateNamespaceExport(MemberExpression? name)
     {
         var node = CreateBaseDeclaration<NamespaceExport>(SyntaxKind.NamespaceExport);
         node.Name = name;
@@ -1843,7 +1843,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateNamespaceExport</c>.</summary>
-    public NamespaceExport UpdateNamespaceExport(NamespaceExport? node, Node? name)
+    public NamespaceExport UpdateNamespaceExport(NamespaceExport? node, MemberExpression? name)
     {
         return node!.Name != name
             ? Update(CreateNamespaceExport(name), node)
@@ -1869,7 +1869,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createImportSpecifier</c>.</summary>
-    public object? CreateImportSpecifier(bool isTypeOnly, Node? propertyName, Identifier? name)
+    public object? CreateImportSpecifier(bool isTypeOnly, MemberExpression? propertyName, Identifier? name)
     {
         var node = CreateBaseDeclaration<ImportSpecifier>(SyntaxKind.ImportSpecifier);
         node.IsTypeOnly = isTypeOnly;
@@ -1881,7 +1881,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateImportSpecifier</c>.</summary>
-    public ImportSpecifier UpdateImportSpecifier(ImportSpecifier? node, bool isTypeOnly, Node? propertyName, Identifier? name)
+    public ImportSpecifier UpdateImportSpecifier(ImportSpecifier? node, bool isTypeOnly, MemberExpression? propertyName, Identifier? name)
     {
         return node!.IsTypeOnly != isTypeOnly
             || node!.PropertyName != propertyName
@@ -1944,7 +1944,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateExportSpecifier</c>.</summary>
-    public ExportSpecifier UpdateExportSpecifier(ExportSpecifier? node, bool isTypeOnly, Node? propertyName, Node? name)
+    public ExportSpecifier UpdateExportSpecifier(ExportSpecifier? node, bool isTypeOnly, MemberExpression? propertyName, MemberExpression? name)
     {
         return node!.IsTypeOnly != isTypeOnly
             || node!.PropertyName != propertyName
@@ -2485,7 +2485,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJsxAttribute</c>.</summary>
-    public object? CreateJsxAttribute(Node? name, Node? initializer)
+    public object? CreateJsxAttribute(Node? name, Expression? initializer)
     {
         var node = CreateBaseDeclaration<JsxAttribute>(SyntaxKind.JsxAttribute);
         node.Name = name;
@@ -2495,7 +2495,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJsxAttribute</c>.</summary>
-    public JsxAttribute UpdateJsxAttribute(JsxAttribute? node, Node? name, Node? initializer)
+    public JsxAttribute UpdateJsxAttribute(JsxAttribute? node, Node? name, Expression? initializer)
     {
         return node!.Name != name
             || node!.Initializer != initializer

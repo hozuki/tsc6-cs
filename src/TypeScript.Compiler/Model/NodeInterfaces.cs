@@ -805,7 +805,7 @@ internal partial interface IEmitResolver
     bool IsDeclarationVisible(Node? node);
     /// <remarks>PORT-NOTE: <c>node</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
     object? IsLateBound(IDeclaration? node);
-    List<Node> CollectLinkedAliases(Node? node, bool? setVisibility);
+    List<Node> CollectLinkedAliases(MemberExpression? node, bool? setVisibility);
     void MarkLinkedReferences(Node? node);
     bool IsImplementationOfOverload(Node? node);
     bool RequiresAddingImplicitUndefined(ParameterDeclaration? node, Node? enclosingDeclaration);
@@ -1076,7 +1076,7 @@ internal partial interface IGeneratedIdentifier
 internal partial interface IGeneratedNamePart
 {
     string? Prefix { get; set; }
-    Node? Node { get; set; }
+    MemberExpression? Node { get; set; }
     string? Suffix { get; set; }
 }
 
@@ -1367,6 +1367,14 @@ internal partial interface ILineAndCharacter
     int Character { get; set; }
 }
 
+/// <summary>ported from types.ts: <c>LiteralLikeNode</c>.</summary>
+internal partial interface ILiteralLikeNode
+{
+    string? Text { get; set; }
+    bool? IsUnterminated { get; set; }
+    bool? HasExtendedUnicodeEscape { get; set; }
+}
+
 /// <summary>ported from types.ts: <c>LiteralType</c>.</summary>
 internal partial interface ILiteralType : IFreshableType
 {
@@ -1499,7 +1507,7 @@ internal partial interface INodeConverters
     ClassExpression ConvertToClassExpression(ClassDeclaration? node);
     Expression ConvertToArrayAssignmentElement(object? element);
     Node ConvertToObjectAssignmentElement(object? element);
-    Node ConvertToAssignmentPattern(Node? node);
+    MemberExpression ConvertToAssignmentPattern(Node? node);
     ObjectLiteralExpression ConvertToObjectAssignmentPattern(Node? node);
     ArrayLiteralExpression ConvertToArrayAssignmentPattern(Node? node);
     Expression ConvertToAssignmentElementTarget(Node? node);
@@ -1669,8 +1677,8 @@ internal partial interface INodeFactory
     IndexedAccessTypeNode UpdateIndexedAccessTypeNode(IndexedAccessTypeNode? node, ITypeNode? objectType, ITypeNode? indexType);
     MappedTypeNode CreateMappedTypeNode(Token? readonlyToken, TypeParameterDeclaration? typeParameter, ITypeNode? nameType, PunctuationToken? questionToken, ITypeNode? type, NodeArray<ITypeElement>? members);
     MappedTypeNode UpdateMappedTypeNode(MappedTypeNode? node, Token? readonlyToken, TypeParameterDeclaration? typeParameter, ITypeNode? nameType, PunctuationToken? questionToken, ITypeNode? type, NodeArray<ITypeElement>? members);
-    LiteralTypeNode CreateLiteralTypeNode(Node? literal);
-    LiteralTypeNode UpdateLiteralTypeNode(LiteralTypeNode? node, Node? literal);
+    LiteralTypeNode CreateLiteralTypeNode(UpdateExpression? literal);
+    LiteralTypeNode UpdateLiteralTypeNode(LiteralTypeNode? node, UpdateExpression? literal);
     TemplateLiteralTypeNode CreateTemplateLiteralType(TemplateHead? head, List<TemplateLiteralTypeSpan>? templateSpans);
     TemplateLiteralTypeNode UpdateTemplateLiteralType(TemplateLiteralTypeNode? node, TemplateHead? head, List<TemplateLiteralTypeSpan>? templateSpans);
     ObjectBindingPattern CreateObjectBindingPattern(List<BindingElement>? elements);
@@ -1692,13 +1700,13 @@ internal partial interface INodeFactory
     ObjectLiteralExpression CreateObjectLiteralExpression(List<Node>? properties, bool? multiLine);
     ObjectLiteralExpression UpdateObjectLiteralExpression(ObjectLiteralExpression? node, List<Node>? properties);
     PropertyAccessExpression CreatePropertyAccessExpression(Expression? expression, object? name);
-    PropertyAccessExpression CreatePropertyAccessExpression(Expression? expression, Node? name) => CreatePropertyAccessExpression(expression, (object?)name);
+    PropertyAccessExpression CreatePropertyAccessExpression(Expression? expression, MemberExpression? name) => CreatePropertyAccessExpression(expression, (object?)name);
     PropertyAccessExpression CreatePropertyAccessExpression(Expression? expression, string? name) => CreatePropertyAccessExpression(expression, (object?)name);
-    PropertyAccessExpression UpdatePropertyAccessExpression(PropertyAccessExpression? node, Expression? expression, Node? name);
+    PropertyAccessExpression UpdatePropertyAccessExpression(PropertyAccessExpression? node, Expression? expression, MemberExpression? name);
     PropertyAccessChain CreatePropertyAccessChain(Expression? expression, PunctuationToken? questionDotToken, object? name);
-    PropertyAccessChain CreatePropertyAccessChain(Expression? expression, PunctuationToken? questionDotToken, Node? name) => CreatePropertyAccessChain(expression, questionDotToken, (object?)name);
+    PropertyAccessChain CreatePropertyAccessChain(Expression? expression, PunctuationToken? questionDotToken, MemberExpression? name) => CreatePropertyAccessChain(expression, questionDotToken, (object?)name);
     PropertyAccessChain CreatePropertyAccessChain(Expression? expression, PunctuationToken? questionDotToken, string? name) => CreatePropertyAccessChain(expression, questionDotToken, (object?)name);
-    PropertyAccessChain UpdatePropertyAccessChain(PropertyAccessChain? node, Expression? expression, PunctuationToken? questionDotToken, Node? name);
+    PropertyAccessChain UpdatePropertyAccessChain(PropertyAccessChain? node, Expression? expression, PunctuationToken? questionDotToken, MemberExpression? name);
     ElementAccessExpression CreateElementAccessExpression(Expression? expression, object? index);
     ElementAccessExpression CreateElementAccessExpression(Expression? expression, Expression? index) => CreateElementAccessExpression(expression, (object?)index);
     ElementAccessExpression CreateElementAccessExpression(Expression? expression, int index) => CreateElementAccessExpression(expression, (object?)index);
@@ -1713,8 +1721,8 @@ internal partial interface INodeFactory
     CallChain UpdateCallChain(CallChain? node, Expression? expression, PunctuationToken? questionDotToken, List<ITypeNode>? typeArguments, List<Expression>? argumentsArray);
     NewExpression CreateNewExpression(Expression? expression, List<ITypeNode>? typeArguments, List<Expression>? argumentsArray);
     NewExpression UpdateNewExpression(NewExpression? node, Expression? expression, List<ITypeNode>? typeArguments, List<Expression>? argumentsArray);
-    TaggedTemplateExpression CreateTaggedTemplateExpression(Expression? tag, List<ITypeNode>? typeArguments, Node? template);
-    TaggedTemplateExpression UpdateTaggedTemplateExpression(TaggedTemplateExpression? node, Expression? tag, List<ITypeNode>? typeArguments, Node? template);
+    TaggedTemplateExpression CreateTaggedTemplateExpression(Expression? tag, List<ITypeNode>? typeArguments, MemberExpression? template);
+    TaggedTemplateExpression UpdateTaggedTemplateExpression(TaggedTemplateExpression? node, Expression? tag, List<ITypeNode>? typeArguments, MemberExpression? template);
     TypeAssertion CreateTypeAssertion(ITypeNode? type, Expression? expression);
     TypeAssertion UpdateTypeAssertion(TypeAssertion? node, ITypeNode? type, Expression? expression);
     ParenthesizedExpression CreateParenthesizedExpression(Expression? expression);
@@ -1841,7 +1849,7 @@ internal partial interface INodeFactory
     TemplateMiddle CreateTemplateMiddle(string? text, string? rawText, TokenFlags? templateFlags);
     TemplateTail CreateTemplateTail(string? text, string? rawText, TokenFlags? templateFlags);
     NoSubstitutionTemplateLiteral CreateNoSubstitutionTemplateLiteral(string? text, string? rawText);
-    LiteralLikeNode CreateLiteralLikeNode(object? kind, string? text);
+    Node CreateLiteralLikeNode(object? kind, string? text);
     ITemplateLiteralLikeNode CreateTemplateLiteralLikeNode(object? kind, string? text, string? rawText, TokenFlags templateFlags);
     ITemplateLiteralLikeNode CreateTemplateLiteralLikeNode(TypedEnum.NoSubstitutionTemplateLiteral? kind, string? text, string? rawText, TokenFlags templateFlags) => CreateTemplateLiteralLikeNode((object?)kind, text, rawText, templateFlags);
     ITemplateLiteralLikeNode CreateTemplateLiteralLikeNode(TypedEnum.TemplateHead? kind, string? text, string? rawText, TokenFlags templateFlags) => CreateTemplateLiteralLikeNode((object?)kind, text, rawText, templateFlags);
@@ -1944,8 +1952,8 @@ internal partial interface INodeFactory
     EnumDeclaration CreateEnumDeclaration(List<Node>? modifiers, Identifier? name, List<EnumMember>? members) => CreateEnumDeclaration(modifiers, (object?)name, members);
     EnumDeclaration CreateEnumDeclaration(List<Node>? modifiers, string? name, List<EnumMember>? members) => CreateEnumDeclaration(modifiers, (object?)name, members);
     EnumDeclaration UpdateEnumDeclaration(EnumDeclaration? node, List<Node>? modifiers, Identifier? name, List<EnumMember>? members);
-    ModuleDeclaration CreateModuleDeclaration(List<Node>? modifiers, Node? name, Node? body, NodeFlags? flags);
-    ModuleDeclaration UpdateModuleDeclaration(ModuleDeclaration? node, List<Node>? modifiers, Node? name, Node? body);
+    ModuleDeclaration CreateModuleDeclaration(List<Node>? modifiers, MemberExpression? name, Node? body, NodeFlags? flags);
+    ModuleDeclaration UpdateModuleDeclaration(ModuleDeclaration? node, List<Node>? modifiers, MemberExpression? name, Node? body);
     ModuleBlock CreateModuleBlock(List<IStatement>? statements);
     ModuleBlock UpdateModuleBlock(ModuleBlock? node, List<IStatement>? statements);
     CaseBlock CreateCaseBlock(List<Node>? clauses);
@@ -1970,8 +1978,8 @@ internal partial interface INodeFactory
     ImportClause UpdateImportClause(ImportClause? node, bool isTypeOnly, Identifier? name, Node? namedBindings);
     IAssertClause CreateAssertClause(NodeArray<IAssertEntry>? elements, bool? multiLine);
     IAssertClause UpdateAssertClause(IAssertClause? node, NodeArray<IAssertEntry>? elements, bool? multiLine);
-    IAssertEntry CreateAssertEntry(Node? name, Expression? value);
-    IAssertEntry UpdateAssertEntry(IAssertEntry? node, Node? name, Expression? value);
+    IAssertEntry CreateAssertEntry(MemberExpression? name, Expression? value);
+    IAssertEntry UpdateAssertEntry(IAssertEntry? node, MemberExpression? name, Expression? value);
     ImportTypeAssertionContainer CreateImportTypeAssertionContainer(IAssertClause? clause, bool? multiLine);
     ImportTypeAssertionContainer UpdateImportTypeAssertionContainer(ImportTypeAssertionContainer? node, IAssertClause? clause, bool? multiLine);
     ImportAttributes CreateImportAttributes(NodeArray<ImportAttribute>? elements, bool? multiLine);
@@ -1979,16 +1987,16 @@ internal partial interface INodeFactory
     ImportAttributes CreateImportAttributes(NodeArray<ImportAttribute>? elements, bool? multiLine, TypedEnum.AssertKeyword? token) => CreateImportAttributes(elements, multiLine, (object?)token);
     ImportAttributes CreateImportAttributes(NodeArray<ImportAttribute>? elements, bool? multiLine, TypedEnum.WithKeyword? token) => CreateImportAttributes(elements, multiLine, (object?)token);
     ImportAttributes UpdateImportAttributes(ImportAttributes? node, NodeArray<ImportAttribute>? elements, bool? multiLine);
-    ImportAttribute CreateImportAttribute(Node? name, Expression? value);
-    ImportAttribute UpdateImportAttribute(ImportAttribute? node, Node? name, Expression? value);
+    ImportAttribute CreateImportAttribute(MemberExpression? name, Expression? value);
+    ImportAttribute UpdateImportAttribute(ImportAttribute? node, MemberExpression? name, Expression? value);
     NamespaceImport CreateNamespaceImport(Identifier? name);
     NamespaceImport UpdateNamespaceImport(NamespaceImport? node, Identifier? name);
-    NamespaceExport CreateNamespaceExport(Node? name);
-    NamespaceExport UpdateNamespaceExport(NamespaceExport? node, Node? name);
+    NamespaceExport CreateNamespaceExport(MemberExpression? name);
+    NamespaceExport UpdateNamespaceExport(NamespaceExport? node, MemberExpression? name);
     NamedImports CreateNamedImports(List<ImportSpecifier>? elements);
     NamedImports UpdateNamedImports(NamedImports? node, List<ImportSpecifier>? elements);
-    ImportSpecifier CreateImportSpecifier(bool isTypeOnly, Node? propertyName, Identifier? name);
-    ImportSpecifier UpdateImportSpecifier(ImportSpecifier? node, bool isTypeOnly, Node? propertyName, Identifier? name);
+    ImportSpecifier CreateImportSpecifier(bool isTypeOnly, MemberExpression? propertyName, Identifier? name);
+    ImportSpecifier UpdateImportSpecifier(ImportSpecifier? node, bool isTypeOnly, MemberExpression? propertyName, Identifier? name);
     ExportAssignment CreateExportAssignment(List<Node>? modifiers, bool isExportEquals, Expression? expression);
     ExportAssignment UpdateExportAssignment(ExportAssignment? node, List<Node>? modifiers, Expression? expression);
     ExportDeclaration CreateExportDeclaration(List<Node>? modifiers, bool isTypeOnly, Node? exportClause, Expression? moduleSpecifier, ImportAttributes? attributes);
@@ -1996,15 +2004,15 @@ internal partial interface INodeFactory
     NamedExports CreateNamedExports(List<ExportSpecifier>? elements);
     NamedExports UpdateNamedExports(NamedExports? node, List<ExportSpecifier>? elements);
     ExportSpecifier CreateExportSpecifier(bool isTypeOnly, object? propertyName, object? name);
-    ExportSpecifier CreateExportSpecifier(bool isTypeOnly, object? propertyName, Node? name) => CreateExportSpecifier(isTypeOnly, propertyName, (object?)name);
+    ExportSpecifier CreateExportSpecifier(bool isTypeOnly, object? propertyName, MemberExpression? name) => CreateExportSpecifier(isTypeOnly, propertyName, (object?)name);
     ExportSpecifier CreateExportSpecifier(bool isTypeOnly, object? propertyName, string? name) => CreateExportSpecifier(isTypeOnly, propertyName, (object?)name);
-    ExportSpecifier CreateExportSpecifier(bool isTypeOnly, Node? propertyName, object? name) => CreateExportSpecifier(isTypeOnly, (object?)propertyName, name);
-    ExportSpecifier CreateExportSpecifier(bool isTypeOnly, Node? propertyName, Node? name) => CreateExportSpecifier(isTypeOnly, (object?)propertyName, (object?)name);
-    ExportSpecifier CreateExportSpecifier(bool isTypeOnly, Node? propertyName, string? name) => CreateExportSpecifier(isTypeOnly, (object?)propertyName, (object?)name);
+    ExportSpecifier CreateExportSpecifier(bool isTypeOnly, MemberExpression? propertyName, object? name) => CreateExportSpecifier(isTypeOnly, (object?)propertyName, name);
+    ExportSpecifier CreateExportSpecifier(bool isTypeOnly, MemberExpression? propertyName, MemberExpression? name) => CreateExportSpecifier(isTypeOnly, (object?)propertyName, (object?)name);
+    ExportSpecifier CreateExportSpecifier(bool isTypeOnly, MemberExpression? propertyName, string? name) => CreateExportSpecifier(isTypeOnly, (object?)propertyName, (object?)name);
     ExportSpecifier CreateExportSpecifier(bool isTypeOnly, string? propertyName, object? name) => CreateExportSpecifier(isTypeOnly, (object?)propertyName, name);
-    ExportSpecifier CreateExportSpecifier(bool isTypeOnly, string? propertyName, Node? name) => CreateExportSpecifier(isTypeOnly, (object?)propertyName, (object?)name);
+    ExportSpecifier CreateExportSpecifier(bool isTypeOnly, string? propertyName, MemberExpression? name) => CreateExportSpecifier(isTypeOnly, (object?)propertyName, (object?)name);
     ExportSpecifier CreateExportSpecifier(bool isTypeOnly, string? propertyName, string? name) => CreateExportSpecifier(isTypeOnly, (object?)propertyName, (object?)name);
-    ExportSpecifier UpdateExportSpecifier(ExportSpecifier? node, bool isTypeOnly, Node? propertyName, Node? name);
+    ExportSpecifier UpdateExportSpecifier(ExportSpecifier? node, bool isTypeOnly, MemberExpression? propertyName, MemberExpression? name);
     MissingDeclaration CreateMissingDeclaration();
     ExternalModuleReference CreateExternalModuleReference(Expression? expression);
     ExternalModuleReference UpdateExternalModuleReference(ExternalModuleReference? node, Expression? expression);
@@ -2210,8 +2218,8 @@ internal partial interface INodeFactory
     JsxOpeningFragment CreateJsxOpeningFragment();
     JsxClosingFragment CreateJsxJsxClosingFragment();
     JsxFragment UpdateJsxFragment(JsxFragment? node, JsxOpeningFragment? openingFragment, List<Node>? children, JsxClosingFragment? closingFragment);
-    JsxAttribute CreateJsxAttribute(Node? name, Node? initializer);
-    JsxAttribute UpdateJsxAttribute(JsxAttribute? node, Node? name, Node? initializer);
+    JsxAttribute CreateJsxAttribute(Node? name, Expression? initializer);
+    JsxAttribute UpdateJsxAttribute(JsxAttribute? node, Node? name, Expression? initializer);
     JsxAttributes CreateJsxAttributes(List<Node>? properties);
     JsxAttributes UpdateJsxAttributes(JsxAttributes? node, List<Node>? properties);
     JsxSpreadAttribute CreateJsxSpreadAttribute(Expression? expression);
@@ -2262,7 +2270,7 @@ internal partial interface INodeFactory
     Bundle CreateBundle(List<SourceFile>? sourceFiles);
     Bundle UpdateBundle(Bundle? node, List<SourceFile>? sourceFiles);
     BinaryExpression CreateComma(Expression? left, Expression? right);
-    Node CreateAssignment(Node? left, Expression? right);
+    Node CreateAssignment(MemberExpression? left, Expression? right);
     AssignmentExpression<PunctuationToken> CreateAssignment(Expression? left, Expression? right);
     BinaryExpression CreateLogicalOr(Expression? left, Expression? right);
     BinaryExpression CreateLogicalAnd(Expression? left, Expression? right);
@@ -2331,7 +2339,7 @@ internal partial interface INodeFactory
     Identifier GetExportName(IDeclaration? node, bool? allowComments, bool? allowSourceMaps);
     Identifier GetDeclarationName(IDeclaration? node, bool? allowComments, bool? allowSourceMaps);
     PropertyAccessExpression GetNamespaceMemberName(Identifier? ns, Identifier? name, bool? allowComments, bool? allowSourceMaps);
-    Node GetExternalModuleOrNamespaceExportName(Identifier? ns, IDeclaration? node, bool? allowComments, bool? allowSourceMaps);
+    MemberExpression GetExternalModuleOrNamespaceExportName(Identifier? ns, IDeclaration? node, bool? allowComments, bool? allowSourceMaps);
     Expression RestoreOuterExpressions(Expression? outerExpression, Expression? innerExpression, OuterExpressionKinds? kinds);
     IStatement RestoreEnclosingLabel(IStatement? node, LabeledStatement? outermostLabeledStatement, Action<LabeledStatement>? afterRestoreLabelCallback);
     IPrologueDirective CreateUseStrictPrologue();
@@ -3059,7 +3067,7 @@ internal partial interface ISignatureDeclarationBase : INamedDeclaration, IJSDoc
 internal partial interface ISourceFileImportsList
 {
     List<LiteralExpression>? Imports { get; set; }
-    List<Node>? ModuleAugmentations { get; set; }
+    List<MemberExpression>? ModuleAugmentations { get; set; }
     object? ImpliedNodeFormat { get; set; }
     string? FileName { get; set; }
     /// <remarks>PORT-NOTE: <c>PackageJsonInfo</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
@@ -3304,7 +3312,7 @@ internal partial interface ISyntacticNodeBuilder
 {
     Func<object?, ISymbol, ISyntacticTypeNodeBuilderContext, ITypeNode>? SerializeTypeOfDeclaration { get; set; }
     Func<Node, ISymbol, ISyntacticTypeNodeBuilderContext, ITypeNode>? SerializeReturnTypeForSignature { get; set; }
-    Func<Node, ISyntacticTypeNodeBuilderContext, bool, bool, ITypeNode>? SerializeTypeOfExpression { get; set; }
+    Func<Expression, ISyntacticTypeNodeBuilderContext, bool, bool, ITypeNode>? SerializeTypeOfExpression { get; set; }
     Func<ISyntacticTypeNodeBuilderContext, ITypeNode, ITypeNode>? TryReuseExistingTypeNode { get; set; }
     Func<Node, ISymbol, ISyntacticTypeNodeBuilderContext, ITypeNode>? SerializeTypeOfAccessor { get; set; }
 }
@@ -3386,7 +3394,7 @@ internal partial interface ITabStop
 }
 
 /// <summary>ported from types.ts: <c>TemplateLiteralLikeNode</c>.</summary>
-internal partial interface ITemplateLiteralLikeNode
+internal partial interface ITemplateLiteralLikeNode : ILiteralLikeNode
 {
     string? RawText { get; set; }
     TokenFlags? TemplateFlags { get; set; }
@@ -3583,7 +3591,7 @@ internal partial interface ITypeChecker
     ISymbol GetExportSpecifierLocalTargetSymbol(Node? location);
     ISymbol GetExportSymbolOfSymbol(ISymbol? symbol);
     ISymbol GetPropertySymbolOfDestructuringAssignment(Identifier? location);
-    IType GetTypeOfAssignmentPattern(Node? pattern);
+    IType GetTypeOfAssignmentPattern(MemberExpression? pattern);
     IType GetTypeAtLocation(Node? node);
     IType GetTypeFromTypeNode(ITypeNode? node);
     string SignatureToString(ISignature? signature, Node? enclosingDeclaration, TypeFormatFlags? flags, SignatureKind? kind);
@@ -3633,7 +3641,7 @@ internal partial interface ITypeChecker
     ISymbol TryGetMemberInModuleExportsAndProperties(string? memberName, ISymbol? moduleSymbol);
     IType GetApparentType(IType? type);
     ISymbol GetSuggestedSymbolForNonexistentProperty(object? name, IType? containingType);
-    ISymbol GetSuggestedSymbolForNonexistentProperty(Node? name, IType? containingType) => GetSuggestedSymbolForNonexistentProperty((object?)name, containingType);
+    ISymbol GetSuggestedSymbolForNonexistentProperty(MemberExpression? name, IType? containingType) => GetSuggestedSymbolForNonexistentProperty((object?)name, containingType);
     ISymbol GetSuggestedSymbolForNonexistentProperty(string? name, IType? containingType) => GetSuggestedSymbolForNonexistentProperty((object?)name, containingType);
     ISymbol GetSuggestedSymbolForNonexistentJSXAttribute(object? name, IType? containingType);
     ISymbol GetSuggestedSymbolForNonexistentJSXAttribute(Identifier? name, IType? containingType) => GetSuggestedSymbolForNonexistentJSXAttribute((object?)name, containingType);
@@ -3695,7 +3703,7 @@ internal partial interface ITypeChecker
     bool IsArrayType(IType? type);
     bool IsTupleType(IType? type);
     bool IsArrayLikeType(IType? type);
-    bool IsTypeInvalidDueToUnionDiscriminant(IType? contextualType, Node? obj);
+    bool IsTypeInvalidDueToUnionDiscriminant(IType? contextualType, MemberExpression? obj);
     List<ISymbol> GetExactOptionalProperties(IType? type);
     List<ISymbol> GetAllPossiblePropertiesOfTypes(List<IType>? type);
     ISymbol ResolveName(string? name, Node? location, SymbolFlags meaning, bool excludeGlobals);
