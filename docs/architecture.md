@@ -851,6 +851,8 @@ M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质�
 
 **取舍写在这里**：能在本层做完的一件不留，做不了的一个不蒙 —— 每一个都在上表里指名它等的是哪一批。这些存根会抛，而不是返回半成品。
 
+**存根清单有契约测试守着**：`NodeFactoryStubTests` 直接读生成物，断言存根恰好是上面那 11 个，并且 `NotImplementedException` 在生成物里只出现在这 11 处 —— 实现了成员却忘了往 `s_implemented` 登记、或生成器开始给新成员出存根，都会在这里失败。每减少一个存根，这份清单要同步。
+
 **关于接口自检（§15.7 说"全部就位后再挂上 `INodeFactory`"）**：试过了，它同样是跨批的。接口的 503 个成员伸出了这个文件——`createAdd`/`createBitwiseAnd`/`createAssignment`、`CloneNode` 与三个 prologue copier 由 `factory/utilities.ts` 声明（M4d），`baseFactory`/`converters` 属于根本不移植的 `baseNodeFactory.ts`（§15.2）。今天挂上它是 284 个错误（272 个成员未实现 + 12 个签名不匹配），这些错误不说明移植面的任何问题，只说明接口比 M4c 大。这一步归 **M4d**：等那些成员到位，并且生成器能给永远不会存在的两个留出余地。
 
 **针对性单测**（判据 4）：`NodeFactoryFamilyTests` 覆盖手写半里那些"需要决定"而不是"照抄"的行为 —— 模板的 cooked 文本、条件表达式补标点 token、`++x` 只对真标识符置 `ContainsUpdateExpressionForIdentifier`、`update*` 在没变时返回同一实例、source file 的初值与克隆式更新、heritage clause 的 kind → flags、类声明的 ambient 分支、JSDoc 的默认 tag 名与两个布尔位、typedef 从 fullName 派生 name、`use strict` 序言的新行标志。
