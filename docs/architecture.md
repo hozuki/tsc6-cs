@@ -768,6 +768,28 @@ M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质�
 
 参数名撞上 C# 关键字（`createTypeOperatorNode(operator, type)`）时加 `@` 转义，而不是改名。
 
+### 15.7 M4c 的实现方式：固定形态交给生成器
+
+`factory/nodeFactory.ts` 有 488 个函数体，按形态分类：
+
+| 形态 | 数量 |
+|---|---|
+| `create*`：`const node = createBase*<T>(kind)` + 字段赋值 + `return node` | 157 |
+| `update*`：单条 `return node.a !== a \|\| … ? update(createX(…), node) : node` | 141 |
+| `create*`/`update*` 带真逻辑（if/switch/回退） | 56 |
+| 辅助（`as*`、`update`、`createNodeArray`、非节点方法与模块级函数） | 134 |
+
+那 298 个（84% 的 create/update）形态固定，因此与谓词表、数据表、typed enum 同样处理：**由 `tools/Gen` 生成到 `Parser/NodeFactory.Generated.cs`**（`partial class NodeFactory`，与手写的 `Parser/NodeFactory.cs` 共存，§9 第 8 条）。形态不符时报错退出，不猜。
+
+代价与边界（实测，见下）：
+
+- 生成需要**表达式翻译**。赋值右侧的形态分布（按出现次数）：参数名 301（其中含 `undefined` —— 它在 TS 的 AST 里也是标识符）、位运算 59、`node.x` 47、`asNodeArray` 32、`createNodeArray` 24、`asName` 22、`propagateChild(ren)Flags` 16、`~x` 11、`asEmbeddedStatement` 8、`parenthesizerRules().parenthesize*` 约 25、其余零星。
+- 语句形态：`=` 477、`|=` 86、`&=` 11、`setTextRange(node, …)` 2。
+- `update` 的比较链共 393 处 `node.x !== x`；转发是 `update(createX(…), node)`，实参 399 个是参数名、15 个是 `node.x`。
+- **`parenthesizerRules()` 那约 25 处依赖 M4d**（`parenthesizerRules.ts` 是 M4d 的交付）。生成物照 TS 写 `Parenthesizer.Xxx(…)`，`Parenthesizer` 属性由 M4d 提供；在那之前这些方法只保证编译，不保证能跑。
+
+**第一批（已交付）**是其余一切的底座：`CreateNodeArray`、`AsNodeArray`、transformFlags 聚合的四个函数（`AggregateChildrenFlags`/`PropagateChildFlags`/`PropagatePropertyNameFlagsOfChild`/`GetTransformFlagsSubtreeExclusions`）、`NodeFactoryFlags`，以及 `Utilities` 里的 `setTextRange`/`isNamedDeclaration`/`isPropertyName`。`NodeFactory` 暂不声明实现 `INodeFactory`：接口有 503 个抽象成员，分批期间编译器分不清"漏了"与"还没写"，全部就位后再挂上它做逐成员自检。
+
 ---
 ## 16. `const enum` 成员作类型：typed enum
 
