@@ -2406,36 +2406,12 @@ internal partial class NodeFactory
         throw new NotImplementedException("the port has not reached `createIsNotTypeCheck` yet");
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateOuterExpression</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? UpdateOuterExpression(Expression? outerExpression, Expression? expression)
-    {
-        throw new NotImplementedException("the port has not reached `updateOuterExpression` yet");
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createCallBinding</c>.</summary>
     /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
     /// it yet (docs/architecture.md §15.7).</remarks>
     public ICallBinding CreateCallBinding(Expression? expression, Action<Identifier>? recordTempVariable, ScriptTarget? languageVersion, object? cacheIdentifiers)
     {
         throw new NotImplementedException("the port has not reached `createCallBinding` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createAssignmentTargetWrapper</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public PropertyAccessExpression CreateAssignmentTargetWrapper(Identifier? paramName, Expression? expression)
-    {
-        throw new NotImplementedException("the port has not reached `createAssignmentTargetWrapper` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createUseStrictPrologue</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateUseStrictPrologue()
-    {
-        throw new NotImplementedException("the port has not reached `createUseStrictPrologue` yet");
     }
 
 }

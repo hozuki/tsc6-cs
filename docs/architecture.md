@@ -836,16 +836,20 @@ M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质�
 
 代价是生成物里有一段明确会抛的代码。这是临时的：清单每长一条就短一条，全部就位后生成物里不再有 `NotImplementedException`。
 
-**进度**（第十六批结束时）：428 个工厂成员中，51 个仍是存根。已手写的部分包括字面量与模板家族、标识符与 punctuation、parameter/property/method 元素、signature 家族（call / construct / index / constructor / accessor）、函数表达式与箭头函数、函数与类声明、heritage clause、表达式家族（access / call / chain / 一元二元 / 条件 / new / tagged template）、类型节点家族（keyword / union / intersection / tuple / function / constructor / import type）、variable / import / export / module / source file 声明、emit helper 家族、JSX 元素与 property assignment，以及一批辅助（`asEmbeddedStatement`/`asVariableDeclaration`/`flattenCommaElements`/`getCookedText`/`hasInvalidEscape`…）。剩下的 51 个按四类：
+**进度**（第十八批结束时）：428 个工厂成员中，**11 个仍是存根，且全部是跨批依赖**——本层能做的已经做完。
 
-| 类别 | 数量 | 何时能做完 |
-|---|---|---|
-| JSDoc 家族（tag 与 type 两侧） | 约 30 | 本层：它的两个泛型辅助 `createBaseJSDocTag` / `createBaseJSDocTagDeclaration` 在 C# 里改成逐函数内联即可（泛型参数没法"按 kind 选类"），另需移植 `getDefaultTagNameForKind` 与 `getJSDocTypeAliasName` |
-| 标识符自动生成（`createTempVariable` / `createLoopVariable` / `createUniqueName` / `getGeneratedNameForNode` …） | 8 | **M7**：参数是 `GeneratedNamePart`，且要 `formatGeneratedName`（`factory/utilities.ts`，M4d） |
-| 零散（`updateOuterExpression`、`createCallBinding`、`createAssignmentTargetWrapper`、`createUseStrictPrologue`） | 4 | 本层 |
-| 等 M4e 的 | 3 | `createBinaryExpression`（`containsObjectRestOrSpread` 要 `forEachChild`），以及经 `factory.createStrictEquality` 走的 `createTypeCheck` / `createIsNotTypeCheck` |
+已手写的部分覆盖：字面量与模板、标识符与 punctuation、parameter/property/method 元素、signature 家族、函数表达式与箭头函数、函数与类声明、heritage clause、表达式家族、类型节点家族、variable / import / export / module / source file 声明、emit helper 家族、JSDoc 全族、JSX 与 property assignment、outer expression 与 use-strict prologue，以及一批辅助。
 
-**这里的取舍是明确的**：能在本层做完的就做（上表第 1、3 类），依赖后续批次的就保持存根并在这里点名 —— 而不是留一个会抛的实现冒充完成。
+剩下的 11 个，每一个都指名卡在哪：
+
+| 成员 | 卡在 |
+|---|---|
+| `createBinaryExpression` / `updateBinaryExpression` | `containsObjectRestOrSpread` 要 `forEachChild`（`parser.ts`，**M4e**） |
+| `createTypeCheck` / `createIsNotTypeCheck` | 经 `factory.createStrictEquality` 落到上面那条 |
+| `createTempVariable` / `createLoopVariable` / `createUniqueName` / `createBaseGeneratedIdentifier` / `createBaseGeneratedPrivateIdentifier` / `createUniquePrivateName` | 参数是 `GeneratedNamePart`（transformers 的类型，**M7**），且要 `formatGeneratedName`（`factory/utilities.ts`，**M4d**） |
+| `createCallBinding` | 要 `createTempVariable` 与 `skipOuterExpressions`（`utilities.ts`，**M5**） |
+
+**取舍写在这里**：能在本层做完的一件不留，做不了的一个不蒙 —— 每一个都在上表里指名它等的是哪一批。这些存根会抛，而不是返回半成品。
 
 ---
 

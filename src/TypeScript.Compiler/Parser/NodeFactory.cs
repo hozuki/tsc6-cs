@@ -4226,4 +4226,80 @@ internal partial class NodeFactory
             ? Update(CreateJSDocTypeLiteral(propertyTags, isArrayType), node)
             : node!;
     }
+
+    //
+    // Outer expressions and emit prologues (the hand-written half)
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:6564 — <c>updateOuterExpression</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS types the parameter as <c>OuterExpression</c>, a union of the seven kinds below, and its switch has no
+    /// default — a caller that passes something else gets <c>undefined</c>. The port throws instead, because returning null
+    /// from a method typed <c>Expression</c> would be a lie.
+    /// </remarks>
+    public Expression UpdateOuterExpression(Expression? outerExpression, Expression? expression)
+        => outerExpression!.Kind switch
+        {
+            SyntaxKind.ParenthesizedExpression => UpdateParenthesizedExpression(
+                (ParenthesizedExpression)outerExpression,
+                expression),
+            SyntaxKind.TypeAssertionExpression => UpdateTypeAssertion(
+                (TypeAssertion)outerExpression,
+                ((TypeAssertion)outerExpression).Type,
+                expression),
+            SyntaxKind.AsExpression => UpdateAsExpression(
+                (AsExpression)outerExpression,
+                expression,
+                ((AsExpression)outerExpression).Type),
+            SyntaxKind.SatisfiesExpression => UpdateSatisfiesExpression(
+                (SatisfiesExpression)outerExpression,
+                expression,
+                ((SatisfiesExpression)outerExpression).Type),
+            SyntaxKind.NonNullExpression => UpdateNonNullExpression((NonNullExpression)outerExpression, expression),
+            SyntaxKind.ExpressionWithTypeArguments => UpdateExpressionWithTypeArguments(
+                (ExpressionWithTypeArguments)outerExpression,
+                expression,
+                ((ExpressionWithTypeArguments)outerExpression).TypeArguments),
+            SyntaxKind.PartiallyEmittedExpression => UpdatePartiallyEmittedExpression(
+                (PartiallyEmittedExpression)outerExpression,
+                expression),
+            _ => throw new InvalidOperationException($"invalid kind: {outerExpression.Kind}"),
+        };
+
+    /// <summary>ported from: factory/nodeFactory.ts:6725 — <c>createAssignmentTargetWrapper</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the explicit parentheses are part of the output, not a parsing accident — TS notes they are required
+    /// because of a V8 regression (https://bugs.chromium.org/p/v8/issues/detail?id=9560), and the port keeps them.
+    /// </remarks>
+    public PropertyAccessExpression CreateAssignmentTargetWrapper(Identifier? paramName, Expression? expression)
+        => CreatePropertyAccessExpression(
+            CreateParenthesizedExpression(
+                CreateObjectLiteralExpression(
+                    [
+                        CreateSetAccessorDeclaration(
+                            null,       // modifiers
+                            "value",
+                            [
+                                CreateParameterDeclaration(
+                                    null,   // modifiers
+                                    null,   // dotDotDotToken
+                                    paramName,
+                                    null,   // questionToken
+                                    null,   // type
+                                    null),  // initializer
+                            ],
+                            CreateBlock([CreateExpressionStatement(expression)], true)),
+                    ],
+                    null)),
+            "value");
+
+    /// <summary>ported from: factory/nodeFactory.ts:6880 — <c>createUseStrictPrologue</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS wraps the node with `startOnNewLine`, which is `setStartsOnNewLine(node, true)` — the emit-node slot
+    /// the port already has (Parser/EmitNodes.cs).
+    /// </remarks>
+    public ExpressionStatement CreateUseStrictPrologue()
+        => EmitNodes.SetStartsOnNewLine(
+            CreateExpressionStatement(CreateStringLiteral("use strict", null, null)),
+            true);
 }
