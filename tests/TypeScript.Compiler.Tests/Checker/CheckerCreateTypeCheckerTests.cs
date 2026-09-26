@@ -32,13 +32,15 @@ public class CheckerCreateTypeCheckerTests
     /// <summary>
     /// The generated <see cref="ITypeChecker"/> members whose port cannot answer, each with the reason the class
     /// records. §15.9's "interface bigger than the class" treatment: the difference set is *named*, and this test pins
-    /// it by reflection, so a future generator fix that makes the member answerable turns this list empty instead of
-    /// silently leaving a throwing member behind.
+    /// it by reflection, so a generator fix that makes a member answerable turns this list empty instead of silently
+    /// leaving a throwing member behind.
     /// </summary>
-    private static readonly (string Member, string Reason)[] MembersThatCannotAnswer =
-    [
-        ("GetIndexInfosOfIndexSymbol", "the generated member is a property of the type Model/NodeInterfaces.cs:3526, not the reference's function types.ts:5083"),
-    ];
+    /// <remarks>
+    /// Empty since the generator learned to read a function type before the <c>T[]</c> shape: the one entry,
+    /// <c>GetIndexInfosOfIndexSymbol</c> (types.ts:5083 as an array of functions), is now generated as the reference's
+    /// function and implemented by <see cref="Checker"/>.
+    /// </remarks>
+    private static readonly (string Member, string Reason)[] MembersThatCannotAnswer = [];
 
     /// <summary>The smallest library that lets <c>initializeTypeChecker</c> resolve the globals it asks for.</summary>
     private static readonly string[] StubLib =
@@ -94,23 +96,17 @@ public class CheckerCreateTypeCheckerTests
     }
 
     [Fact]
-    public void CreateTypeChecker_TheOneNonConformingMemberIsTheNamedLoudBlocker()
+    public void CreateTypeChecker_EveryGeneratedMemberOfTheInterfaceIsAnswerable()
     {
+        // The difference set that used to hold GetIndexInfosOfIndexSymbol is empty: the generator emits the
+        // reference's function type for it (types.ts:5083), and the class forwards the interface slot to the ported
+        // function (checker.ts:16693 through the literal's assignment at checker.ts:1658).
+        Assert.Empty(MembersThatCannotAnswer);
+
         var checker = (ITypeChecker)new Checker(new FakeTypeCheckerHost());
-
-        // The generated interface declares the member, so the class must expose it; the generated *shape* is not the
-        // reference's, so it cannot answer. The failure names itself, the generated declaration and the defect, which
-        // is what a caller triaging an integration failure needs.
-        var (member, reason) = Assert.Single(MembersThatCannotAnswer);
-        var declared = typeof(ITypeChecker).GetMethods(BindingFlags.Public | BindingFlags.Instance).Select(m => m.Name)
-            .Concat(typeof(ITypeChecker).GetProperties(BindingFlags.Public | BindingFlags.Instance).Select(p => p.Name));
-        Assert.Contains(member, declared, StringComparer.Ordinal);
-        Assert.Contains("types.ts:5083", reason, StringComparison.Ordinal);
-
-        var exception = Assert.Throws<NotSupportedException>(() => _ = checker.GetIndexInfosOfIndexSymbol);
-        Assert.StartsWith("ITypeChecker." + member, exception.Message, StringComparison.Ordinal);
-        Assert.Contains("Model/NodeInterfaces.cs:3526", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("generator defect", exception.Message, StringComparison.Ordinal);
+        var indexInfosOfIndexSymbol = checker.GetIndexInfosOfIndexSymbol;
+        Assert.NotNull(indexInfosOfIndexSymbol);
+        Assert.IsType<Func<ISymbol, List<ISymbol>, List<IIndexInfo>>>(indexInfosOfIndexSymbol);
     }
 
     [Fact]

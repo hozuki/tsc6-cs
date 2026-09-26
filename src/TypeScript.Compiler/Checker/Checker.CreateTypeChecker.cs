@@ -31,13 +31,13 @@ namespace TypeScript.Compiler;
 /// declaration yet).
 /// </para>
 /// <para>
-/// PORT-NOTE: <c>ITypeChecker.GetIndexInfosOfIndexSymbol</c> is the one member of the generated interface that cannot
-/// be implemented: the generator turned the reference's function
+/// PORT-NOTE: <c>ITypeChecker.GetIndexInfosOfIndexSymbol</c> used to be the one member of the generated interface that
+/// could not be implemented: the generator turned the reference's function
 /// <c>(indexSymbol: Symbol, siblingSymbols?: Symbol[]) =&gt; IndexInfo[]</c> (types.ts:5083) into the property
-/// <c>List&lt;Func&lt;ISymbol, List&lt;ISymbol&gt;, IIndexInfo&gt;&gt;?</c> (<c>Model/NodeInterfaces.cs:3526</c>). A
-/// generator defect, reported to the generator owner; until it is fixed the two accessors throw §15.15 ruling 1's
-/// loud, named failure and <c>CheckerCreateTypeCheckerTests</c> pins this member as the exact difference between the
-/// interface and the class.
+/// <c>List&lt;Func&lt;ISymbol, List&lt;ISymbol&gt;, IIndexInfo&gt;&gt;?</c> because it read a function type as an array
+/// of functions. The generator now recognises a function type before the <c>T[]</c> shape (<c>tools/Gen</c>'s
+/// <c>TsTypeMapper.MapSingle</c>), the member is generated as the reference's function and implemented below;
+/// <c>CheckerCreateTypeCheckerTests</c>'s difference list is empty, which is what that list was for.
 /// </para>
 /// </remarks>
 internal sealed partial class Checker : ITypeChecker
@@ -211,16 +211,20 @@ internal sealed partial class Checker : ITypeChecker
 
     /// <summary>ported from: src/compiler/checker.ts:1658 — <c>getIndexInfosOfIndexSymbol</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: the reference's entry is the forwarding shorthand for the function
-    /// <c>getIndexInfosOfIndexSymbol(indexSymbol, siblingSymbols?)</c> (checker.ts:16693). The generated interface
-    /// declares the member with a different type (<see cref="ITypeChecker.GetIndexInfosOfIndexSymbol"/>'s remarks on
-    /// the class record the defect), so neither accessor can answer; both throw §15.15 ruling 1's loud, named failure
-    /// and <c>CheckerCreateTypeCheckerTests</c> pins this name as the interface-minus-class difference.
+    /// PORT-NOTE: the reference's <c>checker</c> object literal assigns this slot the function declared at
+    /// checker.ts:16693, and types.ts:5083 declares the slot's function type
+    /// <c>(indexSymbol: Symbol, siblingSymbols?: Symbol[]) =&gt; IndexInfo[]</c>. The port's class form keeps one
+    /// backing delegate, created on first read from the ported method, so the generated get/set pair means what the
+    /// literal's assignment means; no caller assigns it. (The generator used to read the function type as an array of
+    /// functions, which made this member unimplementable — fixed in <c>tools/Gen</c>'s type mapper, which now
+    /// recognises a function type before the <c>T[]</c> shape.)
     /// </remarks>
-    List<Func<ISymbol, List<ISymbol>, IIndexInfo>>? ITypeChecker.GetIndexInfosOfIndexSymbol
+    private Func<ISymbol, List<ISymbol>, List<IIndexInfo>>? _getIndexInfosOfIndexSymbol;
+
+    Func<ISymbol, List<ISymbol>, List<IIndexInfo>>? ITypeChecker.GetIndexInfosOfIndexSymbol
     {
-        get => throw new NotSupportedException("ITypeChecker.GetIndexInfosOfIndexSymbol: the generated member's shape (Model/NodeInterfaces.cs:3526) is not the reference's function (types.ts:5083, checker.ts:1658/16693) — generator defect, reported");
-        set => throw new NotSupportedException("ITypeChecker.GetIndexInfosOfIndexSymbol: the generated member's shape (Model/NodeInterfaces.cs:3526) is not the reference's function (types.ts:5083, checker.ts:1658/16693) — generator defect, reported");
+        get => _getIndexInfosOfIndexSymbol ??= GetIndexInfosOfIndexSymbol;
+        set => _getIndexInfosOfIndexSymbol = value;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:1659 — <c>getSignaturesOfType</c>.</summary>

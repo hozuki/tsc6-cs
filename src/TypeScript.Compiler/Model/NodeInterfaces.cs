@@ -3523,7 +3523,7 @@ internal partial interface ITypeChecker
     IType? GetTypeOfPropertyOfType(IType? type, string? propertyName);
     IIndexInfo? GetIndexInfoOfType(IType? type, IndexKind kind);
     List<IIndexInfo> GetIndexInfosOfType(IType? type);
-    List<Func<ISymbol, List<ISymbol>, IIndexInfo>>? GetIndexInfosOfIndexSymbol { get; set; }
+    Func<ISymbol, List<ISymbol>, List<IIndexInfo>>? GetIndexInfosOfIndexSymbol { get; set; }
     List<ISignature> GetSignaturesOfType(IType? type, SignatureKind kind);
     IType? GetIndexTypeOfType(IType? type, IndexKind kind);
     IType GetIndexType(IType? type);

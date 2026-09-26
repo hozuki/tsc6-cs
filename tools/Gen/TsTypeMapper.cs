@@ -263,6 +263,21 @@ internal sealed class TsTypeMapper
         // structural shapes.
         if (text.StartsWith('[')) return "object?";
 
+        // A function type is recognised *before* the `T[]` shape below, because a signature's return type can
+        // itself be an array: `(indexSymbol: Symbol, siblingSymbols?: Symbol[] | undefined) => IndexInfo[]` ends
+        // in `[]`, and reading it as an array of functions wrapped the whole signature in `List<…>` — the shape
+        // that made `TypeChecker.getIndexInfosOfIndexSymbol` (types.ts:5083) unrepresentable.
+        if (IsFunctionType(text, out var parameters, out var returnType))
+        {
+            var mapped = parameters.Select(Map).ToList();
+            var mappedReturn = Map(returnType);
+
+            // `void` cannot be a generic argument, so a void-returning function maps to Action, not Func.
+            return mappedReturn == "void"
+                ? mapped.Count == 0 ? "Action" : $"Action<{string.Join(", ", mapped)}>"
+                : $"Func<{string.Join(", ", mapped.Append(mappedReturn))}>";
+        }
+
         if (text.StartsWith("readonly ", StringComparison.Ordinal))
         {
             var inner = text["readonly ".Length..].Trim();
@@ -280,17 +295,6 @@ internal sealed class TsTypeMapper
         if (intersection.Count > 1) return Map(intersection[0]);
 
         if (text.EndsWith("[]", StringComparison.Ordinal)) return $"List<{Map(text[..^2])}>";
-
-        if (IsFunctionType(text, out var parameters, out var returnType))
-        {
-            var mapped = parameters.Select(Map).ToList();
-            var mappedReturn = Map(returnType);
-
-            // `void` cannot be a generic argument, so a void-returning function maps to Action, not Func.
-            return mappedReturn == "void"
-                ? mapped.Count == 0 ? "Action" : $"Action<{string.Join(", ", mapped)}>"
-                : $"Func<{string.Join(", ", mapped.Append(mappedReturn))}>";
-        }
 
         return MapReference(text);
     }

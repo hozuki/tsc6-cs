@@ -1241,7 +1241,7 @@ SourceFile(0,131) symbol=ValueModule:"/p" locals=[C=Class:C:1,a=BlockScopedVaria
 | 项 | 内容 | 处置 |
 |---|---|---|
 | **AST 形状风险** | `Checker/Checker.TypeOfSymbols.cs` 用 `FactoryUtilities.ParseNodeFactory`（`NoParenthesizerRules`）造节点，而其 PORT-NOTE 声称那就是 TS 的 `factory` —— 参考实现用的是带括号化规则的 `factory`，所以该文件可能产出与真编译器不同的 AST（编译器不会报错） | **已收口（第六轮后）**：20 处 checker 侧代码用途逐条对着参考核过 —— 6 处参考用 `factory`（`nodeFactory.ts:7407`）的改回 `NodeFactory.Factory`（`getFlowTypeFromCommonJSExport` checker.ts:12026-12028、`getFlowTypeInStaticBlocks` :12039/:12043、`getFlowTypeInConstructor` :12060/:12063、`getArgumentArityError` :36481、JSX children 假属性声明 :33927、`createCallSignature` :44068），3 处参考自己就用 `parseNodeFactory`（`getSyntheticElementAccess` :11694-11696、`createSyntheticExpression` :36251、`serializeAsNamespaceDeclaration` :10209 的 ModuleDeclaration 半与 `factory` 的 ModuleBlock 半混用）保持原样，其余 11 处仅是注释提及；`types/**`（845 文件）与 `classes/**`（466 文件）前后 `SUMMARY` 完全一致，无回归 |
-| **生成器缺陷** | `Model/NodeInterfaces.cs:3526` 的 `GetIndexInfosOfIndexSymbol` 生成成了损坏的属性，而参考 `types.ts:5083` 是函数类型 | 已用命名响亮阻断 + 反射测试钉住；生成器修正归 `tools/Gen`（M6 后的housekeeping） |
+| **生成器缺陷** | `Model/NodeInterfaces.cs:3526` 的 `GetIndexInfosOfIndexSymbol` 生成成了损坏的属性（`List<Func<…>>?`），而参考 `types.ts:5083` 是函数类型 `(indexSymbol: Symbol, siblingSymbols?: Symbol[]) => IndexInfo[]` | **已收口**：病根是 `tools/Gen/TsTypeMapper.MapSingle` 把 `T[]` 判定放在函数类型判定**之前**，于是返回类型以 `[]` 结尾的签名被读成"函数数组"（`List<Func<…>>`）。判定顺序调正后重新生成（只改这一行）：`Func<ISymbol, List<ISymbol>, List<IIndexInfo>>? GetIndexInfosOfIndexSymbol { get; set; }`，`Checker` 用后备委托实现（语义同参考 checker.ts:1658 的对象字面量赋值，函数本体 checker.ts:16693），`CheckerCreateTypeCheckerTests` 的"接口减类"差异表随之清空（测试改为断言该成员可答且形状正确） |
 | **测试侧缺口** | `FakeTypeCheckerHost` 缺 8 个 `ITypeCheckerHost` 成员 | 集成时由我补齐（切片级报告都指了它） |
 | **工具风险（自动限定器）** | 一次自动化限定把 `// LanguageFeatureMinimumTarget.X` 注释插到闭括号**之前**，`//` 吞掉 `)`，产生 6 处 `CS1026` → 掩蔽全编译 | 两侧已各自修好；后续批量脚本改动前后必须查声明级集合 |
 | **并行构建** | 多个代理同时 `dotnet build` 会在 `obj/` 上互撞 | 配方：`-p:IntermediateOutputPath=obj/<name>/ -p:OutputPath=bin/<name>/`（`BaseIntermediateOutputPath` **不行**，会让默认 `obj/` 不再被排除而撞出 CS0579） |
@@ -1540,9 +1540,21 @@ printer 门控的 `TypeToString`/`SymbolToString`/`SignatureToString`/`TypePredi
 
 **排障要点（写入纪律）：** 本轮出现过一次 `same=4781 / port-crash=558` 的"in-flight"读数，它是某个切片临时把门控改成不抛（`// TEMP-PRINTER-STUB`）的树上测得的，**不可用作进度**——任何测量都必须在工作树静止、`git diff tools/` 为空、无临时插桩时重跑（本轮最终读数即 (d)）。同理，`Take(24)` 这类为了取更深栈帧的一次性工具改动会改变工具输出，测量前必须确认已还原。
 
-### M6-late 第七轮：检查器侧 factory 形状审计（§15.15 的 AST 形状风险收口）
+### M6-late 第七轮：检查器侧 factory 形状审计与生成器缺陷收口（§15.15 的两条风险关闭）
+
+**（a）factory 形状审计**
 
 `Checker/**` 合成节点用的 factory 逐条对着参考核过（20 处代码用途）：**6 处改回 `NodeFactory.Factory`**（参考在 `getFlowTypeFromCommonJSExport` checker.ts:12026-12028、`getFlowTypeInStaticBlocks` :12039/:12043、`getFlowTypeInConstructor` :12060/:12063、`getArgumentArityError` :36481、JSX children 假属性声明 :33927、`createCallSignature` :44068 用的就是带括号化规则的 `factory`，即 `nodeFactory.ts:7407`），**3 处保持 `FactoryUtilities.ParseNodeFactory`**（`getSyntheticElementAccess` :11694-11696、`createSyntheticExpression` :36251、`serializeAsNamespaceDeclaration` :10209 —— 参考在同一行里混用两者：ModuleDeclaration 用 `parseNodeFactory`、ModuleBlock 用 `factory`），其余为注释修正。§15.15 的"AST 形状风险"一行据此标记为**已收口**；`types/**`（845 文件）与 `classes/**`（466 文件）前后 `SUMMARY` 完全一致，全语料复测仍是 **`same=3637 diverged=80 port-crash=2191`**（合成节点形状不进 dump，故读数不变——这一项是形状正确性，不是 dump 可见项），build 0/0、测试 1,049/1,049。
+
+**（b）生成器缺陷收口（`GetIndexInfosOfIndexSymbol`）**
+
+§15.15 记的"生成器缺陷"病根找到了：`tools/Gen/TsTypeMapper.MapSingle` 把 `T[]` 的形状判定放在**函数类型判定之前**，于是**返回类型以 `[]` 结尾**的签名（`(indexSymbol: Symbol, siblingSymbols?: Symbol[] | undefined) => IndexInfo[]`，types.ts:5083）被读成"函数数组"，生成出 `List<Func<ISymbol, List<ISymbol>, IIndexInfo>>?`。修法是把函数类型判定提到 `T[]` 之前（`IsFunctionType` 自身对 `(() => X)[]` 这类数组-of-函数仍返回 false，所以顺序调整不影响别的形状；重新生成后全仓库只改这一行）。生成结果是参考的形状：
+
+```cs
+Func<ISymbol, List<ISymbol>, List<IIndexInfo>>? GetIndexInfosOfIndexSymbol { get; set; }
+```
+
+`Checker` 用后备委托实现（`??= GetIndexInfosOfIndexSymbol`，语义等于参考 checker.ts:1658 对象字面量把 checker.ts:16693 的函数赋给该槽），原来那两个抛 `NotSupportedException` 的访问器删除；`CheckerCreateTypeCheckerTests` 的"接口减类"差异表因此清空（测试改为断言该成员返回形状正确的委托）。验证：build 0/0、测试 1,049/1,049、`Gen --check` 无漂移、全语料 **`same=3637 diverged=80 port-crash=2191`**（该成员不在 dump 路径上，读数不变）。
 
 ## 16. `const enum` 成员作类型：typed enum
 
