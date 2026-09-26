@@ -836,13 +836,16 @@ M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质�
 
 代价是生成物里有一段明确会抛的代码。这是临时的：清单每长一条就短一条，全部就位后生成物里不再有 `NotImplementedException`。
 
-**进度**（第十五批结束时）：428 个工厂成员中，58 个仍是存根。已手写的部分包括字面量与模板家族、标识符与 punctuation、parameter/property/method 元素、signature 家族（call / construct / index / constructor / accessor）、函数表达式与箭头函数、函数与类声明、heritage clause、表达式家族（access / call / chain / 一元二元 / 条件 / new / tagged template）、类型节点家族（keyword / union / intersection / tuple / function / constructor / import type）、variable / import / export / module / source file 声明、emit helper 家族，以及一批辅助（`asEmbeddedStatement`/`asVariableDeclaration`/`flattenCommaElements`/`getCookedText`/`hasInvalidEscape`…）。剩下的集中在四处：
+**进度**（第十六批结束时）：428 个工厂成员中，51 个仍是存根。已手写的部分包括字面量与模板家族、标识符与 punctuation、parameter/property/method 元素、signature 家族（call / construct / index / constructor / accessor）、函数表达式与箭头函数、函数与类声明、heritage clause、表达式家族（access / call / chain / 一元二元 / 条件 / new / tagged template）、类型节点家族（keyword / union / intersection / tuple / function / constructor / import type）、variable / import / export / module / source file 声明、emit helper 家族、JSX 元素与 property assignment，以及一批辅助（`asEmbeddedStatement`/`asVariableDeclaration`/`flattenCommaElements`/`getCookedText`/`hasInvalidEscape`…）。剩下的 51 个按四类：
 
-- **JSDoc 家族**（30 余个）：它们都经由 `createBaseJSDocTag`/`createBaseJSDocTagDeclaration` 这两个泛型辅助，而那两个的 `T["kind"]` 约束在 C# 里表达不了。
-- **声明家族**：`updatePropertyAssignment` / `updateShorthandPropertyAssignment`、`updateOuterExpression`、`createCallBinding` / `createAssignmentTargetWrapper` / `createUseStrictPrologue`。
-- **等 M4e 的**：`createBinaryExpression`（`containsObjectRestOrSpread` 要 `forEachChild`），以及经 `factory.createStrictEquality` 走的 `createTypeCheck` / `createIsNotTypeCheck`。
-- **JSX 与 emit helper**：`createTypeCheck`/`createMethodCall`/`createReflectSetCall` 这一类，为的是 transformer 生成代码时用的表达式。
-- **标识符自动生成**：`createTempVariable`/`createLoopVariable`/`createUniqueName`，它们要 `GeneratedNamePart`（transformers 的类型，M7）。
+| 类别 | 数量 | 何时能做完 |
+|---|---|---|
+| JSDoc 家族（tag 与 type 两侧） | 约 30 | 本层：它的两个泛型辅助 `createBaseJSDocTag` / `createBaseJSDocTagDeclaration` 在 C# 里改成逐函数内联即可（泛型参数没法"按 kind 选类"），另需移植 `getDefaultTagNameForKind` 与 `getJSDocTypeAliasName` |
+| 标识符自动生成（`createTempVariable` / `createLoopVariable` / `createUniqueName` / `getGeneratedNameForNode` …） | 8 | **M7**：参数是 `GeneratedNamePart`，且要 `formatGeneratedName`（`factory/utilities.ts`，M4d） |
+| 零散（`updateOuterExpression`、`createCallBinding`、`createAssignmentTargetWrapper`、`createUseStrictPrologue`） | 4 | 本层 |
+| 等 M4e 的 | 3 | `createBinaryExpression`（`containsObjectRestOrSpread` 要 `forEachChild`），以及经 `factory.createStrictEquality` 走的 `createTypeCheck` / `createIsNotTypeCheck` |
+
+**这里的取舍是明确的**：能在本层做完的就做（上表第 1、3 类），依赖后续批次的就保持存根并在这里点名 —— 而不是留一个会抛的实现冒充完成。
 
 ---
 
