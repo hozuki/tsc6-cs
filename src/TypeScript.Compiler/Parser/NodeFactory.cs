@@ -3567,4 +3567,663 @@ internal partial class NodeFactory
 
         return Update(updated, original);
     }
+
+    //
+    // JSDoc (the hand-written half)
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:7188 — <c>getDefaultTagNameForKind</c>.</summary>
+    private static string GetDefaultTagNameForKind(SyntaxKind kind) => kind switch
+    {
+        SyntaxKind.JSDocTypeTag => "type",
+        SyntaxKind.JSDocReturnTag => "returns",
+        SyntaxKind.JSDocThisTag => "this",
+        SyntaxKind.JSDocEnumTag => "enum",
+        SyntaxKind.JSDocAuthorTag => "author",
+        SyntaxKind.JSDocClassTag => "class",
+        SyntaxKind.JSDocPublicTag => "public",
+        SyntaxKind.JSDocPrivateTag => "private",
+        SyntaxKind.JSDocProtectedTag => "protected",
+        SyntaxKind.JSDocReadonlyTag => "readonly",
+        SyntaxKind.JSDocOverrideTag => "override",
+        SyntaxKind.JSDocTemplateTag => "template",
+        SyntaxKind.JSDocTypedefTag => "typedef",
+        SyntaxKind.JSDocParameterTag => "param",
+        SyntaxKind.JSDocPropertyTag => "prop",
+        SyntaxKind.JSDocCallbackTag => "callback",
+        SyntaxKind.JSDocOverloadTag => "overload",
+        SyntaxKind.JSDocAugmentsTag => "augments",
+        SyntaxKind.JSDocImplementsTag => "implements",
+        SyntaxKind.JSDocImportTag => "import",
+        _ => Debug.Fail<string>($"Unsupported kind: {kind}"),
+    };
+
+    /// <summary>ported from: factory/nodeFactory.ts:5192 — <c>getDefaultTagName</c>.</summary>
+    private Identifier GetDefaultTagName(JSDocTag node)
+    {
+        var defaultTagName = GetDefaultTagNameForKind(node.Kind);
+
+        return node.TagName is { } tagName && tagName.EscapedText == Utilities.EscapeLeadingUnderscores(defaultTagName)
+            ? tagName
+            : CreateIdentifier(defaultTagName, null, null);
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts — <c>getJSDocTypeAliasName</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS reads <c>fullName.body.name</c> when the full name is a namespace declaration; the port reads the
+    /// <c>Body</c> member, whose type is already the identifier TS is testing for.
+    /// </remarks>
+    private static Identifier? GetJSDocTypeAliasName(Node? fullName)
+        => fullName is Identifier identifier ? identifier
+            : fullName is ModuleDeclaration { Body: Identifier body } ? body
+            : null;
+
+    /// <summary>Sets the <c>type</c> member the three unary JSDoc type nodes share.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS constrains its type parameter to <c>JSDocType &amp; { readonly type: TypeNode | undefined }</c>, which
+    /// is a structural constraint C# cannot write — the three classes have no common interface to hang <c>Type</c> on. The
+    /// switch is what replaces it.
+    /// </remarks>
+    private static void SetJSDocType(Node node, ITypeNode? type)
+    {
+        switch (node)
+        {
+            case JSDocOptionalType optional: optional.Type = type; break;
+            case JSDocVariadicType variadic: variadic.Type = type; break;
+            case JSDocNamepathType namepath: namepath.Type = type; break;
+        }
+    }
+
+    /// <summary>Sets the <c>type</c> and <c>postfix</c> members the two nullable JSDoc type nodes share.</summary>
+    private static void SetJSDocTypeAndPostfix(Node node, ITypeNode? type, bool postfix)
+    {
+        switch (node)
+        {
+            case JSDocNullableType nullable:
+                nullable.Type = type;
+                nullable.Postfix = postfix;
+                break;
+            case JSDocNonNullableType nonNullable:
+                nonNullable.Type = type;
+                nonNullable.Postfix = postfix;
+                break;
+        }
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5198 — <c>createBaseJSDocTag</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS constrains <c>T</c> to <c>JSDocTag</c> and lets the caller name the class. C# needs the constructor
+    /// constraint for that, which is the only difference.
+    /// </remarks>
+    private T CreateBaseJSDocTag<T>(SyntaxKind kind, Identifier? tagName, object? comment)
+        where T : JSDocTag, new()
+    {
+        var node = CreateBaseNode<T>(kind);
+        node.TagName = tagName;
+        node.Comment = comment;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5206 — <c>createBaseJSDocTagDeclaration</c>.</summary>
+    private T CreateBaseJSDocTagDeclaration<T>(SyntaxKind kind, Identifier? tagName, object? comment)
+        where T : JSDocTag, IDeclaration, new()
+    {
+        var node = CreateBaseDeclaration<T>(kind);
+        node.TagName = tagName;
+        node.Comment = comment;
+        return node;
+    }
+
+    /// <summary>Sets the <c>typeExpression</c> member the type-like JSDoc tags share.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the structural constraint TS writes (<c>JSDocTag &amp; { typeExpression?: … }</c>) has no C# spelling —
+    /// <c>JSDocTag</c> is a class here and carries no such member. The switch is what replaces it; the tags whose member is
+    /// a <c>JSDocSignature</c> rather than a <c>JSDocTypeExpression</c> (overload, typedef, callback) are not in it.
+    /// </remarks>
+    private static void SetJSDocTypeExpression(Node node, JSDocTypeExpression? typeExpression)
+    {
+        switch (node)
+        {
+            case JSDocTypeTag type: type.TypeExpression = typeExpression; break;
+            case JSDocReturnTag returns: returns.TypeExpression = typeExpression; break;
+            case JSDocThisTag thisTag: thisTag.TypeExpression = typeExpression; break;
+            case JSDocSatisfiesTag satisfies: satisfies.TypeExpression = typeExpression; break;
+        }
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5462 — <c>createJSDocSimpleTagWorker</c>.</summary>
+    public T CreateJSDocSimpleTagWorker<T>(SyntaxKind kind, Identifier? tagName, object? comment)
+        where T : JSDocTag, new()
+        => CreateBaseJSDocTag<T>(
+            kind,
+            tagName ?? CreateIdentifier(GetDefaultTagNameForKind(kind), null, null),
+            comment);
+
+    /// <summary>ported from: factory/nodeFactory.ts:5476 — <c>updateJSDocSimpleTagWorker</c>.</summary>
+    public T UpdateJSDocSimpleTagWorker<T>(SyntaxKind kind, T? node, Identifier? tagName, object? comment)
+        where T : JSDocTag, new()
+    {
+        // TS defaults `tagName` to the node's default tag name, which is what a caller that passes nothing means.
+        var name = tagName ?? GetDefaultTagName(node!);
+        return node!.TagName != name || node!.Comment != comment
+            ? Update(CreateJSDocSimpleTagWorker<T>(kind, name, comment), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5492 — <c>createJSDocTypeLikeTagWorker</c>.</summary>
+    public T CreateJSDocTypeLikeTagWorker<T>(
+        SyntaxKind kind,
+        Identifier? tagName,
+        JSDocTypeExpression? typeExpression,
+        object? comment)
+        where T : JSDocTag, new()
+    {
+        var node = CreateBaseJSDocTag<T>(
+            kind,
+            tagName ?? CreateIdentifier(GetDefaultTagNameForKind(kind), null, null),
+            comment);
+        SetJSDocTypeExpression(node, typeExpression);
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5506 — <c>updateJSDocTypeLikeTagWorker</c>.</summary>
+    public T UpdateJSDocTypeLikeTagWorker<T>(
+        SyntaxKind kind,
+        T? node,
+        Identifier? tagName,
+        JSDocTypeExpression? typeExpression,
+        object? comment)
+        where T : JSDocTag, new()
+    {
+        var name = tagName ?? GetDefaultTagName(node!);
+        return node!.TagName != name || node!.Comment != comment
+            ? Update(CreateJSDocTypeLikeTagWorker<T>(kind, name, typeExpression, comment), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5513 — <c>createJSDocUnknownTag</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the kind is <c>SyntaxKind.JSDocTag</c> rather than <c>JSDocUnknownTag</c> — that is what TS passes, and
+    /// what the class pins.
+    /// </remarks>
+    public JSDocUnknownTag CreateJSDocUnknownTag(Identifier? tagName, object? comment = null)
+        => CreateBaseJSDocTag<JSDocUnknownTag>(SyntaxKind.JSDocTag, tagName, comment);
+
+    /// <summary>ported from: factory/nodeFactory.ts:5521 — <c>updateJSDocUnknownTag</c>.</summary>
+    public JSDocUnknownTag UpdateJSDocUnknownTag(JSDocUnknownTag? node, Identifier? tagName, object? comment)
+    {
+        return node!.TagName != tagName || node!.Comment != comment
+            ? Update(CreateJSDocUnknownTag(tagName, comment), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5529 — <c>createJSDocEnumTag</c>.</summary>
+    public JSDocEnumTag CreateJSDocEnumTag(
+        Identifier? tagName,
+        JSDocTypeExpression? typeExpression,
+        object? comment = null)
+    {
+        var node = CreateBaseJSDocTagDeclaration<JSDocEnumTag>(
+            SyntaxKind.JSDocEnumTag,
+            tagName ?? CreateIdentifier(GetDefaultTagNameForKind(SyntaxKind.JSDocEnumTag), null, null),
+            comment);
+        node.TypeExpression = typeExpression;
+
+        node.Locals = null;        // initialized by binder (LocalsContainer)
+        node.NextContainer = null; // initialized by binder (LocalsContainer)
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5539 — <c>updateJSDocEnumTag</c>.</summary>
+    public JSDocEnumTag UpdateJSDocEnumTag(
+        JSDocEnumTag? node,
+        Identifier? tagName,
+        JSDocTypeExpression? typeExpression,
+        object? comment)
+    {
+        var name = tagName ?? GetDefaultTagName(node!);
+        return node!.TagName != name || node!.TypeExpression != typeExpression || node!.Comment != comment
+            ? Update(CreateJSDocEnumTag(name, typeExpression, comment), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5548 — <c>createJSDocImportTag</c>.</summary>
+    public JSDocImportTag CreateJSDocImportTag(
+        Identifier? tagName,
+        ImportClause? importClause,
+        Expression? moduleSpecifier,
+        ImportAttributes? attributes,
+        object? comment = null)
+    {
+        var node = CreateBaseJSDocTag<JSDocImportTag>(
+            SyntaxKind.JSDocImportTag,
+            tagName ?? CreateIdentifier("import", null, null),
+            comment);
+        node.ImportClause = importClause;
+        node.ModuleSpecifier = moduleSpecifier;
+        node.Attributes = attributes;
+        node.Comment = comment;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5557 — <c>updateJSDocImportTag</c>.</summary>
+    public JSDocImportTag UpdateJSDocImportTag(
+        JSDocImportTag? node,
+        Identifier? tagName,
+        ImportClause? importClause,
+        Expression? moduleSpecifier,
+        ImportAttributes? attributes,
+        object? comment)
+    {
+        return node!.TagName != tagName
+            || node!.Comment != comment
+            || node!.ImportClause != importClause
+            || node!.ModuleSpecifier != moduleSpecifier
+            || node!.Attributes != attributes
+            ? Update(CreateJSDocImportTag(tagName, importClause, moduleSpecifier, attributes, comment), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5216 — <c>createJSDocTemplateTag</c>.</summary>
+    public JSDocTemplateTag CreateJSDocTemplateTag(
+        Identifier? tagName,
+        JSDocTypeExpression? constraint,
+        List<TypeParameterDeclaration>? typeParameters,
+        object? comment = null)
+    {
+        var node = CreateBaseJSDocTag<JSDocTemplateTag>(
+            SyntaxKind.JSDocTemplateTag,
+            tagName ?? CreateIdentifier("template", null, null),
+            comment);
+        node.Constraint = constraint;
+        node.TypeParameters = CreateNodeArray(typeParameters, null);
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5225 — <c>updateJSDocTemplateTag</c>.</summary>
+    public JSDocTemplateTag UpdateJSDocTemplateTag(
+        JSDocTemplateTag? node,
+        Identifier? tagName,
+        JSDocTypeExpression? constraint,
+        List<TypeParameterDeclaration>? typeParameters,
+        object? comment)
+    {
+        var name = tagName ?? GetDefaultTagName(node!);
+        return node!.TagName != name
+            || node!.Constraint != constraint
+            || !ReferenceEquals(node!.TypeParameters, typeParameters)
+            || node!.Comment != comment
+            ? Update(CreateJSDocTemplateTag(name, constraint, typeParameters, comment), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5237 — <c>createJSDocTypedefTag</c>.</summary>
+    public JSDocTypedefTag CreateJSDocTypedefTag(
+        Identifier? tagName,
+        JSDocTypeExpression? typeExpression,
+        Node? fullName,
+        object? comment = null)
+    {
+        var node = CreateBaseJSDocTagDeclaration<JSDocTypedefTag>(
+            SyntaxKind.JSDocTypedefTag,
+            tagName ?? CreateIdentifier("typedef", null, null),
+            comment);
+        node.TypeExpression = typeExpression;
+        node.FullName = fullName;
+        node.Name = GetJSDocTypeAliasName(fullName);
+
+        node.Locals = null;        // initialized by binder (LocalsContainer)
+        node.NextContainer = null; // initialized by binder (LocalsContainer)
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5253 — <c>updateJSDocTypedefTag</c>.</summary>
+    public JSDocTypedefTag UpdateJSDocTypedefTag(
+        JSDocTypedefTag? node,
+        Identifier? tagName,
+        JSDocTypeExpression? typeExpression,
+        Node? fullName,
+        object? comment)
+    {
+        var name = tagName ?? GetDefaultTagName(node!);
+        return node!.TagName != name
+            || node!.TypeExpression != typeExpression
+            || node!.FullName != fullName
+            || node!.Comment != comment
+            ? Update(CreateJSDocTypedefTag(name, typeExpression, fullName, comment), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5268 — <c>createJSDocParameterTag</c>.</summary>
+    public JSDocParameterTag CreateJSDocParameterTag(
+        Identifier? tagName,
+        Node? name,
+        bool isBracketed,
+        JSDocTypeExpression? typeExpression = null,
+        bool? isNameFirst = null,
+        object? comment = null)
+    {
+        var node = CreateBaseJSDocTagDeclaration<JSDocParameterTag>(
+            SyntaxKind.JSDocParameterTag,
+            tagName ?? CreateIdentifier("param", null, null),
+            comment);
+        node.TypeExpression = typeExpression;
+        node.Name = name;
+        node.IsNameFirst = isNameFirst == true;
+        node.IsBracketed = isBracketed;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5283 — <c>updateJSDocParameterTag</c>.</summary>
+    public JSDocParameterTag UpdateJSDocParameterTag(
+        JSDocParameterTag? node,
+        Identifier? tagName,
+        Node? name,
+        bool isBracketed,
+        JSDocTypeExpression? typeExpression,
+        bool isNameFirst,
+        object? comment)
+    {
+        var defaultName = tagName ?? GetDefaultTagName(node!);
+        return node!.TagName != defaultName
+            || node!.Name != name
+            || node!.IsBracketed != isBracketed
+            || node!.TypeExpression != typeExpression
+            || node!.IsNameFirst != isNameFirst
+            || node!.Comment != comment
+            ? Update(
+                CreateJSDocParameterTag(defaultName, name, isBracketed, typeExpression, isNameFirst, comment),
+                node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5296 — <c>createJSDocPropertyTag</c>.</summary>
+    public JSDocPropertyTag CreateJSDocPropertyTag(
+        Identifier? tagName,
+        Node? name,
+        bool isBracketed,
+        JSDocTypeExpression? typeExpression = null,
+        bool? isNameFirst = null,
+        object? comment = null)
+    {
+        var node = CreateBaseJSDocTagDeclaration<JSDocPropertyTag>(
+            SyntaxKind.JSDocPropertyTag,
+            tagName ?? CreateIdentifier("prop", null, null),
+            comment);
+        node.TypeExpression = typeExpression;
+        node.Name = name;
+        node.IsNameFirst = isNameFirst == true;
+        node.IsBracketed = isBracketed;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5311 — <c>updateJSDocPropertyTag</c>.</summary>
+    public JSDocPropertyTag UpdateJSDocPropertyTag(
+        JSDocPropertyTag? node,
+        Identifier? tagName,
+        Node? name,
+        bool isBracketed,
+        JSDocTypeExpression? typeExpression,
+        bool isNameFirst,
+        object? comment)
+    {
+        var defaultName = tagName ?? GetDefaultTagName(node!);
+        return node!.TagName != defaultName
+            || node!.Name != name
+            || node!.IsBracketed != isBracketed
+            || node!.TypeExpression != typeExpression
+            || node!.IsNameFirst != isNameFirst
+            || node!.Comment != comment
+            ? Update(
+                CreateJSDocPropertyTag(defaultName, name, isBracketed, typeExpression, isNameFirst, comment),
+                node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5324 — <c>createJSDocCallbackTag</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the type expression of a callback tag is a <c>JSDocSignature</c>, not a <c>JSDocTypeExpression</c> — the
+    /// one place in this family where the member's type differs.
+    /// </remarks>
+    public JSDocCallbackTag CreateJSDocCallbackTag(
+        Identifier? tagName,
+        JSDocSignature? typeExpression,
+        Node? fullName = null,
+        object? comment = null)
+    {
+        var node = CreateBaseJSDocTagDeclaration<JSDocCallbackTag>(
+            SyntaxKind.JSDocCallbackTag,
+            tagName ?? CreateIdentifier("callback", null, null),
+            comment);
+        node.TypeExpression = typeExpression;
+        node.FullName = fullName;
+        node.Name = GetJSDocTypeAliasName(fullName);
+
+        node.Locals = null;        // initialized by binder (LocalsContainer)
+        node.NextContainer = null; // initialized by binder (LocalsContainer)
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5340 — <c>updateJSDocCallbackTag</c>.</summary>
+    public JSDocCallbackTag UpdateJSDocCallbackTag(
+        JSDocCallbackTag? node,
+        Identifier? tagName,
+        JSDocSignature? typeExpression,
+        Node? fullName,
+        object? comment)
+    {
+        var defaultName = tagName ?? GetDefaultTagName(node!);
+        return node!.TagName != defaultName
+            || node!.TypeExpression != typeExpression
+            || node!.FullName != fullName
+            || node!.Comment != comment
+            ? Update(CreateJSDocCallbackTag(defaultName, typeExpression, fullName, comment), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5351 — <c>createJSDocOverloadTag</c>.</summary>
+    public JSDocOverloadTag CreateJSDocOverloadTag(
+        Identifier? tagName,
+        JSDocSignature? typeExpression,
+        object? comment = null)
+    {
+        var node = CreateBaseJSDocTag<JSDocOverloadTag>(
+            SyntaxKind.JSDocOverloadTag,
+            tagName ?? CreateIdentifier("overload", null, null),
+            comment);
+        node.TypeExpression = typeExpression;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5360 — <c>updateJSDocOverloadTag</c>.</summary>
+    public JSDocOverloadTag UpdateJSDocOverloadTag(
+        JSDocOverloadTag? node,
+        Identifier? tagName,
+        JSDocSignature? typeExpression,
+        object? comment)
+    {
+        var defaultName = tagName ?? GetDefaultTagName(node!);
+        return node!.TagName != defaultName
+            || node!.TypeExpression != typeExpression
+            || node!.Comment != comment
+            ? Update(CreateJSDocOverloadTag(defaultName, typeExpression, comment), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5368 — <c>createJSDocAugmentsTag</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS types the class expression as an indexed access (<c>JSDocAugmentsTag["class"]</c>), which maps to the
+    /// class expression node.
+    /// </remarks>
+    public JSDocAugmentsTag CreateJSDocAugmentsTag(
+        Identifier? tagName,
+        ExpressionWithTypeArguments? className,
+        object? comment = null)
+    {
+        var node = CreateBaseJSDocTag<JSDocAugmentsTag>(
+            SyntaxKind.JSDocAugmentsTag,
+            tagName ?? CreateIdentifier("augments", null, null),
+            comment);
+        node.Class = className;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5376 — <c>updateJSDocAugmentsTag</c>.</summary>
+    public JSDocAugmentsTag UpdateJSDocAugmentsTag(
+        JSDocAugmentsTag? node,
+        Identifier? tagName,
+        ExpressionWithTypeArguments? className,
+        object? comment)
+    {
+        var defaultName = tagName ?? GetDefaultTagName(node!);
+        return node!.TagName != defaultName || node!.Class != className || node!.Comment != comment
+            ? Update(CreateJSDocAugmentsTag(defaultName, className, comment), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5384 — <c>createJSDocImplementsTag</c>.</summary>
+    public JSDocImplementsTag CreateJSDocImplementsTag(
+        Identifier? tagName,
+        ExpressionWithTypeArguments? className,
+        object? comment = null)
+    {
+        var node = CreateBaseJSDocTag<JSDocImplementsTag>(
+            SyntaxKind.JSDocImplementsTag,
+            tagName ?? CreateIdentifier("implements", null, null),
+            comment);
+        node.Class = className;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5392 — <c>updateJSDocImplementsTag</c>.</summary>
+    public JSDocImplementsTag UpdateJSDocImplementsTag(
+        JSDocImplementsTag? node,
+        Identifier? tagName,
+        ExpressionWithTypeArguments? className,
+        object? comment)
+    {
+        var defaultName = tagName ?? GetDefaultTagName(node!);
+        return node!.TagName != defaultName || node!.Class != className || node!.Comment != comment
+            ? Update(CreateJSDocImplementsTag(defaultName, className, comment), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5400 — <c>createJSDocSeeTag</c>.</summary>
+    public JSDocSeeTag CreateJSDocSeeTag(
+        Identifier? tagName,
+        JSDocNameReference? name,
+        object? comment = null)
+    {
+        var node = CreateBaseJSDocTag<JSDocSeeTag>(
+            SyntaxKind.JSDocSeeTag,
+            tagName ?? CreateIdentifier("see", null, null),
+            comment);
+        node.Name = name;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5408 — <c>updateJSDocSeeTag</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS leaves this tag name undefaulted (the caller may pass <c>undefined</c> deliberately), so the port does
+    /// the same rather than falling back to the default tag name.
+    /// </remarks>
+    public JSDocSeeTag UpdateJSDocSeeTag(
+        JSDocSeeTag? node,
+        Identifier? tagName,
+        JSDocNameReference? name,
+        object? comment)
+    {
+        return node!.TagName != tagName || node!.Name != name || node!.Comment != comment
+            ? Update(CreateJSDocSeeTag(tagName, name, comment), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5071 — <c>createJSDocPrimaryTypeWorker</c>.</summary>
+    public T CreateJSDocPrimaryTypeWorker<T>(SyntaxKind kind)
+        where T : Node, new()
+        => CreateBaseNode<T>(kind);
+
+    /// <summary>ported from: factory/nodeFactory.ts:5094 — <c>createJSDocUnaryTypeWorker</c>.</summary>
+    public T CreateJSDocUnaryTypeWorker<T>(SyntaxKind kind, ITypeNode? type)
+        where T : Node, new()
+    {
+        var node = CreateBaseNode<T>(kind);
+        SetJSDocType(node, type);
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5084 — <c>updateJSDocUnaryTypeWorker</c>.</summary>
+    public T UpdateJSDocUnaryTypeWorker<T>(SyntaxKind kind, T? node, ITypeNode? type)
+        where T : Node, new()
+    {
+        return !ReferenceEquals(TypeOf(node!), type)
+            ? Update(CreateJSDocUnaryTypeWorker<T>(kind, type), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5076 — <c>createJSDocPrePostfixUnaryTypeWorker</c>.</summary>
+    public T CreateJSDocPrePostfixUnaryTypeWorker<T>(SyntaxKind kind, ITypeNode? type, bool? postfix = null)
+        where T : Node, new()
+    {
+        var isPostfix = postfix ?? false;
+        var node = CreateJSDocUnaryTypeWorker<T>(
+            kind,
+            isPostfix && type is not null
+                ? Parenthesizer.ParenthesizeNonArrayTypeOfPostfixType(type)
+                : type);
+        SetJSDocTypeAndPostfix(node, TypeOf(node), isPostfix);
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5088 — <c>updateJSDocPrePostfixUnaryTypeWorker</c>.</summary>
+    public T UpdateJSDocPrePostfixUnaryTypeWorker<T>(SyntaxKind kind, T? node, ITypeNode? type)
+        where T : Node, new()
+    {
+        return !ReferenceEquals(TypeOf(node!), type)
+            ? Update(CreateJSDocPrePostfixUnaryTypeWorker<T>(kind, type, PostfixOf(node!)), node)
+            : node!;
+    }
+
+    /// <summary>The <c>type</c> member of a unary JSDoc type node.</summary>
+    private static ITypeNode? TypeOf(Node node) => node switch
+    {
+        JSDocOptionalType optional => optional.Type,
+        JSDocVariadicType variadic => variadic.Type,
+        JSDocNamepathType namepath => namepath.Type,
+        JSDocNullableType nullable => nullable.Type,
+        JSDocNonNullableType nonNullable => nonNullable.Type,
+        _ => null,
+    };
+
+    /// <summary>The <c>postfix</c> member of a nullable JSDoc type node.</summary>
+    private static bool PostfixOf(Node node) => node switch
+    {
+        JSDocNullableType nullable => nullable.Postfix,
+        JSDocNonNullableType nonNullable => nonNullable.Postfix,
+        _ => false,
+    };
+
+    /// <summary>ported from: factory/nodeFactory.ts:5136 — <c>createJSDocTypeLiteral</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS leaves <c>isArrayType</c> unannotated and defaults it to <c>false</c>; the port takes it as
+    /// <c>object?</c> and narrows, an absent value meaning <c>false</c>.
+    /// </remarks>
+    public JSDocTypeLiteral CreateJSDocTypeLiteral(List<JSDocPropertyLikeTag>? propertyTags, object? isArrayType = null)
+    {
+        var node = CreateBaseDeclaration<JSDocTypeLiteral>(SyntaxKind.JSDocTypeLiteral);
+        node.JsDocPropertyTags = AsNodeArray(propertyTags);
+        node.IsArrayType = isArrayType is bool arrayType && arrayType;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5145 — <c>updateJSDocTypeLiteral</c>.</summary>
+    public JSDocTypeLiteral UpdateJSDocTypeLiteral(
+        JSDocTypeLiteral? node,
+        List<JSDocPropertyLikeTag>? propertyTags,
+        bool isArrayType)
+    {
+        return !ReferenceEquals(node!.JsDocPropertyTags, propertyTags) || node!.IsArrayType != isArrayType
+            ? Update(CreateJSDocTypeLiteral(propertyTags, isArrayType), node)
+            : node!;
+    }
 }
