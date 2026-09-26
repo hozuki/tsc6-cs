@@ -1394,7 +1394,11 @@ printer 门控的 `TypeToString`/`SymbolToString`/`SignatureToString`/`TypePredi
 
 **638 条分歧的分组（降序）：** 200 条诊断码错配（**主导且是真缺陷**：端口在 `getCannotFindNameDiagnosticForName`（`checker.ts:27734-27742`）该报**定位过的 2583** 时报了**全局 2318** `Cannot find global type`，经 async/Promise 全局取值可达）；191 条类型标志（56 条仅 id 不同 + props/obj）；91 + 23 条记录种类 `(diagnostics vs diagnostic)`（同一行上"诊断数组 vs 单个诊断"的形态错配）；43 条 node-vs-symbol；38 条符号标志；20 条单侧放弃；14 条 type-vs-node；8；5；3。
 
-**printer 门控 dump 的裁定（A′，无格式变更）：** 端口死在 `createFileDiagnostic` 的**急切 `FormatMessage`** 上（其类型/符号实参触发打印），而 dump **不需要该字符串**（`D#` 仅 code/start/len/cat，N/S/T/G 都不含类型名）。故：让 `Diagnostic.MessageText` **惰性 + 记忆化**（存消息与实参、首次读取时格式化），并让排序/去重比较器**只在参考的平局分支内**（code 与位置相等之后，同 `compareDiagnostics`）读取它——排序语义因此与参考一致（**无偏差**），门控保持响亮、仅在其文本确实被需要时触发。预期解锁 2,682 中的约 2,600 个文件；格式 v1 **保持冻结**，不引入 v2。
+**M6-late 第二轮（同一命令，集成点独立复跑）：`same=2938 diverged=295 port-crash=2675`（`same` +350 / `diverged` −343，零回归：测试 1,044/1,044、AstDiff 19,585/19,585、BindDiff 19,230/19,230）。本轮三个真缺陷：`Checker.IsErrorType` 的函数体；`GetPropertiesOfType` 的**表观类型归约**；**14 个延迟全局取值器把回退放在记忆化之外**。**
+
+**A′ 的裁定前提被实测推翻（重要的方法记录）：** A′ 按裁定实施完毕（`Diagnostic.MessageText` 惰性+记忆化；参考里三处 spread 诊断的副本改走 `ShareMessageText`；比较器本就在 code/位置之后才读 `messageText`，与 `utilities.ts:8787-8794` 一致），但**全语料逐位无移动**（2588/638/2682 → 2588/638/2682）。原因是那个字符串在**调用点**就已算出，与参考完全一致——`reportImplicitAny` 在 `checker.ts:26105` 先算 `typeToString(getWidenedType(type))` 再创建诊断，因此 `Diagnostic`/`FormatMessage` 内的任何惰性化都无济于事。崩溃直方图给出 **83 条不同调用链**（前五：`ReportImplicitAny` 1,170、`CheckTypeRelatedTo/ReportRelationError` 301、`CheckIdentifier` 256、`ReportNonexistentProperty` 249、`SyntacticNodeBuilder` 102）。
+
+**门控的掩蔽量已被量出（对 M7 后的工作量是硬数据）：** 用一次性构造让四个 printer 门控改**返回 writer 而非抛出**（跑完即回滚、文件逐字节还原），全语料为 `same=3774 diverged=1679 port-crash=455` —— 即实参级延迟能把 `same` 抬升约 836，但同时让 `diverged` **增加约 1,041**：**门控当前正掩蔽着约 1,041 条真实分歧**（例如 2318/2583 类在其中是藏着的）。因此裁定：**保持门控响亮**、**保留 A′**（忠实，且严格更优——三处副本不再强制格式化），而"实参级延迟"（约 200 个调用点、83 条首崩链上引入惰性诊断实参包装）**是一项新偏差，需在 295 条分歧收完之后单独裁定**，以免两种效应混淆。
 
 ## 16. `const enum` 成员作类型：typed enum
 
