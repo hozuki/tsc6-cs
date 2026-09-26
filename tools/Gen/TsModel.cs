@@ -130,6 +130,16 @@ internal sealed class TsTable
     public JsonElement Value { get; set; }
 }
 
+/// <summary>One predicate of <c>factory/nodeTests.ts</c>: a name and the kind it tests.</summary>
+internal sealed class TsPredicate
+{
+    public string Name { get; set; } = "";
+
+    public List<string> Kinds { get; set; } = [];
+
+    public int StartLine { get; set; }
+}
+
 /// <summary>
 /// The type model of a TS source file, obtained from the TypeScript compiler's own parser.
 /// </summary>
@@ -155,7 +165,10 @@ internal sealed class TsModel
 
     /// <summary>Data tables extracted alongside the type model, in the order the extractor evaluated them.
     /// </summary>
-    public List<TsTable> Tables { get; set; } = [];
+public List<TsTable> Tables { get; set; } = [];
+
+    /// <summary>The node predicates of <c>factory/nodeTests.ts</c>, in source order.</summary>
+    public List<TsPredicate> Predicates { get; set; } = [];
 
     private static readonly JsonSerializerOptions s_jsonOptions = new()
     {

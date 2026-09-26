@@ -117,6 +117,7 @@ internal static class Generator
         // they belong in the same list.
         files.Add(DiagnosticEmitter.Emit(tsRoot, outputRoot));
         files.Add(ScannerTablesEmitter.Emit(model, outputRoot));
+        files.Add(NodeTestsEmitter.Emit(model, outputRoot));
 
         return files;
     }

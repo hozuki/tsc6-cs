@@ -57,13 +57,17 @@ for (const [sourceRelative, name] of tableSources) {
     tables.push(collectTable(sourceRelative, name));
 }
 
-fs.mkdirSync(path.dirname(outPath), { recursive: true });
-fs.writeFileSync(
+// The node-predicate table's source (see collectPredicates below).
+const predicateSource = "src/compiler/factory/nodeTests.ts";
+
+const predicates = collectPredicates();
+
+fs.mkdirSync(path.dirname(outPath), { recursive: true });fs.writeFileSync(
     outPath,
-    JSON.stringify({ source: sources.join(", "), enums, interfaces, aliases, tables }, null, 1),
+    JSON.stringify({ source: sources.join(", "), enums, interfaces, aliases, tables, predicates }, null, 1),
     "utf8");
 
-console.log(`extract: ${enums.length} enums, ${interfaces.length} interfaces, ${aliases.length} aliases, ${tables.length} tables -> ${outPath}`);
+console.log(`extract: ${enums.length} enums, ${interfaces.length} interfaces, ${aliases.length} aliases, ${tables.length} tables, ${predicates.length} predicates -> ${outPath}`);
 
 function collect(source, sourceRelative) {
     const text = source.text;
@@ -156,6 +160,48 @@ function collect(source, sourceRelative) {
 
         return text.slice(ranges[0].pos, ranges[0].end).replace(/^\/\/\s*/, "").trim() || null;
     }
+}
+
+// -----------------------------------------------------------------------------------------------
+// Node predicates
+// -----------------------------------------------------------------------------------------------
+
+// `factory/nodeTests.ts` is 227 exported functions that each test one `SyntaxKind`; all of them are a single
+// `return node.kind === SyntaxKind.X;`. That is a table, not code, so it is generated like the others rather than
+// transcribed by hand. A body of any other shape aborts the run.
+function collectPredicates() {
+    const filePath = path.join(tsRoot, predicateSource);
+    const text = fs.readFileSync(filePath, "utf8");
+    const source = ts.createSourceFile(filePath, text, ts.ScriptTarget.Latest, /* setParentNodes */ true, ts.ScriptKind.TS);
+
+    const result = [];
+    for (const statement of source.statements) {
+        if (!ts.isFunctionDeclaration(statement) || !statement.body || !statement.name) continue;
+
+        const body = statement.body.statements.map(s => s.getText(source)).join(" ").replace(/\s+/g, " ").trim();
+        const returned = /^return (.+);$/.exec(body);
+        if (!returned) {
+            throw new Error(`unexpected predicate body for '${statement.name.text}': ${body}`);
+        }
+
+        // Almost every predicate is one kind test; a few (`isModuleExportName`) are two joined by `||`.
+        const kinds = returned[1].split(/\s*\|\|\s*/).map(part => {
+            const match = /^\w+\.kind === SyntaxKind\.(\w+)$/.exec(part.trim());
+            if (!match) {
+                throw new Error(`unexpected predicate body for '${statement.name.text}': ${body}`);
+            }
+
+            return match[1];
+        });
+
+        result.push({
+            name: statement.name.text,
+            kinds,
+            startLine: source.getLineAndCharacterOfPosition(statement.getStart(source)).line + 1,
+        });
+    }
+
+    return result;
 }
 
 // -----------------------------------------------------------------------------------------------
