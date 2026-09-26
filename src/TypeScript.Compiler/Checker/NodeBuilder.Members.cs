@@ -161,7 +161,11 @@ internal sealed partial class Checker
         }
         else if ((type.Target!.ObjectFlags & ObjectFlags.Tuple) != 0)
         {
-            typeArguments = (List<IType>)Core.SameMap(typeArguments, (t, i) => RemoveMissingType(t, (((ITupleType)type.Target!).ElementFlags![i] & ElementFlags.Optional) != 0))!;
+            // PORT-NOTE: the reference's `(type.target as TupleType).elementFlags[i]` is an array read JS answers with
+            // `undefined` when the instantiation carries more type arguments than the target has element flags, and
+            // `!!(undefined & ElementFlags.Optional)` is false — the port states that guard.
+            var targetElementFlags = ((ITupleType)type.Target!).ElementFlags!;
+            typeArguments = (List<IType>)Core.SameMap(typeArguments, (t, i) => RemoveMissingType(t, i < targetElementFlags.Count && (targetElementFlags[i] & ElementFlags.Optional) != 0))!;
             if (typeArguments.Count > 0)
             {
                 var arity = GetTypeReferenceArity(type);

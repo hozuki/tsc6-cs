@@ -912,8 +912,17 @@ internal sealed partial class Checker
             return restParameter is not null ? GetTupleElementLabelFromBindingElement(restParameter, index, elementFlags)
                 : $"{restSymbol?.EscapedName ?? "arg"}_{index}";
         }
-        Debug.Assert(NodeTests.IsIdentifier(((INamedDeclaration)d).Name!)); // Parameter declarations could be binding patterns, but we only allow identifier names
-        return ((Identifier)((INamedDeclaration)d).Name!).EscapedText!;
+        // PORT-NOTE: TS reads `d.name` off the union `NamedTupleMember | ParameterDeclaration`, whose two members both
+        // declare it; the port's `NamedTupleMember` is not an `INamedDeclaration` (the same split §15.15 records for
+        // the other unions), so the slot is read per class.
+        var name = d switch
+        {
+            NamedTupleMember namedTupleMember => namedTupleMember.Name,
+            ParameterDeclaration parameter => parameter.Name,
+            _ => Debug.Fail<Node>($"getTupleElementLabel: unexpected declaration kind {d.Kind}"),
+        };
+        Debug.Assert(NodeTests.IsIdentifier(name!)); // Parameter declarations could be binding patterns, but we only allow identifier names
+        return ((Identifier)name!).EscapedText!;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:38418-38433 — <c>getParameterNameAtPosition</c>.</summary>

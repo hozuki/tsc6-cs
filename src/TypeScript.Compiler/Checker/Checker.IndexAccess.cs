@@ -969,7 +969,7 @@ internal sealed partial class Checker
                 {
                     if (_noImplicitAny && (indexType.Flags & (TypeFlags.StringLiteral | TypeFlags.NumberLiteral)) != 0)
                     {
-                        _diagnostics.Add(Utilities.CreateDiagnosticForNode(accessExpression, Diagnostics.Property_0_does_not_exist_on_type_1, (string)((ILiteralType)indexType).Value!, Diagnostic.DeferArg(() => TypeToString(objectType))));
+                        _diagnostics.Add(Utilities.CreateDiagnosticForNode(accessExpression, Diagnostics.Property_0_does_not_exist_on_type_1, ((ILiteralType)indexType).Value, Diagnostic.DeferArg(() => TypeToString(objectType))));
                         return _undefinedType;
                     }
                     else if ((indexType.Flags & (TypeFlags.Number | TypeFlags.String)) != 0)

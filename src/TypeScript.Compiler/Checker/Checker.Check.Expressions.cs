@@ -1716,10 +1716,18 @@ internal sealed partial class Checker
                     mapper = CreateTypeMapper(typeParameters, typeArguments);
                 }
 
+                // PORT-NOTE: the reference's `node.typeArguments![i]` (checker.ts:42693) is an array read JS answers with
+                // `undefined` when the node supplies fewer type arguments than the declaration has parameters — the case
+                // in which `getEffectiveTypeArguments` returns the supplied list unpadded; the arity error itself is
+                // reported elsewhere. The port states that absent slot as a null error node, which
+                // `checkTypeAssignableTo` reads as "check the relation, report nothing here".
+                var errorNode = ((INodeWithTypeArguments)node).TypeArguments is { } typeArgumentNodes && i < typeArgumentNodes.Count
+                    ? (Node)typeArgumentNodes[i]
+                    : null;
                 result = result && CheckTypeAssignableTo(
                     typeArguments[i],
                     InstantiateType(constraint, mapper)!,
-                    (Node)((INodeWithTypeArguments)node).TypeArguments![i],
+                    errorNode,
                     Diagnostics.Type_0_does_not_satisfy_the_constraint_1);
             }
         }
