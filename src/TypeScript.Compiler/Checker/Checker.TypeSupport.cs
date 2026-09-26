@@ -1757,10 +1757,13 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:16328-16364 — <c>containsArgumentsReference</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: the reference guards its nested <c>traverse</c> with <c>if (!node) return false</c>; the port's
-    /// parameter is a non-null <see cref="Node"/>, so the arm is not reachable and is not stated. The child walk is the
-    /// generated <see cref="ForEachChildTable"/> visitor, whose <c>bool?</c> answer is the reference's truthy-or-undefined
-    /// early exit.
+    /// PORT-NOTE: the reference's <c>(declaration as FunctionLikeDeclaration).body!</c> is an assertion, not a run-time
+    /// check — the kinds of the asserted union that own no <c>body</c> slot (and plain non-function-like declarations,
+    /// such as the <see cref="JSDocFunctionType"/> <c>getSignaturesOfSymbol</c> hands in) read <c>undefined</c> there, and
+    /// the nested <c>traverse</c>'s <c>if (!node) return false</c> turns that into <c>false</c>. The port reads the slot
+    /// through the safe cast (<c>(T?)x</c> on a reference type would check and throw) and states the same guard. The child
+    /// walk is the generated <see cref="ForEachChildTable"/> visitor, whose <c>bool?</c> answer is the reference's
+    /// truthy-or-undefined early exit.
     /// </remarks>
     internal bool ContainsArgumentsReference(Node declaration)
     {
@@ -1773,14 +1776,19 @@ internal sealed partial class Checker
             }
             else
             {
-                links.ContainsArgumentsReference = Traverse(((IFunctionLikeDeclarationBase)declaration).Body!);
+                links.ContainsArgumentsReference = Traverse((declaration as IFunctionLikeDeclarationBase)?.Body);
             }
         }
 
         return links.ContainsArgumentsReference == true;
 
-        bool Traverse(Node node)
+        bool Traverse(Node? node)
         {
+            if (node is null)
+            {
+                return false;
+            }
+
             switch (node.Kind)
             {
                 case SyntaxKind.Identifier:

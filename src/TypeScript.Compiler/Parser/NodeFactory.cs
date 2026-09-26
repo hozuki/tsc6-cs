@@ -4437,7 +4437,14 @@ internal partial class NodeFactory
                                     null,   // type
                                     null),  // initializer
                             ],
-                            CreateBlock([CreateExpressionStatement(expression)], true)),
+                            // PORT-NOTE: nodeFactory.ts:6725 — the reference calls `createBlock([...])` with no
+                            // `multiLine` argument, so the block's `multiLine` stays `undefined`. That is observable:
+                            // `shouldEmitBlockFunctionBodyOnSingleLine` (emitter.ts:3449, Printer.Statements.cs:651)
+                            // returns false for a truthy `multiLine`, which prints the synthetic setter body on its own
+                            // line instead of inline (`privateNameFieldDestructuredBinding(target=es2015)`,
+                            // `thisAndSuperInStaticMembers1(target=es2015)`). Every `__classPrivateFieldSet`/`Reflect.set`
+                            // the accessor carries is present either way; the difference is the reflow alone.
+                            CreateBlock([CreateExpressionStatement(expression)], null)),
                     ],
                     null)),
             "value");

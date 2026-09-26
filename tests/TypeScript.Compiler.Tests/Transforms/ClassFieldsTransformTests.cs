@@ -465,6 +465,29 @@ _C_x = new WeakMap();
 """,
             Emit("class C { #x = 1; m() { this.#x += 1; return this.#x++; } }", ScriptTarget.ES2015, useDefineForClassFields: false));
 
+    /// <remarks>PORT-NOTE: a private name used as a *destructuring target* is rewritten through
+    /// <c>wrapPrivateIdentifierForDestructuringTarget</c> (classFields.ts:2998) and its
+    /// <c>createAssignmentTargetWrapper</c> (factory/nodeFactory.ts:6725-6745), whose setter body is a block built with
+    /// **no** <c>multiLine</c> argument. `shouldEmitBlockFunctionBodyOnSingleLine` (emitter.ts:3449) bails out on a
+    /// truthy <c>multiLine</c>, so passing <c>true</c> here printed the wrapper's <c>set value(_b) { … }</c> across
+    /// three lines instead of inline — a whitespace-only `.js` difference the unit ring did not cover and
+    /// <c>tools/BaselineDiff</c> caught on seven conformance fixtures.</remarks>
+    [Fact]
+    public void PrivateNameDestructuringTarget_EmitsTheSetterWrapperInline()
+        => AssertEmitted(
+            ClassPrivateFieldSetHelper + "\n" +
+            """
+var _C_p;
+class C {
+    constructor() {
+        _C_p.set(this, 1);
+    }
+    m() { var _a; (_a = this, { x: ({ set value(_b) { __classPrivateFieldSet(_a, _C_p, _b, "f"); } }).value } = { x: 1 }); }
+}
+_C_p = new WeakMap();
+""",
+            Emit("class C { #p = 1; m() { ({ x: this.#p } = { x: 1 }); } }\n", ScriptTarget.ES2015, useDefineForClassFields: false));
+
     // ---------------------------------------------------------------------------------------------
     // namedEvaluation.ts — the assigned-name helper block a class expression needs
     // ---------------------------------------------------------------------------------------------

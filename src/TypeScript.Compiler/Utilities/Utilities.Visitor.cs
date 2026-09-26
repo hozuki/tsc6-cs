@@ -153,8 +153,39 @@ internal static partial class Utilities
         }
 
         Debug.AssertNode(visitedNode, test);
-        return visitedNode is null ? null : (TNode)(object)visitedNode;
+        // PORT-NOTE: visitorPublic.ts:148-176 — the reference's last two statements are
+        // `Debug.assertNode(visitedNode, test); return visitedNode;` and `Debug` is a no-op in the released build the
+        // baselines come from, so a slot whose declared type is narrower than what its own visitor returns is never
+        // checked at run time. The port's generated visitor table is a verbatim port of the reference's, so it reaches
+        // that case: `visitEachChildOfPropertyAccessExpression` (visitorPublic.ts:1029-1031) visits `node.expression` —
+        // declared `LeftHandSideExpression` — with the `isExpression` test, and classFields' class-expression hoisting
+        // really does put a comma expression there (`classWithStaticFieldInParameterBindingPattern(target=es2015)`;
+        // likewise `visitEachChildOfVoidExpression`'s `UnaryExpression` slot and
+        // `visitEachChildOfPrefixUnaryExpression`'s, which a `YieldExpression` reaches). `(TNode)(object)` is a
+        // *checked* conversion, so the port threw InvalidCastException where the reference emits. The mismatch case
+        // follows the port's punning idiom instead (`CommentParser.Reinterpret`, Parser/JSDocParser.cs:1465, docs
+        // §15.10 defect 7); taking it only when the checked conversion fails keeps that conversion — and its loud
+        // failure — everywhere a visitor honours its slot, which is every call site but the generated table's.
+        // The pun'd reference is only ever passed on or stored (a reference store does not check) and is never read
+        // through a member the object does not have; the four slots this was measured on are
+        // `LeftHandSideExpression` (visitorPublic.ts:1029-1031, :1071, :1225) and `UnaryExpression` (:1129, :1143,
+        // :1157), marker classes that declare no members at all — every read downstream goes through `Kind` and a
+        // checked cast. (The durable alternative — widening the generated table's slots — belongs to whoever owns the
+        // generated factory faces.)
+        return visitedNode is null
+            ? null
+            : visitedNode as TNode ?? ReinterpretVisitedNode<TNode>(visitedNode);
     }
+
+    /// <summary>Reinterprets a visited node as the visit's declared result type, without a runtime check.</summary>
+    /// <remarks>
+    /// The reference's own unchecked return (visitorPublic.ts:176) is observable in the AST; see
+    /// <see cref="VisitNode{TNode}"/>. Naming it keeps the pun in one place rather than at each generated-table entry
+    /// that can reach a narrower slot.
+    /// </remarks>
+    private static TNode ReinterpretVisitedNode<TNode>(Node visitedNode)
+        where TNode : class, INode
+        => System.Runtime.CompilerServices.Unsafe.As<Node, TNode>(ref visitedNode);
 
     /// <summary>ported from: src/compiler/visitorPublic.ts:1805-1807 — <c>extractSingleNode</c>.</summary>
     /// <remarks>
@@ -435,6 +466,10 @@ internal static partial class Utilities
     /// <remarks>
     /// PORT-NOTE: TS's <c>result: ParameterDeclaration[] | undefined</c> is <c>List&lt;ParameterDeclaration&gt;?</c> and
     /// <c>parameters.slice(0, i)</c> is <c>GetRange(0, i)</c> (the array's element type, not a copy into a new one).
+    /// The reference's <c>result[i] = updated</c> is the JS array-write idiom, which appends when the array's length is
+    /// exactly <c>i</c> — and it always is, since <c>result</c> grows by one on each triggering iteration and <c>i</c>
+    /// grows by one every iteration: <c>Add</c> is the same statement (<c>List&lt;T&gt;</c>'s indexer rejects
+    /// <c>index == Count</c>, which is the <c>ArgumentOutOfRangeException</c> this was).
     /// </remarks>
     private static NodeArray<ParameterDeclaration> AddDefaultValueAssignmentsIfNeeded(NodeArray<ParameterDeclaration> parameters, IVisitorTransformationContext context)
     {
@@ -446,7 +481,7 @@ internal static partial class Utilities
             if (result is not null || !ReferenceEquals(updated, parameter))
             {
                 result ??= parameters.GetRange(0, i);
-                result[i] = updated;
+                result.Add(updated);
             }
         }
         if (result is not null)

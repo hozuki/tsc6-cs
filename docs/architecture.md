@@ -1064,7 +1064,7 @@ dotnet run --project tools/AstDiff -- --cases <dir> [--filter <glob>] [--out art
 | 4 | `\u{D800}` 直接崩（`ArgumentOutOfRangeException`） | TS 的 `utf16EncodeAsString` 先走 `codePoint <= 0xFFFF ? String.fromCharCode(…)`，而 JS 的 `String.fromCodePoint` **接受代理区**（只拒绝 > 0x10FFFF）；.NET 的 `char.ConvertFromUtf32` 拒绝代理区。原先的 PORT-NOTE 断言"该差异不可达" —— 4 个用例证伪 | 4 个用例 |
 | 5 | 数百位的二进制/八进制字面量崩（`OverflowException`） | TS 用 `parseInt(text, 2/8)`（double 累加，逐渐失精度直至 `Infinity`）；端口用 `Convert.ToInt32`。修法是 `Js.ParseInt`（按同样算术折叠），并让 `Js.NumberToString` 负责 `Infinity` 的字符串形态 | 4 个用例 |
 | 6 | JSDoc 注释首行缩进小于 margin 时崩（`Substring(-1)`） | TS 写 `whitespace.substring(margin - indent)`，**JS 的 `String.prototype.substring` 把负起点钳到 0**；C# 的区间 `[x..]` 直接抛。上方的卫语句只限制了上界 | 1 个用例 |
-| 7 | `@callback` 后跟 `@this` 时崩（`InvalidCastException`） | TS 自己把 `JSDocThisTag` 塞进 `JSDocSignature.parameters`（`parseChildParameterOrPropertyTag` 的声明包含它，而 `parseCallbackTagParameters` 用未检查的 `as`）—— 参考实现的 AST 里真的有那个 this-tag。C# 的 `(T)`/`as`/`(T)(object)` 都做运行时检查，所以这是**全端口唯一**处用 `Unsafe.As` 改写类型（`CommentParser.Reinterpret<T>`，带 PORT-NOTE 与 §15.10 级别的说明） | 1 个用例 |
+| 7 | `@callback` 后跟 `@this` 时崩（`InvalidCastException`） | TS 自己把 `JSDocThisTag` 塞进 `JSDocSignature.parameters`（`parseChildParameterOrPropertyTag` 的声明包含它，而 `parseCallbackTagParameters` 用未检查的 `as`）—— 参考实现的 AST 里真的有那个 this-tag。C# 的 `(T)`/`as`/`(T)(object)` 都做运行时检查，所以这类"参考里 unchecked、C# 里必须做检查"的转换在端口里落在**具名 punning 辅助**上：`CommentParser.Reinterpret<T>`（本条）、`Checker.ReinterpretAsTypeParameter`（Checker.Relations.Identical.cs:2331）、`Utilities.ReinterpretVisitedNode<TNode>`（Utilities.Visitor.cs:186，visitorPublic.ts:176 的未检查返回），以及 `Core.Flags` 的位运算 `Unsafe.As<T, uint/ulong>`；每个都带自己的 PORT-NOTE 与"读路径为何安全"的论证（§15.10 级别） | 1 个用例 |
 
 第 1 条尤其值得记：`as` 在 C# 里对引用类型**答 null 而不抛**，所以一个缺失的 kind→类映射表现为"静默丢一个子节点"，而不是错误 —— 这是 P1a 这种整树比对才能抓到的东西。
 
@@ -2184,3 +2184,14 @@ harness 的下划线规则是逐节点的 `nodeIsFullySynthetic(node) = nodeIsSy
 修法：`CreateModifier` 与三处 `?? new PunctuationToken(...)` 默认 token 改走新的 `MarkSynthesized<T>`（照 `makeSynthetic`，factory/nodeFactory.ts:7393-7405；解析器自己的工厂 `_synthesizedNodes == false` 不标），并带 PORT-NOTE 记录实测。
 
 实测：es6/** 分片（120 文件 / 150 用例）`ARTIFACT types 148/1/1` → **`150/0/0`**，四类 artifact 全 150/150 ⇒ 该分片 **`cases=150 same=600 diverged=0 port-crash=0`（VERDICT clean）**；三条既有外环零回归（build 0/0、测试 1,520/1,520、TypeDiff `same=5908/5908` clean、EmitDiff `same=5908/5908` clean）。
+
+### 17.14.9 基线环驱动收口（二）：7 条 `.js` 分歧 = 一处 `multiLine`，11/14 崩溃已修
+
+分片代理（`DownlevelPrivateNameEmit` + 其子片）交付、集成方验证并提交：
+
+**7 条 `.js` 分歧同一根因**（不是"少文本"而是**版式**）：`NodeFactory.CreateAssignmentTargetWrapper`（nodeFactory.ts:6725-6745）里参考写 `createBlock([createExpressionStatement(expression)])`（**不传** `multiLine` ⇒ `undefined`），端口写成 `CreateBlock([...], true)`；`shouldEmitBlockFunctionBodyOnSingleLine`（emitter.ts:3449-3482）在 `if (body.multiLine) return false` 处提前返回 ⇒ 私有名解构目标被包出来的 `{ set value(_b) { … } }` 打成三行而非内联。改为 `null` 后：7 个 fixture 的过滤器（`privateNameFieldDestructuredBinding*`、`privateNameMethodAssignment*`、`privateWriteOnlyAccessorRead*`、`privateNameStaticFieldDestructuredBinding*`、`privateNameStaticMethodAssignment*`、`thisAndSuperInStaticMembers*`）全部 `VERDICT clean`。新增单测 `PrivateNameDestructuringTarget_EmitsTheSetterWrapperInline`（期望值以 `ts.transpileModule` 在 `{target:ES2015,module:ESNext,alwaysStrict:false,strictNullChecks:true}` 下实测）——原单测环不覆盖该构造，正是它漏掉这条。
+
+**14 例崩溃中 11 例已修**（同族：参考用谓词/unchecked `as`，端口写成 C# 硬转）：
+`Binder.DeclarationBinders.cs`（JSDoc 参数标签的 `name` 走 `JSDocPropertyLikeTag`/`ParameterDeclaration` 分支而非 `INamedDeclaration` 强转）、`Binder.Declarations.cs`（`(SourceFile)_container!` → `_container is SourceFile`，binder.ts:2443 是 unchecked `as`）、`Checker.Queries.cs`（`NodeTests.IsTypeAliasDeclaration` → `Utilities.IsTypeAlias`，checker.ts:13509 的谓词更宽）、`Checker.TypeSupport.cs`、`Checker.Check.Source.cs`、`Utilities/Utilities.Visitor.cs`（`VisitNode` 的"先检查后 pun"与 `AddDefaultValueAssignmentsIfNeeded` 的 `result.Add(updated)`）。剩余 3 例登记：`Checker/SyntacticBuilderResolver.cs:67-69`（JSDocParameterTag 臂的 4 成员联合，需加宽而非改转）、`jsdoc/callbackTagNamespace.ts`（能跑但 errors/types 有分歧）、`privateNamesUnique-2.ts`（module specifiers **具名阻断**）。
+
+验收（集成方实测，冻结树）：build 0 错误 0 警告、测试 **1,521/1,521**、`tools/TypeDiff` 全语料 `same=5908/5908` clean、`tools/EmitDiff` 全语料 `same=5908/5908` clean；代理侧各 fixture 过滤器 clean（命令与数字见其报告）。

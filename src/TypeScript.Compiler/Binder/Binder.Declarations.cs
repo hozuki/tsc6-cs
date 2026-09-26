@@ -302,7 +302,11 @@ internal partial class Binder
                 DeclareModuleMember(node, symbolFlags, symbolExcludes);
                 break;
             case SyntaxKind.SourceFile:
-                if (Utilities.IsExternalOrCommonJsModule((SourceFile)_container!))
+                // PORT-NOTE: the reference passes `container as SourceFile` (binder.ts:2443) — an unchecked type
+                // assertion on the *container* field, which is not necessarily blockScopeContainer (the switch is on
+                // blockScopeContainer). The port's `(SourceFile)_container!` was a real cast and threw for the JSDoc
+                // carriers that reach here (jsdoc/callbackOnConstructor.ts), so the predicate states the assertion.
+                if (_container is SourceFile containerFile && Utilities.IsExternalOrCommonJsModule(containerFile))
                 {
                     DeclareModuleMember(node, symbolFlags, symbolExcludes);
                     break;

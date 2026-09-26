@@ -731,7 +731,7 @@ internal sealed partial class Checker
                 return _errorType;
             }
 
-            var declaration = Debug.CheckDefined(Core.Find(symbol.Declarations, (IDeclaration d, int _) => NodeTests.IsTypeAliasDeclaration((Node)d)), "Type alias symbol with no valid declaration found");
+            var declaration = Debug.CheckDefined(Core.Find(symbol.Declarations, (IDeclaration d, int _) => Utilities.IsTypeAlias((Node)d)), "Type alias symbol with no valid declaration found");
             // PORT-NOTE: TS reads `declaration.typeExpression` off the `JSDocTypeAlias` union; the port names the three
             // tags the predicate accepts and takes each one's own slot (JSDocTypedefTag's is a plain `Node?`).
             var typeNode = Utilities.IsJSDocTypeAlias((Node)declaration!)

@@ -778,7 +778,8 @@ internal sealed partial class Checker
 
         if (Utilities.IsInJSFile(name)
             && name.Parent!.Kind == SyntaxKind.PropertyAccessExpression
-            && ReferenceEquals(name.Parent, ((BinaryExpression)name.Parent.Parent!).Left))
+            && name.Parent.Parent is BinaryExpression specialPropertyAssignmentParent
+            && ReferenceEquals(name.Parent, specialPropertyAssignmentParent.Left))
         {
             // Check if this is a special property assignment
             if (!NodeTests.IsPrivateIdentifier(name)

@@ -108,9 +108,10 @@ internal partial class Binder
 
     /// <summary>ported from: src/compiler/binder.ts:3684-3707 — <c>bindParameter</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS's parameter is <c>ParameterDeclaration | JSDocParameterTag</c>; both declare <c>name</c> through
-    /// <see cref="INamedDeclaration"/> and <c>flags</c> through <see cref="Node"/>, which is what the body reads before
-    /// its casts.
+    /// PORT-NOTE: TS's parameter is <c>ParameterDeclaration | JSDocParameterTag</c>, which both expose <c>name</c> and
+    /// <c>flags</c>. Only <c>ParameterDeclaration</c> is a <c>NamedDeclaration</c> (a <c>JSDocPropertyLikeTag</c>'s
+    /// <c>name</c> is an <c>EntityName</c>), so the union access is the kind test the reference's own guard already
+    /// reads, not a cast to <see cref="INamedDeclaration"/>.
     /// <para>
     /// PORT-NOTE: TS's <c>isParameterPropertyDeclaration(node, node.parent)</c> is a type predicate that narrows
     /// <c>node</c> to a property parameter for the rest of the block; C# cannot narrow through a predicate, so the
@@ -129,7 +130,7 @@ internal partial class Binder
             return;
         }
 
-        var name = ((INamedDeclaration)node).Name;
+        var name = NodeTests.IsJSDocParameterTag(node) ? ((JSDocPropertyLikeTag)node).Name : ((ParameterDeclaration)node).Name;
         if (_inStrictMode && (node.Flags & NodeFlags.Ambient) == 0)
         {
             // It is a SyntaxError if the identifier eval or arguments appears within a FormalParameterList of a
