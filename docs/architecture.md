@@ -307,7 +307,8 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 | **M1** | Layer 0：`Core`（容器、字符码、断言、比较器） | 单测覆盖 core 等价语义 |
 | **M1b** | Layer 0 其余：`Paths`（`path.ts`）、`Semver`（`semver.ts`）、`PerformanceCore` | 路径与 semver 语义单测（含 TS 文档中的路径表格） |
 | **M2** | Layer 1：`types.ts` 的枚举与标志（`SyntaxKind` 全量、`Extension`、`ScriptTarget`…）+ `Node` 类型层级 | 枚举值与 TS 逐项校验（`tools/gen` 脚本比对） |
-| **M2b** | `sys.ts` + `performance.ts`（Layer 0 中依赖 Layer 1/5 的部分） | 文件系统抽象与计时埋点单测 |
+| **M2b** | 节点模型：`types.ts` 的接口/类型别名 → 268 个类 + 255 个接口（见 §12） | 生成物编译通过；继承链与能力接口单测 |
+| **M2c** | Layer 0 其余：`sys.ts` 的宿主接口与纯逻辑、`performance.ts`（见 §13） | 宿主抽象与计时埋点单测 |
 | **M3** | Layer 2：`Scanner` 全量 | 单测：token 流、trivia、错误恢复、关键字表 |
 | **M4** | Layer 3：`Parser` + `NodeFactory` | 能对 conformance 用例产出 AST；语法诊断 baseline 对齐 |
 | **M5** | Layer 4：`Binder` | `.symbols` baseline 对齐（作用域/符号） |
@@ -353,6 +354,7 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 - **`StartsWith`**：TS 写 `str.lastIndexOf(prefix, 0) === 0`。.NET 的 `LastIndexOf(value, 0, Ordinal)` 在 `value` 长于 `startIndex + 1` 时返回 `-1`（实测 `"./foo".LastIndexOf("./", 0, Ordinal) == -1`），语义不同，因此改写为 `str.StartsWith(prefix, Ordinal)` 并补上 TS `slice` 的长度收敛行为。
 - **"返回同一实例"的优化**：`filter`/`compact` 等在 TS 中可能返回入参实例本身。C# 因输入为 `IReadOnlyList<T>`、输出为 `List<T>` 而无法共享实例，这些函数改为返回新列表（`sameMap`/`concatenate`/`compact` 则通过返回 `IReadOnlyList<T>` 保留该契约）。
 - **断言分级**：TS 通过把 `Debug` 上的断言函数替换成 `noop` 并缓存来实现分级；C# 不能在运行时替换自身方法，改为每个受分级控制的断言在入口处判断 `ShouldAssert`。调用点契约不变。
+- **JS 位运算 + 双精度混合算术**：`generateDjb2Hash` 的三行代码里，`acc << 5` 每步把 `acc` 强制成 int32，而随后的 `+` 是**双精度加法、不再截断**，于是 `acc` 又离开 int32 区间（2000 字符输入下 2000 步里有 1894 步如此）。用 `int` 累加会在这些步骤上截断，用 `long` 会在超过 2^53 后与 JS 分歧，因此移植版用 `double` 累加，并新增 `Js.ToInt32`（JS `ToInt32` 精确语义：`NaN`/无穷 → `0`，否则按 2^32 取模再落回有符号区间）与 `Js.NumberToString`（JS `Number#toString()` 对整数值输出十进制整数，而 C# 的默认格式早得多就切到科学计数法）。
 
 ### 10.3 有意复刻的上游行为（看起来像 bug，但必须保持一致）
 
@@ -370,8 +372,7 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 | `core.ts`: `singleOrMany`、`combine` | M5（`T \| T[]` 联合类型在 C# 无直接对应） |
 | `core.ts`: `isNodeLikeSystem` | 已实现为常量 `false`（CLR 上永远不是 Node） |
 | `core.ts`: `toArray` | 已实现，但需由调用方给出元素类型参数（`T \| T[]` 无法在运行时区分） |
-| `sys.ts`: `System` 接口、`sys` 实例、watch 函数 | M2b（依赖 Layer 1 的 `WatchOptions` 与 Layer 5 的 `matchFiles`/`resolveJSModule`） |
-| `performance.ts`: mark/measure 埋点 | M2b（依赖 `sys.ts` 的 `System` 实例） |
+| `sys.ts`: `sys` 实例（`getNodeSystem`）、`createSystemWatchFunctions`、`getModifiedTime` 的 443 行轮询稳定逻辑、`patchWriteFileEnsuringDirectory` | M2c 之后（见 §13.3）—— 前者是被 `System.IO` 替换的 Node 宿主实现，`patchWriteFileEnsuringDirectory` 是 JS 猴子补丁，在 C# 里应改为装饰器 |
 
 ---
 
