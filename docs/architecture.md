@@ -711,26 +711,30 @@ M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质�
 参数名撞上 C# 关键字（`createTypeOperatorNode(operator, type)`）时加 `@` 转义，而不是改名。
 
 ---
-
 ## 16. `const enum` 成员作类型：typed enum
 
-### 16.1 TS 的构造
+### 16.1 TS 的两条路径
 
 `NodeFactory` 有一批方法用 **enum 成员的字面量类型**做参数，靠它区分重载：
 
 ```ts
 createToken(token: SyntaxKind.EndOfFileToken): EndOfFileToken;
-createToken(token: SyntaxKind.Unknown): UnknownToken;
-createToken(token: SyntaxKind.CommaToken): CommaToken;
+createToken(token: SyntaxKind.Unknown): Token<SyntaxKind.Unknown>;
+createToken<TKind extends PunctuationSyntaxKind>(token: TKind): PunctuationToken<TKind>;
+…
+/** @internal */ createToken<TKind extends SyntaxKind>(token: TKind): Token<TKind>;
 ```
 
-`SyntaxKind.EndOfFileToken` 在这里不是"一个 `SyntaxKind` 值"，而是一个**只含该值的类型**。于是调用点能静态确定返回哪种节点：`factory.createToken(SyntaxKind.EndOfFileToken)` 的静态类型就是 `EndOfFileToken`，不需要断言，也不需要 switch。parser 里这类调用很多。
+关键是**两条路径共存**，最后那条 `@internal` 的重载是它们的交汇点：
 
-C# 的 enum 成员是常量而不是类型，表达不了这一点。§15.6 的"合并 + 共同基类"是**兜底**：能用，但把 `EndOfFileToken` 降成了 `Token`，精度丢了。
+- **静态路径**：调用点写的是字面量 `SyntaxKind.EndOfFileToken`，TS 把 `TKind` 推断成那个字面量类型，于是命中前面的具体重载，返回 `EndOfFileToken`。parser 里绝大多数调用是这种 —— 不需要断言，也不需要 switch。
+- **动态路径**：`token` 是运行时算出来的 `SyntaxKind` 值（`scanner.Scan()` 的结果、从别处传来的 kind），此时 `TKind` 只能是 `SyntaxKind` 本身，落到最后那条宽泛重载，返回 `Token<SyntaxKind>`。
+
+两条路径能由**同一个签名集**承载，靠的是 `SyntaxKind.EndOfFileToken` 是 `SyntaxKind` 的**子类型**。C# 的 enum 成员是常量而不是类型，没有这层子类型关系 —— 所以 §15.6 的"合并 + 共同基类"会把两条路径**压成一条**，静态精度整个丢掉。
 
 ### 16.2 映射：每个成员一个类型
 
-用 static abstract interface member，把每个 enum 成员映射成一个**类型**。参数类型因此各不相同，C# 的重载重新可用：
+用 static abstract interface member，把每个 enum 成员映射成一个**类型**。参数类型因此各不相同，静态路径的重载重新可用；动态路径另外给一条宽泛重载 —— 正好是 TS 的两条。
 
 ```cs
 public interface ITypedEnum
@@ -764,28 +768,44 @@ public static partial class TypedEnum
         // 私有构造让 Instance 成为唯一实例；单例语义靠它，而不是靠类型系统。
         private EndOfFileToken() { }
     }
+
+    /// <summary>动态路径的入口：编译期算不出的 SyntaxKind 值反查其 typed enum 实例。</summary>
+    public static ITypedEnum? FromSyntaxKind(SyntaxKind kind) => kind switch
+    {
+        SyntaxKind.EndOfFileToken => EndOfFileToken.Instance,
+        SyntaxKind.CommaToken => CommaToken.Instance,
+        _ => null,
+    };
 }
 ```
 
-`TypedEnum.EndOfFileToken`（嵌套在静态类 `TypedEnum` 里）与节点类型 `EndOfFileToken`（顶层）不在同一作用域，不冲突。
+`TypedEnum.EndOfFileToken`（嵌套在静态类 `TypedEnum` 里）与节点类型 `EndOfFileToken`（顶层）不在同一作用域，不冲突 —— 这一点在探针里用两个同名类型同时存在验证过。
 
-工厂方法于是照 TS 写：
+工厂方法于是照 TS 写两条：
 
 ```cs
-EndOfFileToken CreateToken(TypedEnum.EndOfFileToken token);
-UnknownToken CreateToken(TypedEnum.Unknown token);
+EndOfFileToken CreateToken(TypedEnum.EndOfFileToken token);      // 静态路径
+PunctuationToken CreateToken(TypedEnum.CommaToken token);
+Token CreateToken(SyntaxKind token);                             // 动态路径（对应 `@internal` 那条）
 ```
 
-调用点写 `factory.CreateToken(TypedEnum.EndOfFileToken.Instance)`，比 TS 多一个 `.Instance`。
+调用点分别是 `factory.CreateToken(TypedEnum.EndOfFileToken.Instance)` 和 `factory.CreateToken(runtimeKind)`。
 
-`StaticSyntaxKind` 是静态的，于是直接查询 kind 不必经过 `Instance`：`TypedEnum.CommaToken.StaticSyntaxKind`。实例属性 `SyntaxKind` 则给"拿到某个实例"的场合用（接口 `ITypedEnum` 上只有它）。
+### 16.3 两个接口的分工
 
-这个形态已用独立探针验证过可编译可运行：重载按参数类型区分；两个静态抽象成员在
-`where TToken : ITypedEnum<TToken>` 的泛型上下文里都可用（`TToken.Instance`、`TToken.StaticSyntaxKind`）。
+| 接口 | 路径 | 用途 |
+|---|---|---|
+| `ITypedEnum<TSelf>` | 静态 | 编译期已知是哪个成员时用；`Instance` 是参数，`StaticSyntaxKind` 直接取 kind |
+| `ITypedEnum` | 动态 | 编译期算不出是哪个成员时用；`FromSyntaxKind` 从值反查到实例，代码在运行时判断 |
 
-### 16.3 取舍与时机
+非泛型那个不是"泛型版的退化形式"，而是**运行时投影**：当类型信息在编译期不存在时（值来自 scanner、来自外部输入、来自别的 kind 变量），它是唯一能问到"这个 kind 对应谁"的东西。
 
-- **量必须生成**：`SyntaxKind` 约 360 个成员 → 约 360 个嵌套类。手写不可行，由 `tools/Gen` 产出 —— 与谓词表、数据表同样的处理：形态固定就交给生成器，形态不符则报错。
-- **调用点更啰嗦**（多一个 `.Instance`），换回 TS 的静态精度。
+### 16.4 取舍与时机
+
+- **量必须生成**：`SyntaxKind` 约 360 个成员 → 约 360 个嵌套类，加一张同样大的 `FromSyntaxKind` 表。手写不可行，由 `tools/Gen` 产出 —— 与谓词表、数据表同样的处理：形态固定就交给生成器，形态不符则报错。
+- **调用点更啰嗦**（静态路径要多一个 `.Instance`），换回 TS 的静态精度。
 - **只在需要处推广**：关键字与 `TextToToken` 等也能受益，但成本与收益要逐个看，不预先铺开。
 - **时机是 M4c 的第一件事**：工厂签名一旦按 §15.6 的合并版落地，后面全部调用点都要返工。
+
+这个形态已用独立探针验证过可编译可运行：静态重载按参数类型区分、宽泛重载与它们共存、反查表对未映射的 kind 返回 null、两个同名类型互不干扰、`StaticSyntaxKind` 与 `Instance` 在 `where TToken : ITypedEnum<TToken>` 的泛型上下文里都可用。
+
