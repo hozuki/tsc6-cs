@@ -1,0 +1,18 @@
+<Project>
+
+  <!-- 所有项目共享的编译契约。项目级 csproj 只保留真正项目特有的设置。 -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <LangVersion>preview</LangVersion>
+    <!-- 对应 TS 的 strictNullChecks：undefined/null 的处理必须显式 -->
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <Deterministic>true</Deterministic>
+    <!-- 移植自 TS 的文件用 // ported from: 标注，不要求 XML 文档注释 -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+</Project>
