@@ -1234,16 +1234,17 @@ SourceFile(0,131) symbol=ValueModule:"/p" locals=[C=Class:C:1,a=BlockScopedVaria
 
 另有三个**声明在 emitter.ts/utilities.ts、但本质是 program 状态**的辅助，M6-1 不得不先落在 `Program.EmitBoundary.cs`（各带 PORT-NOTE）：`Program.GetCommonSourceDirectoryFromOptions`（emitter.ts:636）、`GetCommonSourceDirectoryOfConfig`（:685）、`GetComputedCommonSourceDirectory`（utilities.ts:10261）。**M7 必须调用它们而不是再声明一份**——这与 `formatMessage` 家族同一条规则。
 
-### 实现偏差清单（M6，成对登记）
+### 实现偏差与调用点归属（M6）
 
-一处**有意**偏离参考实现"声明位置"的地方：七个 `utilities.ts` 成员被声明在 `Checker` 类上而不是 `Utilities` 类上——
+归属的**裁决依据**是"已有调用点已经写在哪里"——这是让树以最低风险同时满足"可编译"与"一个名字一处声明"的判据。据此三类处理：
 
-| 成员 | 参考位置 | 端口位置 |
-|---|---|---|
-| `IsPartOfTypeNode` / `IsPartOfTypeExpressionWithTypeArguments` / `IsNodeDescendantOf` / `IsExpressionWithTypeArgumentsInClassExtendsClause` / `GetFirstIdentifier` / `IsNumericLiteralName` | `utilities.ts`（逐个核过：`checker.ts` 声明数为 0） | `Checker/Checker.Support.cs`（`Checker` 成员） |
-| `GetCheckFlags` | `utilities.ts:8040-8042` | `Checker/Checker.Symbols.cs:452`（`Checker` 成员） |
+| 名字 | 参考声明位置 | 端口归属 | 依据 |
+|---|---|---|---|
+| `IsPartOfTypeNode`、`IsPartOfTypeExpressionWithTypeArguments`、`IsNodeDescendantOf`、`IsExpressionWithTypeArgumentsInClassExtendsClause`、`GetFirstIdentifier`、`IsNumericLiteralName` | `utilities.ts`（逐个核过，`checker.ts` 声明数为 0） | **`Utilities/Utilities.Checker.cs`**，调用点 `Utilities.<Name>(…)` | 既有调用点**大多已写成 `Utilities.<Name>`**，声明落在 `Checker.Support.cs` 才是异常；`Checker.Support.cs` 删副本并修掉它自己剩下的未限定内部调用 |
+| `GetCheckFlags`（`utilities.ts:8040-8042`）、`GetObjectFlags`（`utilities.ts:8280`） | `utilities.ts` | **`Checker`**（`Checker.Symbols.cs` / `Checker.Support.cs`），记为登记偏差 | 十处与约三十处既有调用点都是**未限定**的；此时搬到 `Utilities` 意味在正在被写的文件里改四十处调用点，收益只是归档整齐 |
+| `GetNodeId` | `checker.ts:1460` | **`Utilities.GetNodeId`**（`Utilities/Utilities.cs:480`），记为反方向偏差 | 工厂自 M4 起就需要它，端口的家比本里程碑更早且有意为之；不因"参考声明在 checker.ts"被改回去 |
 
-裁定是**接受现状**：我的规则管的是"一个名字只有一处声明"，而现在恰好满足（`Checker/Utilities.Checker.cs` 已不再声明它们）——放弃的只是归档约定，不是正确性（同程序集内都 `internal`，绑定不变）。在 27 个代理并发时跨文件搬迁七个已落地成员与约 28 处调用点，换来的是整齐、付出的是碰撞与重复验证。因此这七条进这份偏差清单，并由集成期新增的反射守卫（"`Utilities` 与 `Checker` 不得声明同名成员"）以**显式允许清单**钉住——被测试钉住的偏差是决定，没登记的偏差才是漂移。**M6-3 起规则收紧**：参考声明在 `utilities.ts`/`utilitiesPublic.ts` 的成员一律落 `Utilities/**`，调用点带限定。
+集成期新增的反射守卫（"`Utilities` 与 `Checker` 不得声明同名成员"）以这张表为**显式允许清单**：被测试钉住的偏差是决定，没登记的偏差才是漂移。**M6-3 起规则收紧**：参考声明在 `utilities.ts`/`utilitiesPublic.ts` 的成员一律落 `Utilities/**`，调用点带限定。
 
 ### 生成器缺口（M6 期间修掉）
 
