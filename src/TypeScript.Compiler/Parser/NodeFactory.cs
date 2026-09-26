@@ -2401,4 +2401,264 @@ internal partial class NodeFactory
         node.TupleNameSource = tupleNameSource;
         return node;
     }
+
+    //
+    // Class element declarations (the hand-written half)
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:1981 — <c>createConstructorDeclaration</c>.</summary>
+    public ConstructorDeclaration CreateConstructorDeclaration(
+        List<Node>? modifiers,
+        List<ParameterDeclaration>? parameters,
+        Block? body)
+    {
+        var node = CreateBaseDeclaration<ConstructorDeclaration>(SyntaxKind.Constructor);
+        node.Modifiers = AsNodeArray(modifiers);
+        node.Parameters = CreateNodeArray(parameters, null);
+        node.Body = body;
+
+        if (node.Body is null)
+        {
+            node.TransformFlags = TransformFlags.ContainsTypeScript;
+        }
+        else
+        {
+            node.TransformFlags = PropagateChildrenFlags(node.Modifiers)
+                | PropagateChildrenFlags(node.Parameters)
+                | (PropagateChildFlags(node.Body) & ~TransformFlags.ContainsPossibleTopLevelAwait)
+                | TransformFlags.ContainsES2015;
+        }
+
+        node.TypeParameters = null; // initialized by parser for grammar errors
+        node.Type = null;           // initialized by parser for grammar errors
+        node.TypeArguments = null;  // used in quick info
+        node.JsDoc = null;          // initialized by parser (JsDocContainer)
+        node.Locals = null;         // initialized by binder (LocalsContainer)
+        node.NextContainer = null;  // initialized by binder (LocalsContainer)
+        node.EndFlowNode = null;
+        node.ReturnFlowNode = null;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2013 — <c>updateConstructorDeclaration</c>.</summary>
+    public ConstructorDeclaration UpdateConstructorDeclaration(
+        ConstructorDeclaration? node,
+        List<Node>? modifiers,
+        List<ParameterDeclaration>? parameters,
+        Block? body)
+    {
+        return !ReferenceEquals(node!.Modifiers, modifiers)
+            || !ReferenceEquals(node!.Parameters, parameters)
+            || node!.Body != body
+            ? FinishUpdateConstructorDeclaration(CreateConstructorDeclaration(modifiers, parameters, body), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2024 — <c>finishUpdateConstructorDeclaration</c>.</summary>
+    private ConstructorDeclaration FinishUpdateConstructorDeclaration(
+        ConstructorDeclaration updated,
+        ConstructorDeclaration original)
+    {
+        if (!ReferenceEquals(updated, original))
+        {
+            // Copy the children TS keeps only for error reporting.
+            updated.TypeParameters = original.TypeParameters;
+            updated.Type = original.Type;
+        }
+
+        return FinishUpdateBaseSignatureDeclaration(updated, original);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2035 — <c>createGetAccessorDeclaration</c>.</summary>
+    public GetAccessorDeclaration CreateGetAccessorDeclaration(
+        List<Node>? modifiers,
+        object? name,
+        List<ParameterDeclaration>? parameters,
+        ITypeNode? type,
+        Block? body)
+    {
+        var node = CreateBaseDeclaration<GetAccessorDeclaration>(SyntaxKind.GetAccessor);
+        node.Modifiers = AsNodeArray(modifiers);
+        node.Name = AsName(name);
+        node.Parameters = CreateNodeArray(parameters, null);
+        node.Type = type;
+        node.Body = body;
+
+        if (node.Body is null)
+        {
+            node.TransformFlags = TransformFlags.ContainsTypeScript;
+        }
+        else
+        {
+            node.TransformFlags = PropagateChildrenFlags(node.Modifiers)
+                | PropagateNameFlags(node.Name)
+                | PropagateChildrenFlags(node.Parameters)
+                | PropagateChildFlags(node.Type)
+                | (PropagateChildFlags(node.Body) & ~TransformFlags.ContainsPossibleTopLevelAwait)
+                | (node.Type is not null ? TransformFlags.ContainsTypeScript : TransformFlags.None);
+        }
+
+        node.TypeArguments = null;  // used in quick info
+        node.TypeParameters = null; // initialized by parser for grammar errors
+        node.JsDoc = null;          // initialized by parser (JsDocContainer)
+        node.Locals = null;         // initialized by binder (LocalsContainer)
+        node.NextContainer = null;  // initialized by binder (LocalsContainer)
+        node.FlowNode = null;       // initialized by binder (FlowContainer)
+        node.EndFlowNode = null;
+        node.ReturnFlowNode = null;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2073 — <c>updateGetAccessorDeclaration</c>.</summary>
+    public GetAccessorDeclaration UpdateGetAccessorDeclaration(
+        GetAccessorDeclaration? node,
+        List<Node>? modifiers,
+        Node? name,
+        List<ParameterDeclaration>? parameters,
+        ITypeNode? type,
+        Block? body)
+    {
+        return !ReferenceEquals(node!.Modifiers, modifiers)
+            || node!.Name != name
+            || !ReferenceEquals(node!.Parameters, parameters)
+            || node!.Type != type
+            || node!.Body != body
+            ? FinishUpdateGetAccessorDeclaration(
+                CreateGetAccessorDeclaration(modifiers, name, parameters, type, body),
+                node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2087 — <c>finishUpdateGetAccessorDeclaration</c>.</summary>
+    private GetAccessorDeclaration FinishUpdateGetAccessorDeclaration(
+        GetAccessorDeclaration updated,
+        GetAccessorDeclaration original)
+    {
+        if (!ReferenceEquals(updated, original))
+        {
+            // Copy the child TS keeps only for error reporting.
+            updated.TypeParameters = original.TypeParameters;
+        }
+
+        return FinishUpdateBaseSignatureDeclaration(updated, original);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2099 — <c>createSetAccessorDeclaration</c>.</summary>
+    public SetAccessorDeclaration CreateSetAccessorDeclaration(
+        List<Node>? modifiers,
+        object? name,
+        List<ParameterDeclaration>? parameters,
+        Block? body)
+    {
+        var node = CreateBaseDeclaration<SetAccessorDeclaration>(SyntaxKind.SetAccessor);
+        node.Modifiers = AsNodeArray(modifiers);
+        node.Name = AsName(name);
+        node.Parameters = CreateNodeArray(parameters, null);
+        node.Body = body;
+
+        if (node.Body is null)
+        {
+            node.TransformFlags = TransformFlags.ContainsTypeScript;
+        }
+        else
+        {
+            node.TransformFlags = PropagateChildrenFlags(node.Modifiers)
+                | PropagateNameFlags(node.Name)
+                | PropagateChildrenFlags(node.Parameters)
+                | (PropagateChildFlags(node.Body) & ~TransformFlags.ContainsPossibleTopLevelAwait)
+                | (node.Type is not null ? TransformFlags.ContainsTypeScript : TransformFlags.None);
+        }
+
+        node.TypeArguments = null;  // used in quick info
+        node.TypeParameters = null; // initialized by parser for grammar errors
+        node.Type = null;           // initialized by parser for grammar errors
+        node.JsDoc = null;          // initialized by parser (JsDocContainer)
+        node.Locals = null;         // initialized by binder (LocalsContainer)
+        node.NextContainer = null;  // initialized by binder (LocalsContainer)
+        node.FlowNode = null;       // initialized by binder (FlowContainer)
+        node.EndFlowNode = null;
+        node.ReturnFlowNode = null;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2135 — <c>updateSetAccessorDeclaration</c>.</summary>
+    public SetAccessorDeclaration UpdateSetAccessorDeclaration(
+        SetAccessorDeclaration? node,
+        List<Node>? modifiers,
+        Node? name,
+        List<ParameterDeclaration>? parameters,
+        Block? body)
+    {
+        return !ReferenceEquals(node!.Modifiers, modifiers)
+            || node!.Name != name
+            || !ReferenceEquals(node!.Parameters, parameters)
+            || node!.Body != body
+            ? FinishUpdateSetAccessorDeclaration(
+                CreateSetAccessorDeclaration(modifiers, name, parameters, body),
+                node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2149 — <c>finishUpdateSetAccessorDeclaration</c>.</summary>
+    private SetAccessorDeclaration FinishUpdateSetAccessorDeclaration(
+        SetAccessorDeclaration updated,
+        SetAccessorDeclaration original)
+    {
+        if (!ReferenceEquals(updated, original))
+        {
+            // Copy the children TS keeps only for error reporting.
+            updated.TypeParameters = original.TypeParameters;
+            updated.Type = original.Type;
+        }
+
+        return FinishUpdateBaseSignatureDeclaration(updated, original);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2179 — <c>updateCallSignature</c>.</summary>
+    public CallSignatureDeclaration UpdateCallSignature(
+        CallSignatureDeclaration? node,
+        NodeArray<TypeParameterDeclaration>? typeParameters,
+        NodeArray<ParameterDeclaration>? parameters,
+        ITypeNode? type)
+    {
+        return !ReferenceEquals(node!.TypeParameters, typeParameters)
+            || !ReferenceEquals(node!.Parameters, parameters)
+            || node!.Type != type
+            ? FinishUpdateBaseSignatureDeclaration(
+                CreateCallSignature(typeParameters, parameters, type),
+                node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2212 — <c>updateConstructSignature</c>.</summary>
+    public ConstructSignatureDeclaration UpdateConstructSignature(
+        ConstructSignatureDeclaration? node,
+        NodeArray<TypeParameterDeclaration>? typeParameters,
+        NodeArray<ParameterDeclaration>? parameters,
+        ITypeNode? type)
+    {
+        return !ReferenceEquals(node!.TypeParameters, typeParameters)
+            || !ReferenceEquals(node!.Parameters, parameters)
+            || node!.Type != type
+            ? FinishUpdateBaseSignatureDeclaration(
+                CreateConstructSignature(typeParameters, parameters, type),
+                node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2245 — <c>updateIndexSignature</c>.</summary>
+    public IndexSignatureDeclaration UpdateIndexSignature(
+        IndexSignatureDeclaration? node,
+        List<Node>? modifiers,
+        List<ParameterDeclaration>? parameters,
+        ITypeNode? type)
+    {
+        return !ReferenceEquals(node!.Parameters, parameters)
+            || node!.Type != type
+            || !ReferenceEquals(node!.Modifiers, modifiers)
+            ? FinishUpdateBaseSignatureDeclaration(
+                CreateIndexSignature(modifiers, parameters, type),
+                node)
+            : node!;
+    }
 }
