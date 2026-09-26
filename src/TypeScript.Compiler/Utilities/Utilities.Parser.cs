@@ -467,17 +467,12 @@ internal static partial class Utilities
         }
 
         AssertDiagnosticLocation(sourceText, start, length);
-        var text = GetLocaleSpecificMessage(message);
 
-        if (Core.Some(args))
-        {
-            text = FormatStringFromArgs(text, args);
-        }
-
-        return new Diagnostic(text, message.Category, message.Code, start, length, fileName)
-        {
-            ReportsUnnecessary = message.ReportsUnnecessary,
-        };
+        // PORT-NOTE: ruling A′ — the reference formats here (utilities.ts:8615-8618); the port defers the same pair to
+        // the first read of `Diagnostic.MessageText` (see `Diagnostic.Deferred`).
+        var diagnostic = Diagnostic.Deferred(message, args, start, length, fileName);
+        diagnostic.ReportsUnnecessary = message.ReportsUnnecessary;
+        return diagnostic;
     }
 
     /// <summary>ported from: src/compiler/utilities.ts:8621 — <c>attachFileToDiagnostic</c>.</summary>
@@ -494,7 +489,7 @@ internal static partial class Utilities
         }
 
         var diagnosticWithLocation = new Diagnostic(
-            diagnostic.MessageText,
+            null,
             diagnostic.Category,
             diagnostic.Code,
             diagnostic.Start,
@@ -503,6 +498,7 @@ internal static partial class Utilities
         {
             ReportsUnnecessary = diagnostic.ReportsUnnecessary,
         };
+        diagnostic.ShareMessageText(diagnosticWithLocation);
 
         if (diagnostic.RelatedInformation is not null)
         {

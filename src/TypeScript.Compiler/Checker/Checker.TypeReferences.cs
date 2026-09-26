@@ -964,10 +964,13 @@ internal sealed partial class Checker
     // The global-type getters (checker.ts:17453-17709)
     // ---------------------------------------------------------------------------------------------
 
-    // PORT-NOTE: every getter below is the reference's `deferredGlobalX ||= resolve(...) || fallback` shape. TS reads
-    // the freshly assigned slot back through `||`, which its checker narrows to non-null; in C# the slot stays
-    // nullable, so the read is spelled `?? fallback` (when the fallback belongs at the read) or a trailing `!` (when
-    // the assignment already applied it). Either way the value returned is never null, as upstream.
+    // PORT-NOTE: every getter below is the reference's `deferredGlobalX ||= resolve(...) || fallback` shape. Where the
+    // reference puts the fallback *outside* the assignment — `(deferredX ||= resolve(...)) || emptyX` — the slot keeps
+    // the failed attempt's value (`undefined`), so a later call retries it, and a later call that passes
+    // `reportErrors: true` therefore *reports* the failure the earlier non-reporting call swallowed. The port states
+    // that as `<slot> ??= resolve(...)` followed by `return <slot> ?? fallback` — folding the fallback into the
+    // assignment instead (as this region once did) caches the empty type and silently drops that later report.
+    // `getGlobalTypedPropertyDescriptorType` is the deliberate exception (author's note, checker.ts:17502).
     //
     // PORT-NOTE: `getGlobalType` has four overloads upstream, picking `ObjectType` for arity 0 and `GenericType` for a
     // variable arity. C# cannot overload on the literal `0`, so the port states one member returning `ObjectType` —
@@ -1042,7 +1045,10 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:17500-17503 — <c>getGlobalTypedPropertyDescriptorType</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: the reference always reports an error here and stores the result so it is not reported more than
-    /// once; that comment is kept.
+    /// once; that comment is kept. This is the one getter whose fallback sits *inside* the assignment
+    /// (<c>||= getGlobalType(...) || emptyGenericType</c>) — the reference deliberately caches the empty type so a
+    /// failed attempt is not retried; every other getter in this region keeps its fallback outside, which is what lets
+    /// a later reporting call retry a failed attempt and report it (see the region note above).
     /// </remarks>
     internal IGenericType GetGlobalTypedPropertyDescriptorType()
     {
@@ -1125,15 +1131,15 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:17553-17555 — <c>getGlobalPromiseType</c>.</summary>
     internal IGenericType GetGlobalPromiseType(bool reportErrors)
     {
-        _deferredGlobalPromiseType ??= (IGenericType?)GetGlobalType("Promise", /*arity*/ 1, reportErrors) ?? _emptyGenericType;
-        return _deferredGlobalPromiseType!;
+        _deferredGlobalPromiseType ??= (IGenericType?)GetGlobalType("Promise", /*arity*/ 1, reportErrors);
+        return _deferredGlobalPromiseType ?? _emptyGenericType;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:17557-17559 — <c>getGlobalPromiseLikeType</c>.</summary>
     internal IGenericType GetGlobalPromiseLikeType(bool reportErrors)
     {
-        _deferredGlobalPromiseLikeType ??= (IGenericType?)GetGlobalType("PromiseLike", /*arity*/ 1, reportErrors) ?? _emptyGenericType;
-        return _deferredGlobalPromiseLikeType!;
+        _deferredGlobalPromiseLikeType ??= (IGenericType?)GetGlobalType("PromiseLike", /*arity*/ 1, reportErrors);
+        return _deferredGlobalPromiseLikeType ?? _emptyGenericType;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:17561-17563 — <c>getGlobalPromiseConstructorSymbol</c>.</summary>
@@ -1150,22 +1156,22 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:17569-17571 — <c>getGlobalAsyncIterableType</c>.</summary>
     internal IGenericType GetGlobalAsyncIterableType(bool reportErrors)
     {
-        _deferredGlobalAsyncIterableType ??= (IGenericType?)GetGlobalType("AsyncIterable", /*arity*/ 3, reportErrors) ?? _emptyGenericType;
-        return _deferredGlobalAsyncIterableType!;
+        _deferredGlobalAsyncIterableType ??= (IGenericType?)GetGlobalType("AsyncIterable", /*arity*/ 3, reportErrors);
+        return _deferredGlobalAsyncIterableType ?? _emptyGenericType;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:17573-17575 — <c>getGlobalAsyncIteratorType</c>.</summary>
     internal IGenericType GetGlobalAsyncIteratorType(bool reportErrors)
     {
-        _deferredGlobalAsyncIteratorType ??= (IGenericType?)GetGlobalType("AsyncIterator", /*arity*/ 3, reportErrors) ?? _emptyGenericType;
-        return _deferredGlobalAsyncIteratorType!;
+        _deferredGlobalAsyncIteratorType ??= (IGenericType?)GetGlobalType("AsyncIterator", /*arity*/ 3, reportErrors);
+        return _deferredGlobalAsyncIteratorType ?? _emptyGenericType;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:17577-17579 — <c>getGlobalAsyncIterableIteratorType</c>.</summary>
     internal IGenericType GetGlobalAsyncIterableIteratorType(bool reportErrors)
     {
-        _deferredGlobalAsyncIterableIteratorType ??= (IGenericType?)GetGlobalType("AsyncIterableIterator", /*arity*/ 3, reportErrors) ?? _emptyGenericType;
-        return _deferredGlobalAsyncIterableIteratorType!;
+        _deferredGlobalAsyncIterableIteratorType ??= (IGenericType?)GetGlobalType("AsyncIterableIterator", /*arity*/ 3, reportErrors);
+        return _deferredGlobalAsyncIterableIteratorType ?? _emptyGenericType;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:17581-17584 — <c>getGlobalBuiltinAsyncIteratorTypes</c>.</summary>
@@ -1180,36 +1186,36 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:17586-17588 — <c>getGlobalAsyncIteratorObjectType</c>.</summary>
     internal IGenericType GetGlobalAsyncIteratorObjectType(bool reportErrors)
     {
-        _deferredGlobalAsyncIteratorObjectType ??= (IGenericType?)GetGlobalType("AsyncIteratorObject", /*arity*/ 3, reportErrors) ?? _emptyGenericType;
-        return _deferredGlobalAsyncIteratorObjectType!;
+        _deferredGlobalAsyncIteratorObjectType ??= (IGenericType?)GetGlobalType("AsyncIteratorObject", /*arity*/ 3, reportErrors);
+        return _deferredGlobalAsyncIteratorObjectType ?? _emptyGenericType;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:17590-17592 — <c>getGlobalAsyncGeneratorType</c>.</summary>
     internal IGenericType GetGlobalAsyncGeneratorType(bool reportErrors)
     {
-        _deferredGlobalAsyncGeneratorType ??= (IGenericType?)GetGlobalType("AsyncGenerator", /*arity*/ 3, reportErrors) ?? _emptyGenericType;
-        return _deferredGlobalAsyncGeneratorType!;
+        _deferredGlobalAsyncGeneratorType ??= (IGenericType?)GetGlobalType("AsyncGenerator", /*arity*/ 3, reportErrors);
+        return _deferredGlobalAsyncGeneratorType ?? _emptyGenericType;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:17594-17596 — <c>getGlobalIterableType</c>.</summary>
     internal IGenericType GetGlobalIterableType(bool reportErrors)
     {
-        _deferredGlobalIterableType ??= (IGenericType?)GetGlobalType("Iterable", /*arity*/ 3, reportErrors) ?? _emptyGenericType;
-        return _deferredGlobalIterableType!;
+        _deferredGlobalIterableType ??= (IGenericType?)GetGlobalType("Iterable", /*arity*/ 3, reportErrors);
+        return _deferredGlobalIterableType ?? _emptyGenericType;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:17598-17600 — <c>getGlobalIteratorType</c>.</summary>
     internal IGenericType GetGlobalIteratorType(bool reportErrors)
     {
-        _deferredGlobalIteratorType ??= (IGenericType?)GetGlobalType("Iterator", /*arity*/ 3, reportErrors) ?? _emptyGenericType;
-        return _deferredGlobalIteratorType!;
+        _deferredGlobalIteratorType ??= (IGenericType?)GetGlobalType("Iterator", /*arity*/ 3, reportErrors);
+        return _deferredGlobalIteratorType ?? _emptyGenericType;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:17602-17604 — <c>getGlobalIterableIteratorType</c>.</summary>
     internal IGenericType GetGlobalIterableIteratorType(bool reportErrors)
     {
-        _deferredGlobalIterableIteratorType ??= (IGenericType?)GetGlobalType("IterableIterator", /*arity*/ 3, reportErrors) ?? _emptyGenericType;
-        return _deferredGlobalIterableIteratorType!;
+        _deferredGlobalIterableIteratorType ??= (IGenericType?)GetGlobalType("IterableIterator", /*arity*/ 3, reportErrors);
+        return _deferredGlobalIterableIteratorType ?? _emptyGenericType;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:17606-17608 — <c>getBuiltinIteratorReturnType</c>.</summary>
@@ -1223,29 +1229,29 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:17615-17617 — <c>getGlobalIteratorObjectType</c>.</summary>
     internal IGenericType GetGlobalIteratorObjectType(bool reportErrors)
     {
-        _deferredGlobalIteratorObjectType ??= (IGenericType?)GetGlobalType("IteratorObject", /*arity*/ 3, reportErrors) ?? _emptyGenericType;
-        return _deferredGlobalIteratorObjectType!;
+        _deferredGlobalIteratorObjectType ??= (IGenericType?)GetGlobalType("IteratorObject", /*arity*/ 3, reportErrors);
+        return _deferredGlobalIteratorObjectType ?? _emptyGenericType;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:17619-17621 — <c>getGlobalGeneratorType</c>.</summary>
     internal IGenericType GetGlobalGeneratorType(bool reportErrors)
     {
-        _deferredGlobalGeneratorType ??= (IGenericType?)GetGlobalType("Generator", /*arity*/ 3, reportErrors) ?? _emptyGenericType;
-        return _deferredGlobalGeneratorType!;
+        _deferredGlobalGeneratorType ??= (IGenericType?)GetGlobalType("Generator", /*arity*/ 3, reportErrors);
+        return _deferredGlobalGeneratorType ?? _emptyGenericType;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:17623-17625 — <c>getGlobalIteratorYieldResultType</c>.</summary>
     internal IGenericType GetGlobalIteratorYieldResultType(bool reportErrors)
     {
-        _deferredGlobalIteratorYieldResultType ??= (IGenericType?)GetGlobalType("IteratorYieldResult", /*arity*/ 1, reportErrors) ?? _emptyGenericType;
-        return _deferredGlobalIteratorYieldResultType!;
+        _deferredGlobalIteratorYieldResultType ??= (IGenericType?)GetGlobalType("IteratorYieldResult", /*arity*/ 1, reportErrors);
+        return _deferredGlobalIteratorYieldResultType ?? _emptyGenericType;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:17627-17629 — <c>getGlobalIteratorReturnResultType</c>.</summary>
     internal IGenericType GetGlobalIteratorReturnResultType(bool reportErrors)
     {
-        _deferredGlobalIteratorReturnResultType ??= (IGenericType?)GetGlobalType("IteratorReturnResult", /*arity*/ 1, reportErrors) ?? _emptyGenericType;
-        return _deferredGlobalIteratorReturnResultType!;
+        _deferredGlobalIteratorReturnResultType ??= (IGenericType?)GetGlobalType("IteratorReturnResult", /*arity*/ 1, reportErrors);
+        return _deferredGlobalIteratorReturnResultType ?? _emptyGenericType;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:17631-17633 — <c>getGlobalDisposableType</c>.</summary>

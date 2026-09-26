@@ -54,8 +54,16 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:11591-11593 — <c>isTypeAny</c>.</summary>
     internal static bool IsTypeAny(IType? type) => type is not null && (type.Flags & TypeFlags.Any) != 0;
 
-    /// <summary>ported from: src/compiler/checker.ts:11595-11601 — <c>isErrorType</c>.</summary>
-    internal bool IsErrorType(IType type) => ReferenceEquals(type, _errorType) || ReferenceEquals(type, _unknownType) && (_compilerOptions.StrictNullChecks ?? false);
+    /// <summary>ported from: src/compiler/checker.ts:11595-11599 — <c>isErrorType</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's second arm is <c>!!(type.flags &amp; TypeFlags.Any &amp;&amp; type.aliasSymbol)</c> — the *only*
+    /// <c>any</c> types carrying an alias symbol are the ones
+    /// <c>getTypeFromTypeAliasReference</c> (checker.ts:17050-17062) manufactures for a reference to an unresolved
+    /// symbol, and those must behave like <c>errorType</c>. C# states the two parts as its own conjunction over the
+    /// nullable <c>AliasSymbol</c> slot.
+    /// </remarks>
+    internal bool IsErrorType(IType type)
+        => ReferenceEquals(type, _errorType) || (type.Flags & TypeFlags.Any) != 0 && type.AliasSymbol is not null;
 
     /// <summary>Return properties of an object type or an empty array for other types.</summary>
     /// <remarks>ported from: src/compiler/checker.ts:15058-15063 — <c>getPropertiesOfObjectType</c>.</remarks>
@@ -118,11 +126,19 @@ internal sealed partial class Checker
         return type.ResolvedProperties;
     }
 
-    /// <summary>ported from: src/compiler/checker.ts:15101-15105 — <c>getPropertiesOfType</c>.</summary>
+    /// <summary>ported from: src/compiler/checker.ts:15101-15106 — <c>getPropertiesOfType</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's first statement, <c>type = getReducedApparentType(type)</c>, is what makes a
+    /// <c>this</c> type (a <c>TypeFlags.TypeParameter</c>) or another instantiable answer for the properties of the type
+    /// it stands for — the apparent type is the class instance type, whose properties the caller then sees.
+    /// </remarks>
     internal List<ISymbol> GetPropertiesOfType(IType? type)
-        => (type!.Flags & TypeFlags.UnionOrIntersection) != 0
+    {
+        type = GetReducedApparentType(type!);
+        return (type.Flags & TypeFlags.UnionOrIntersection) != 0
             ? GetPropertiesOfUnionOrIntersectionType((UnionOrIntersectionType)type)
             : GetPropertiesOfObjectType(type);
+    }
 
     /// <summary>
     /// Return the symbol for the property with the given name in the given type. Creates synthetic union properties when

@@ -94,13 +94,73 @@ internal sealed class Diagnostic : IDiagnosticWithDetachedLocation, IDiagnosticW
         string? fileName = null,
         SourceFile? file = null)
     {
-        MessageText = messageText;
+        _messageText = messageText;
         Category = category;
         Code = code;
         Start = start;
         Length = length;
         FileName = fileName;
         File = file;
+    }
+
+    /// <summary>The message of a diagnostic built by <see cref="Deferred"/> that nobody has read yet.</summary>
+    private DiagnosticMessage? _deferredMessage;
+
+    /// <summary>The arguments of a diagnostic built by <see cref="Deferred"/> that nobody has read yet.</summary>
+    private object?[]? _deferredArgs;
+
+    /// <summary>The formatted message, or whatever the constructor was handed (a <see cref="string"/>, or a chain).</summary>
+    private object? _messageText;
+
+    /// <summary>
+    /// ported from: src/compiler/utilities.ts:8682-8701 (<c>createFileDiagnostic</c>), src/compiler/utilities.ts:8705-8712
+    /// (<c>formatMessage</c>), src/compiler/utilities.ts:8609-8618 (<c>createDetachedDiagnostic</c>),
+    /// src/compiler/utilities.ts:8716-8734 (<c>createCompilerDiagnostic</c>) — the formatting those three do up front,
+    /// deferred to the first read of <see cref="MessageText"/>.
+    /// </summary>
+    /// <remarks>
+    /// PORT-NOTE (deviation, ruling A′ of the M6-late plan): the reference formats the message *while building* the
+    /// diagnostic, which calls <c>typeToString</c>/<c>symbolToString</c> for any argument that is a type or a symbol —
+    /// and those are printer-gated in the port (<c>checker.ts:6240-6264</c>, M7). Formatting on first read is
+    /// observationally identical (the same string, from the same <c>getLocaleSpecificMessage</c> +
+    /// <c>formatStringFromArgs</c> pair) *except* that it happens later, which is the whole point: a caller that never
+    /// reads the text — the differential harness's dump, which records only code/start/length/category — no longer
+    /// trips the gate. The one ordering-observable reader is <c>compareMessageText</c> (utilities.ts:8807), and it
+    /// reads the text only in the tie-break after file/start/length/code compared equal, exactly as the reference does
+    /// (<c>compareDiagnosticsSkipRelatedInformation</c>, utilities.ts:8787-8794) — so the deferred read there happens
+    /// at exactly the reference's own point of use, and ordering cannot differ.
+    /// </remarks>
+    internal static Diagnostic Deferred(
+        DiagnosticMessage message,
+        object?[] args,
+        int? start = null,
+        int? length = null,
+        string? fileName = null,
+        SourceFile? file = null)
+    {
+        return new Diagnostic(null, message.Category, message.Code, start, length, fileName, file)
+        {
+            _deferredMessage = message,
+            _deferredArgs = args,
+        };
+    }
+
+    /// <summary>
+    /// Hands this diagnostic's message to <paramref name="target"/> without formatting it, for the copies the
+    /// reference makes by spreading a diagnostic into a new object literal.
+    /// </summary>
+    /// <remarks>
+    /// PORT-NOTE: the three copies are <c>{ ...diagnostic, category: Suggestion }</c> at checker.ts:2589
+    /// (<c>addErrorOrSuggestion</c>) and checker.ts:53784 (<c>getSuggestionDiagnostics</c>), and
+    /// <c>attachFileToDiagnostic</c>'s literal at utilities.ts:8627-8636. The reference's spread reads
+    /// <c>messageText</c> as it stands (a formatted string); the port's may still be deferred, so the copy takes the
+    /// deferred payload over instead of forcing it — the two then format the same string on first read.
+    /// </remarks>
+    internal void ShareMessageText(Diagnostic target)
+    {
+        target._messageText = _messageText;
+        target._deferredMessage = _deferredMessage;
+        target._deferredArgs = _deferredArgs;
     }
 
     /// <summary>The file this diagnostic has been attached to, once a program knows which one it is.</summary>
@@ -113,8 +173,42 @@ internal sealed class Diagnostic : IDiagnosticWithDetachedLocation, IDiagnosticW
 
     public int? Length { get; set; }
 
-    /// <summary>The message, with its arguments already substituted (a <see cref="string"/>, or a message chain).</summary>
-    public object? MessageText { get; set; }
+    /// <summary>
+    /// The message, with its arguments substituted (a <see cref="string"/>, or a message chain) — formatted on the
+    /// first read when the diagnostic was built by <see cref="Deferred"/>, and remembered from then on.
+    /// </summary>
+    /// <remarks>
+    /// PORT-NOTE: see <see cref="Deferred"/> for why the formatting is deferred (ruling A′) and why that cannot change
+    /// the string or any ordering that reads it.
+    /// </remarks>
+    public object? MessageText
+    {
+        get
+        {
+            if (_deferredMessage is null)
+            {
+                return _messageText;
+            }
+
+            var text = Utilities.GetLocaleSpecificMessage(_deferredMessage);
+            if (Core.Some(_deferredArgs))
+            {
+                text = Utilities.FormatStringFromArgs(text, _deferredArgs!);
+            }
+
+            _messageText = text;
+            _deferredMessage = null;
+            _deferredArgs = null;
+            return text;
+        }
+
+        set
+        {
+            _messageText = value;
+            _deferredMessage = null;
+            _deferredArgs = null;
+        }
+    }
 
     public DiagnosticCategory Category { get; set; }
 

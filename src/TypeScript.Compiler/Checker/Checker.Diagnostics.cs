@@ -122,8 +122,9 @@ internal sealed partial class Checker
         {
             // PORT-NOTE: TS adds a *copy* whose category is overridden (`{ ...diagnostic, category: Suggestion }`), so
             // the caller's diagnostic is untouched and both collections can hold it; the port builds that copy by
-            // hand, sharing the related-information list exactly as the spread does.
-            _suggestionDiagnostics.Add(new Diagnostic(diagnostic.MessageText, DiagnosticCategory.Suggestion, diagnostic.Code, diagnostic.Start, diagnostic.Length, diagnostic.FileName, diagnostic.File)
+            // hand, sharing the related-information list exactly as the spread does — and sharing the deferred message
+            // payload too (`Diagnostic.ShareMessageText`), because the spread reads `messageText` as it stands.
+            var suggestion = new Diagnostic(null, DiagnosticCategory.Suggestion, diagnostic.Code, diagnostic.Start, diagnostic.Length, diagnostic.FileName, diagnostic.File)
             {
                 Source = diagnostic.Source,
                 RelatedInformation = diagnostic.RelatedInformation,
@@ -131,7 +132,9 @@ internal sealed partial class Checker
                 ReportsDeprecated = diagnostic.ReportsDeprecated,
                 SkippedOn = diagnostic.SkippedOn,
                 CanonicalHead = diagnostic.CanonicalHead,
-            });
+            };
+            diagnostic.ShareMessageText(suggestion);
+            _suggestionDiagnostics.Add(suggestion);
         }
     }
 

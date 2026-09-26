@@ -119,17 +119,12 @@ internal static partial class Utilities
     /// <summary>ported from: src/compiler/utilities.ts:8716-8734 — <c>createCompilerDiagnostic</c>.</summary>
     public static Diagnostic CreateCompilerDiagnostic(DiagnosticMessage message, params object?[] args)
     {
-        var text = GetLocaleSpecificMessage(message);
-        if (Core.Some(args))
-        {
-            text = FormatStringFromArgs(text, args);
-        }
-
-        return new Diagnostic(text, message.Category, message.Code)
-        {
-            ReportsUnnecessary = message.ReportsUnnecessary,
-            ReportsDeprecated = message.ReportsDeprecated,
-        };
+        // PORT-NOTE: ruling A′ — the reference formats here (utilities.ts:8717-8723); the port defers the same pair to
+        // the first read of `Diagnostic.MessageText` (see `Diagnostic.Deferred`).
+        var diagnostic = Diagnostic.Deferred(message, args);
+        diagnostic.ReportsUnnecessary = message.ReportsUnnecessary;
+        diagnostic.ReportsDeprecated = message.ReportsDeprecated;
+        return diagnostic;
     }
 
     /// <summary>ported from: src/compiler/utilities.ts:8737-8749 — <c>createCompilerDiagnosticFromMessageChain</c>.</summary>

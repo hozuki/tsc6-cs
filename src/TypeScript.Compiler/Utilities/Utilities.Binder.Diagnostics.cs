@@ -421,18 +421,13 @@ internal static partial class Utilities
     {
         AssertDiagnosticLocation(file.Text ?? "", start, length);
 
-        var text = GetLocaleSpecificMessage(message);
-
-        if (Core.Some(args))
-        {
-            text = FormatStringFromArgs(text, args);
-        }
-
-        return new Diagnostic(text, message.Category, message.Code, start, length, file: file)
-        {
-            ReportsUnnecessary = message.ReportsUnnecessary,
-            ReportsDeprecated = message.ReportsDeprecated,
-        };
+        // PORT-NOTE: ruling A′ — the reference formats here (utilities.ts:8691-8695); the port defers the same
+        // `getLocaleSpecificMessage` + `formatStringFromArgs` pair to the first read of `Diagnostic.MessageText`,
+        // because the arguments may be types/symbols and formatting them goes through the printer gate (M7).
+        var diagnostic = Diagnostic.Deferred(message, args, start, length, file: file);
+        diagnostic.ReportsUnnecessary = message.ReportsUnnecessary;
+        diagnostic.ReportsDeprecated = message.ReportsDeprecated;
+        return diagnostic;
     }
 
     // ---------------------------------------------------------------------------------------------

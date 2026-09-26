@@ -844,8 +844,9 @@ internal sealed partial class Checker : ITypeChecker
             CheckUnusedIdentifiers(GetPotentiallyUnusedIdentifiers(sourceFile), (Node containingNode, UnusedKind kind, Diagnostic diagnostic) =>
             {
                 // PORT-NOTE: TS builds `{ ...diag, category: Suggestion }` by hand; the port builds the same copy,
-                // sharing the message and position and overriding only the category.
-                diagnostics.Add(new Diagnostic(diagnostic.MessageText, DiagnosticCategory.Suggestion, diagnostic.Code, diagnostic.Start, diagnostic.Length, diagnostic.FileName, diagnostic.File)
+                // sharing the message and position and overriding only the category — and sharing the deferred message
+                // payload (`Diagnostic.ShareMessageText`) rather than formatting it here.
+                var suggestion = new Diagnostic(null, DiagnosticCategory.Suggestion, diagnostic.Code, diagnostic.Start, diagnostic.Length, diagnostic.FileName, diagnostic.File)
                 {
                     Source = diagnostic.Source,
                     RelatedInformation = diagnostic.RelatedInformation,
@@ -853,7 +854,9 @@ internal sealed partial class Checker : ITypeChecker
                     ReportsDeprecated = diagnostic.ReportsDeprecated,
                     SkippedOn = diagnostic.SkippedOn,
                     CanonicalHead = diagnostic.CanonicalHead,
-                });
+                };
+                diagnostic.ShareMessageText(suggestion);
+                diagnostics.Add(suggestion);
             });
 
             return diagnostics;
