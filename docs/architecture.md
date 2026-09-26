@@ -2127,6 +2127,21 @@ dotnet run --project tools/BaselineDiff -- --cases D:/Source/GitHub/TypeScript/t
 * **模型未覆盖（报告而非默认）**：`tsconfig.json` 单元（语料 10 个文件，端口无 `parseJsonSourceFileConfigFileContent`，M8）；`// @link:` 符号链接（语料 0）；`@paths`/`@plugins`（object 型选项，参考自己的 `optionValue` 就抛）；`@pretty: true`（1 个文件，缺 `getErrorSummaryText`/`getErrorCountForSummary`/`getFilesInErrorForSummary`）；`noCheck` 比对里的 diff（9 份 `.js` 基线打印 jsdiff 的 `createTwoFilesPatch`，该包是参考的 npm 依赖、未随仓引入 ⇒ 这些 case 记为 `unmodelled`，不会"少打一段 patch 也算 same"）。
 * **挂起的辅助检查**：`--limit`/`--filter` 分片下不验"多余基线"（分片必然覆盖不到多数基线），报告会显式说明。
 
+### 17.14.4b 扩大分片：600 文件 / 821 用例的三态表与待办队列（集成方实测）
+
+命令：`dotnet run --project tools/BaselineDiff -- --cases <conformance> --baselines <TS>/tests/baselines/reference --js <TS>/lib/typescript.js --limit 600 --node-parallel 8 --out artifacts/bd-wide`（约 30 分钟；端口半单线程）。
+
+| artifact | same | diverged | port-crash | 说明 |
+|---|---|---|---|---|
+| `.js` | 798 | 7 | 14 | 7 条分两类：5 条缺 `__classPrivateField…` 帮助调用、2 条缺 `Reflect.set(_c,` —— 均为 `target=es2015` 的降级发射 |
+| `.errors.txt` | **807** | **0** | 14 | 821 用例零分歧（诊断文本、波浪线、章节头全对） |
+| `.types` | 765 | 4 | 14 | 下划线长度差异（与 `17.14.8` 同族，另有未标 `Synthesized` 的工厂节点） |
+| `.symbols` | 769 | 0 | 14 | 零分歧 |
+
+崩溃 14 例、8 种形状：`BinaryExpression→…`(4)、`YieldExpression→…`(3)、`JSDocParameterTag→…`(2)、`ConditionalExpression→…`(1)、`JSDocFunctionType→…`(1)、`PropertyAccessExpression→TypeS…`(1)、`ArgumentOutOfRangeException`(1)、以及 `NotSupportedException: GetSpecifierForModuleSymbol`(1，**具名阻断**：module specifiers 尚未移植，属模块解析面)。
+
+三类工作已派给切片代理（降级私有名发射 + 崩溃族），`.types` 下划线 4 例与具名阻断登记待办。
+
 ### 17.14.5 基线环驱动的三处编译器侧修复与本轮遗留（集成方）
 
 本环（§17.14）暴露的缺陷中，编译器侧由集成方按环的分片复测收口；工具（`tools/BaselineDiff/**`）侧由切片代理提交 `743de84`：
