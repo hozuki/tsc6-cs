@@ -696,3 +696,16 @@ M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质�
 修完之后的附带变化：`ITextRange` 现在带 `Pos`/`End`，因此 `Node` 需要**同时**实现 `ITextRange` 与 `IReadonlyTextRange` —— TS 靠结构类型让一个节点充当 `TextRange`（`getSourceMapRange` 的回退分支就是这么写的），C# 没有这个能力。
 
 `SyntaxList._children` 是第三个被迫处理的成员。它一度让下划线规则开了个按类型判定的口子（brand 成员的声明类型字面就是 `undefined`，而 `_children` 是 `readonly Node[]`），但更好的做法是**根本不改生成器**：生成物全部改成 `partial` 之后，`_children` 由 `Model/SyntaxList.cs` 补上（§9 第 8 条），下划线规则恢复成一句"跳过所有下划线成员"。
+
+### 15.6 M4c 的前置：接口方法签名（bug 3）
+
+提取器原本只收属性签名，方法签名整批丢弃，理由写在注释里——"TS 的接口方法在 port 里按需用委托表达"。M4c 一开始就撞上它：`NodeFactory` 有 **520 个方法**（`createIdentifier(name: string): Identifier`），加上 `TypeChecker` 181、`Program` 62、`EmitResolver` 40、`ParenthesizerRules` 31、`CompilerHost` 27，共 **1,091 个方法**分布在 **40 个接口**上。缺了它们，生成的接口没有任何实现能拿来自检——M4c 的整批工作都会失去对照。
+
+现在 `isMethodSignature` 与属性一起收，参数、返回类型、类型参数（含 `extends` 约束）都进模型。随之必须处理的四件事：
+
+1. **C# 只能按参数重载，TS 允许只靠返回类型区分。** `createToken` 有 20 多个声明只在返回类型上不同，这在 C# 里是 CS0111。同签名的成员被合并，返回类型取候选的**共同基类**（`TsTypeModel.CommonBase`）——调用方能依赖的那个类型。判重键用*映射后*的参数类型并去掉可空注解：`SyntaxKind.EndOfFileToken` 与 `SyntaxKind.Unknown` 是两种 TS 类型却都映射到 `SyntaxKind`，而 C# 的重载解析本来就忽略 nullable。
+2. **`ConvertGeneric` 的兜底分支用了 TS 原名**，泛型路径因此不带 `I` 前缀：`KeywordTypeNode<TKind>` 生成了定义，引用处却写成未加前缀的名字。兜底改走 `TypeName`。
+3. **泛型参数不参与映射**：`createNodeArray<T extends Node>` 的 `T` 掉成了 `object`，参数变成 `List<object?>`。`MapMember` 现在带着当前成员的类型参数集合（映射是递归且单线程的，所以按调用设置、`finally` 还原）。约束只在能映射成具体类型时才保留（`T extends Node` 保留，映射成 `object` 的丢弃）。
+4. **补两个模型外的泛型映射**：`MultiMap<K, V>` → `Dictionary<K, List<V>>`（`core.ts` 的实现就是 `Map<K, V[]>`）、`IterableIterator<T>` → `IEnumerable<T>`（返回 `IEnumerator` 会丢掉 TS 迭代器可重复枚举的性质）。另外 `RoleOf` 现在把 `s_forcedClasses` 视为类，`NodeArray`/`ModeAwareCache` 这类手写类型不会再被加 `I` 前缀。
+
+参数名撞上 C# 关键字（`createTypeOperatorNode(operator, type)`）时加 `@` 转义，而不是改名。
