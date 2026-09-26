@@ -86,11 +86,15 @@ public class NodeModelTests
     }
 
     [Fact]
-    public void ReadonlyMembers_AreGetOnly()
+    public void ReadonlyMembers_AreWritableOnTheClassAndReadOnlyOnTheInterface()
     {
-        // TS 的 `readonly` 成员在生成物里是只读属性 —— 这让"哪些字段由 parser/factory 写入"在类型层面可见。
-        Assert.Null(typeof(Identifier).GetProperty(nameof(Identifier.EscapedText))!.SetMethod);
+        // TS 的 `readonly` 是编译期约束，运行时对象照样可写；工厂是节点的唯一构造入口，写入点必须能表达
+        // （§9：「readonly 仅表示解析后不再写，用普通 setter 表达」）。接口保留只读视图，而可写属性照样实现它。
+        Assert.NotNull(typeof(Identifier).GetProperty(nameof(Identifier.EscapedText))!.SetMethod);
         Assert.NotNull(typeof(Identifier).GetProperty(nameof(Identifier.Flags))!.SetMethod);
+
+        // 接口侧保留只读视图（TS 里 `ReadonlyTextRange` 的两个成员就是 readonly）。
+        Assert.Null(typeof(IReadonlyTextRange).GetProperty(nameof(IReadonlyTextRange.Pos))!.SetMethod);
     }
 
     [Fact]

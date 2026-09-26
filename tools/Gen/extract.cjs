@@ -88,12 +88,15 @@ const predicateSource = "src/compiler/factory/nodeTests.ts";
 
 const predicates = collectPredicates();
 
+// The node factory's fixed-shape members (docs/architecture.md §15.7).
+const factory = collectFactory();
+
 fs.mkdirSync(path.dirname(outPath), { recursive: true });fs.writeFileSync(
     outPath,
-    JSON.stringify({ source: sources.join(", "), enums, interfaces, aliases, tables, predicates }, null, 1),
+    JSON.stringify({ source: sources.join(", "), enums, interfaces, aliases, tables, predicates, factory }, null, 1),
     "utf8");
 
-console.log(`extract: ${enums.length} enums, ${interfaces.length} interfaces, ${aliases.length} aliases, ${tables.length} tables, ${predicates.length} predicates -> ${outPath}`);
+console.log(`extract: ${enums.length} enums, ${interfaces.length} interfaces, ${aliases.length} aliases, ${tables.length} tables, ${predicates.length} predicates, ${factory.members.length} factory members (${factory.members.filter(m => m.supported).length} supported) -> ${outPath}`);
 
 function collect(source, sourceRelative) {
     const text = source.text;
@@ -487,4 +490,246 @@ function collectTable(sourceRelative, name) {
         if (callee === "Object.entries") return Object.entries(evaluate(node.arguments[0]));
         throw new Error(`table '${name}': unsupported call '${callee}'`);
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// The node factory
+// ---------------------------------------------------------------------------------------------
+
+// The fixed-shape `create*`/`update*` members of `createNodeFactory` (docs/architecture.md §15.7): a body that is a
+// `createBase*` call plus field assignments, or a single comparison chain forwarding to `update(createX(...), node)`.
+// Everything else in that file — the helpers, the members with real logic, the module-level functions — stays
+// hand-written, which is why anything this cannot describe exactly is reported as unsupported rather than guessed at.
+function collectFactory() {
+    const sourceRelative = "src/compiler/factory/nodeFactory.ts";
+    const filePath = path.join(tsRoot, sourceRelative);
+    const source = program?.getSourceFile(filePath)
+        ?? ts.createSourceFile(filePath, fs.readFileSync(filePath, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+
+    let container = null;
+    (function find(node) {
+        if (ts.isFunctionDeclaration(node) && node.name && node.name.text === "createNodeFactory") { container = node.body; return; }
+        ts.forEachChild(node, find);
+    })(source);
+
+    if (!container) throw new Error(`${sourceRelative}: createNodeFactory not found`);
+
+    const members = [];
+    for (const statement of container.statements) {
+        if (!ts.isFunctionDeclaration(statement) || !statement.body) continue;
+        const name = statement.name.text;
+        if (!name.startsWith("create") && !name.startsWith("update")) continue;
+        members.push(describe(statement));
+    }
+
+    return { source: sourceRelative, members };
+
+    function text(node) {
+        return node.getText(source).replace(/\s+/g, " ");
+    }
+
+    function describe(fn) {
+        const name = fn.name.text;
+        const kind = name.startsWith("update") ? "update" : "create";
+        const common = {
+            name,
+            kind,
+            returnType: fn.type ? fn.type.getText(source) : "any",
+            typeParameters: (fn.typeParameters ?? []).map(typeParameter => ({
+                name: typeParameter.name.text,
+                constraint: typeParameter.constraint ? typeParameter.constraint.getText(source) : null,
+            })),
+            parameters: fn.parameters.map(parameter => ({
+                name: parameter.name.getText(source),
+                type: parameter.type ? parameter.type.getText(source) : "any",
+                isOptional: !!parameter.questionToken,
+                isRest: !!parameter.dotDotDotToken,
+            })),
+        };
+        const unsupported = reason => ({ ...common, supported: false, reason });
+
+        const body = fn.body.statements;
+        return kind === "create" ? describeCreate(body, common, unsupported) : describeUpdate(body, common, unsupported);
+    }
+
+    function describeCreate(body, common, unsupported) {
+        const first = body[0];
+        const declaration = first && ts.isVariableStatement(first) ? first.declarationList.declarations[0] : null;
+        const initializer = declaration && declaration.initializer;
+        const base = initializer && ts.isCallExpression(initializer) && ts.isIdentifier(initializer.expression)
+            && /^createBase/.test(initializer.expression.text) ? initializer : null;
+        if (!base) return unsupported("the body does not start with `const node = createBase*(...)`");
+
+        const last = body[body.length - 1];
+        const tail = ts.isReturnStatement(last) ? text(last.expression) : "<none>";
+        if (tail !== "node" && !/^update\(/.test(tail)) return unsupported(`unexpected tail: ${tail}`);
+
+        const assignments = [];
+        const calls = [];
+        for (const statement of body.slice(1, body.length - 1)) {
+            if (!ts.isExpressionStatement(statement)) return unsupported(`not an expression statement: ${text(statement)}`);
+
+            const expression = statement.expression;
+            if (ts.isCallExpression(expression)) {
+                if (!ts.isIdentifier(expression.expression)) return unsupported(`unexpected call: ${text(statement)}`);
+                calls.push({
+                    name: expression.expression.text,
+                    args: expression.arguments.map(argument => encodeExpression(argument, source)),
+                });
+                continue;
+            }
+
+            if (!ts.isBinaryExpression(expression) || !ts.isPropertyAccessExpression(expression.left)
+                || text(expression.left.expression) !== "node") {
+                return unsupported(`unexpected statement: ${text(statement)}`);
+            }
+
+            const op = expression.operatorToken.getText(source);
+            if (op !== "=" && op !== "|=" && op !== "&=") return unsupported(`unexpected assignment operator '${op}'`);
+            assignments.push({
+                target: expression.left.name.getText(source),
+                op,
+                value: encodeExpression(expression.right, source),
+            });
+        }
+
+        return {
+            ...common,
+            supported: true,
+            reason: null,
+            base: base.expression.text,
+            typeArgument: base.typeArguments && base.typeArguments.length ? base.typeArguments[0].getText(source) : null,
+            kindExpression: base.arguments.length ? base.arguments[0].getText(source) : null,
+            tail,
+            assignments,
+            calls,
+        };
+    }
+
+    function describeUpdate(body, common, unsupported) {
+        if (body.length !== 1 || !ts.isReturnStatement(body[0]) || !ts.isConditionalExpression(body[0].expression)) {
+            return unsupported("the body is not a single `return <comparisons> ? update(createX(...), node) : node`");
+        }
+
+        const conditional = body[0].expression;
+        const whenTrue = conditional.whenTrue;
+        if (!ts.isCallExpression(whenTrue) || !ts.isIdentifier(whenTrue.expression) || whenTrue.expression.text !== "update"
+            || whenTrue.arguments.length !== 2 || !ts.isCallExpression(whenTrue.arguments[0])
+            || text(whenTrue.arguments[1]) !== "node") {
+            return unsupported(`unexpected consequent: ${text(whenTrue)}`);
+        }
+
+        if (!ts.isIdentifier(conditional.whenFalse) || conditional.whenFalse.text !== "node") {
+            return unsupported(`unexpected alternative: ${text(conditional.whenFalse)}`);
+        }
+
+        const compares = [];
+        let comparisonsOnly = true;
+        (function walk(node) {
+            if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.BarBarToken) {
+                walk(node.left);
+                walk(node.right);
+                return;
+            }
+
+            if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken
+                && ts.isPropertyAccessExpression(node.left) && text(node.left.expression) === "node") {
+                compares.push({ target: node.left.name.getText(source), value: encodeExpression(node.right, source) });
+                return;
+            }
+
+            comparisonsOnly = false;
+        })(conditional.condition);
+
+        const create = whenTrue.arguments[0];
+        if (!comparisonsOnly || !ts.isIdentifier(create.expression)) {
+            return unsupported(`unexpected comparison or create call: ${text(conditional)}`);
+        }
+
+        return {
+            ...common,
+            // TS leaves the return type off an `update*` member: it returns the node it was given, so the type is the
+            // one its first parameter declares.
+            returnType: common.parameters[0].type,
+            supported: true,
+            reason: null,
+            compares,
+            updateCreate: { name: create.expression.text, args: create.arguments.map(argument => encodeExpression(argument, source)) },
+        };
+    }
+}
+
+// A TS expression, reduced to the shapes the fixed-shape members use (docs/architecture.md §15.7). Anything else comes
+// back as `unsupported` with its source text, so the emitter can leave that member to the hand-written half instead of
+// guessing — the same "fail rather than emit something half-right" rule the table extractors follow.
+function encodeExpression(node, source) {
+    if (!node) return null;
+
+    const written = node.getText(source).replace(/\s+/g, " ");
+    const unsupported = () => ({ form: "unsupported", text: written });
+
+    if (ts.isIdentifier(node)) return { form: "identifier", name: node.text };
+    if (node.kind === ts.SyntaxKind.TrueKeyword) return { form: "boolean", boolean: true };
+    if (node.kind === ts.SyntaxKind.FalseKeyword) return { form: "boolean", boolean: false };
+    if (node.kind === ts.SyntaxKind.NullKeyword) return { form: "null" };
+    if (ts.isStringLiteral(node)) return { form: "string", value: node.text };
+    if (ts.isNumericLiteral(node)) return { form: "number", value: node.text };
+    if (ts.isParenthesizedExpression(node)) return { form: "paren", inner: encodeExpression(node.expression, source) };
+    if (ts.isNonNullExpression(node)) return { form: "nonNull", inner: encodeExpression(node.expression, source) };
+
+    if (ts.isPropertyAccessExpression(node)) {
+        return { form: "property", target: encodeExpression(node.expression, source), name: node.name.getText(source) };
+    }
+
+    if (ts.isCallExpression(node)) {
+        if (ts.isIdentifier(node.expression)) {
+            return {
+                form: "call",
+                name: node.expression.text,
+                args: node.arguments.map(argument => encodeExpression(argument, source)),
+            };
+        }
+
+        const callee = node.expression;
+        if (ts.isPropertyAccessExpression(callee) && ts.isCallExpression(callee.expression)
+            && ts.isIdentifier(callee.expression.expression)) {
+            return {
+                form: "method",
+                receiver: callee.expression.expression.text,
+                name: callee.name.getText(source),
+                args: node.arguments.map(argument => encodeExpression(argument, source)),
+            };
+        }
+
+        return unsupported();
+    }
+
+    if (ts.isBinaryExpression(node)) {
+        return {
+            form: "binary",
+            op: node.operatorToken.getText(source),
+            left: encodeExpression(node.left, source),
+            right: encodeExpression(node.right, source),
+        };
+    }
+
+    if (ts.isPrefixUnaryExpression(node)) {
+        // The operator is the first character of the expression (`~x`, `!x`, `-x`).
+        return { form: "prefix", op: written[0], operand: encodeExpression(node.operand, source) };
+    }
+
+    if (ts.isConditionalExpression(node)) {
+        return {
+            form: "conditional",
+            condition: encodeExpression(node.condition, source),
+            whenTrue: encodeExpression(node.whenTrue, source),
+            whenFalse: encodeExpression(node.whenFalse, source),
+        };
+    }
+
+    if (ts.isArrayLiteralExpression(node)) {
+        return { form: "array", items: node.elements.map(element => encodeExpression(element, source)) };
+    }
+
+    return unsupported();
 }

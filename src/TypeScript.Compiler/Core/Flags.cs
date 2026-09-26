@@ -63,6 +63,31 @@ internal static class Flags
         throw new NotSupportedException($"Flags supports 4- and 8-byte enums; {typeof(T).Name} is {size} bytes.");
     }
 
+    /// <summary>TS: <c>~value</c> — every bit complemented.</summary>
+    /// <remarks>
+    /// This is the other reason the class exists: C# has no unary complement for enums either. TS writes it to mean
+    /// "every flag except these" (<c>transformFlags &amp;= ~TransformFlags.ContainsTypeScript</c>), which the port
+    /// spells <c>CoreFlags.Not(TransformFlags.ContainsTypeScript)</c>.
+    /// </remarks>
+    public static T Not<T>(T value)
+        where T : struct, Enum
+    {
+        var size = Unsafe.SizeOf<T>();
+        if (size == 4)
+        {
+            var result = ~Unsafe.As<T, uint>(ref value);
+            return Unsafe.As<uint, T>(ref result);
+        }
+
+        if (size == 8)
+        {
+            var result = ~Unsafe.As<T, ulong>(ref value);
+            return Unsafe.As<ulong, T>(ref result);
+        }
+
+        throw new NotSupportedException($"Flags supports 4- and 8-byte enums; {typeof(T).Name} is {size} bytes.");
+    }
+
     /// <summary>TS: <c>value | mask</c>. Present for symmetry; C# already supports <c>|</c> on enums.</summary>
     public static T Set<T>(T value, T mask)
         where T : struct, Enum

@@ -15,7 +15,7 @@ internal partial class ArrayBindingPattern : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ArrayBindingPattern;
 
-    public NodeArray<Node>? Elements { get; }
+    public NodeArray<Node>? Elements { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ArrayLiteralExpression</c>.</summary>
@@ -23,7 +23,7 @@ internal partial class ArrayLiteralExpression : Node, IPrimaryExpression, IReado
 {
     public override SyntaxKind Kind => SyntaxKind.ArrayLiteralExpression;
 
-    public NodeArray<Expression>? Elements { get; }
+    public NodeArray<Expression>? Elements { get; set; }
     public bool? MultiLine { get; set; }
 }
 
@@ -32,7 +32,7 @@ internal partial class ArrayTypeNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.ArrayType;
 
-    public ITypeNode? ElementType { get; }
+    public ITypeNode? ElementType { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ArrowFunction</c>.</summary>
@@ -40,18 +40,18 @@ internal partial class ArrowFunction : Expression, IDeclaration, IFlowContainer,
 {
     public override SyntaxKind Kind => SyntaxKind.ArrowFunction;
 
-    public NodeArray<ModifierToken>? Modifiers { get; }
-    public PunctuationToken? EqualsGreaterThanToken { get; }
-    public Node? Body { get; }
-    public JsNever? Name { get; }
-    public PunctuationToken? AsteriskToken { get; }
-    public PunctuationToken? QuestionToken { get; }
-    public PunctuationToken? ExclamationToken { get; }
+    public NodeArray<ModifierToken>? Modifiers { get; set; }
+    public PunctuationToken? EqualsGreaterThanToken { get; set; }
+    public Node? Body { get; set; }
+    public JsNever? Name { get; set; }
+    public PunctuationToken? AsteriskToken { get; set; }
+    public PunctuationToken? QuestionToken { get; set; }
+    public PunctuationToken? ExclamationToken { get; set; }
     public Node? EndFlowNode { get; set; }
     public Node? ReturnFlowNode { get; set; }
-    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
-    public NodeArray<ParameterDeclaration>? Parameters { get; }
-    public ITypeNode? Type { get; }
+    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
+    public NodeArray<ParameterDeclaration>? Parameters { get; set; }
+    public ITypeNode? Type { get; set; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
@@ -70,8 +70,8 @@ internal partial class AsExpression : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.AsExpression;
 
-    public Expression? Expression { get; }
-    public ITypeNode? Type { get; }
+    public Expression? Expression { get; set; }
+    public ITypeNode? Type { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>AssignmentExpression</c>.</summary>
@@ -89,7 +89,7 @@ internal partial class AwaitExpression : UnaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.AwaitExpression;
 
-    public UnaryExpression? Expression { get; }
+    public UnaryExpression? Expression { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>BigIntLiteral</c>.</summary>
@@ -104,9 +104,9 @@ internal partial class BinaryExpression : Expression, IDeclaration, IJSDocContai
 {
     public override SyntaxKind Kind => SyntaxKind.BinaryExpression;
 
-    public Expression? Left { get; }
-    public Token? OperatorToken { get; }
-    public Expression? Right { get; }
+    public Expression? Left { get; set; }
+    public Token? OperatorToken { get; set; }
+    public Expression? Right { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -117,10 +117,10 @@ internal partial class BindingElement : Node, IDeclaration, IFlowContainer, INam
 {
     public override SyntaxKind Kind => SyntaxKind.BindingElement;
 
-    public Node? PropertyName { get; }
-    public PunctuationToken? DotDotDotToken { get; }
-    public Node? Name { get; }
-    public Expression? Initializer { get; }
+    public Node? PropertyName { get; set; }
+    public PunctuationToken? DotDotDotToken { get; set; }
+    public Node? Name { get; set; }
+    public Expression? Initializer { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public Node? FlowNode { get; set; }
@@ -134,7 +134,7 @@ internal partial class Block : Node, IJSDocContainer, ILocalsContainer, IReadonl
 {
     public override SyntaxKind Kind => SyntaxKind.Block;
 
-    public NodeArray<IStatement>? Statements { get; }
+    public NodeArray<IStatement>? Statements { get; set; }
     public bool? MultiLine { get; set; }
     public IJSDocArray? JsDoc { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
@@ -146,7 +146,7 @@ internal partial class BreakStatement : Node, IFlowContainer, IJSDocContainer, I
 {
     public override SyntaxKind Kind => SyntaxKind.BreakStatement;
 
-    public Identifier? Label { get; }
+    public Identifier? Label { get; set; }
     public IJSDocArray? JsDoc { get; set; }
     public Node? FlowNode { get; set; }
 }
@@ -156,7 +156,7 @@ internal partial class Bundle : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.Bundle;
 
-    public List<SourceFile>? SourceFiles { get; }
+    public List<SourceFile>? SourceFiles { get; set; }
     public List<IFileReference>? SyntheticFileReferences { get; set; }
     public List<IFileReference>? SyntheticTypeReferences { get; set; }
     public List<IFileReference>? SyntheticLibReferences { get; set; }
@@ -172,10 +172,10 @@ internal partial class CallExpression : LeftHandSideExpression, IDeclaration, IR
 {
     public override SyntaxKind Kind => SyntaxKind.CallExpression;
 
-    public LeftHandSideExpression? Expression { get; }
-    public PunctuationToken? QuestionDotToken { get; }
-    public NodeArray<ITypeNode>? TypeArguments { get; }
-    public NodeArray<Expression>? Arguments { get; }
+    public LeftHandSideExpression? Expression { get; set; }
+    public PunctuationToken? QuestionDotToken { get; set; }
+    public NodeArray<ITypeNode>? TypeArguments { get; set; }
+    public NodeArray<Expression>? Arguments { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
@@ -185,15 +185,15 @@ internal partial class CallSignatureDeclaration : Node, IDeclaration, IJSDocCont
 {
     public override SyntaxKind Kind => SyntaxKind.CallSignature;
 
-    public Node? Name { get; }
-    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
-    public NodeArray<ParameterDeclaration>? Parameters { get; }
-    public ITypeNode? Type { get; }
+    public Node? Name { get; set; }
+    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
+    public NodeArray<ParameterDeclaration>? Parameters { get; set; }
+    public ITypeNode? Type { get; set; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public PunctuationToken? QuestionToken { get; }
+    public PunctuationToken? QuestionToken { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
@@ -203,7 +203,7 @@ internal partial class CaseBlock : Node, ILocalsContainer, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.CaseBlock;
 
-    public NodeArray<Node>? Clauses { get; }
+    public NodeArray<Node>? Clauses { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
@@ -213,8 +213,8 @@ internal partial class CaseClause : Node, IJSDocContainer, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.CaseClause;
 
-    public Expression? Expression { get; }
-    public NodeArray<IStatement>? Statements { get; }
+    public Expression? Expression { get; set; }
+    public NodeArray<IStatement>? Statements { get; set; }
     public Node? FallthroughFlowNode { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
@@ -224,8 +224,8 @@ internal partial class CatchClause : Node, ILocalsContainer, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.CatchClause;
 
-    public VariableDeclaration? VariableDeclaration { get; }
-    public Block? Block { get; }
+    public VariableDeclaration? VariableDeclaration { get; set; }
+    public Block? Block { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
@@ -235,7 +235,7 @@ internal partial class ClassDeclaration : ClassLikeDeclarationBase, IDeclaration
 {
     public override SyntaxKind Kind => SyntaxKind.ClassDeclaration;
 
-    public NodeArray<Node>? Modifiers { get; }
+    public NodeArray<Node>? Modifiers { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ClassExpression</c>.</summary>
@@ -243,7 +243,7 @@ internal partial class ClassExpression : ClassLikeDeclarationBase, IDeclaration,
 {
     public override SyntaxKind Kind => SyntaxKind.ClassExpression;
 
-    public NodeArray<Node>? Modifiers { get; }
+    public NodeArray<Node>? Modifiers { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ClassLikeDeclarationBase</c>.</summary>
@@ -251,10 +251,10 @@ internal partial class ClassLikeDeclarationBase : Node, IDeclaration, IJSDocCont
 {
     public override SyntaxKind Kind => SyntaxKind.ClassDeclaration | SyntaxKind.ClassExpression;
 
-    public Identifier? Name { get; }
-    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
-    public NodeArray<HeritageClause>? HeritageClauses { get; }
-    public NodeArray<IClassElement>? Members { get; }
+    public Identifier? Name { get; set; }
+    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
+    public NodeArray<HeritageClause>? HeritageClauses { get; set; }
+    public NodeArray<IClassElement>? Members { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -268,11 +268,11 @@ internal partial class ClassStaticBlockDeclaration : Node, IClassElement, IDecla
 {
     public override SyntaxKind Kind => SyntaxKind.ClassStaticBlockDeclaration;
 
-    public Block? Body { get; }
+    public Block? Body { get; set; }
     public Node? EndFlowNode { get; set; }
     public Node? ReturnFlowNode { get; set; }
-    public NodeArray<Node>? Modifiers { get; }
-    public Node? Name { get; }
+    public NodeArray<Node>? Modifiers { get; set; }
+    public Node? Name { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -285,7 +285,7 @@ internal partial class CommaListExpression : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.CommaListExpression;
 
-    public NodeArray<Expression>? Elements { get; }
+    public NodeArray<Expression>? Elements { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ComputedPropertyName</c>.</summary>
@@ -293,7 +293,7 @@ internal partial class ComputedPropertyName : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ComputedPropertyName;
 
-    public Expression? Expression { get; }
+    public Expression? Expression { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ConditionalExpression</c>.</summary>
@@ -301,11 +301,11 @@ internal partial class ConditionalExpression : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ConditionalExpression;
 
-    public Expression? Condition { get; }
-    public PunctuationToken? QuestionToken { get; }
-    public Expression? WhenTrue { get; }
-    public PunctuationToken? ColonToken { get; }
-    public Expression? WhenFalse { get; }
+    public Expression? Condition { get; set; }
+    public PunctuationToken? QuestionToken { get; set; }
+    public Expression? WhenTrue { get; set; }
+    public PunctuationToken? ColonToken { get; set; }
+    public Expression? WhenFalse { get; set; }
     public Node? FlowNodeWhenTrue { get; set; }
     public Node? FlowNodeWhenFalse { get; set; }
 }
@@ -315,10 +315,10 @@ internal partial class ConditionalTypeNode : Node, ILocalsContainer, IReadonlyTe
 {
     public override SyntaxKind Kind => SyntaxKind.ConditionalType;
 
-    public ITypeNode? CheckType { get; }
-    public ITypeNode? ExtendsType { get; }
-    public ITypeNode? TrueType { get; }
-    public ITypeNode? FalseType { get; }
+    public ITypeNode? CheckType { get; set; }
+    public ITypeNode? ExtendsType { get; set; }
+    public ITypeNode? TrueType { get; set; }
+    public ITypeNode? FalseType { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
@@ -328,15 +328,15 @@ internal partial class ConstructSignatureDeclaration : Node, IDeclaration, IJSDo
 {
     public override SyntaxKind Kind => SyntaxKind.ConstructSignature;
 
-    public Node? Name { get; }
-    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
-    public NodeArray<ParameterDeclaration>? Parameters { get; }
-    public ITypeNode? Type { get; }
+    public Node? Name { get; set; }
+    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
+    public NodeArray<ParameterDeclaration>? Parameters { get; set; }
+    public ITypeNode? Type { get; set; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public PunctuationToken? QuestionToken { get; }
+    public PunctuationToken? QuestionToken { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
@@ -346,17 +346,17 @@ internal partial class ConstructorDeclaration : Node, IClassElement, IDeclaratio
 {
     public override SyntaxKind Kind => SyntaxKind.Constructor;
 
-    public NodeArray<Node>? Modifiers { get; }
-    public Block? Body { get; }
-    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
-    public ITypeNode? Type { get; }
-    public PunctuationToken? AsteriskToken { get; }
-    public PunctuationToken? QuestionToken { get; }
-    public PunctuationToken? ExclamationToken { get; }
+    public NodeArray<Node>? Modifiers { get; set; }
+    public Block? Body { get; set; }
+    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
+    public ITypeNode? Type { get; set; }
+    public PunctuationToken? AsteriskToken { get; set; }
+    public PunctuationToken? QuestionToken { get; set; }
+    public PunctuationToken? ExclamationToken { get; set; }
     public Node? EndFlowNode { get; set; }
     public Node? ReturnFlowNode { get; set; }
-    public Node? Name { get; }
-    public NodeArray<ParameterDeclaration>? Parameters { get; }
+    public Node? Name { get; set; }
+    public NodeArray<ParameterDeclaration>? Parameters { get; set; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
@@ -373,7 +373,7 @@ internal partial class ConstructorTypeNode : FunctionOrConstructorTypeNodeBase, 
 {
     public override SyntaxKind Kind => SyntaxKind.ConstructorType;
 
-    public NodeArray<ModifierToken>? Modifiers { get; }
+    public NodeArray<ModifierToken>? Modifiers { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
@@ -383,7 +383,7 @@ internal partial class ContinueStatement : Node, IFlowContainer, IJSDocContainer
 {
     public override SyntaxKind Kind => SyntaxKind.ContinueStatement;
 
-    public Identifier? Label { get; }
+    public Identifier? Label { get; set; }
     public IJSDocArray? JsDoc { get; set; }
     public Node? FlowNode { get; set; }
 }
@@ -402,7 +402,7 @@ internal partial class Decorator : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.Decorator;
 
-    public LeftHandSideExpression? Expression { get; }
+    public LeftHandSideExpression? Expression { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>DefaultClause</c>.</summary>
@@ -410,7 +410,7 @@ internal partial class DefaultClause : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.DefaultClause;
 
-    public NodeArray<IStatement>? Statements { get; }
+    public NodeArray<IStatement>? Statements { get; set; }
     public Node? FallthroughFlowNode { get; set; }
 }
 
@@ -419,7 +419,7 @@ internal partial class DeleteExpression : UnaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.DeleteExpression;
 
-    public UnaryExpression? Expression { get; }
+    public UnaryExpression? Expression { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>DoStatement</c>.</summary>
@@ -427,7 +427,7 @@ internal partial class DoStatement : IterationStatement, IFlowContainer, IJSDocC
 {
     public override SyntaxKind Kind => SyntaxKind.DoStatement;
 
-    public Expression? Expression { get; }
+    public Expression? Expression { get; set; }
     public Node? FlowNode { get; set; }
 }
 
@@ -439,7 +439,7 @@ internal abstract partial class DynamicNamedBinaryExpression : BinaryExpression,
 /// <summary>ported from types.ts: <c>DynamicNamedDeclaration</c>.</summary>
 internal abstract partial class DynamicNamedDeclaration : Node, IDeclaration, INamedDeclaration, IReadonlyTextRange
 {
-    public ComputedPropertyName? Name { get; }
+    public ComputedPropertyName? Name { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 
@@ -457,9 +457,9 @@ internal partial class ElementAccessExpression : MemberExpression, IDeclaration,
 {
     public override SyntaxKind Kind => SyntaxKind.ElementAccessExpression;
 
-    public LeftHandSideExpression? Expression { get; }
-    public PunctuationToken? QuestionDotToken { get; }
-    public Expression? ArgumentExpression { get; }
+    public LeftHandSideExpression? Expression { get; set; }
+    public PunctuationToken? QuestionDotToken { get; set; }
+    public Expression? ArgumentExpression { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -479,9 +479,9 @@ internal partial class EnumDeclaration : Node, IDeclaration, IDeclarationStateme
 {
     public override SyntaxKind Kind => SyntaxKind.EnumDeclaration;
 
-    public NodeArray<Node>? Modifiers { get; }
-    public Identifier? Name { get; }
-    public NodeArray<EnumMember>? Members { get; }
+    public NodeArray<Node>? Modifiers { get; set; }
+    public Identifier? Name { get; set; }
+    public NodeArray<EnumMember>? Members { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -495,8 +495,8 @@ internal partial class EnumMember : Node, IDeclaration, IJSDocContainer, INamedD
 {
     public override SyntaxKind Kind => SyntaxKind.EnumMember;
 
-    public Node? Name { get; }
-    public Expression? Initializer { get; }
+    public Node? Name { get; set; }
+    public Expression? Initializer { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -510,10 +510,10 @@ internal partial class ExportAssignment : Node, IDeclaration, IDeclarationStatem
 {
     public override SyntaxKind Kind => SyntaxKind.ExportAssignment;
 
-    public NodeArray<Node>? Modifiers { get; }
-    public bool? IsExportEquals { get; }
-    public Expression? Expression { get; }
-    public Node? Name { get; }
+    public NodeArray<Node>? Modifiers { get; set; }
+    public bool? IsExportEquals { get; set; }
+    public Expression? Expression { get; set; }
+    public Node? Name { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -524,13 +524,13 @@ internal partial class ExportDeclaration : Node, IDeclaration, IDeclarationState
 {
     public override SyntaxKind Kind => SyntaxKind.ExportDeclaration;
 
-    public NodeArray<Node>? Modifiers { get; }
-    public bool IsTypeOnly { get; }
-    public Node? ExportClause { get; }
-    public Expression? ModuleSpecifier { get; }
-    public IAssertClause? AssertClause { get; }
-    public ImportAttributes? Attributes { get; }
-    public Node? Name { get; }
+    public NodeArray<Node>? Modifiers { get; set; }
+    public bool IsTypeOnly { get; set; }
+    public Node? ExportClause { get; set; }
+    public Expression? ModuleSpecifier { get; set; }
+    public IAssertClause? AssertClause { get; set; }
+    public ImportAttributes? Attributes { get; set; }
+    public Node? Name { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -541,9 +541,9 @@ internal partial class ExportSpecifier : Node, IDeclaration, IJSDocContainer, IN
 {
     public override SyntaxKind Kind => SyntaxKind.ExportSpecifier;
 
-    public bool IsTypeOnly { get; }
-    public Node? PropertyName { get; }
-    public Node? Name { get; }
+    public bool IsTypeOnly { get; set; }
+    public Node? PropertyName { get; set; }
+    public Node? Name { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -562,7 +562,7 @@ internal partial class ExpressionStatement : Node, IFlowContainer, IJSDocContain
 {
     public override SyntaxKind Kind => SyntaxKind.ExpressionStatement;
 
-    public Expression? Expression { get; }
+    public Expression? Expression { get; set; }
     public IJSDocArray? JsDoc { get; set; }
     public Node? FlowNode { get; set; }
 }
@@ -572,8 +572,8 @@ internal partial class ExpressionWithTypeArguments : MemberExpression, INodeWith
 {
     public override SyntaxKind Kind => SyntaxKind.ExpressionWithTypeArguments;
 
-    public LeftHandSideExpression? Expression { get; }
-    public NodeArray<ITypeNode>? TypeArguments { get; }
+    public LeftHandSideExpression? Expression { get; set; }
+    public NodeArray<ITypeNode>? TypeArguments { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ExternalModuleReference</c>.</summary>
@@ -581,7 +581,7 @@ internal partial class ExternalModuleReference : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ExternalModuleReference;
 
-    public Expression? Expression { get; }
+    public Expression? Expression { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>FalseLiteral</c>.</summary>
@@ -596,8 +596,8 @@ internal partial class ForInStatement : IterationStatement, IFlowContainer, IJSD
 {
     public override SyntaxKind Kind => SyntaxKind.ForInStatement;
 
-    public Node? Initializer { get; }
-    public Expression? Expression { get; }
+    public Node? Initializer { get; set; }
+    public Expression? Expression { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
     public Node? FlowNode { get; set; }
@@ -608,9 +608,9 @@ internal partial class ForOfStatement : IterationStatement, IFlowContainer, IJSD
 {
     public override SyntaxKind Kind => SyntaxKind.ForOfStatement;
 
-    public KeywordToken? AwaitModifier { get; }
-    public Node? Initializer { get; }
-    public Expression? Expression { get; }
+    public KeywordToken? AwaitModifier { get; set; }
+    public Node? Initializer { get; set; }
+    public Expression? Expression { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
     public Node? FlowNode { get; set; }
@@ -621,9 +621,9 @@ internal partial class ForStatement : IterationStatement, IFlowContainer, IJSDoc
 {
     public override SyntaxKind Kind => SyntaxKind.ForStatement;
 
-    public Node? Initializer { get; }
-    public Expression? Condition { get; }
-    public Expression? Incrementor { get; }
+    public Node? Initializer { get; set; }
+    public Expression? Condition { get; set; }
+    public Expression? Incrementor { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
     public Node? FlowNode { get; set; }
@@ -634,17 +634,17 @@ internal partial class FunctionDeclaration : Node, IDeclaration, IDeclarationSta
 {
     public override SyntaxKind Kind => SyntaxKind.FunctionDeclaration;
 
-    public NodeArray<Node>? Modifiers { get; }
-    public Identifier? Name { get; }
-    public Block? Body { get; }
-    public PunctuationToken? AsteriskToken { get; }
-    public PunctuationToken? QuestionToken { get; }
-    public PunctuationToken? ExclamationToken { get; }
+    public NodeArray<Node>? Modifiers { get; set; }
+    public Identifier? Name { get; set; }
+    public Block? Body { get; set; }
+    public PunctuationToken? AsteriskToken { get; set; }
+    public PunctuationToken? QuestionToken { get; set; }
+    public PunctuationToken? ExclamationToken { get; set; }
     public Node? EndFlowNode { get; set; }
     public Node? ReturnFlowNode { get; set; }
-    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
-    public NodeArray<ParameterDeclaration>? Parameters { get; }
-    public ITypeNode? Type { get; }
+    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
+    public NodeArray<ParameterDeclaration>? Parameters { get; set; }
+    public ITypeNode? Type { get; set; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
@@ -662,17 +662,17 @@ internal partial class FunctionExpression : Node, IDeclaration, IFlowContainer, 
 {
     public override SyntaxKind Kind => SyntaxKind.FunctionExpression;
 
-    public NodeArray<ModifierToken>? Modifiers { get; }
-    public Identifier? Name { get; }
-    public Block? Body { get; }
-    public PunctuationToken? AsteriskToken { get; }
-    public PunctuationToken? QuestionToken { get; }
-    public PunctuationToken? ExclamationToken { get; }
+    public NodeArray<ModifierToken>? Modifiers { get; set; }
+    public Identifier? Name { get; set; }
+    public Block? Body { get; set; }
+    public PunctuationToken? AsteriskToken { get; set; }
+    public PunctuationToken? QuestionToken { get; set; }
+    public PunctuationToken? ExclamationToken { get; set; }
     public Node? EndFlowNode { get; set; }
     public Node? ReturnFlowNode { get; set; }
-    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
-    public NodeArray<ParameterDeclaration>? Parameters { get; }
-    public ITypeNode? Type { get; }
+    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
+    public NodeArray<ParameterDeclaration>? Parameters { get; set; }
+    public ITypeNode? Type { get; set; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
@@ -691,10 +691,10 @@ internal partial class FunctionOrConstructorTypeNodeBase : Node, IDeclaration, I
 {
     public override SyntaxKind Kind => SyntaxKind.FunctionType | SyntaxKind.ConstructorType;
 
-    public ITypeNode? Type { get; }
-    public Node? Name { get; }
-    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
-    public NodeArray<ParameterDeclaration>? Parameters { get; }
+    public ITypeNode? Type { get; set; }
+    public Node? Name { get; set; }
+    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
+    public NodeArray<ParameterDeclaration>? Parameters { get; set; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
@@ -709,7 +709,7 @@ internal partial class FunctionTypeNode : FunctionOrConstructorTypeNodeBase, IDe
 {
     public override SyntaxKind Kind => SyntaxKind.FunctionType;
 
-    public JsUndefined? Modifiers { get; }
+    public JsUndefined? Modifiers { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
@@ -719,17 +719,17 @@ internal partial class GetAccessorDeclaration : Node, IClassElement, IDeclaratio
 {
     public override SyntaxKind Kind => SyntaxKind.GetAccessor;
 
-    public NodeArray<Node>? Modifiers { get; }
-    public Node? Name { get; }
-    public Block? Body { get; }
-    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
-    public PunctuationToken? AsteriskToken { get; }
-    public PunctuationToken? QuestionToken { get; }
-    public PunctuationToken? ExclamationToken { get; }
+    public NodeArray<Node>? Modifiers { get; set; }
+    public Node? Name { get; set; }
+    public Block? Body { get; set; }
+    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
+    public PunctuationToken? AsteriskToken { get; set; }
+    public PunctuationToken? QuestionToken { get; set; }
+    public PunctuationToken? ExclamationToken { get; set; }
     public Node? EndFlowNode { get; set; }
     public Node? ReturnFlowNode { get; set; }
-    public NodeArray<ParameterDeclaration>? Parameters { get; }
-    public ITypeNode? Type { get; }
+    public NodeArray<ParameterDeclaration>? Parameters { get; set; }
+    public ITypeNode? Type { get; set; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
@@ -748,8 +748,8 @@ internal partial class HeritageClause : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.HeritageClause;
 
-    public SyntaxKind Token { get; }
-    public NodeArray<ExpressionWithTypeArguments>? Types { get; }
+    public SyntaxKind Token { get; set; }
+    public NodeArray<ExpressionWithTypeArguments>? Types { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>Identifier</c>.</summary>
@@ -757,7 +757,7 @@ internal partial class Identifier : Node, IDeclaration, IFlowContainer, IJSDocCo
 {
     public override SyntaxKind Kind => SyntaxKind.Identifier;
 
-    public string? EscapedText { get; }
+    public string? EscapedText { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -769,9 +769,9 @@ internal partial class IfStatement : Node, IFlowContainer, IJSDocContainer, IRea
 {
     public override SyntaxKind Kind => SyntaxKind.IfStatement;
 
-    public Expression? Expression { get; }
-    public IStatement? ThenStatement { get; }
-    public IStatement? ElseStatement { get; }
+    public Expression? Expression { get; set; }
+    public IStatement? ThenStatement { get; set; }
+    public IStatement? ElseStatement { get; set; }
     public IJSDocArray? JsDoc { get; set; }
     public Node? FlowNode { get; set; }
 }
@@ -781,8 +781,8 @@ internal partial class ImportAttribute : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ImportAttribute;
 
-    public Node? Name { get; }
-    public Expression? Value { get; }
+    public Node? Name { get; set; }
+    public Expression? Value { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ImportAttributes</c>.</summary>
@@ -790,9 +790,9 @@ internal partial class ImportAttributes : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ImportAttributes;
 
-    public SyntaxKind Token { get; }
-    public NodeArray<ImportAttribute>? Elements { get; }
-    public bool? MultiLine { get; }
+    public SyntaxKind Token { get; set; }
+    public NodeArray<ImportAttribute>? Elements { get; set; }
+    public bool? MultiLine { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ImportClause</c>.</summary>
@@ -800,10 +800,10 @@ internal partial class ImportClause : Node, IDeclaration, INamedDeclaration, IRe
 {
     public override SyntaxKind Kind => SyntaxKind.ImportClause;
 
-    public bool IsTypeOnly { get; }
-    public SyntaxKind PhaseModifier { get; }
-    public Identifier? Name { get; }
-    public Node? NamedBindings { get; }
+    public bool IsTypeOnly { get; set; }
+    public SyntaxKind PhaseModifier { get; set; }
+    public Identifier? Name { get; set; }
+    public Node? NamedBindings { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 
@@ -816,11 +816,11 @@ internal partial class ImportDeclaration : Node, IJSDocContainer, IReadonlyTextR
 {
     public override SyntaxKind Kind => SyntaxKind.ImportDeclaration;
 
-    public NodeArray<Node>? Modifiers { get; }
-    public ImportClause? ImportClause { get; }
-    public Expression? ModuleSpecifier { get; }
-    public IAssertClause? AssertClause { get; }
-    public ImportAttributes? Attributes { get; }
+    public NodeArray<Node>? Modifiers { get; set; }
+    public ImportClause? ImportClause { get; set; }
+    public Expression? ModuleSpecifier { get; set; }
+    public IAssertClause? AssertClause { get; set; }
+    public ImportAttributes? Attributes { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
@@ -829,10 +829,10 @@ internal partial class ImportEqualsDeclaration : Node, IDeclaration, IDeclaratio
 {
     public override SyntaxKind Kind => SyntaxKind.ImportEqualsDeclaration;
 
-    public NodeArray<Node>? Modifiers { get; }
-    public Identifier? Name { get; }
-    public bool IsTypeOnly { get; }
-    public Node? ModuleReference { get; }
+    public NodeArray<Node>? Modifiers { get; set; }
+    public Identifier? Name { get; set; }
+    public bool IsTypeOnly { get; set; }
+    public Node? ModuleReference { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -853,9 +853,9 @@ internal partial class ImportSpecifier : Node, IDeclaration, INamedDeclaration, 
 {
     public override SyntaxKind Kind => SyntaxKind.ImportSpecifier;
 
-    public Node? PropertyName { get; }
-    public Identifier? Name { get; }
-    public bool IsTypeOnly { get; }
+    public Node? PropertyName { get; set; }
+    public Identifier? Name { get; set; }
+    public bool IsTypeOnly { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 
@@ -868,8 +868,8 @@ internal partial class ImportTypeAssertionContainer : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ImportTypeAssertionContainer;
 
-    public IAssertClause? AssertClause { get; }
-    public bool? MultiLine { get; }
+    public IAssertClause? AssertClause { get; set; }
+    public bool? MultiLine { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ImportTypeNode</c>.</summary>
@@ -877,12 +877,12 @@ internal partial class ImportTypeNode : Node, INodeWithTypeArguments, IReadonlyT
 {
     public override SyntaxKind Kind => SyntaxKind.ImportType;
 
-    public bool IsTypeOf { get; }
-    public ITypeNode? Argument { get; }
-    public ImportTypeAssertionContainer? Assertions { get; }
-    public ImportAttributes? Attributes { get; }
-    public Node? Qualifier { get; }
-    public NodeArray<ITypeNode>? TypeArguments { get; }
+    public bool IsTypeOf { get; set; }
+    public ITypeNode? Argument { get; set; }
+    public ImportTypeAssertionContainer? Assertions { get; set; }
+    public ImportAttributes? Attributes { get; set; }
+    public Node? Qualifier { get; set; }
+    public NodeArray<ITypeNode>? TypeArguments { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>IndexSignatureDeclaration</c>.</summary>
@@ -890,16 +890,16 @@ internal partial class IndexSignatureDeclaration : Node, IClassElement, IDeclara
 {
     public override SyntaxKind Kind => SyntaxKind.IndexSignature;
 
-    public NodeArray<Node>? Modifiers { get; }
-    public ITypeNode? Type { get; }
-    public Node? Name { get; }
-    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
-    public NodeArray<ParameterDeclaration>? Parameters { get; }
+    public NodeArray<Node>? Modifiers { get; set; }
+    public ITypeNode? Type { get; set; }
+    public Node? Name { get; set; }
+    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
+    public NodeArray<ParameterDeclaration>? Parameters { get; set; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public PunctuationToken? QuestionToken { get; }
+    public PunctuationToken? QuestionToken { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
 
@@ -912,8 +912,8 @@ internal partial class IndexedAccessTypeNode : Node, IReadonlyTextRange, ITypeNo
 {
     public override SyntaxKind Kind => SyntaxKind.IndexedAccessType;
 
-    public ITypeNode? ObjectType { get; }
-    public ITypeNode? IndexType { get; }
+    public ITypeNode? ObjectType { get; set; }
+    public ITypeNode? IndexType { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>InferTypeNode</c>.</summary>
@@ -921,7 +921,7 @@ internal partial class InferTypeNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.InferType;
 
-    public TypeParameterDeclaration? TypeParameter { get; }
+    public TypeParameterDeclaration? TypeParameter { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>InterfaceDeclaration</c>.</summary>
@@ -929,11 +929,11 @@ internal partial class InterfaceDeclaration : Node, IDeclaration, IDeclarationSt
 {
     public override SyntaxKind Kind => SyntaxKind.InterfaceDeclaration;
 
-    public NodeArray<Node>? Modifiers { get; }
-    public Identifier? Name { get; }
-    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
-    public NodeArray<HeritageClause>? HeritageClauses { get; }
-    public NodeArray<ITypeElement>? Members { get; }
+    public NodeArray<Node>? Modifiers { get; set; }
+    public Identifier? Name { get; set; }
+    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
+    public NodeArray<HeritageClause>? HeritageClauses { get; set; }
+    public NodeArray<ITypeElement>? Members { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -947,13 +947,13 @@ internal partial class IntersectionTypeNode : Node, IReadonlyTextRange, ITypeNod
 {
     public override SyntaxKind Kind => SyntaxKind.IntersectionType;
 
-    public NodeArray<ITypeNode>? Types { get; }
+    public NodeArray<ITypeNode>? Types { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>IterationStatement</c>.</summary>
 internal abstract partial class IterationStatement : Node, IJSDocContainer, IReadonlyTextRange, IStatement
 {
-    public IStatement? Statement { get; }
+    public IStatement? Statement { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
@@ -962,8 +962,8 @@ internal partial class JSDoc : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDoc;
 
-    public NodeArray<JSDocTag>? Tags { get; }
-    public object? Comment { get; }
+    public NodeArray<JSDocTag>? Tags { get; set; }
+    public object? Comment { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocAllType</c>.</summary>
@@ -978,7 +978,7 @@ internal partial class JSDocAugmentsTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocAugmentsTag;
 
-    public ExpressionWithTypeArguments? Class { get; }
+    public ExpressionWithTypeArguments? Class { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocAuthorTag</c>.</summary>
@@ -993,9 +993,9 @@ internal partial class JSDocCallbackTag : JSDocTag, IDeclaration, ILocalsContain
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocCallbackTag;
 
-    public Node? FullName { get; }
-    public Identifier? Name { get; }
-    public JSDocSignature? TypeExpression { get; }
+    public Node? FullName { get; set; }
+    public Identifier? Name { get; set; }
+    public JSDocSignature? TypeExpression { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
@@ -1024,7 +1024,7 @@ internal partial class JSDocEnumTag : JSDocTag, IDeclaration, ILocalsContainer, 
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocEnumTag;
 
-    public JSDocTypeExpression? TypeExpression { get; }
+    public JSDocTypeExpression? TypeExpression { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
@@ -1036,10 +1036,10 @@ internal partial class JSDocFunctionType : JSDocType, IDeclaration, IJSDocContai
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocFunctionType;
 
-    public Node? Name { get; }
-    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
-    public NodeArray<ParameterDeclaration>? Parameters { get; }
-    public ITypeNode? Type { get; }
+    public Node? Name { get; set; }
+    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
+    public NodeArray<ParameterDeclaration>? Parameters { get; set; }
+    public ITypeNode? Type { get; set; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
@@ -1053,7 +1053,7 @@ internal partial class JSDocImplementsTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocImplementsTag;
 
-    public ExpressionWithTypeArguments? Class { get; }
+    public ExpressionWithTypeArguments? Class { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocImportTag</c>.</summary>
@@ -1061,9 +1061,9 @@ internal partial class JSDocImportTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocImportTag;
 
-    public ImportClause? ImportClause { get; }
-    public Expression? ModuleSpecifier { get; }
-    public ImportAttributes? Attributes { get; }
+    public ImportClause? ImportClause { get; set; }
+    public Expression? ModuleSpecifier { get; set; }
+    public ImportAttributes? Attributes { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocLink</c>.</summary>
@@ -1071,7 +1071,7 @@ internal partial class JSDocLink : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocLink;
 
-    public Node? Name { get; }
+    public Node? Name { get; set; }
     public string? Text { get; set; }
 }
 
@@ -1080,7 +1080,7 @@ internal partial class JSDocLinkCode : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocLinkCode;
 
-    public Node? Name { get; }
+    public Node? Name { get; set; }
     public string? Text { get; set; }
 }
 
@@ -1089,7 +1089,7 @@ internal partial class JSDocLinkPlain : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocLinkPlain;
 
-    public Node? Name { get; }
+    public Node? Name { get; set; }
     public string? Text { get; set; }
 }
 
@@ -1098,8 +1098,8 @@ internal partial class JSDocMemberName : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocMemberName;
 
-    public Node? Left { get; }
-    public Identifier? Right { get; }
+    public Node? Left { get; set; }
+    public Identifier? Right { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocNameReference</c>.</summary>
@@ -1107,7 +1107,7 @@ internal partial class JSDocNameReference : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocNameReference;
 
-    public Node? Name { get; }
+    public Node? Name { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocNamepathType</c>.</summary>
@@ -1115,7 +1115,7 @@ internal partial class JSDocNamepathType : JSDocType, IReadonlyTextRange, ITypeN
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocNamepathType;
 
-    public ITypeNode? Type { get; }
+    public ITypeNode? Type { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocNonNullableType</c>.</summary>
@@ -1123,8 +1123,8 @@ internal partial class JSDocNonNullableType : JSDocType, IReadonlyTextRange, ITy
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocNonNullableType;
 
-    public ITypeNode? Type { get; }
-    public bool Postfix { get; }
+    public ITypeNode? Type { get; set; }
+    public bool Postfix { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocNullableType</c>.</summary>
@@ -1132,8 +1132,8 @@ internal partial class JSDocNullableType : JSDocType, IReadonlyTextRange, ITypeN
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocNullableType;
 
-    public ITypeNode? Type { get; }
-    public bool Postfix { get; }
+    public ITypeNode? Type { get; set; }
+    public bool Postfix { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocOptionalType</c>.</summary>
@@ -1141,7 +1141,7 @@ internal partial class JSDocOptionalType : JSDocType, IReadonlyTextRange, ITypeN
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocOptionalType;
 
-    public ITypeNode? Type { get; }
+    public ITypeNode? Type { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocOverloadTag</c>.</summary>
@@ -1149,7 +1149,7 @@ internal partial class JSDocOverloadTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocOverloadTag;
 
-    public JSDocSignature? TypeExpression { get; }
+    public JSDocSignature? TypeExpression { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocOverrideTag</c>.</summary>
@@ -1176,10 +1176,10 @@ internal partial class JSDocPrivateTag : JSDocTag, IReadonlyTextRange
 /// <summary>ported from types.ts: <c>JSDocPropertyLikeTag</c>.</summary>
 internal abstract partial class JSDocPropertyLikeTag : JSDocTag, IDeclaration, IReadonlyTextRange
 {
-    public Node? Name { get; }
-    public JSDocTypeExpression? TypeExpression { get; }
-    public bool IsNameFirst { get; }
-    public bool IsBracketed { get; }
+    public Node? Name { get; set; }
+    public JSDocTypeExpression? TypeExpression { get; set; }
+    public bool IsNameFirst { get; set; }
+    public bool IsBracketed { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
@@ -1217,7 +1217,7 @@ internal partial class JSDocReturnTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocReturnTag;
 
-    public JSDocTypeExpression? TypeExpression { get; }
+    public JSDocTypeExpression? TypeExpression { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocSatisfiesTag</c>.</summary>
@@ -1225,7 +1225,7 @@ internal partial class JSDocSatisfiesTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocSatisfiesTag;
 
-    public JSDocTypeExpression? TypeExpression { get; }
+    public JSDocTypeExpression? TypeExpression { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocSeeTag</c>.</summary>
@@ -1233,7 +1233,7 @@ internal partial class JSDocSeeTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocSeeTag;
 
-    public JSDocNameReference? Name { get; }
+    public JSDocNameReference? Name { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocSignature</c>.</summary>
@@ -1241,9 +1241,9 @@ internal partial class JSDocSignature : JSDocType, IDeclaration, IJSDocContainer
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocSignature;
 
-    public List<JSDocTemplateTag>? TypeParameters { get; }
-    public List<JSDocParameterTag>? Parameters { get; }
-    public JSDocReturnTag? Type { get; }
+    public List<JSDocTemplateTag>? TypeParameters { get; set; }
+    public List<JSDocParameterTag>? Parameters { get; set; }
+    public JSDocReturnTag? Type { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -1254,8 +1254,8 @@ internal partial class JSDocSignature : JSDocType, IDeclaration, IJSDocContainer
 /// <summary>ported from types.ts: <c>JSDocTag</c>.</summary>
 internal abstract partial class JSDocTag : Node, IReadonlyTextRange
 {
-    public Identifier? TagName { get; }
-    public object? Comment { get; }
+    public Identifier? TagName { get; set; }
+    public object? Comment { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocTemplateTag</c>.</summary>
@@ -1263,8 +1263,8 @@ internal partial class JSDocTemplateTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocTemplateTag;
 
-    public JSDocTypeExpression? Constraint { get; }
-    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
+    public JSDocTypeExpression? Constraint { get; set; }
+    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocText</c>.</summary>
@@ -1280,7 +1280,7 @@ internal partial class JSDocThisTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocThisTag;
 
-    public JSDocTypeExpression? TypeExpression { get; }
+    public JSDocTypeExpression? TypeExpression { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocThrowsTag</c>.</summary>
@@ -1288,7 +1288,7 @@ internal partial class JSDocThrowsTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocThrowsTag;
 
-    public JSDocTypeExpression? TypeExpression { get; }
+    public JSDocTypeExpression? TypeExpression { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocType</c>.</summary>
@@ -1301,7 +1301,7 @@ internal partial class JSDocTypeExpression : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocTypeExpression;
 
-    public ITypeNode? Type { get; }
+    public ITypeNode? Type { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocTypeLiteral</c>.</summary>
@@ -1309,8 +1309,8 @@ internal partial class JSDocTypeLiteral : JSDocType, IDeclaration, IReadonlyText
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocTypeLiteral;
 
-    public List<JSDocPropertyLikeTag>? JsDocPropertyTags { get; }
-    public bool IsArrayType { get; }
+    public List<JSDocPropertyLikeTag>? JsDocPropertyTags { get; set; }
+    public bool IsArrayType { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
@@ -1320,7 +1320,7 @@ internal partial class JSDocTypeTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocTypeTag;
 
-    public JSDocTypeExpression? TypeExpression { get; }
+    public JSDocTypeExpression? TypeExpression { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocTypedefTag</c>.</summary>
@@ -1328,9 +1328,9 @@ internal partial class JSDocTypedefTag : JSDocTag, IDeclaration, ILocalsContaine
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocTypedefTag;
 
-    public Node? FullName { get; }
-    public Identifier? Name { get; }
-    public Node? TypeExpression { get; }
+    public Node? FullName { get; set; }
+    public Identifier? Name { get; set; }
+    public Node? TypeExpression { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
@@ -1359,7 +1359,7 @@ internal partial class JSDocVariadicType : JSDocType, IReadonlyTextRange, ITypeN
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocVariadicType;
 
-    public ITypeNode? Type { get; }
+    public ITypeNode? Type { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JsonMinusNumericLiteral</c>.</summary>
@@ -1379,8 +1379,8 @@ internal partial class JsxAttribute : Node, IDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxAttribute;
 
-    public Node? Name { get; }
-    public Node? Initializer { get; }
+    public Node? Name { get; set; }
+    public Node? Initializer { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
@@ -1390,7 +1390,7 @@ internal partial class JsxAttributes : Node, IDeclaration, IPrimaryExpression, I
 {
     public override SyntaxKind Kind => SyntaxKind.JsxAttributes;
 
-    public NodeArray<Node>? Properties { get; }
+    public NodeArray<Node>? Properties { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
@@ -1400,7 +1400,7 @@ internal partial class JsxClosingElement : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxClosingElement;
 
-    public Node? TagName { get; }
+    public Node? TagName { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JsxClosingFragment</c>.</summary>
@@ -1415,9 +1415,9 @@ internal partial class JsxElement : Node, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxElement;
 
-    public JsxOpeningElement? OpeningElement { get; }
-    public NodeArray<Node>? Children { get; }
-    public JsxClosingElement? ClosingElement { get; }
+    public JsxOpeningElement? OpeningElement { get; set; }
+    public NodeArray<Node>? Children { get; set; }
+    public JsxClosingElement? ClosingElement { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JsxExpression</c>.</summary>
@@ -1425,8 +1425,8 @@ internal partial class JsxExpression : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxExpression;
 
-    public Token? DotDotDotToken { get; }
-    public Expression? Expression { get; }
+    public Token? DotDotDotToken { get; set; }
+    public Expression? Expression { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JsxFragment</c>.</summary>
@@ -1434,9 +1434,9 @@ internal partial class JsxFragment : Node, IPrimaryExpression, IReadonlyTextRang
 {
     public override SyntaxKind Kind => SyntaxKind.JsxFragment;
 
-    public JsxOpeningFragment? OpeningFragment { get; }
-    public NodeArray<Node>? Children { get; }
-    public JsxClosingFragment? ClosingFragment { get; }
+    public JsxOpeningFragment? OpeningFragment { get; set; }
+    public NodeArray<Node>? Children { get; set; }
+    public JsxClosingFragment? ClosingFragment { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JsxNamespacedName</c>.</summary>
@@ -1444,8 +1444,8 @@ internal partial class JsxNamespacedName : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxNamespacedName;
 
-    public Identifier? Name { get; }
-    public Identifier? Namespace { get; }
+    public Identifier? Name { get; set; }
+    public Identifier? Namespace { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JsxOpeningElement</c>.</summary>
@@ -1453,9 +1453,9 @@ internal partial class JsxOpeningElement : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxOpeningElement;
 
-    public Node? TagName { get; }
-    public NodeArray<ITypeNode>? TypeArguments { get; }
-    public JsxAttributes? Attributes { get; }
+    public Node? TagName { get; set; }
+    public NodeArray<ITypeNode>? TypeArguments { get; set; }
+    public JsxAttributes? Attributes { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JsxOpeningFragment</c>.</summary>
@@ -1470,9 +1470,9 @@ internal partial class JsxSelfClosingElement : Node, IPrimaryExpression, IReadon
 {
     public override SyntaxKind Kind => SyntaxKind.JsxSelfClosingElement;
 
-    public Node? TagName { get; }
-    public NodeArray<ITypeNode>? TypeArguments { get; }
-    public JsxAttributes? Attributes { get; }
+    public Node? TagName { get; set; }
+    public NodeArray<ITypeNode>? TypeArguments { get; set; }
+    public JsxAttributes? Attributes { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JsxSpreadAttribute</c>.</summary>
@@ -1480,8 +1480,8 @@ internal partial class JsxSpreadAttribute : Node, IDeclaration, INamedDeclaratio
 {
     public override SyntaxKind Kind => SyntaxKind.JsxSpreadAttribute;
 
-    public Expression? Expression { get; }
-    public Node? Name { get; }
+    public Expression? Expression { get; set; }
+    public Node? Name { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
@@ -1491,7 +1491,7 @@ internal partial class JsxText : LiteralLikeNode, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxText;
 
-    public bool ContainsOnlyTriviaWhiteSpaces { get; }
+    public bool ContainsOnlyTriviaWhiteSpaces { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>LabeledStatement</c>.</summary>
@@ -1499,8 +1499,8 @@ internal partial class LabeledStatement : Node, IFlowContainer, IJSDocContainer,
 {
     public override SyntaxKind Kind => SyntaxKind.LabeledStatement;
 
-    public Identifier? Label { get; }
-    public IStatement? Statement { get; }
+    public Identifier? Label { get; set; }
+    public IStatement? Statement { get; set; }
     public IJSDocArray? JsDoc { get; set; }
     public Node? FlowNode { get; set; }
 }
@@ -1528,7 +1528,7 @@ internal partial class LiteralTypeNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.LiteralType;
 
-    public Node? Literal { get; }
+    public Node? Literal { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>MappedTypeNode</c>.</summary>
@@ -1536,12 +1536,12 @@ internal partial class MappedTypeNode : Node, IDeclaration, ILocalsContainer, IR
 {
     public override SyntaxKind Kind => SyntaxKind.MappedType;
 
-    public Token? ReadonlyToken { get; }
-    public TypeParameterDeclaration? TypeParameter { get; }
-    public ITypeNode? NameType { get; }
-    public PunctuationToken? QuestionToken { get; }
-    public ITypeNode? Type { get; }
-    public NodeArray<ITypeElement>? Members { get; }
+    public Token? ReadonlyToken { get; set; }
+    public TypeParameterDeclaration? TypeParameter { get; set; }
+    public ITypeNode? NameType { get; set; }
+    public PunctuationToken? QuestionToken { get; set; }
+    public ITypeNode? Type { get; set; }
+    public NodeArray<ITypeElement>? Members { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
@@ -1558,8 +1558,8 @@ internal partial class MetaProperty : Node, IFlowContainer, IPrimaryExpression, 
 {
     public override SyntaxKind Kind => SyntaxKind.MetaProperty;
 
-    public SyntaxKind KeywordToken { get; }
-    public Identifier? Name { get; }
+    public SyntaxKind KeywordToken { get; set; }
+    public Identifier? Name { get; set; }
     public Node? FlowNode { get; set; }
 }
 
@@ -1568,17 +1568,17 @@ internal partial class MethodDeclaration : Node, IClassElement, IDeclaration, IF
 {
     public override SyntaxKind Kind => SyntaxKind.MethodDeclaration;
 
-    public NodeArray<Node>? Modifiers { get; }
-    public Node? Name { get; }
-    public Block? Body { get; }
-    public PunctuationToken? ExclamationToken { get; }
-    public PunctuationToken? AsteriskToken { get; }
-    public PunctuationToken? QuestionToken { get; }
+    public NodeArray<Node>? Modifiers { get; set; }
+    public Node? Name { get; set; }
+    public Block? Body { get; set; }
+    public PunctuationToken? ExclamationToken { get; set; }
+    public PunctuationToken? AsteriskToken { get; set; }
+    public PunctuationToken? QuestionToken { get; set; }
     public Node? EndFlowNode { get; set; }
     public Node? ReturnFlowNode { get; set; }
-    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
-    public NodeArray<ParameterDeclaration>? Parameters { get; }
-    public ITypeNode? Type { get; }
+    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
+    public NodeArray<ParameterDeclaration>? Parameters { get; set; }
+    public ITypeNode? Type { get; set; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
@@ -1597,16 +1597,16 @@ internal partial class MethodSignature : Node, IDeclaration, IJSDocContainer, IL
 {
     public override SyntaxKind Kind => SyntaxKind.MethodSignature;
 
-    public NodeArray<ModifierToken>? Modifiers { get; }
-    public Node? Name { get; }
-    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
-    public NodeArray<ParameterDeclaration>? Parameters { get; }
-    public ITypeNode? Type { get; }
+    public NodeArray<ModifierToken>? Modifiers { get; set; }
+    public Node? Name { get; set; }
+    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
+    public NodeArray<ParameterDeclaration>? Parameters { get; set; }
+    public ITypeNode? Type { get; set; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public PunctuationToken? QuestionToken { get; }
+    public PunctuationToken? QuestionToken { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
 
@@ -1619,8 +1619,8 @@ internal partial class MissingDeclaration : Node, IDeclaration, IDeclarationStat
 {
     public override SyntaxKind Kind => SyntaxKind.MissingDeclaration;
 
-    public Identifier? Name { get; }
-    public NodeArray<Node>? Modifiers { get; }
+    public Identifier? Name { get; set; }
+    public NodeArray<Node>? Modifiers { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -1634,7 +1634,7 @@ internal partial class ModuleBlock : Node, IJSDocContainer, IReadonlyTextRange, 
 {
     public override SyntaxKind Kind => SyntaxKind.ModuleBlock;
 
-    public NodeArray<IStatement>? Statements { get; }
+    public NodeArray<IStatement>? Statements { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
@@ -1643,9 +1643,9 @@ internal partial class ModuleDeclaration : Node, IDeclaration, IDeclarationState
 {
     public override SyntaxKind Kind => SyntaxKind.ModuleDeclaration;
 
-    public NodeArray<Node>? Modifiers { get; }
-    public Node? Name { get; }
-    public Node? Body { get; }
+    public NodeArray<Node>? Modifiers { get; set; }
+    public Node? Name { get; set; }
+    public Node? Body { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -1661,7 +1661,7 @@ internal partial class NamedExports : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.NamedExports;
 
-    public NodeArray<ExportSpecifier>? Elements { get; }
+    public NodeArray<ExportSpecifier>? Elements { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>NamedImports</c>.</summary>
@@ -1669,7 +1669,7 @@ internal partial class NamedImports : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.NamedImports;
 
-    public NodeArray<ImportSpecifier>? Elements { get; }
+    public NodeArray<ImportSpecifier>? Elements { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>NamedTupleMember</c>.</summary>
@@ -1677,10 +1677,10 @@ internal partial class NamedTupleMember : Node, IDeclaration, IJSDocContainer, I
 {
     public override SyntaxKind Kind => SyntaxKind.NamedTupleMember;
 
-    public Token? DotDotDotToken { get; }
-    public Identifier? Name { get; }
-    public Token? QuestionToken { get; }
-    public ITypeNode? Type { get; }
+    public Token? DotDotDotToken { get; set; }
+    public Identifier? Name { get; set; }
+    public Token? QuestionToken { get; set; }
+    public ITypeNode? Type { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -1691,7 +1691,7 @@ internal partial class NamespaceExport : Node, IDeclaration, INamedDeclaration, 
 {
     public override SyntaxKind Kind => SyntaxKind.NamespaceExport;
 
-    public Node? Name { get; }
+    public Node? Name { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 
@@ -1704,8 +1704,8 @@ internal partial class NamespaceExportDeclaration : Node, IDeclaration, IDeclara
 {
     public override SyntaxKind Kind => SyntaxKind.NamespaceExportDeclaration;
 
-    public Identifier? Name { get; }
-    public NodeArray<Node>? Modifiers { get; }
+    public Identifier? Name { get; set; }
+    public NodeArray<Node>? Modifiers { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -1719,7 +1719,7 @@ internal partial class NamespaceImport : Node, IDeclaration, INamedDeclaration, 
 {
     public override SyntaxKind Kind => SyntaxKind.NamespaceImport;
 
-    public Identifier? Name { get; }
+    public Identifier? Name { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 
@@ -1732,9 +1732,9 @@ internal partial class NewExpression : Node, IDeclaration, IPrimaryExpression, I
 {
     public override SyntaxKind Kind => SyntaxKind.NewExpression;
 
-    public LeftHandSideExpression? Expression { get; }
-    public NodeArray<ITypeNode>? TypeArguments { get; }
-    public NodeArray<Expression>? Arguments { get; }
+    public LeftHandSideExpression? Expression { get; set; }
+    public NodeArray<ITypeNode>? TypeArguments { get; set; }
+    public NodeArray<Expression>? Arguments { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
@@ -1755,7 +1755,7 @@ internal partial class NonNullExpression : LeftHandSideExpression, IReadonlyText
 {
     public override SyntaxKind Kind => SyntaxKind.NonNullExpression;
 
-    public Expression? Expression { get; }
+    public Expression? Expression { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>NotEmittedStatement</c>.</summary>
@@ -1771,8 +1771,8 @@ internal partial class NotEmittedTypeElement : Node, IDeclaration, INamedDeclara
 {
     public override SyntaxKind Kind => SyntaxKind.NotEmittedTypeElement;
 
-    public Node? Name { get; }
-    public PunctuationToken? QuestionToken { get; }
+    public Node? Name { get; set; }
+    public PunctuationToken? QuestionToken { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
@@ -1789,7 +1789,7 @@ internal partial class NumericLiteral : LiteralExpression, IDeclaration, IPrimar
 {
     public override SyntaxKind Kind => SyntaxKind.NumericLiteral;
 
-    public TokenFlags NumericLiteralFlags { get; }
+    public TokenFlags NumericLiteralFlags { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
@@ -1799,7 +1799,7 @@ internal partial class ObjectBindingPattern : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ObjectBindingPattern;
 
-    public NodeArray<BindingElement>? Elements { get; }
+    public NodeArray<BindingElement>? Elements { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ObjectLiteralExpression</c>.</summary>
@@ -1814,7 +1814,7 @@ internal partial class ObjectLiteralExpression : ObjectLiteralExpressionBase<Nod
 /// <summary>ported from types.ts: <c>ObjectLiteralExpressionBase</c>.</summary>
 internal abstract partial class ObjectLiteralExpressionBase<T> : Node, IDeclaration, IPrimaryExpression, IReadonlyTextRange
 {
-    public NodeArray<object?>? Properties { get; }
+    public NodeArray<object?>? Properties { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
@@ -1831,7 +1831,7 @@ internal partial class OptionalTypeNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.OptionalType;
 
-    public ITypeNode? Type { get; }
+    public ITypeNode? Type { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ParameterDeclaration</c>.</summary>
@@ -1839,12 +1839,12 @@ internal partial class ParameterDeclaration : Node, IDeclaration, IJSDocContaine
 {
     public override SyntaxKind Kind => SyntaxKind.Parameter;
 
-    public NodeArray<Node>? Modifiers { get; }
-    public PunctuationToken? DotDotDotToken { get; }
-    public Node? Name { get; }
-    public PunctuationToken? QuestionToken { get; }
-    public ITypeNode? Type { get; }
-    public Expression? Initializer { get; }
+    public NodeArray<Node>? Modifiers { get; set; }
+    public PunctuationToken? DotDotDotToken { get; set; }
+    public Node? Name { get; set; }
+    public PunctuationToken? QuestionToken { get; set; }
+    public ITypeNode? Type { get; set; }
+    public Expression? Initializer { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -1858,7 +1858,7 @@ internal partial class ParenthesizedExpression : Node, IJSDocContainer, IPrimary
 {
     public override SyntaxKind Kind => SyntaxKind.ParenthesizedExpression;
 
-    public Expression? Expression { get; }
+    public Expression? Expression { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
@@ -1867,7 +1867,7 @@ internal partial class ParenthesizedTypeNode : Node, IReadonlyTextRange, ITypeNo
 {
     public override SyntaxKind Kind => SyntaxKind.ParenthesizedType;
 
-    public ITypeNode? Type { get; }
+    public ITypeNode? Type { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>PartiallyEmittedExpression</c>.</summary>
@@ -1875,7 +1875,7 @@ internal partial class PartiallyEmittedExpression : LeftHandSideExpression, IRea
 {
     public override SyntaxKind Kind => SyntaxKind.PartiallyEmittedExpression;
 
-    public Expression? Expression { get; }
+    public Expression? Expression { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>PostfixUnaryExpression</c>.</summary>
@@ -1883,8 +1883,8 @@ internal partial class PostfixUnaryExpression : UpdateExpression, IReadonlyTextR
 {
     public override SyntaxKind Kind => SyntaxKind.PostfixUnaryExpression;
 
-    public LeftHandSideExpression? Operand { get; }
-    public SyntaxKind Operator { get; }
+    public LeftHandSideExpression? Operand { get; set; }
+    public SyntaxKind Operator { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>PrefixUnaryExpression</c>.</summary>
@@ -1892,8 +1892,8 @@ internal partial class PrefixUnaryExpression : UpdateExpression, IReadonlyTextRa
 {
     public override SyntaxKind Kind => SyntaxKind.PrefixUnaryExpression;
 
-    public SyntaxKind Operator { get; }
-    public UnaryExpression? Operand { get; }
+    public SyntaxKind Operator { get; set; }
+    public UnaryExpression? Operand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>PrivateIdentifier</c>.</summary>
@@ -1901,7 +1901,7 @@ internal partial class PrivateIdentifier : Node, IPrimaryExpression, IReadonlyTe
 {
     public override SyntaxKind Kind => SyntaxKind.PrivateIdentifier;
 
-    public string? EscapedText { get; }
+    public string? EscapedText { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>PropertyAccessChain</c>.</summary>
@@ -1914,9 +1914,9 @@ internal partial class PropertyAccessExpression : MemberExpression, IDeclaration
 {
     public override SyntaxKind Kind => SyntaxKind.PropertyAccessExpression;
 
-    public LeftHandSideExpression? Expression { get; }
-    public PunctuationToken? QuestionDotToken { get; }
-    public Node? Name { get; }
+    public LeftHandSideExpression? Expression { get; set; }
+    public PunctuationToken? QuestionDotToken { get; set; }
+    public Node? Name { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -1931,11 +1931,11 @@ internal partial class PropertyAssignment : Node, IDeclaration, IJSDocContainer,
 {
     public override SyntaxKind Kind => SyntaxKind.PropertyAssignment;
 
-    public Node? Name { get; }
-    public Expression? Initializer { get; }
-    public NodeArray<Node>? Modifiers { get; }
-    public PunctuationToken? QuestionToken { get; }
-    public PunctuationToken? ExclamationToken { get; }
+    public Node? Name { get; set; }
+    public Expression? Initializer { get; set; }
+    public NodeArray<Node>? Modifiers { get; set; }
+    public PunctuationToken? QuestionToken { get; set; }
+    public PunctuationToken? ExclamationToken { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -1949,12 +1949,12 @@ internal partial class PropertyDeclaration : Node, IClassElement, IDeclaration, 
 {
     public override SyntaxKind Kind => SyntaxKind.PropertyDeclaration;
 
-    public NodeArray<Node>? Modifiers { get; }
-    public Node? Name { get; }
-    public PunctuationToken? QuestionToken { get; }
-    public PunctuationToken? ExclamationToken { get; }
-    public ITypeNode? Type { get; }
-    public Expression? Initializer { get; }
+    public NodeArray<Node>? Modifiers { get; set; }
+    public Node? Name { get; set; }
+    public PunctuationToken? QuestionToken { get; set; }
+    public PunctuationToken? ExclamationToken { get; set; }
+    public ITypeNode? Type { get; set; }
+    public Expression? Initializer { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -1968,11 +1968,11 @@ internal partial class PropertySignature : Node, IDeclaration, IJSDocContainer, 
 {
     public override SyntaxKind Kind => SyntaxKind.PropertySignature;
 
-    public NodeArray<ModifierToken>? Modifiers { get; }
-    public Node? Name { get; }
-    public PunctuationToken? QuestionToken { get; }
-    public ITypeNode? Type { get; }
-    public Expression? Initializer { get; }
+    public NodeArray<ModifierToken>? Modifiers { get; set; }
+    public Node? Name { get; set; }
+    public PunctuationToken? QuestionToken { get; set; }
+    public ITypeNode? Type { get; set; }
+    public Expression? Initializer { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -1986,8 +1986,8 @@ internal partial class QualifiedName : Node, IFlowContainer, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.QualifiedName;
 
-    public Node? Left { get; }
-    public Identifier? Right { get; }
+    public Node? Left { get; set; }
+    public Identifier? Right { get; set; }
     public Node? FlowNode { get; set; }
 }
 
@@ -2003,7 +2003,7 @@ internal partial class RestTypeNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.RestType;
 
-    public ITypeNode? Type { get; }
+    public ITypeNode? Type { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ReturnStatement</c>.</summary>
@@ -2011,7 +2011,7 @@ internal partial class ReturnStatement : Node, IFlowContainer, IJSDocContainer, 
 {
     public override SyntaxKind Kind => SyntaxKind.ReturnStatement;
 
-    public Expression? Expression { get; }
+    public Expression? Expression { get; set; }
     public IJSDocArray? JsDoc { get; set; }
     public Node? FlowNode { get; set; }
 }
@@ -2021,8 +2021,8 @@ internal partial class SatisfiesExpression : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.SatisfiesExpression;
 
-    public Expression? Expression { get; }
-    public ITypeNode? Type { get; }
+    public Expression? Expression { get; set; }
+    public ITypeNode? Type { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SemicolonClassElement</c>.</summary>
@@ -2030,7 +2030,7 @@ internal partial class SemicolonClassElement : Node, IClassElement, IDeclaration
 {
     public override SyntaxKind Kind => SyntaxKind.SemicolonClassElement;
 
-    public Node? Name { get; }
+    public Node? Name { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -2041,17 +2041,17 @@ internal partial class SetAccessorDeclaration : Node, IClassElement, IDeclaratio
 {
     public override SyntaxKind Kind => SyntaxKind.SetAccessor;
 
-    public NodeArray<Node>? Modifiers { get; }
-    public Node? Name { get; }
-    public Block? Body { get; }
-    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
-    public ITypeNode? Type { get; }
-    public PunctuationToken? AsteriskToken { get; }
-    public PunctuationToken? QuestionToken { get; }
-    public PunctuationToken? ExclamationToken { get; }
+    public NodeArray<Node>? Modifiers { get; set; }
+    public Node? Name { get; set; }
+    public Block? Body { get; set; }
+    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
+    public ITypeNode? Type { get; set; }
+    public PunctuationToken? AsteriskToken { get; set; }
+    public PunctuationToken? QuestionToken { get; set; }
+    public PunctuationToken? ExclamationToken { get; set; }
     public Node? EndFlowNode { get; set; }
     public Node? ReturnFlowNode { get; set; }
-    public NodeArray<ParameterDeclaration>? Parameters { get; }
+    public NodeArray<ParameterDeclaration>? Parameters { get; set; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
@@ -2070,12 +2070,12 @@ internal partial class ShorthandPropertyAssignment : Node, IDeclaration, IJSDocC
 {
     public override SyntaxKind Kind => SyntaxKind.ShorthandPropertyAssignment;
 
-    public Identifier? Name { get; }
-    public PunctuationToken? EqualsToken { get; }
-    public Expression? ObjectAssignmentInitializer { get; }
-    public NodeArray<Node>? Modifiers { get; }
-    public PunctuationToken? QuestionToken { get; }
-    public PunctuationToken? ExclamationToken { get; }
+    public Identifier? Name { get; set; }
+    public PunctuationToken? EqualsToken { get; set; }
+    public Expression? ObjectAssignmentInitializer { get; set; }
+    public NodeArray<Node>? Modifiers { get; set; }
+    public PunctuationToken? QuestionToken { get; set; }
+    public PunctuationToken? ExclamationToken { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -2087,8 +2087,8 @@ internal partial class ShorthandPropertyAssignment : Node, IDeclaration, IJSDocC
 /// <summary>ported from types.ts: <c>SourceFile</c>.</summary>
 internal abstract partial class SourceFile : Node, IDeclaration, ILocalsContainer, IReadonlyPragmaContext, IReadonlyTextRange
 {
-    public NodeArray<IStatement>? Statements { get; }
-    public Token? EndOfFileToken { get; }
+    public NodeArray<IStatement>? Statements { get; set; }
+    public Token? EndOfFileToken { get; set; }
     public string? FileName { get; set; }
     public string? Path { get; set; }
     public string? Text { get; set; }
@@ -2153,8 +2153,8 @@ internal partial class SpreadAssignment : Node, IDeclaration, IJSDocContainer, I
 {
     public override SyntaxKind Kind => SyntaxKind.SpreadAssignment;
 
-    public Expression? Expression { get; }
-    public Node? Name { get; }
+    public Expression? Expression { get; set; }
+    public Node? Name { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -2165,7 +2165,7 @@ internal partial class SpreadElement : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.SpreadElement;
 
-    public Expression? Expression { get; }
+    public Expression? Expression { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>StringLiteral</c>.</summary>
@@ -2173,8 +2173,8 @@ internal partial class StringLiteral : LiteralExpression, IDeclaration, IPrimary
 {
     public override SyntaxKind Kind => SyntaxKind.StringLiteral;
 
-    public Node? TextSourceNode { get; }
-    public bool? SingleQuote { get; }
+    public Node? TextSourceNode { get; set; }
+    public bool? SingleQuote { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
@@ -2192,8 +2192,8 @@ internal partial class SwitchStatement : Node, IFlowContainer, IJSDocContainer, 
 {
     public override SyntaxKind Kind => SyntaxKind.SwitchStatement;
 
-    public Expression? Expression { get; }
-    public CaseBlock? CaseBlock { get; }
+    public Expression? Expression { get; set; }
+    public CaseBlock? CaseBlock { get; set; }
     public bool? PossiblyExhaustive { get; set; }
     public IJSDocArray? JsDoc { get; set; }
     public Node? FlowNode { get; set; }
@@ -2211,9 +2211,9 @@ internal partial class SyntheticExpression : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.SyntheticExpression;
 
-    public bool IsSpread { get; }
-    public IType? Type { get; }
-    public Node? TupleNameSource { get; }
+    public bool IsSpread { get; set; }
+    public IType? Type { get; set; }
+    public Node? TupleNameSource { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SyntheticReferenceExpression</c>.</summary>
@@ -2221,8 +2221,8 @@ internal partial class SyntheticReferenceExpression : LeftHandSideExpression, IR
 {
     public override SyntaxKind Kind => SyntaxKind.SyntheticReferenceExpression;
 
-    public Expression? Expression { get; }
-    public Expression? ThisArg { get; }
+    public Expression? Expression { get; set; }
+    public Expression? ThisArg { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TaggedTemplateExpression</c>.</summary>
@@ -2230,9 +2230,9 @@ internal partial class TaggedTemplateExpression : MemberExpression, IReadonlyTex
 {
     public override SyntaxKind Kind => SyntaxKind.TaggedTemplateExpression;
 
-    public LeftHandSideExpression? Tag { get; }
-    public NodeArray<ITypeNode>? TypeArguments { get; }
-    public Node? Template { get; }
+    public LeftHandSideExpression? Tag { get; set; }
+    public NodeArray<ITypeNode>? TypeArguments { get; set; }
+    public Node? Template { get; set; }
     public PunctuationToken? QuestionDotToken { get; set; }
 }
 
@@ -2241,8 +2241,8 @@ internal partial class TemplateExpression : Node, IPrimaryExpression, IReadonlyT
 {
     public override SyntaxKind Kind => SyntaxKind.TemplateExpression;
 
-    public TemplateHead? Head { get; }
-    public NodeArray<TemplateSpan>? TemplateSpans { get; }
+    public TemplateHead? Head { get; set; }
+    public NodeArray<TemplateSpan>? TemplateSpans { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TemplateHead</c>.</summary>
@@ -2259,8 +2259,8 @@ internal partial class TemplateLiteralTypeNode : Node, IReadonlyTextRange, IType
 {
     public override SyntaxKind Kind => SyntaxKind.TemplateLiteralType;
 
-    public TemplateHead? Head { get; }
-    public NodeArray<TemplateLiteralTypeSpan>? TemplateSpans { get; }
+    public TemplateHead? Head { get; set; }
+    public NodeArray<TemplateLiteralTypeSpan>? TemplateSpans { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TemplateLiteralTypeSpan</c>.</summary>
@@ -2268,8 +2268,8 @@ internal partial class TemplateLiteralTypeSpan : Node, IReadonlyTextRange, IType
 {
     public override SyntaxKind Kind => SyntaxKind.TemplateLiteralTypeSpan;
 
-    public ITypeNode? Type { get; }
-    public Node? Literal { get; }
+    public ITypeNode? Type { get; set; }
+    public Node? Literal { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TemplateMiddle</c>.</summary>
@@ -2286,8 +2286,8 @@ internal partial class TemplateSpan : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.TemplateSpan;
 
-    public Expression? Expression { get; }
-    public Node? Literal { get; }
+    public Expression? Expression { get; set; }
+    public Node? Literal { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TemplateTail</c>.</summary>
@@ -2319,7 +2319,7 @@ internal partial class ThrowStatement : Node, IFlowContainer, IJSDocContainer, I
 {
     public override SyntaxKind Kind => SyntaxKind.ThrowStatement;
 
-    public Expression? Expression { get; }
+    public Expression? Expression { get; set; }
     public IJSDocArray? JsDoc { get; set; }
     public Node? FlowNode { get; set; }
 }
@@ -2336,9 +2336,9 @@ internal partial class TryStatement : Node, IFlowContainer, IJSDocContainer, IRe
 {
     public override SyntaxKind Kind => SyntaxKind.TryStatement;
 
-    public Block? TryBlock { get; }
-    public CatchClause? CatchClause { get; }
-    public Block? FinallyBlock { get; }
+    public Block? TryBlock { get; set; }
+    public CatchClause? CatchClause { get; set; }
+    public Block? FinallyBlock { get; set; }
     public IJSDocArray? JsDoc { get; set; }
     public Node? FlowNode { get; set; }
 }
@@ -2348,7 +2348,7 @@ internal partial class TupleTypeNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.TupleType;
 
-    public NodeArray<Node>? Elements { get; }
+    public NodeArray<Node>? Elements { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TypeAliasDeclaration</c>.</summary>
@@ -2356,10 +2356,10 @@ internal partial class TypeAliasDeclaration : Node, IDeclaration, IDeclarationSt
 {
     public override SyntaxKind Kind => SyntaxKind.TypeAliasDeclaration;
 
-    public NodeArray<Node>? Modifiers { get; }
-    public Identifier? Name { get; }
-    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
-    public ITypeNode? Type { get; }
+    public NodeArray<Node>? Modifiers { get; set; }
+    public Identifier? Name { get; set; }
+    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
+    public ITypeNode? Type { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -2375,8 +2375,8 @@ internal partial class TypeAssertion : UnaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.TypeAssertionExpression;
 
-    public ITypeNode? Type { get; }
-    public UnaryExpression? Expression { get; }
+    public ITypeNode? Type { get; set; }
+    public UnaryExpression? Expression { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TypeLiteralNode</c>.</summary>
@@ -2384,7 +2384,7 @@ internal partial class TypeLiteralNode : Node, IDeclaration, IReadonlyTextRange,
 {
     public override SyntaxKind Kind => SyntaxKind.TypeLiteral;
 
-    public NodeArray<ITypeElement>? Members { get; }
+    public NodeArray<ITypeElement>? Members { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
@@ -2394,7 +2394,7 @@ internal partial class TypeOfExpression : UnaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.TypeOfExpression;
 
-    public UnaryExpression? Expression { get; }
+    public UnaryExpression? Expression { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TypeOperatorNode</c>.</summary>
@@ -2402,8 +2402,8 @@ internal partial class TypeOperatorNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.TypeOperator;
 
-    public SyntaxKind Operator { get; }
-    public ITypeNode? Type { get; }
+    public SyntaxKind Operator { get; set; }
+    public ITypeNode? Type { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TypeParameterDeclaration</c>.</summary>
@@ -2411,10 +2411,10 @@ internal partial class TypeParameterDeclaration : Node, IDeclaration, IJSDocCont
 {
     public override SyntaxKind Kind => SyntaxKind.TypeParameter;
 
-    public NodeArray<ModifierToken>? Modifiers { get; }
-    public Identifier? Name { get; }
-    public ITypeNode? Constraint { get; }
-    public ITypeNode? Default { get; }
+    public NodeArray<ModifierToken>? Modifiers { get; set; }
+    public Identifier? Name { get; set; }
+    public ITypeNode? Constraint { get; set; }
+    public ITypeNode? Default { get; set; }
     public Expression? Expression { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
@@ -2429,9 +2429,9 @@ internal partial class TypePredicateNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.TypePredicate;
 
-    public KeywordToken? AssertsModifier { get; }
-    public Node? ParameterName { get; }
-    public ITypeNode? Type { get; }
+    public KeywordToken? AssertsModifier { get; set; }
+    public Node? ParameterName { get; set; }
+    public ITypeNode? Type { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TypeQueryNode</c>.</summary>
@@ -2439,8 +2439,8 @@ internal partial class TypeQueryNode : Node, INodeWithTypeArguments, IReadonlyTe
 {
     public override SyntaxKind Kind => SyntaxKind.TypeQuery;
 
-    public Node? ExprName { get; }
-    public NodeArray<ITypeNode>? TypeArguments { get; }
+    public Node? ExprName { get; set; }
+    public NodeArray<ITypeNode>? TypeArguments { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TypeReferenceNode</c>.</summary>
@@ -2448,8 +2448,8 @@ internal partial class TypeReferenceNode : Node, INodeWithTypeArguments, IReadon
 {
     public override SyntaxKind Kind => SyntaxKind.TypeReference;
 
-    public Node? TypeName { get; }
-    public NodeArray<ITypeNode>? TypeArguments { get; }
+    public Node? TypeName { get; set; }
+    public NodeArray<ITypeNode>? TypeArguments { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>UnaryExpression</c>.</summary>
@@ -2462,7 +2462,7 @@ internal partial class UnionTypeNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.UnionType;
 
-    public NodeArray<ITypeNode>? Types { get; }
+    public NodeArray<ITypeNode>? Types { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>UpdateExpression</c>.</summary>
@@ -2475,10 +2475,10 @@ internal partial class VariableDeclaration : Node, IDeclaration, IJSDocContainer
 {
     public override SyntaxKind Kind => SyntaxKind.VariableDeclaration;
 
-    public Node? Name { get; }
-    public PunctuationToken? ExclamationToken { get; }
-    public ITypeNode? Type { get; }
-    public Expression? Initializer { get; }
+    public Node? Name { get; set; }
+    public PunctuationToken? ExclamationToken { get; set; }
+    public ITypeNode? Type { get; set; }
+    public Expression? Initializer { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
@@ -2492,7 +2492,7 @@ internal partial class VariableDeclarationList : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.VariableDeclarationList;
 
-    public NodeArray<VariableDeclaration>? Declarations { get; }
+    public NodeArray<VariableDeclaration>? Declarations { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>VariableStatement</c>.</summary>
@@ -2500,8 +2500,8 @@ internal partial class VariableStatement : Node, IFlowContainer, IJSDocContainer
 {
     public override SyntaxKind Kind => SyntaxKind.VariableStatement;
 
-    public NodeArray<Node>? Modifiers { get; }
-    public VariableDeclarationList? DeclarationList { get; }
+    public NodeArray<Node>? Modifiers { get; set; }
+    public VariableDeclarationList? DeclarationList { get; set; }
     public IJSDocArray? JsDoc { get; set; }
     public Node? FlowNode { get; set; }
 }
@@ -2511,7 +2511,7 @@ internal partial class VoidExpression : UnaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.VoidExpression;
 
-    public UnaryExpression? Expression { get; }
+    public UnaryExpression? Expression { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>WhileStatement</c>.</summary>
@@ -2519,7 +2519,7 @@ internal partial class WhileStatement : IterationStatement, IFlowContainer, IJSD
 {
     public override SyntaxKind Kind => SyntaxKind.WhileStatement;
 
-    public Expression? Expression { get; }
+    public Expression? Expression { get; set; }
     public Node? FlowNode { get; set; }
 }
 
@@ -2528,8 +2528,8 @@ internal partial class WithStatement : Node, IFlowContainer, IJSDocContainer, IR
 {
     public override SyntaxKind Kind => SyntaxKind.WithStatement;
 
-    public Expression? Expression { get; }
-    public IStatement? Statement { get; }
+    public Expression? Expression { get; set; }
+    public IStatement? Statement { get; set; }
     public IJSDocArray? JsDoc { get; set; }
     public Node? FlowNode { get; set; }
 }
@@ -2539,7 +2539,7 @@ internal partial class YieldExpression : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.YieldExpression;
 
-    public PunctuationToken? AsteriskToken { get; }
-    public Expression? Expression { get; }
+    public PunctuationToken? AsteriskToken { get; set; }
+    public Expression? Expression { get; set; }
 }
 

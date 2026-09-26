@@ -324,7 +324,11 @@ internal static class NodeEmitter
             // Generated code runs under `#nullable enable`, and TS's non-optional properties are set by the
             // parser/factory rather than at construction, so reference-typed members are declared nullable to
             // match how the field is actually populated.
-            var accessors = member.IsReadonly ? "{ get; }" : "{ get; set; }";
+            //
+            // A *class* member is writable even where TS marks it `readonly`: the factory is the only thing that
+            // constructs nodes, so the write has to be expressible (§9: "readonly 仅表示解析后不再写，用普通 setter
+            // 表达"). The interface keeps the read-only view, which a writable property still implements.
+            var accessors = inInterface && member.IsReadonly ? "{ get; }" : "{ get; set; }";
             sb.AppendLine($"    {accessibility}{Nullable(memberSlot.Type, mapper, forceType)} {name} {accessors}");
             return;
         }
@@ -577,10 +581,10 @@ internal static class NodeEmitter
 
     /// <summary>A parameter name, escaped when it collides with a C# keyword.</summary>
     private static string ParameterName(string name)
-        => s_csharpKeywords.Contains(name) ? "@" + name : name;
+        => CSharpKeywords.Contains(name) ? "@" + name : name;
 
     /// <summary>C# reserved keywords, so a parameter name that collides is escaped with `@`.</summary>
-    private static readonly HashSet<string> s_csharpKeywords = new(StringComparer.Ordinal)
+    internal static readonly HashSet<string> CSharpKeywords = new(StringComparer.Ordinal)
     {
         "abstract", "as", "base", "bool", "break", "byte", "case", "catch", "char", "checked", "class", "const",
         "continue", "decimal", "default", "delegate", "do", "double", "else", "enum", "event", "explicit", "extern",

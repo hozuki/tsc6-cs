@@ -34,6 +34,49 @@ internal partial class NodeFactory
     public NodeFactoryFlags Flags => _flags;
 
     //
+    // Node creation
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:1209 — <c>createBaseNode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: this is where the port diverges most sharply from TS, and the divergence is what makes D1 work.
+    /// TS's <c>baseFactory.createBaseNode(kind)</c> instantiates the <em>base</em> <c>Node</c> class with the given
+    /// kind and lets the caller hang fields on it — the concrete type exists only in the type system. The port has one
+    /// C# class per kind, and the kind is pinned by the class itself (<c>public override SyntaxKind Kind =&gt;
+    /// …</c>), so the node is simply constructed and the parameter is only checked.
+    /// <para>
+    /// The token family is the exception and is why <c>createToken</c> stays hand-written: <c>Token</c> carries its
+    /// kind as <em>state</em> (there is one class for every punctuation token), so it cannot be built from a type
+    /// parameter.
+    /// </para>
+    /// </remarks>
+    private static T CreateBaseNode<T>(SyntaxKind kind)
+        where T : Node, new()
+    {
+        var node = new T();
+        Debug.Assert(node.Kind == kind, $"factory kind mismatch for {typeof(T).Name}: {node.Kind} instead of {kind}");
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1213 — <c>createBaseDeclaration</c>.</summary>
+    /// <remarks>
+    /// The two fields are cleared because the binder fills them in later; TS spells the same thing with
+    /// <c>undefined</c>.
+    /// </remarks>
+    private static T CreateBaseDeclaration<T>(SyntaxKind kind)
+        where T : Node, IDeclaration, new()
+    {
+        var node = CreateBaseNode<T>(kind);
+        node.Symbol = null;
+        node.LocalSymbol = null;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1436 — <c>createBaseToken</c>.</summary>
+    private static T CreateBaseToken<T>(SyntaxKind kind)
+        where T : Node, new() => CreateBaseNode<T>(kind);
+
+    //
     // Node arrays
     //
 
@@ -174,5 +217,160 @@ internal partial class NodeFactory
                 => TransformFlags.PropertyAccessExcludes,
             _ => TransformFlags.NodeExcludes,
         };
+    }
+
+    //
+    // Updating
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:7179 — <c>update</c>.</summary>
+    /// <remarks>
+    /// Every <c>update*</c> member ends in this: when something changed, the new node inherits the old node's original
+    /// pointer and text range; when nothing changed, the old node is returned untouched — which is why
+    /// <see cref="CreateNodeArray{T}"/> hands back the same array and why callers compare members with reference
+    /// equality.
+    /// </remarks>
+    private T Update<T>(T updated, T? original)
+        where T : Node
+    {
+        if (!ReferenceEquals(updated, original))
+        {
+            SetOriginal(updated, original);
+            Utilities.SetTextRange(updated, original);
+        }
+
+        return updated;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:493 — the <c>setOriginal</c> binding.</summary>
+    /// <remarks>
+    /// TS binds this once, to <c>identity</c> or to <c>setOriginalNode</c> according to
+    /// <see cref="NodeFactoryFlags.NoOriginalNode"/>. C# cannot substitute a method, so the flag is read at the call
+    /// site instead.
+    /// </remarks>
+    private void SetOriginal(Node node, Node? original)
+    {
+        if ((_flags & NodeFactoryFlags.NoOriginalNode) == 0) SetOriginalNode(node, original);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:7420 — <c>setOriginalNode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS declares this as a module-level export rather than a member of the factory object, but it belongs
+    /// to the same file and is only reached through <see cref="Update{T}"/>, so it lives here.
+    /// </remarks>
+    public static T SetOriginalNode<T>(T node, Node? original)
+        where T : Node
+    {
+        if (!ReferenceEquals(node.Original, original))
+        {
+            node.Original = original;
+
+            // An original that carries emit information passes it on: the transform that produced this node did not
+            // necessarily re-derive the comments, source maps or helpers that were attached to the node it replaced.
+            if (original?.EmitNode is { } emitNode)
+            {
+                node.EmitNode = MergeEmitNode(emitNode, node.EmitNode);
+            }
+        }
+
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:7434 — <c>mergeEmitNode</c>.</summary>
+    /// <remarks>
+    /// TS lists one line per property of <c>EmitNode</c>, including the ones that deliberately do not merge, and the
+    /// port keeps that shape: a property that is quietly forgotten here changes emit output in ways that are hard to
+    /// trace back.
+    /// </remarks>
+    private static IEmitNode MergeEmitNode(IEmitNode source, IEmitNode? dest)
+    {
+        dest ??= new EmitNode();
+
+        // `flags` overwrites the destination.
+        if (source.Flags != EmitFlags.None) dest.Flags = source.Flags;
+
+        // `internalFlags` overwrites the destination; the source's immutability is not copied over.
+        if (source.InternalFlags != InternalEmitFlags.None)
+        {
+            dest.InternalFlags = CoreFlags.Clear(source.InternalFlags, InternalEmitFlags.Immutable);
+        }
+
+        // `annotatedNodes` are not merged: they belong to the parse tree node of a `SourceFile`.
+
+        // `leadingComments` / `trailingComments` are concatenated — the source's copy first, then the destination's.
+        if (source.LeadingComments is { } leading)
+        {
+            var merged = new List<ISynthesizedComment>(leading);
+            if (dest.LeadingComments is { } existingLeading) merged.AddRange(existingLeading);
+            dest.LeadingComments = merged;
+        }
+
+        if (source.TrailingComments is { } trailing)
+        {
+            var merged = new List<ISynthesizedComment>(trailing);
+            if (dest.TrailingComments is { } existingTrailing) merged.AddRange(existingTrailing);
+            dest.TrailingComments = merged;
+        }
+
+        // `commentRange` and `sourceMapRange` overwrite the destination.
+        if (source.CommentRange is { } commentRange) dest.CommentRange = commentRange;
+        if (source.SourceMapRange is { } sourceMapRange) dest.SourceMapRange = sourceMapRange;
+
+        // `tokenSourceMapRanges` are merged with the destination.
+        if (source.TokenSourceMapRanges is { } tokenSourceMapRanges)
+        {
+            dest.TokenSourceMapRanges = MergeTokenSourceMapRanges(tokenSourceMapRanges, dest.TokenSourceMapRanges);
+        }
+
+        // `constantValue` overwrites the destination.
+        if (source.ConstantValue is not null) dest.ConstantValue = source.ConstantValue;
+
+        // `externalHelpersModuleName` and `externalHelpers` are not merged.
+
+        // `helpers` are merged into the destination, without duplicates.
+        if (source.Helpers is { } helpers)
+        {
+            foreach (var helper in helpers)
+            {
+                if (dest.Helpers?.Contains(helper) != true)
+                {
+                    (dest.Helpers ??= []).Add(helper);
+                }
+            }
+        }
+
+        // `startsOnNewLine`, `snippetElement`, `classThis` and `assignedName` overwrite the destination.
+        if (source.StartsOnNewLine is { } startsOnNewLine) dest.StartsOnNewLine = startsOnNewLine;
+        if (source.SnippetElement is { } snippetElement) dest.SnippetElement = snippetElement;
+
+        // `typeNode` is not merged: it only applies to comment emit for a variable declaration.
+        // PORT-NOTE: TS carries a TODO here ("typeNode should overwrite the destination") and so does the port, so the
+        // behaviour stays comparable.
+
+        if (source.ClassThis is { } classThis) dest.ClassThis = classThis;
+        if (source.AssignedName is { } assignedName) dest.AssignedName = assignedName;
+
+        // `identifierTypeArguments`, `autoGenerate` and `generatedImportReference` are not merged: they only apply to
+        // one specific generated identifier.
+
+        return dest;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:7542 — <c>mergeTokenSourceMapRanges</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS assigns by index into a sparse array, which grows on demand; <see cref="List{T}"/> throws instead,
+    /// so the gaps are filled in first. The same "null hole" treatment appears in <c>SysWatch</c> (§13.4).
+    /// </remarks>
+    private static List<ISourceMapRange>? MergeTokenSourceMapRanges(List<ISourceMapRange> source, List<ISourceMapRange>? dest)
+    {
+        dest ??= [];
+
+        for (var i = 0; i < source.Count; i++)
+        {
+            while (dest.Count <= i) dest.Add(null!);
+            dest[i] = source[i];
+        }
+
+        return dest;
     }
 }

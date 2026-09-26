@@ -119,6 +119,7 @@ internal static class Generator
         files.Add(ScannerTablesEmitter.Emit(model, outputRoot));
         files.Add(NodeTestsEmitter.Emit(model, outputRoot));
         files.Add(TypedEnumEmitter.Emit(model, outputRoot));
+        files.Add(NodeFactoryEmitter.Emit(model, mapper, outputRoot));
 
         return files;
     }

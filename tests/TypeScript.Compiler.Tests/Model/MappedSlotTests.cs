@@ -140,8 +140,8 @@ public class MappedSlotTests
         // `ArrowFunction.name` 是 `never`（箭头函数没有名字），`FunctionTypeNode.modifiers` 是 `undefined`。
         var classes = File.ReadAllText(Path.Combine(FindRepoRoot(), "src", "TypeScript.Compiler", "Model", "NodeClasses.cs"));
 
-        Assert.Contains("public JsNever? Name { get; }", classes);
-        Assert.Contains("public JsUndefined? Modifiers { get; }", classes);
+        Assert.Contains("public JsNever? Name { get; set; }", classes);
+        Assert.Contains("public JsUndefined? Modifiers { get; set; }", classes);
     }
 
     private static TsTypeMapper Mapper() => new(

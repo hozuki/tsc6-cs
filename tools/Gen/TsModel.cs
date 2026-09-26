@@ -181,6 +181,126 @@ internal sealed class TsPredicate
 /// The <c>node</c> dependency is confined to table generation; nothing under <c>src/</c> depends on it.
 /// </para>
 /// </remarks>
+/// <summary>The fixed-shape members of <c>factory/nodeFactory.ts</c> (docs/architecture.md §15.7).</summary>
+/// <remarks>
+/// Only members whose body is a <c>createBase*</c> call plus assignments, or a single comparison chain forwarding to
+/// <c>update</c>, are described here. Everything else — the helpers, the members with real logic, the module-level
+/// functions — stays hand-written, and <see cref="TsFactoryMember.Supported"/> is what separates the two.
+/// </remarks>
+internal sealed class TsFactory
+{
+    public string Source { get; set; } = "";
+
+    public List<TsFactoryMember> Members { get; set; } = [];
+}
+
+/// <summary>One <c>create*</c>/<c>update*</c> member of <c>createNodeFactory</c>.</summary>
+internal sealed class TsFactoryMember
+{
+    public string Name { get; set; } = "";
+
+    /// <summary><c>create</c> or <c>update</c>.</summary>
+    public string Kind { get; set; } = "";
+
+    /// <summary>False when the body did not match a fixed shape; <see cref="Reason"/> says why.</summary>
+    public bool Supported { get; set; }
+
+    public string? Reason { get; set; }
+
+    public string ReturnType { get; set; } = "void";
+
+    public List<TsTypeParameter> TypeParameters { get; set; } = [];
+
+    public List<TsParameter> Parameters { get; set; } = [];
+
+    /// <summary>The <c>createBase*</c> function the body starts with.</summary>
+    public string? Base { get; set; }
+
+    /// <summary>Its type argument — <c>QualifiedName</c> in <c>createBaseNode&lt;QualifiedName&gt;</c>.</summary>
+    public string? TypeArgument { get; set; }
+
+    /// <summary>Its first argument — <c>SyntaxKind.QualifiedName</c>.</summary>
+    public string? KindExpression { get; set; }
+
+    /// <summary>What the body returns: <c>node</c>, or an <c>update(…)</c> call.</summary>
+    public string? Tail { get; set; }
+
+    public List<TsFactoryAssignment> Assignments { get; set; } = [];
+
+    /// <summary>Non-assignment statements in the body (<c>setTextRange(node, …)</c>).</summary>
+    public List<TsExpression> Calls { get; set; } = [];
+
+    public List<TsFactoryCompare> Compares { get; set; } = [];
+
+    /// <summary>The <c>createX(…)</c> call an <c>update*</c> member forwards to, as a <c>call</c> expression.</summary>
+    public TsExpression? UpdateCreate { get; set; }
+}
+
+/// <summary>One <c>node.field = value</c> statement (also <c>|=</c> and <c>&amp;=</c>).</summary>
+internal sealed class TsFactoryAssignment
+{
+    public string Target { get; set; } = "";
+
+    public string Op { get; set; } = "=";
+
+    public TsExpression? Value { get; set; }
+}
+
+/// <summary>One <c>node.field !== value</c> test in an <c>update*</c> member's comparison chain.</summary>
+internal sealed class TsFactoryCompare
+{
+    public string Target { get; set; } = "";
+
+    public TsExpression? Value { get; set; }
+}
+
+/// <summary>
+/// A TS expression, reduced to the shapes the fixed-shape members use.
+/// </summary>
+/// <remarks>
+/// <see cref="Form"/> says which members are set: <c>identifier</c> (name), <c>property</c> (target + name),
+/// <c>call</c> (name + args), <c>method</c> (receiver + name + args), <c>binary</c> (op + left + right),
+/// <c>prefix</c> (op + operand), <c>paren</c> and <c>nonNull</c> (inner), <c>conditional</c> (condition + whenTrue +
+/// whenFalse), <c>array</c> (items), <c>string</c> and <c>number</c> (value), <c>boolean</c> (boolean), <c>null</c>,
+/// or <c>unsupported</c> (text) — which the emitter refuses to translate rather than guessing.
+/// </remarks>
+internal sealed class TsExpression
+{
+    public string Form { get; set; } = "";
+
+    public string? Name { get; set; }
+
+    public string? Value { get; set; }
+
+    public bool? Boolean { get; set; }
+
+    public string? Op { get; set; }
+
+    public string? Text { get; set; }
+
+    public string? Receiver { get; set; }
+
+    public TsExpression? Target { get; set; }
+
+    public TsExpression? Left { get; set; }
+
+    public TsExpression? Right { get; set; }
+
+    public TsExpression? Operand { get; set; }
+
+    public TsExpression? Inner { get; set; }
+
+    public TsExpression? Condition { get; set; }
+
+    public TsExpression? WhenTrue { get; set; }
+
+    public TsExpression? WhenFalse { get; set; }
+
+    public List<TsExpression> Args { get; set; } = [];
+
+    public List<TsExpression> Items { get; set; } = [];
+}
+
 internal sealed class TsModel
 {
     public string? Source { get; set; }
@@ -197,6 +317,11 @@ public List<TsTable> Tables { get; set; } = [];
 
     /// <summary>The node predicates of <c>factory/nodeTests.ts</c>, in source order.</summary>
     public List<TsPredicate> Predicates { get; set; } = [];
+
+    /// <summary>
+    /// The fixed-shape members of <c>factory/nodeFactory.ts</c>, in source order (docs/architecture.md §15.7).
+    /// </summary>
+    public TsFactory Factory { get; set; } = new();
 
     private static readonly JsonSerializerOptions s_jsonOptions = new()
     {
