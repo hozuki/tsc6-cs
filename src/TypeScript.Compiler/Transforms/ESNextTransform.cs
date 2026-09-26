@@ -24,7 +24,7 @@ namespace TypeScript.Compiler;
 /// <para>
 /// PORT-NOTE (<c>transformNamedEvaluation</c>/<c>isNamedEvaluation</c>): the reference imports both from
 /// <c>namedEvaluation.ts</c>/<c>utilities.ts</c>; the port's landings are <c>NamedEvaluation.TransformNamedEvaluation</c>
-/// and <c>NamedEvaluation.IsNamedEvaluation</c>, which this file calls qualified.
+/// and <c>Utilities.IsNamedEvaluation</c>, which this file calls qualified.
 /// </para>
 /// </remarks>
 internal static class ESNextTransform
@@ -437,7 +437,7 @@ internal sealed class ESNextTransformer
                     }
 
                     // perform a shallow transform for any named evaluation
-                    if (NamedEvaluation.IsNamedEvaluation(declaration))
+                    if (Utilities.IsNamedEvaluation(declaration))
                     {
                         declaration = (VariableDeclaration)NamedEvaluation.TransformNamedEvaluation(_context, declaration);
                     }
@@ -561,7 +561,7 @@ internal sealed class ESNextTransformer
         // give a class or function expression an assigned name, if needed.
         var expression = node.Expression!;
         var innerExpression = (Expression)FactoryUtilities.SkipOuterExpressions(expression);
-        if (NamedEvaluation.IsNamedEvaluation(innerExpression))
+        if (Utilities.IsNamedEvaluation(innerExpression))
         {
             innerExpression = (Expression)NamedEvaluation.TransformNamedEvaluation(
                 _context,
@@ -645,7 +645,7 @@ internal sealed class ESNextTransformer
             expression = _factory.CreateAssignment(
                 TypeScriptTransformSupport.GetDeclarationName(_factory, node, /*allowComments*/ null, /*allowSourceMaps*/ null),
                 expression);
-            if (NamedEvaluation.IsNamedEvaluation(expression))
+            if (Utilities.IsNamedEvaluation(expression))
             {
                 expression = (Expression)NamedEvaluation.TransformNamedEvaluation(
                     _context,
@@ -666,7 +666,7 @@ internal sealed class ESNextTransformer
                 GeneratedIdentifierFlags.ReservedInNestedScopes | GeneratedIdentifierFlags.FileLevel | GeneratedIdentifierFlags.Optimistic);
             HoistBindingIdentifier(_defaultExportBinding, /*isExport*/ true, "default", node);
             expression = _factory.CreateAssignment(_defaultExportBinding, expression);
-            if (NamedEvaluation.IsNamedEvaluation(expression))
+            if (Utilities.IsNamedEvaluation(expression))
             {
                 expression = (Expression)NamedEvaluation.TransformNamedEvaluation(
                     _context,

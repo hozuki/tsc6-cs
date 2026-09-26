@@ -2500,11 +2500,9 @@ internal sealed class EvaluatorResultValue<T> : IEvaluatorResult<T>
     /// <remarks>
     /// PORT-NOTE: TS's <c>parent.members</c> is read through <c>IClassLikeDeclarationBase</c> and the element face is
     /// <c>IClassElement</c> (the model's <c>ClassElement</c> union), so the shared helpers below receive
-    /// <c>Node</c>-cast members. <c>getAllAccessorDeclarations</c> is a local function here because the port's own
-    /// <c>GetAllAccessorDeclarations</c> name is the <c>ITypeChecker</c> surface the checker class owns
-    /// (<c>Checker.GetAllAccessorDeclarationsForDeclaration</c>), and §15.15 forbids <c>Utilities</c> and
-    /// <c>Checker</c> from declaring same-named members; the local copy is the reference's <c>utilities.ts:6832-6885</c>
-    /// body unchanged.
+    /// <c>Node</c>-cast members, and <c>getAllAccessorDeclarations</c> is the shared
+    /// <see cref="GetAllAccessorDeclarations"/> below — the checker's own name for its symbol-declaration variant is
+    /// <c>GetAllAccessorDeclarationsForDeclaration</c>, so the two do not collide.
     /// </remarks>
     public static bool ClassElementOrClassElementParameterIsDecorated(bool useLegacyDecorators, Node node, Node parent)
     {
@@ -2539,66 +2537,78 @@ internal sealed class EvaluatorResultValue<T> : IEvaluatorResult<T>
         }
         return false;
 
-        // ported from: src/compiler/utilities.ts:6832-6885 — <c>getAllAccessorDeclarations</c>.
-        static (Node? FirstAccessor, Node? SecondAccessor, GetAccessorDeclaration? GetAccessor, SetAccessorDeclaration? SetAccessor)
-            GetAllAccessorDeclarations(IEnumerable<IClassElement>? declarations, Node accessor)
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:6832-6885 — <c>getAllAccessorDeclarations</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE (home): the reference declares this once in <c>utilities.ts</c> and reads <c>member.name</c> off the
+    /// <c>ClassElement</c> union; the port takes the sequence its two callers hold — <c>IClassLikeDeclarationBase.Members</c>
+    /// and a symbol's declaration list, two different generic faces of "a list of accessors" — as a non-generic
+    /// <see cref="System.Collections.IEnumerable"/> and narrows with the model's casts (every element is a
+    /// <see cref="Node"/> in both callers). Its <c>accessor</c> parameter is the class the get/set accessor classes share,
+    /// and the four answers are the reference's <c>AllAccessorDeclarations</c> (the model's interface
+    /// <c>IAllAccessorDeclarations</c>, which the checker's <c>getAllAccessorDeclarationsForDeclaration</c> builds). The
+    /// two earlier private copies (this file's decorator check and the declaration transform's accessor-type error) are
+    /// folded into this member.
+    /// </remarks>
+    public static (Node? FirstAccessor, Node? SecondAccessor, GetAccessorDeclaration? GetAccessor, SetAccessorDeclaration? SetAccessor)
+        GetAllAccessorDeclarations(System.Collections.IEnumerable? declarations, Node accessor)
+    {
+        Node? firstAccessor = null;
+        Node? secondAccessor = null;
+        GetAccessorDeclaration? getAccessor = null;
+        SetAccessorDeclaration? setAccessor = null;
+        if (HasDynamicName(accessor))
         {
-            Node? firstAccessor = null;
-            Node? secondAccessor = null;
-            GetAccessorDeclaration? getAccessor = null;
-            SetAccessorDeclaration? setAccessor = null;
-            if (HasDynamicName(accessor))
+            firstAccessor = accessor;
+            if (accessor.Kind == SyntaxKind.GetAccessor)
             {
-                firstAccessor = accessor;
-                if (accessor.Kind == SyntaxKind.GetAccessor)
-                {
-                    getAccessor = (GetAccessorDeclaration)accessor;
-                }
-                else if (accessor.Kind == SyntaxKind.SetAccessor)
-                {
-                    setAccessor = (SetAccessorDeclaration)accessor;
-                }
-                else
-                {
-                    Debug.Fail("Accessor has wrong kind");
-                }
+                getAccessor = (GetAccessorDeclaration)accessor;
+            }
+            else if (accessor.Kind == SyntaxKind.SetAccessor)
+            {
+                setAccessor = (SetAccessorDeclaration)accessor;
             }
             else
             {
-                foreach (var member in declarations ?? [])
+                Debug.Fail("Accessor has wrong kind");
+            }
+        }
+        else
+        {
+            foreach (var member in declarations ?? System.Array.Empty<object>())
+            {
+                var m = (Node)member;
+                if (!IsAccessor(m) || IsStatic(m) != IsStatic(accessor))
                 {
-                    var m = (Node)member;
-                    if (!IsAccessor(m) || IsStatic(m) != IsStatic(accessor))
+                    continue;
+                }
+                var memberName = GetPropertyNameForPropertyNameNode(((INamedDeclaration)m).Name!);
+                var accessorName = GetPropertyNameForPropertyNameNode(((INamedDeclaration)accessor).Name!);
+                if (memberName == accessorName)
+                {
+                    if (firstAccessor is null)
                     {
-                        continue;
+                        firstAccessor = m;
                     }
-                    var memberName = GetPropertyNameForPropertyNameNode(((INamedDeclaration)member).Name!);
-                    var accessorName = GetPropertyNameForPropertyNameNode(((INamedDeclaration)accessor).Name!);
-                    if (memberName == accessorName)
+                    else if (secondAccessor is null)
                     {
-                        if (firstAccessor is null)
-                        {
-                            firstAccessor = m;
-                        }
-                        else if (secondAccessor is null)
-                        {
-                            secondAccessor = m;
-                        }
+                        secondAccessor = m;
+                    }
 
-                        if (m.Kind == SyntaxKind.GetAccessor && getAccessor is null)
-                        {
-                            getAccessor = (GetAccessorDeclaration)m;
-                        }
+                    if (m.Kind == SyntaxKind.GetAccessor && getAccessor is null)
+                    {
+                        getAccessor = (GetAccessorDeclaration)m;
+                    }
 
-                        if (m.Kind == SyntaxKind.SetAccessor && setAccessor is null)
-                        {
-                            setAccessor = (SetAccessorDeclaration)m;
-                        }
+                    if (m.Kind == SyntaxKind.SetAccessor && setAccessor is null)
+                    {
+                        setAccessor = (SetAccessorDeclaration)m;
                     }
                 }
             }
-            return (firstAccessor, secondAccessor, getAccessor, setAccessor);
         }
+        return (firstAccessor, secondAccessor, getAccessor, setAccessor);
     }
 
     /// <summary>ported from: src/compiler/utilities.ts:5469-5472 — <c>isProtoSetter</c>.</summary>
@@ -2647,6 +2657,104 @@ internal sealed class EvaluatorResultValue<T> : IEvaluatorResult<T>
                 return true;
         }
         return false;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:5485-5505 — <c>isAnonymousFunctionDefinition</c>.</summary>
+    /// <remarks>
+    /// Indicates whether an expression is an anonymous function definition.
+    /// <para>
+    /// PORT-NOTE (home): the reference declares this module-private in <c>utilities.ts</c> (its readers are
+    /// <c>isNamedEvaluation</c> below and, in the port, the two transform modules that call it through this class), so
+    /// its home is here; the earlier statement inside <c>Transforms/NamedEvaluation.cs</c> is folded into this member.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE (<c>cb</c>): the reference's callback takes the <c>AnonymousFunctionDefinition</c> union; the port's
+    /// callback takes the node class, which is the union's erased representation (see the class remarks) — every
+    /// reference callback reads only members the node class carries.
+    /// </para>
+    /// </remarks>
+    /// <seealso href="https://tc39.es/ecma262/#sec-isanonymousfunctiondefinition"/>
+    public static bool IsAnonymousFunctionDefinition(Expression node, Func<Node, bool>? cb = null)
+    {
+        node = (Expression)FactoryUtilities.SkipOuterExpressions(node);
+        switch (node.Kind)
+        {
+            case SyntaxKind.ClassExpression:
+                // PORT-NOTE: the reference's `isAnonymousFunctionDefinition` (utilities.ts:5485) calls this helper, which
+                // namedEvaluation.ts:165 declares — the cross-module call the bundle allows and the port states by name.
+                if (NamedEvaluation.ClassHasDeclaredOrExplicitlyAssignedName(node))
+                {
+                    return false;
+                }
+                break;
+            case SyntaxKind.FunctionExpression:
+                if (((FunctionExpression)node).Name is not null)
+                {
+                    return false;
+                }
+                break;
+            case SyntaxKind.ArrowFunction:
+                break;
+            default:
+                return false;
+        }
+        return cb is not null ? cb(node) : true;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:5564-5581 — <c>isNamedEvaluation</c>.</summary>
+    /// <remarks>
+    /// Indicates whether a node is a potential source of an assigned name for a class, function, or arrow function.
+    /// <para>
+    /// PORT-NOTE (<c>cb</c>): as <see cref="IsAnonymousFunctionDefinition"/>; the reference's
+    /// <c>isNamedEvaluationSource</c> prerequisite is <see cref="IsNamedEvaluationSource"/> above.
+    /// </para>
+    /// </remarks>
+    public static bool IsNamedEvaluation(Node node, Func<Node, bool>? cb = null)
+    {
+        if (!Utilities.IsNamedEvaluationSource(node)) return false;
+        switch (node.Kind)
+        {
+            case SyntaxKind.PropertyAssignment:
+                return Utilities.IsAnonymousFunctionDefinition(((PropertyAssignment)node).Initializer!, cb);
+            case SyntaxKind.ShorthandPropertyAssignment:
+                return Utilities.IsAnonymousFunctionDefinition(((ShorthandPropertyAssignment)node).ObjectAssignmentInitializer!, cb);
+            case SyntaxKind.VariableDeclaration:
+                return Utilities.IsAnonymousFunctionDefinition(((VariableDeclaration)node).Initializer!, cb);
+            case SyntaxKind.Parameter:
+                return Utilities.IsAnonymousFunctionDefinition(((ParameterDeclaration)node).Initializer!, cb);
+            case SyntaxKind.BindingElement:
+                return Utilities.IsAnonymousFunctionDefinition(((BindingElement)node).Initializer!, cb);
+            case SyntaxKind.PropertyDeclaration:
+                return Utilities.IsAnonymousFunctionDefinition(((PropertyDeclaration)node).Initializer!, cb);
+            case SyntaxKind.BinaryExpression:
+                return Utilities.IsAnonymousFunctionDefinition(((BinaryExpression)node).Right!, cb);
+            case SyntaxKind.ExportAssignment:
+                return Utilities.IsAnonymousFunctionDefinition(((ExportAssignment)node).Expression!, cb);
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:3604-3616 — <c>isEmptyStringLiteral</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE (home): as <see cref="IsAnonymousFunctionDefinition"/> — the reference declares it in
+    /// <c>utilities.ts</c>, so it lives here; <c>Transforms/NamedEvaluation.cs</c>'s readers (its named-evaluation arms)
+    /// reach it as <c>Utilities.IsEmptyStringLiteral</c>.
+    /// </remarks>
+    public static bool IsEmptyStringLiteral(StringLiteral node)
+    {
+        if (node.TextSourceNode is not null)
+        {
+            switch (node.TextSourceNode.Kind)
+            {
+                case SyntaxKind.StringLiteral:
+                    return Utilities.IsEmptyStringLiteral((StringLiteral)node.TextSourceNode);
+                case SyntaxKind.NoSubstitutionTemplateLiteral:
+                    return node.Text == "";
+            }
+            return false;
+        }
+        return node.Text == "";
     }
 
 /// <summary>ported from: src/compiler/utilities.ts:670-703 — <c>createSingleLineStringWriter</c>'s object literal.</summary>

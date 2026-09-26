@@ -356,7 +356,7 @@ internal sealed partial class ClassFieldsTransformer
         //           i. Let _v_ be ? NamedEvaluation of |Initializer| with argument _lref_.[[ReferencedName]].
         //     ...
 
-        if (NamedEvaluation.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
+        if (Utilities.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
         {
             node = NamedEvaluation.TransformNamedEvaluation(_context, node);
         }
@@ -435,7 +435,7 @@ internal sealed partial class ClassFieldsTransformer
         //           i. Set _v_ to ? NamedEvaluation of |Initializer| with argument _P_.
         //     ...
 
-        if (NamedEvaluation.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
+        if (Utilities.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
         {
             node = (ShorthandPropertyAssignment)NamedEvaluation.TransformNamedEvaluation(_context, node);
         }

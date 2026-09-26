@@ -286,7 +286,7 @@ internal static class NamedEvaluation
         Expression assignedName,
         bool? ignoreEmptyStringLiteral)
     {
-        if (Js.IsTruthy(ignoreEmptyStringLiteral) && NodeTests.IsStringLiteral(assignedName) && IsEmptyStringLiteral((StringLiteral)assignedName))
+        if (Js.IsTruthy(ignoreEmptyStringLiteral) && NodeTests.IsStringLiteral(assignedName) && Utilities.IsEmptyStringLiteral((StringLiteral)assignedName))
         {
             return expression;
         }
@@ -480,104 +480,4 @@ internal static class NamedEvaluation
             _ => node,
         };
 
-    // ---------------------------------------------------------------------------------------------
-    // utilities.ts — the three members this slice is the first reader of
-    // ---------------------------------------------------------------------------------------------
-
-    /// <summary>ported from: src/compiler/utilities.ts:5485-5505 — <c>isAnonymousFunctionDefinition</c>.</summary>
-    /// <remarks>
-    /// Indicates whether an expression is an anonymous function definition.
-    /// <para>
-    /// PORT-NOTE (home): the reference declares this module-private in <c>utilities.ts</c> and its only readers are
-    /// <c>isNamedEvaluation</c> (below) and the two transform modules <c>namedEvaluation.ts</c>/<c>esDecorators.ts</c>;
-    /// the port's <c>Utilities</c> home has not landed the member, so it is stated here for this slice's readers and is
-    /// reported for the batch that owns that file.
-    /// </para>
-    /// <para>
-    /// PORT-NOTE (<c>cb</c>): the reference's callback takes the <c>AnonymousFunctionDefinition</c> union; the port's
-    /// callback takes the node class, which is the union's erased representation (see the class remarks) — every
-    /// reference callback reads only members the node class carries.
-    /// </para>
-    /// </remarks>
-    /// <seealso href="https://tc39.es/ecma262/#sec-isanonymousfunctiondefinition"/>
-    public static bool IsAnonymousFunctionDefinition(Expression node, Func<Node, bool>? cb = null)
-    {
-        node = (Expression)FactoryUtilities.SkipOuterExpressions(node);
-        switch (node.Kind)
-        {
-            case SyntaxKind.ClassExpression:
-                if (ClassHasDeclaredOrExplicitlyAssignedName(node))
-                {
-                    return false;
-                }
-                break;
-            case SyntaxKind.FunctionExpression:
-                if (((FunctionExpression)node).Name is not null)
-                {
-                    return false;
-                }
-                break;
-            case SyntaxKind.ArrowFunction:
-                break;
-            default:
-                return false;
-        }
-        return cb is not null ? cb(node) : true;
-    }
-
-    /// <summary>ported from: src/compiler/utilities.ts:5564-5581 — <c>isNamedEvaluation</c>.</summary>
-    /// <remarks>
-    /// Indicates whether a node is a potential source of an assigned name for a class, function, or arrow function.
-    /// <para>
-    /// PORT-NOTE (home and <c>cb</c>): as <see cref="IsAnonymousFunctionDefinition"/>; the reference's
-    /// <c>isNamedEvaluationSource</c> prerequisite is the already-ported
-    /// <see cref="Utilities.IsNamedEvaluationSource"/>.
-    /// </para>
-    /// </remarks>
-    public static bool IsNamedEvaluation(Node node, Func<Node, bool>? cb = null)
-    {
-        if (!Utilities.IsNamedEvaluationSource(node)) return false;
-        switch (node.Kind)
-        {
-            case SyntaxKind.PropertyAssignment:
-                return IsAnonymousFunctionDefinition(((PropertyAssignment)node).Initializer!, cb);
-            case SyntaxKind.ShorthandPropertyAssignment:
-                return IsAnonymousFunctionDefinition(((ShorthandPropertyAssignment)node).ObjectAssignmentInitializer!, cb);
-            case SyntaxKind.VariableDeclaration:
-                return IsAnonymousFunctionDefinition(((VariableDeclaration)node).Initializer!, cb);
-            case SyntaxKind.Parameter:
-                return IsAnonymousFunctionDefinition(((ParameterDeclaration)node).Initializer!, cb);
-            case SyntaxKind.BindingElement:
-                return IsAnonymousFunctionDefinition(((BindingElement)node).Initializer!, cb);
-            case SyntaxKind.PropertyDeclaration:
-                return IsAnonymousFunctionDefinition(((PropertyDeclaration)node).Initializer!, cb);
-            case SyntaxKind.BinaryExpression:
-                return IsAnonymousFunctionDefinition(((BinaryExpression)node).Right!, cb);
-            case SyntaxKind.ExportAssignment:
-                return IsAnonymousFunctionDefinition(((ExportAssignment)node).Expression!, cb);
-            default:
-                return false;
-        }
-    }
-
-    /// <summary>ported from: src/compiler/utilities.ts:3604-3616 — <c>isEmptyStringLiteral</c>.</summary>
-    /// <remarks>
-    /// PORT-NOTE (home): as <see cref="IsAnonymousFunctionDefinition"/> — the member's home module has not landed, so
-    /// this slice's first reader states it and reports it.
-    /// </remarks>
-    public static bool IsEmptyStringLiteral(StringLiteral node)
-    {
-        if (node.TextSourceNode is not null)
-        {
-            switch (node.TextSourceNode.Kind)
-            {
-                case SyntaxKind.StringLiteral:
-                    return IsEmptyStringLiteral((StringLiteral)node.TextSourceNode);
-                case SyntaxKind.NoSubstitutionTemplateLiteral:
-                    return node.Text == "";
-            }
-            return false;
-        }
-        return node.Text == "";
-    }
 }

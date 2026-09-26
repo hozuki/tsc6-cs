@@ -1973,3 +1973,10 @@ return prop is not null ? GetTypeOfSymbol(prop) : GetIndexTypeOfType(type, _stri
 | 7 | `Utilities/Utilities.Visitor.cs` | `IsNodeArray` 由 private 提为 internal，供声明变换复用同一判定 | — |
 
 另有一处**夹具而非产品**：`DeclarationsTransformTests` 的选项集漏了 `Declaration = true`，而 `getEmitDeclarations` 决定 `checkExportSpecifier` 是否 `collectLinkedAliases(setVisibility: true)`，那是解构绑定元素可见性的唯一来源（checker.ts:48823-48825 + 11348/11454 + declarations.ts:756-767、1760-1761）。补上后端口与真源逐字节一致。
+
+#### 17.13.5 成员归位收口：`getAllAccessorDeclarations` × 2 → 1，`namedEvaluation` 侧的三个 `utilities.ts` 成员入 `Utilities`
+
+- `getAllAccessorDeclarations`（utilities.ts:6832-6885）此前在 `Utilities.Checker.cs` 的装饰器判定里有一份**局部函数**、在 `Transforms/Declarations/DeclarationsDiagnostics.cs` 里又有一份**静态局部**。二者合一为 `Utilities.GetAllAccessorDeclarations(System.Collections.IEnumerable?, Node)`（两个调用方分别递入 `IClassLikeDeclarationBase.Members` 与符号声明表 —— 同一个"访问器列表"的两种泛型面，故取非泛型序列 + 模型既有 cast），两处私有副本删除、调用点改指。它与 checker 自己的 `GetAllAccessorDeclarationsForDeclaration`（基于符号声明，checker.ts:51205 邻近）**不是**同一成员，名字不冲突。
+- `isAnonymousFunctionDefinition`(utilities.ts:5485)、`isNamedEvaluation`(utilities.ts:5564)、`isEmptyStringLiteral`(utilities.ts:3604) 此前寄居 `Transforms/NamedEvaluation.cs`（因 `Utilities` 当时未落地），现归位 `Utilities.Checker.cs`；`Transforms/NamedEvaluation.cs` 只留 `namedEvaluation.ts` 自己的成员（`classHasExplicitlyAssignedName`/`classHasDeclaredOrExplicitlyAssignedName` 等，utilities.ts 的 `isAnonymousFunctionDefinition` 反向调用后者 —— 参考里就是这条跨模块调用，端口按名具名）；8 个文件的 25 处调用点改指 `Utilities.*`。
+
+两项都是纯搬运：搬运后 **build 0/0、测试 1,520/1,520、TypeDiff `same=5908/5908` clean、EmitDiff `same=5908/5908` clean**（行为中性）。

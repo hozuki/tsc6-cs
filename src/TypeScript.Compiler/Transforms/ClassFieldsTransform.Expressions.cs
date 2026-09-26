@@ -452,7 +452,7 @@ internal sealed partial class ClassFieldsTransformer
             //        a. Let _rval_ be ? NamedEvaluation of |AssignmentExpression| with argument _lref_.[[ReferencedName]].
             //     ...
 
-            if (NamedEvaluation.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
+            if (Utilities.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
             {
                 node = (BinaryExpression)NamedEvaluation.TransformNamedEvaluation(_context, node);
                 Debug.AssertNode(node, n => Utilities.IsAssignmentExpression(n));

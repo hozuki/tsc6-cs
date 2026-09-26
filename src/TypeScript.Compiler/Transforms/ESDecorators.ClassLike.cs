@@ -1065,7 +1065,7 @@ internal sealed partial class ESDecoratorTransformer
     /// <c>List&lt;Node&gt;</c>, which is the shape the visitor slot's <c>object?</c> discriminates.</remarks>
     private object? VisitPropertyDeclaration(PropertyDeclaration node)
     {
-        if (NamedEvaluation.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
+        if (Utilities.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
         {
             node = (PropertyDeclaration)NamedEvaluation.TransformNamedEvaluation(_context, node, CanIgnoreEmptyStringLiteralInAssignedName(node.Initializer));
         }

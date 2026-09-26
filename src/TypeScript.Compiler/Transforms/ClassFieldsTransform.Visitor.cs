@@ -424,7 +424,7 @@ internal sealed partial class ClassFieldsTransformer
         //        a. Let _popValue_ be ? NamedEvaluation of |AssignmentExpression| with argument _propKey_.
         //     ...
 
-        if (NamedEvaluation.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
+        if (Utilities.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
         {
             node = (PropertyAssignment)NamedEvaluation.TransformNamedEvaluation(_context, node);
         }
@@ -464,7 +464,7 @@ internal sealed partial class ClassFieldsTransformer
         //        a. Let _value_ be ? NamedEvaluation of |Initializer| with argument _bindingId_.
         //     ...
 
-        if (NamedEvaluation.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
+        if (Utilities.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
         {
             node = (VariableDeclaration)NamedEvaluation.TransformNamedEvaluation(_context, node);
         }
@@ -491,7 +491,7 @@ internal sealed partial class ClassFieldsTransformer
         //           i. Set _v_ to ? NamedEvaluation of |Initializer| with argument _bindingId_.
         //     ...
 
-        if (NamedEvaluation.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
+        if (Utilities.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
         {
             node = (ParameterDeclaration)NamedEvaluation.TransformNamedEvaluation(_context, node);
         }
@@ -518,7 +518,7 @@ internal sealed partial class ClassFieldsTransformer
         //           i. Set _v_ to ? NamedEvaluation of |Initializer| with argument _bindingId_.
         //     ...
 
-        if (NamedEvaluation.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
+        if (Utilities.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
         {
             node = (BindingElement)NamedEvaluation.TransformNamedEvaluation(_context, node);
         }
@@ -539,7 +539,7 @@ internal sealed partial class ClassFieldsTransformer
         //        a. Let _value_ be ? NamedEvaluation of |AssignmentExpression| with argument `"default"`.
         //     ...
 
-        if (NamedEvaluation.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
+        if (Utilities.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
         {
             node = (ExportAssignment)NamedEvaluation.TransformNamedEvaluation(
                 _context,

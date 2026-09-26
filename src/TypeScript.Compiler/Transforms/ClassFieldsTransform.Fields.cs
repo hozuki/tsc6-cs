@@ -137,7 +137,7 @@ internal sealed partial class ClassFieldsTransformer
                 /*initializer*/ null);
         }
 
-        if (NamedEvaluation.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
+        if (Utilities.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
         {
             node = (PropertyDeclaration)NamedEvaluation.TransformNamedEvaluation(_context, node);
         }
@@ -448,7 +448,7 @@ internal sealed partial class ClassFieldsTransformer
         // We generate a name here in order to reuse the value cached by the relocated computed name expression (which uses the same generated name)
         var emitAssignment = !_useDefineForClassFields;
 
-        if (NamedEvaluation.IsNamedEvaluation(property, IsAnonymousClassNeedingAssignedName))
+        if (Utilities.IsNamedEvaluation(property, IsAnonymousClassNeedingAssignedName))
         {
             property = (PropertyDeclaration)NamedEvaluation.TransformNamedEvaluation(_context, property);
         }

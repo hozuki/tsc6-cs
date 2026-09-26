@@ -18,7 +18,7 @@ namespace TypeScript.Compiler;
 /// calls into are <see cref="ClassThis"/> and <see cref="NamedEvaluation"/> — the ports of
 /// <c>transformers/classThis.ts</c> and <c>transformers/namedEvaluation.ts</c>, both landed beside this slice (this
 /// file's references to the second are qualified: <c>NamedEvaluation.TransformNamedEvaluation</c>,
-/// <c>NamedEvaluation.IsNamedEvaluation</c>, <c>NamedEvaluation.ClassHasDeclaredOrExplicitlyAssignedName</c>,
+/// <c>Utilities.IsNamedEvaluation</c>, <c>NamedEvaluation.ClassHasDeclaredOrExplicitlyAssignedName</c>,
 /// <c>NamedEvaluation.IsClassNamedEvaluationHelperBlock</c> and
 /// <c>NamedEvaluation.InjectClassNamedEvaluationHelperBlockIfMissing</c>), so no second copy of that module lives
 /// here.

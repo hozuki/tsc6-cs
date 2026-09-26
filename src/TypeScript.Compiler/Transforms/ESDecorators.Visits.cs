@@ -118,7 +118,7 @@ internal sealed partial class ESDecoratorTransformer
     /// </remarks>
     private object? VisitParameterDeclaration(ParameterDeclaration node)
     {
-        if (NamedEvaluation.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
+        if (Utilities.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
         {
             node = (ParameterDeclaration)NamedEvaluation.TransformNamedEvaluation(_context, node, CanIgnoreEmptyStringLiteralInAssignedName(node.Initializer));
         }
@@ -219,7 +219,7 @@ internal sealed partial class ESDecoratorTransformer
             //        a. Let _rval_ be ? NamedEvaluation of |AssignmentExpression| with argument _lref_.[[ReferencedName]].
             //     ...
 
-            if (NamedEvaluation.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
+            if (Utilities.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
             {
                 node = (BinaryExpression)NamedEvaluation.TransformNamedEvaluation(_context, node, CanIgnoreEmptyStringLiteralInAssignedName(node.Right));
                 return Utilities.VisitEachChildWorker(node, Visitor, _context);
@@ -439,7 +439,7 @@ internal sealed partial class ESDecoratorTransformer
     /// </remarks>
     private object? VisitPropertyAssignment(PropertyAssignment node)
     {
-        if (NamedEvaluation.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
+        if (Utilities.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
         {
             node = (PropertyAssignment)NamedEvaluation.TransformNamedEvaluation(_context, node, CanIgnoreEmptyStringLiteralInAssignedName(node.Initializer));
         }
@@ -466,7 +466,7 @@ internal sealed partial class ESDecoratorTransformer
     /// </remarks>
     private object? VisitVariableDeclaration(VariableDeclaration node)
     {
-        if (NamedEvaluation.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
+        if (Utilities.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
         {
             node = (VariableDeclaration)NamedEvaluation.TransformNamedEvaluation(_context, node, CanIgnoreEmptyStringLiteralInAssignedName(node.Initializer));
         }
@@ -495,7 +495,7 @@ internal sealed partial class ESDecoratorTransformer
     /// </remarks>
     private object? VisitBindingElement(BindingElement node)
     {
-        if (NamedEvaluation.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
+        if (Utilities.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
         {
             node = (BindingElement)NamedEvaluation.TransformNamedEvaluation(_context, node, CanIgnoreEmptyStringLiteralInAssignedName(node.Initializer));
         }
@@ -552,7 +552,7 @@ internal sealed partial class ESDecoratorTransformer
         if (Utilities.IsAssignmentExpression(node, /*excludeCompoundAssignment*/ true))
         {
             var binary = (BinaryExpression)node;
-            if (NamedEvaluation.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
+            if (Utilities.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
             {
                 binary = (BinaryExpression)NamedEvaluation.TransformNamedEvaluation(_context, node, CanIgnoreEmptyStringLiteralInAssignedName(binary.Right));
             }
@@ -635,7 +635,7 @@ internal sealed partial class ESDecoratorTransformer
     /// </remarks>
     private object? VisitShorthandAssignmentProperty(ShorthandPropertyAssignment node)
     {
-        if (NamedEvaluation.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
+        if (Utilities.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
         {
             node = (ShorthandPropertyAssignment)NamedEvaluation.TransformNamedEvaluation(_context, node, CanIgnoreEmptyStringLiteralInAssignedName(node.ObjectAssignmentInitializer));
         }
@@ -702,7 +702,7 @@ internal sealed partial class ESDecoratorTransformer
     /// </remarks>
     private object? VisitExportAssignment(ExportAssignment node)
     {
-        if (NamedEvaluation.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
+        if (Utilities.IsNamedEvaluation(node, IsAnonymousClassNeedingAssignedName))
         {
             node = (ExportAssignment)NamedEvaluation.TransformNamedEvaluation(_context, node, CanIgnoreEmptyStringLiteralInAssignedName(node.Expression));
         }

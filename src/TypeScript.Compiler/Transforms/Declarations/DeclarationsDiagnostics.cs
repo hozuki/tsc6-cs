@@ -726,7 +726,7 @@ internal static class DeclarationsDiagnostics
 
         Diagnostic CreateAccessorTypeError(Node node)
         {
-            var (_, _, getAccessor, setAccessor) = GetAllAccessorDeclarations(((IDeclaration)node).Symbol!.Declarations!, node);
+            var (_, _, getAccessor, setAccessor) = Utilities.GetAllAccessorDeclarations(((IDeclaration)node).Symbol!.Declarations!, node);
 
             var targetNode = (Node?)(Utilities.IsSetAccessor(node)
                 ? ((SetAccessorDeclaration)node).Parameters is { Count: > 0 } parameters ? parameters[0] : null
@@ -860,65 +860,6 @@ internal static class DeclarationsDiagnostics
             return diag;
         }
 
-        // ported from: src/compiler/utilities.ts:6832-6885 — <c>getAllAccessorDeclarations</c>.
-        static (Node? FirstAccessor, Node? SecondAccessor, GetAccessorDeclaration? GetAccessor, SetAccessorDeclaration? SetAccessor)
-            GetAllAccessorDeclarations(IEnumerable<IDeclaration> declarations, Node accessor)
-        {
-            Node? firstAccessor = null;
-            Node? secondAccessor = null;
-            GetAccessorDeclaration? getAccessor = null;
-            SetAccessorDeclaration? setAccessor = null;
-            if (Utilities.HasDynamicName(accessor))
-            {
-                firstAccessor = accessor;
-                if (accessor.Kind == SyntaxKind.GetAccessor)
-                {
-                    getAccessor = (GetAccessorDeclaration)accessor;
-                }
-                else if (accessor.Kind == SyntaxKind.SetAccessor)
-                {
-                    setAccessor = (SetAccessorDeclaration)accessor;
-                }
-                else
-                {
-                    Debug.Fail("Accessor has wrong kind");
-                }
-            }
-            else
-            {
-                foreach (var member in declarations)
-                {
-                    if (!Utilities.IsAccessor((Node)member) || Utilities.IsStatic((Node)member) != Utilities.IsStatic(accessor))
-                    {
-                        continue;
-                    }
-                    var memberName = Utilities.GetPropertyNameForPropertyNameNode(((INamedDeclaration)member).Name!);
-                    var accessorName = Utilities.GetPropertyNameForPropertyNameNode(((INamedDeclaration)accessor).Name!);
-                    if (memberName == accessorName)
-                    {
-                        if (firstAccessor is null)
-                        {
-                            firstAccessor = (Node)member;
-                        }
-                        else if (secondAccessor is null)
-                        {
-                            secondAccessor = (Node)member;
-                        }
-
-                        if (member.Kind == SyntaxKind.GetAccessor && getAccessor is null)
-                        {
-                            getAccessor = (GetAccessorDeclaration)member;
-                        }
-
-                        if (member.Kind == SyntaxKind.SetAccessor && setAccessor is null)
-                        {
-                            setAccessor = (SetAccessorDeclaration)member;
-                        }
-                    }
-                }
-            }
-            return (firstAccessor, secondAccessor, getAccessor, setAccessor);
-        }
     }
 
     /// <summary>The <c>node.typeExpression</c> read of <c>getTypeAliasDeclarationVisibilityError</c> (diagnostics.ts:604).</summary>
