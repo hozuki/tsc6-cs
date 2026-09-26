@@ -12,4 +12,10 @@
          GeneratedTablesTests 与 TS 源逐字节比对，所以这里不需要额外的开关。 -->
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- tools/AstDiff（§7 的 P1a 差分装置）直接调用 internal 的 Parser / ForEachChildTable / 节点模型；
+         授权方式与测试项目一致（见 AssemblyInfo.cs）。 -->
+    <InternalsVisibleTo Include="AstDiff" />
+  </ItemGroup>
+
 </Project>

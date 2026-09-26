@@ -259,6 +259,17 @@ internal partial class NodeFactory
 
         // A keyword that is a type is a `KeywordTypeNode<TKind>` in TS — see KeywordTypeToken for why it needs a class.
         _ when IsKeywordTypeKind(token) => new KeywordTypeToken(token),
+
+        // The modifier keywords are `ModifierToken<TKind>` in TS, and the port's model has `List<ModifierToken>` slots
+        // for them (`AsModifierTokens` casts). The parser builds them through `CreateModifier`, but the class has to
+        // follow the *kind*, not the call site: a `Token` here would break that cast.
+        _ when Utilities.IsModifierKind(token) => new ModifierToken(token),
+
+        // Every remaining keyword is a `KeywordToken<TKind>`. This arm is why `for await` works: `AwaitKeyword` reaches
+        // `ForOfStatement.awaitModifier`, whose C# type is `KeywordToken?`, through `parseTokenNode` — and `x as
+        // KeywordToken` on a plain `Token` answers **null instead of throwing**, so the statement silently lost its
+        // `await` modifier (27 corpus files, found by the P1a differential run).
+        _ when token >= SyntaxKind.FirstKeyword && token <= SyntaxKind.LastKeyword => new KeywordToken(token),
         _ => new Token(token),
     };
 

@@ -107,27 +107,92 @@ internal static class Js
     }
 
     /// <summary>
+    /// JS's <c>parseInt(text, radix)</c> for a text that consists of digits of that radix.
+    /// </summary>
+    /// <remarks>
+    /// PORT-NOTE: like <see cref="NumberToString"/> this is not in the reference — TS calls <c>parseInt</c> and lets the
+    /// engine do it, and the engine accumulates in double arithmetic: a 500-digit binary literal loses precision and
+    /// eventually saturates at <c>Infinity</c> rather than failing. <c>Convert.ToInt32(text, 2)</c> threw
+    /// <c>OverflowException</c> on exactly those literals (4 corpus files), so the port folds with the same arithmetic.
+    /// The scanner hands this method validated digit runs, so the prefix/sign/whitespace rules of <c>parseInt</c> are
+    /// not implemented — the first character that is not a digit of the radix stops the fold, as in the engine.
+    /// </remarks>
+    public static double ParseInt(string text, int radix)
+    {
+        var value = 0d;
+        foreach (var ch in text)
+        {
+            var digit = ch switch
+            {
+                >= '0' and <= '9' => ch - '0',
+                >= 'a' and <= 'z' => ch - 'a' + 10,
+                >= 'A' and <= 'Z' => ch - 'A' + 10,
+                _ => -1,
+            };
+
+            if (digit < 0 || digit >= radix) break;
+            value = (value * radix) + digit;
+        }
+
+        return value;
+    }
+
+    /// <summary>
     /// Formats a number the way JavaScript's parameterless <c>Number.prototype.toString()</c> does.
     /// </summary>
     /// <remarks>
-    /// The difference that matters for ported code: JS renders integral values in plain decimal, while
-    /// C#'s default <c>double.ToString()</c> switches to scientific notation well before that. The port
-    /// therefore formats any integral value within the safe-integer range as a decimal integer.
+    /// PORT-NOTE: the reference implementation does not contain this function — it calls <c>String(value)</c> and lets
+    /// the JavaScript engine implement ECMA-262's <c>Number::toString(10)</c>. The port has to implement it, and the
+    /// part that matters is not the digit string (.NET's <c>"R"</c> is also shortest-round-tripping) but the four
+    /// rendering shapes and their thresholds: JS switches to the exponent form only when the decimal point sits past
+    /// the 21st digit or before the 6th, writes the exponent lower-case with an explicit sign and no padding, and pads
+    /// with zeros inside the mantissa/leading positions otherwise. The parser stores this string as
+    /// <c>NumericLiteral.Text</c>, so getting it wrong changes the AST (`1E+25` instead of `1e+25`,
+    /// `8.14E-05` instead of `0.0000814`) — 7 corpus files, found by the P1a differential run.
     /// </remarks>
     public static string NumberToString(double value)
     {
         if (double.IsNaN(value)) return "NaN";
-        if (double.IsPositiveInfinity(value)) return "Infinity";
-        if (double.IsNegativeInfinity(value)) return "-Infinity";
         if (value == 0d) return "0";
+        if (value < 0d) return "-" + NumberToString(-value);
+        if (double.IsPositiveInfinity(value)) return "Infinity";
 
-        // 2^53: past this the double no longer represents every integer, so JS uses its exponent form too.
-        const double MaxSafeInteger = 9007199254740992d;
-        if (value >= -MaxSafeInteger && value <= MaxSafeInteger && Math.Floor(value) == value)
-        {
-            return ((long)value).ToString(CultureInfo.InvariantCulture);
-        }
+        var (digits, n) = ShortestDecimalDigits(value);
+        var k = digits.Length;
 
-        return value.ToString("R", CultureInfo.InvariantCulture);
+        // ECMA-262 6.1.6.1: let s be `digits` (k of them) and n the position of the decimal point, so that the value is
+        // s x 10^(n-k). The four shapes below are the standard's own cases.
+        if (k <= n && n <= 21) return digits + new string('0', n - k);
+        if (0 < n && n <= 21) return digits[..n] + "." + digits[n..];
+        if (-6 < n && n <= 0) return "0." + new string('0', -n) + digits;
+
+        var exponent = n - 1;
+        var mantissa = k == 1 ? digits : digits[..1] + "." + digits[1..];
+        return mantissa + "e" + (exponent < 0 ? "-" : "+") + Math.Abs(exponent).ToString(CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// The shortest round-tripping decimal digit string of a positive finite double together with ECMA-262's
+    /// <c>n</c>: the number of digits between the decimal point and the first significant digit, counted from the
+    /// point (so <c>12345</c> has n = 5, <c>0.0000814</c> has n = -4).
+    /// </summary>
+    private static (string Digits, int N) ShortestDecimalDigits(double value)
+    {
+        var text = value.ToString("R", CultureInfo.InvariantCulture);
+
+        var e = text.IndexOf('E');
+        var exponent = e >= 0 ? int.Parse(text[(e + 1)..], NumberStyles.Integer, CultureInfo.InvariantCulture) : 0;
+        var mantissa = e >= 0 ? text[..e] : text;
+
+        var dot = mantissa.IndexOf('.');
+        var raw = dot >= 0 ? mantissa.Remove(dot, 1) : mantissa;
+        var dotPos = dot >= 0 ? dot : raw.Length;
+
+        var first = 0;
+        while (first < raw.Length && raw[first] == '0') first++;
+        var end = raw.Length;
+        while (end > first + 1 && raw[end - 1] == '0') end--;
+
+        return (raw[first..end], dotPos + exponent - first);
     }
 }

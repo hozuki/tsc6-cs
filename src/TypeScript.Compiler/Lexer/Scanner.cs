@@ -888,7 +888,11 @@ internal sealed partial class Scanner
         _pos += 3;
         var escapedStart = _pos;
         var escapedValueString = ScanMinimumNumberOfHexDigits(1, canHaveSeparators: false);
-        var escapedValue = Js.IsTruthy(escapedValueString) ? Convert.ToInt32(escapedValueString, 16) : -1;
+        // PORT-NOTE: TS writes `parseInt(escapedValueString, 16)`, a *double* that never overflows — `\u{FFFFFFFF}`
+        // answers 4294967295 and takes the > 0x10FFFF branch below. An earlier revision used Convert.ToInt32, which
+        // throws or answers -1 past 0x7FFFFFFF, so the scanner reported "Hexadecimal digit expected" (1125) instead of
+        // the range diagnostic (1198) — 2 corpus files. Eight hex digits fit a long.
+        var escapedValue = Js.IsTruthy(escapedValueString) ? Convert.ToInt64(escapedValueString, 16) : -1L;
         var isInvalidExtendedEscape = false;
 
         // Validate the value of the digit
@@ -930,7 +934,7 @@ internal sealed partial class Scanner
         }
 
         _tokenFlags |= TokenFlags.ExtendedUnicodeEscape;
-        return ScannerUtilities.Utf16EncodeAsString(escapedValue);
+        return ScannerUtilities.Utf16EncodeAsString((int)escapedValue);
     }
 
     // ported from: src/compiler/scanner.ts:1756-1767
@@ -960,9 +964,13 @@ internal sealed partial class Scanner
             var start = _pos;
             _pos += 3;
             var escapedValueString = ScanMinimumNumberOfHexDigits(1, canHaveSeparators: false);
-            var escapedValue = Js.IsTruthy(escapedValueString) ? Convert.ToInt32(escapedValueString, 16) : -1;
+            var escapedValue = escapedValueString.Length != 0 ? Convert.ToInt64(escapedValueString, 16) : -1L;
             _pos = start;
-            return escapedValue;
+            // PORT-NOTE: TS answers `parseInt(escapedValueString, 16)`, a double that can hold anything 8 hex digits
+            // make. Every caller of this member only asks whether the answer is an identifier (start) character, and no
+            // code point above 0x10FFFF is one — so the port answers -1 for those instead of wrapping into the negative
+            // range through a narrowing cast.
+            return escapedValue is >= 0 and <= 0x10FFFF ? (int)escapedValue : -1;
         }
 
         return -1;
@@ -1107,9 +1115,9 @@ internal sealed partial class Scanner
         // parseInt() instead.
         var text = _tokenValue ?? "";
         var numericValue = (_tokenFlags & TokenFlags.BinarySpecifier) != 0
-            ? Convert.ToInt32(text[2..], 2)   // skip "0b"
+            ? Js.ParseInt(text[2..], 2)      // skip "0b"; parseInt, not a narrowing conversion — see Js.ParseInt
             : (_tokenFlags & TokenFlags.OctalSpecifier) != 0
-                ? Convert.ToInt32(text[2..], 8) // skip "0o"
+                ? Js.ParseInt(text[2..], 8)  // skip "0o"
                 : Js.ToNumber(text);
 
         _tokenValue = Js.NumberToString(numericValue);

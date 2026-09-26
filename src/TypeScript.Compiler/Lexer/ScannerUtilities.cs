@@ -402,12 +402,16 @@ internal static partial class ScannerUtilities
     // ported from: src/compiler/scanner.ts:4050-4066 — derived from 10.1.1 UTF16Encoding of the ES6 spec.
     /// <summary>Encodes a code point as a string.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS prefers <c>String.fromCodePoint</c> and falls back to a hand-written encoder; the port uses
-    /// <see cref="char.ConvertFromUtf32"/>, which is the same encoding. One difference: .NET rejects the
-    /// surrogate range where JS would hand back that lone code unit — every caller here has already validated the
-    /// code point, so the difference is not reachable.
+    /// PORT-NOTE: TS prefers <c>String.fromCodePoint</c> and falls back to a hand-written encoder. That encoder's first
+    /// branch is <c>codePoint &lt;= 0xFFFF ? String.fromCharCode(codePoint)</c>, and JS's <c>String.fromCodePoint</c>
+    /// accepts the surrogate range as well (it only rejects values above <c>0x10FFFF</c>): <c>\u{D800}</c> in a string
+    /// literal therefore produces a lone surrogate. .NET's <see cref="char.ConvertFromUtf32"/> instead throws
+    /// <c>ArgumentOutOfRangeException</c> for 0xD800-0xDFFF, so the port has to take the BMP branch explicitly —
+    /// an earlier revision claimed the difference was unreachable, and 4 corpus files
+    /// (<c>unicodeExtendedEscapesInStrings10/11.ts</c>, <c>…InTemplates10/11.ts</c>) crashed on it.
     /// </remarks>
-    public static string Utf16EncodeAsString(int codePoint) => char.ConvertFromUtf32(codePoint);
+    public static string Utf16EncodeAsString(int codePoint)
+        => codePoint <= 0xFFFF ? ((char)codePoint).ToString() : char.ConvertFromUtf32(codePoint);
 
     // ---------------------------------------------------------------------------------------------
     // Trivia

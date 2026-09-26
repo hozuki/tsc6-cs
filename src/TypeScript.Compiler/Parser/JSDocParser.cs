@@ -381,7 +381,12 @@ internal sealed partial class Parser
                                 var whitespace = _parser._scanner.GetTokenText();
                                 if (margin is not null && indent + whitespace.Length > margin.Value)
                                 {
-                                    _comments.Add(whitespace[(margin.Value - indent)..]);
+                                    // PORT-NOTE: TS writes `whitespace.substring(margin - indent)`, and JS's
+                                    // String.prototype.substring clamps a negative start to 0. The guard above only
+                                    // bounds the value from above, so `margin - indent` can be negative (a comment whose
+                                    // first line is indented less than the margin) — a C# range would throw. Found by the
+                                    // P1a differential run on tests/cases/compiler/commentsFormatting.ts.
+                                    _comments.Add(whitespace[Math.Max(0, margin.Value - indent)..]);
                                 }
 
                                 indent += whitespace.Length;
@@ -1448,11 +1453,20 @@ internal sealed partial class Parser
                 return typeNameOrNamespaceName;
             }
 
-            /// <summary>ported from: src/compiler/parser.ts:9683-9693 — <c>parseCallbackTagParameters</c>.</summary>
+            /// <summary>
+            /// Reinterprets a JSDoc tag as another JSDoc tag type, without a runtime check.
+            /// </summary>
             /// <remarks>
-            /// PORT-NOTE: TS casts the child tag to a <c>JSDocParameterTag</c> as it appends it; the port casts the same
-            /// value at the same place, after the template-tag arm has been ruled out.
+            /// The single use is <c>ParseCallbackTagParameters</c> below, where the reference implementation's unchecked
+            /// cast is observable in the AST. Everywhere else the port uses a checked cast or a kind check, so a wrong
+            /// node type still fails loudly; that is why this is a named helper rather than a bare <c>Unsafe.As</c> at
+            /// the call site.
             /// </remarks>
+            private static T Reinterpret<T>(JSDocTag tag)
+                where T : JSDocTag
+                => System.Runtime.CompilerServices.Unsafe.As<JSDocTag, T>(ref tag);
+
+            /// <summary>ported from: src/compiler/parser.ts:9691-9703 — <c>parseCallbackTagParameters</c>.</summary>
             private NodeArray<JSDocParameterTag> ParseCallbackTagParameters(int indent)
             {
                 var pos = _parser.GetNodePos();
@@ -1466,7 +1480,14 @@ internal sealed partial class Parser
                         break;
                     }
 
-                    parameters = Core.Append(parameters, (JSDocParameterTag)child) as List<JSDocParameterTag>;
+                    // PORT-NOTE: TS casts the child to `JSDocParameterTag | JSDocTemplateTag` with an unchecked `as`,
+                    // but `parseChildParameterOrPropertyTag` is *declared* to also answer a `JSDocThisTag` — so a
+                    // `@callback` followed by `@this` really does put a this-tag into the signature's parameter array, and
+                    // the reference compiler's AST holds it (tests/cases/conformance/jsdoc/callbackTag4.ts; its dump shows
+                    // the this-tag among the parameters). No C# cast can reproduce that — `(T)`, `as` and `(T)(object)`
+                    // all check the runtime type — so this is the one place the port punned the reference's own unchecked
+                    // cast. Refusing the tag instead would change the AST for input the reference accepts.
+                    parameters = Core.Append(parameters, Reinterpret<JSDocParameterTag>(child)) as List<JSDocParameterTag>;
                 }
 
                 return _parser.CreateNodeArray(parameters ?? [], pos);

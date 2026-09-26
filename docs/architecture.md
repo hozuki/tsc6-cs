@@ -267,7 +267,8 @@ D:\Source\VS\TEMP\tsc-cs\
 │   ├─ TypeScript.Compiler.Tests\ # xUnit 单元测试（开发内环）
 │   └─ TypeScript.Baselines\      # baseline 差分验收（外环）
 └─ tools\
-    └─ gen\                       # 从 TS 源码生成/校验枚举与诊断表的脚本
+    ├─ gen\                       # 从 TS 源码生成/校验枚举与诊断表的脚本
+    └─ AstDiff\                   # 解析差分外环（§15.11）：端口与真 lib/typescript.js 对同一语料逐字节比 AST
 ```
 
 - 每个 C# 文件头部注释标注对应 TS 源文件与起止行，便于双向对照：
@@ -294,8 +295,13 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 
 分两阶段：
 
-- **P1（语法层验收）**：先只比对 `.errors.txt`（语法诊断）与 `.js`，不含类型检查。可在 Layer 3 完成后启动。
+- **P1（语法层验收）**：`.errors.txt`（语法诊断）与 `.js`，不含类型检查。可在 Layer 3 完成后启动。
 - **P2（语义层验收）**：加 `.types` / `.symbols`，依赖 checker。
+
+P1 自身再分两半，因为两半的前置完全不同（M4e 收口时定的）：
+
+- **P1a：解析差分（不需要任何新层，已启动）**。对 `tests/cases/**` 的每个文件，用移植版与真 `lib/typescript.js` 各打印一份规范化 AST（kind 数值、pos、end、NodeFlags、标识符/字面量文本 + 每条解析诊断的 code/start/length），逐字节比。它比 `.errors.txt` 在语法层上更严（后者只比诊断文本、且混有语义错误；P1a 比整棵树），且不需要发射器 —— M4e 的收官就是用这个办法在 6 个真实编译器源文件（含 `checker.ts`，29.8 万行 dump）与 `typescript.d.ts` 上做到的逐字节一致。
+- **P1b：`.errors.txt` + `.js`**，需要声明解析（指令注释）、选项模型与**发射器/转换器**（Layer 4/5），前者在 M8 之后、后者更晚。
 
 验收 harness 需要：
 - 解析用例的 `// @target: es2015`、`// @strict: true` 等指令（复刻 harness 的 baseline 选项解析）；
@@ -742,8 +748,8 @@ M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质�
 | M4c | `factory/nodeFactory.ts` → `Parser/NodeFactory.cs`（最大单件，再按 create/update 家族细分） | 7,542 | 已完成（§15.8：生成物已纳入编译，428 个成员里 417 个已移植，余 11 个逐条指名等 M4d/M5/M7/M4e） |
 | M4d | `factory/utilities.ts` + `nodeConverters.ts` + `parenthesizerRules.ts`，以及 `nodeFactory.ts` 里生成器表达不了的那半 | 2,656 | **已完成**（§15.9：三个文件全部移植；工厂尾部补齐，生成的 11 个存根清零；残留逐条指名） |
 | M4e | `parser.ts` → `Parser/*`（递归下降主体：声明 / 语句 / 表达式 / 类型 / JSDoc 各自成批） | 10,823 | **已完成**（§15.10：九个 partial 文件、JSDoc 与增量重解析都在；与真编译器的差分验证逐字节一致；集成期抓出并修掉 6 个真 bug） |
-| M4f | `emitHelpers.ts` + `expressionToTypeNode.ts` | 2,821 | |
-| M4g | baseline 外环（§7 的 P1：先只比 `.errors.txt` 与 `.js`，不含类型检查） | — | |
+| M4f | `emitHelpers.ts` + `expressionToTypeNode.ts` | 2,821 | **前置已落地，本体暂后**：`expressionToTypeNode.ts` 的唯一入口是 `createSyntacticTypeNodeBuilder(options: CompilerOptions, resolver)` —— 同时要 M8 的选项模型、M5 的 resolver 与 JSDoc 家族；`emitHelpers.ts` 里两处 `context.getCompilerOptions()` 也选 helper 文本。前置成员已在 `Utilities/Utilities.cs`（`IsInJSFile`、`IsFunctionLike`/`IsFunctionLikeKind`/`IsFunctionLikeDeclaration`、`FindAncestor`、`ForEachReturnStatement`、`GetFunctionFlags`＋`Model/FunctionFlags.cs`、`IsNewScopeNode`、`getEffective*tNode` 家族与它要的 `ParameterIsThisKeyword`/`GetSetAccessorValueParameter`）与 `Model/EmitHelper.cs`（`EmitHelper`＋`EmitHelperUniqueNameCallback`）、`Model/EmitHelperFactoryContext.cs` 落地，各带 `ported from` 与 PORT-NOTE。**两处没落地**，理由写在代码里：`hasDynamicName` 要 `getNameOfDeclaration`（§15.9 残留表第 1 行，M5）；`getEffective*tNode` 的 JS/JSDoc 回退要 `getJSDocType`/`getJSDocReturnType`（M5，分支显式抛错而不是静默答 null）。TS 的 `introducesNewScope` 实名是 `isNewScopeNode`，其 `IntroducesNewScopeNode` 别名在移植版只出现在 `enterNewScope` 的 `Node?` 槽，故没有对应类型 |
+| M4g | baseline 外环。**先做 §7 的 P1a**（解析差分，工具 `tools/AstDiff`，对 `tests/cases/**` 全量跑），P1b 的 `.errors.txt`/`.js` 等发射器落地后再做 | — | P1a **已完成**（§15.11：19,585 个用例逐字节一致；期间修掉 7 个缺陷） |
 
 顺序的理由：`nodeFactory` 的 459 个 import 里有 47 个来自 `nodeTests`、8 个来自 `emitNode`，而 `nodeTests` 只依赖 `types.ts`（227 个函数里 228 个 import 中的 228 个）—— 先把最底层的表与槽位立起来，往上的每批就只依赖已经存在的东西。
 
@@ -999,6 +1005,57 @@ TS 用 `namespace Parser` + 模块级 `var`，靠 `initializeState` 每次重置
 - **`AsName` 返回 `Node?`**（§15.9 bug 3 的收尾）：生成器按赋值目标槽的类型给收窄转换，手写的创建成员里有 4 个因此自己转到 `Identifier?`。
 - **`convertToJson` 之外，`parseJsonText` 的表达式调用是无参的**：`parseArrayLiteralExpression`/`parseObjectLiteralExpression` 在 TS 里有可选参数，但**没有任何调用点**传它们（装饰器路径走的是别的成员），所以端口声明成无参。
 - **`ProcessCommentPragmas`/`ProcessPragmasIntoFields` 收 `IReadonlyPragmaContext`**：TS 写 `sourceFile as {} as PragmaContext`，端口里 `SourceFile` 就实现该接口、八个槽可写，不需要转换。
+
+---
+
+## 15.11 M4g P1a：解析差分外环
+
+### 交付
+
+`tools/AstDiff`（新项目，`tsc-cs.slnx` 已收录，编译器项目加了一条 `InternalsVisibleTo("AstDiff")`）：C# 驱动 + 端口侧 dumper；`tools/AstDiff/ts-dump.cjs` 是 node 批量侧，一次进程内加载 `lib/typescript.js` 把整份清单解析、dump、哈希。两侧用**同一套规范化格式**（kind 数值、pos、end、NodeFlags、标识符/字面量文本 + 每条诊断的 code/start/length），子节点顺序都走 `forEachChild`（端口是生成表，TS 是真实现），脚本种类按扩展名在两侧同样推导。比对用 FNV-1a 哈希，**只对分歧文件落盘**整棵 dump，所以 19,585 个用例的产物是 KB 级而不是 GB 级。
+
+```
+dotnet run --project tools/AstDiff -- --cases <dir> [--filter <glob>] [--out artifacts/astdiff]
+```
+
+结果（`D:/Source/GitHub/TypeScript/tests/cases`，19,585 个文件，23 秒）：
+
+| | 首轮 | 修完 |
+|---|---|---|
+| same | 19,539 | **19,585** |
+| diverged | 36 | **0** |
+| port-crash | 10 | **0** |
+| ts-error | 0 | 0 |
+
+没有 kind 错、没有范围错、没有 flags 错、没有只差诊断条数的用例 —— 剩下的每一处都归因到了下面 7 个缺陷之一，7 个缺陷全部修掉。
+
+### 修掉的 7 个缺陷
+
+**全部由差分发现**：编译零警告、697 条单测全绿时它们依然存在（其中 4 个是真崩溃）。前 5 个的根因是同一族 —— TS 靠 JS 的数字/字符串语义、靠结构类型或未检查转换，端口必须把那些语义显式实现出来。
+
+| # | 现象 | 根因（TS 侧真相 → 端口原先的写法） | 影响 |
+|---|---|---|---|
+| 1 | `for await (…)` 丢 `awaitModifier`；AST 里没有那个 `AwaitKeyword` 子节点 | `CreateTokenNode` 的 kind→类映射少了 **keyword 与 modifier** 两支，`parseTokenNode` 因此给出普通 `Token`；而 `ForOfStatement.AwaitModifier` 的 C# 类型是 `KeywordToken?`，`x as KeywordToken` 对普通 `Token` **答 null 而不抛** | 27 个用例 |
+| 2 | `NumericLiteral.Text` 数字格式不对（`1E+25` vs `1e+25`、`8.14E-05` vs `0.0000814`） | TS 调 `String(value)`（引擎实现 ECMA-262 `Number::toString`）；端口只处理安全整数，其余交给 .NET 的 `"R"`（大小写、阈值、指数位数都不同） | 7 个用例 |
+| 3 | `\u{FFFFFFFF}` 报 `Hexadecimal digit expected`（1125）而不是范围诊断（1198） | TS 用 `parseInt(hex, 16)`（double，永不溢出）；端口用 `Convert.ToInt32`，8 位十六进制过半时溢出/答 -1 | 2 个用例 |
+| 4 | `\u{D800}` 直接崩（`ArgumentOutOfRangeException`） | TS 的 `utf16EncodeAsString` 先走 `codePoint <= 0xFFFF ? String.fromCharCode(…)`，而 JS 的 `String.fromCodePoint` **接受代理区**（只拒绝 > 0x10FFFF）；.NET 的 `char.ConvertFromUtf32` 拒绝代理区。原先的 PORT-NOTE 断言"该差异不可达" —— 4 个用例证伪 | 4 个用例 |
+| 5 | 数百位的二进制/八进制字面量崩（`OverflowException`） | TS 用 `parseInt(text, 2/8)`（double 累加，逐渐失精度直至 `Infinity`）；端口用 `Convert.ToInt32`。修法是 `Js.ParseInt`（按同样算术折叠），并让 `Js.NumberToString` 负责 `Infinity` 的字符串形态 | 4 个用例 |
+| 6 | JSDoc 注释首行缩进小于 margin 时崩（`Substring(-1)`） | TS 写 `whitespace.substring(margin - indent)`，**JS 的 `String.prototype.substring` 把负起点钳到 0**；C# 的区间 `[x..]` 直接抛。上方的卫语句只限制了上界 | 1 个用例 |
+| 7 | `@callback` 后跟 `@this` 时崩（`InvalidCastException`） | TS 自己把 `JSDocThisTag` 塞进 `JSDocSignature.parameters`（`parseChildParameterOrPropertyTag` 的声明包含它，而 `parseCallbackTagParameters` 用未检查的 `as`）—— 参考实现的 AST 里真的有那个 this-tag。C# 的 `(T)`/`as`/`(T)(object)` 都做运行时检查，所以这是**全端口唯一**处用 `Unsafe.As` 改写类型（`CommentParser.Reinterpret<T>`，带 PORT-NOTE 与 §15.10 级别的说明） | 1 个用例 |
+
+第 1 条尤其值得记：`as` 在 C# 里对引用类型**答 null 而不抛**，所以一个缺失的 kind→类映射表现为"静默丢一个子节点"，而不是错误 —— 这是 P1a 这种整树比对才能抓到的东西。
+
+### 为什么这轮的性价比最高
+
+- 不依赖任何新层：P1a 只用到已经落地的解析器，`.errors.txt`/`.js`（P1b）、`.symbols`（M5）、`.types`（M6）各自等自己那层。
+- 它的覆盖面比 `.errors.txt` 大：那些 baseline 只比诊断文本，而且混着语义错误；P1a 比整棵树（kind/范围/flags/文本/诊断），且在 19,585 个真实用例上是**可判定的**——要么逐字节一致，要么有一处差异，没有"看起来差不多"。
+- 它现在是常驻工具：改解析器后一条命令就能回归，M5 之后还能把它加进 `.symbols` 的比对。
+
+### 遗留
+
+- **P1b**（`.errors.txt` + `.js` 的官方 baseline）仍等发射器；`tests/TypeScript.Baselines`（§6）会在那时建立。
+- §15.10 的 4 个命名残留（`convertToJson` → M8、`IsJSDocTypeAssertion` → M5、`NodeCount` 不移植、`SupportedDeclarationExtensions` → M5）不变。
+- `Join`/`NumberToString` 这类 JS 语义函数现在有了单测，但它们只覆盖用例列表；真正的证据是 19,585 个用例的全量一致。
 
 ---
 
