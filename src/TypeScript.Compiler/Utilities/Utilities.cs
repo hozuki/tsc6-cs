@@ -149,6 +149,23 @@ internal static partial class Utilities
         _ => ModifierFlags.None,
     };
 
+    /// <summary>ported from: src/compiler/utilities.ts:5311 — <c>isPropertyAccessChain</c>.</summary>
+    public static bool IsPropertyAccessChain(Node node)
+        => NodeTests.IsPropertyAccessExpression(node) && (node.Flags & NodeFlags.OptionalChain) != 0;
+
+    /// <summary>ported from: src/compiler/utilities.ts:5315 — <c>isElementAccessChain</c>.</summary>
+    public static bool IsElementAccessChain(Node node)
+        => NodeTests.IsElementAccessExpression(node) && (node.Flags & NodeFlags.OptionalChain) != 0;
+
+    /// <summary>ported from: src/compiler/utilities.ts:5319 — <c>isCallChain</c>.</summary>
+    public static bool IsCallChain(Node node)
+        => NodeTests.IsCallExpression(node) && (node.Flags & NodeFlags.OptionalChain) != 0;
+
+    /// <summary>ported from: src/compiler/utilities.ts:5343 — <c>isSuperProperty</c>.</summary>
+    public static bool IsSuperProperty(Node node)
+        => node.Kind is SyntaxKind.PropertyAccessExpression or SyntaxKind.ElementAccessExpression
+            && ((PropertyAccessExpression)node).Expression?.Kind == SyntaxKind.SuperKeyword;
+
     /// <summary>ported from: src/compiler/utilities.ts:2274-2287 — <c>nodeIsSynthesized</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: TS asks <c>!(pos &gt;= 0)</c>, which also counts a <c>NaN</c> position as synthesized. A C# position is

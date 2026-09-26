@@ -1209,4 +1209,438 @@ internal partial class NodeFactory
 
         return Update(updated, original);
     }
+
+    //
+    // Template literals (the hand-written half)
+    //
+
+    /// <summary>TS's module-level <c>rawTextScanner</c>: the scanner <c>getCookedText</c> reuses.</summary>
+    private static Scanner? _rawTextScanner;
+
+    /// <summary>TS's <c>invalidValueSentinel</c> — a value no cooked text can be.</summary>
+    private static readonly object s_invalidValueSentinel = new();
+
+    /// <summary>ported from: factory/nodeFactory.ts:7238 — <c>getCookedText</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS returns <c>string | object</c> and asks <c>typeof cooked === "object"</c> whether it failed; the
+    /// port answers <c>object</c> and lets the caller find out with a cast.
+    /// </remarks>
+    private static object GetCookedText(SyntaxKind kind, string rawText)
+    {
+        _rawTextScanner ??= Scanner.Create(ScriptTarget.Latest, skipTrivia: false, LanguageVariant.Standard);
+
+        switch (kind)
+        {
+            case SyntaxKind.NoSubstitutionTemplateLiteral:
+                _rawTextScanner.SetText("`" + rawText + "`", null, null);
+                break;
+            case SyntaxKind.TemplateHead:
+                _rawTextScanner.SetText("`" + rawText + "${", null, null);
+                break;
+            case SyntaxKind.TemplateMiddle:
+                _rawTextScanner.SetText("}" + rawText + "${", null, null);
+                break;
+            case SyntaxKind.TemplateTail:
+                _rawTextScanner.SetText("}" + rawText + "`", null, null);
+                break;
+        }
+
+        var token = _rawTextScanner.Scan();
+        if (token == SyntaxKind.CloseBraceToken)
+        {
+            token = _rawTextScanner.ReScanTemplateToken(isTaggedTemplate: false);
+        }
+
+        if (_rawTextScanner.IsUnterminated())
+        {
+            _rawTextScanner.SetText(null, null, null);
+            return s_invalidValueSentinel;
+        }
+
+        string? tokenValue = null;
+        switch (token)
+        {
+            case SyntaxKind.NoSubstitutionTemplateLiteral:
+            case SyntaxKind.TemplateHead:
+            case SyntaxKind.TemplateMiddle:
+            case SyntaxKind.TemplateTail:
+                tokenValue = _rawTextScanner.GetTokenValue();
+                break;
+        }
+
+        if (tokenValue is null || _rawTextScanner.Scan() != SyntaxKind.EndOfFileToken)
+        {
+            _rawTextScanner.SetText(null, null, null);
+            return s_invalidValueSentinel;
+        }
+
+        _rawTextScanner.SetText(null, null, null);
+        return tokenValue;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3527 — <c>checkTemplateLiteralLikeNode</c>.</summary>
+    private static string? CheckTemplateLiteralLikeNode(SyntaxKind kind, string? text, string? rawText, TokenFlags? templateFlags)
+    {
+        var flags = templateFlags ?? TokenFlags.None;
+        Debug.Assert(
+            (flags & CoreFlags.Not(TokenFlags.TemplateLiteralLikeFlags)) == TokenFlags.None,
+            "Unsupported template flags.");
+
+        string? cooked = null;
+        if (rawText is not null && rawText != text)
+        {
+            cooked = GetCookedText(kind, rawText) as string;
+            if (cooked is null) return Debug.Fail<string?>("Invalid raw text");
+        }
+
+        if (text is null)
+        {
+            if (cooked is null) return Debug.Fail<string?>("Arguments 'text' and 'rawText' may not both be undefined.");
+            text = cooked;
+        }
+        else if (cooked is not null)
+        {
+            Debug.Assert(
+                text == cooked,
+                "Expected argument 'text' to be the normalized (i.e. 'cooked') version of argument 'rawText'.");
+        }
+
+        return text;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3588 — <c>createTemplateHead</c>.</summary>
+    public TemplateHead CreateTemplateHead(string? text, string? rawText = null, TokenFlags? templateFlags = null)
+    {
+        text = CheckTemplateLiteralLikeNode(SyntaxKind.TemplateHead, text, rawText, templateFlags);
+        return (TemplateHead)CreateTemplateLiteralLikeNode(SyntaxKind.TemplateHead, text!, rawText, templateFlags);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3594 — <c>createTemplateMiddle</c>.</summary>
+    public TemplateMiddle CreateTemplateMiddle(string? text, string? rawText = null, TokenFlags? templateFlags = null)
+    {
+        text = CheckTemplateLiteralLikeNode(SyntaxKind.TemplateHead, text, rawText, templateFlags);
+        return (TemplateMiddle)CreateTemplateLiteralLikeNode(SyntaxKind.TemplateMiddle, text!, rawText, templateFlags);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3600 — <c>createTemplateTail</c>.</summary>
+    public TemplateTail CreateTemplateTail(string? text, string? rawText = null, TokenFlags? templateFlags = null)
+    {
+        text = CheckTemplateLiteralLikeNode(SyntaxKind.TemplateHead, text, rawText, templateFlags);
+        return (TemplateTail)CreateTemplateLiteralLikeNode(SyntaxKind.TemplateTail, text!, rawText, templateFlags);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3606 — <c>createNoSubstitutionTemplateLiteral</c>.</summary>
+    /// <remarks>
+    /// TS passes <c>SyntaxKind.TemplateHead</c> to <c>checkTemplateLiteralLikeNode</c> here rather than the literal's own
+    /// kind; the port keeps that, since the check only wraps the text in the delimiters it needs.
+    /// </remarks>
+    public NoSubstitutionTemplateLiteral CreateNoSubstitutionTemplateLiteral(
+        string? text,
+        string? rawText = null,
+        TokenFlags? templateFlags = null)
+    {
+        text = CheckTemplateLiteralLikeNode(SyntaxKind.TemplateHead, text, rawText, templateFlags);
+        return (NoSubstitutionTemplateLiteral)CreateTemplateLiteralLikeNode(
+            SyntaxKind.NoSubstitutionTemplateLiteral,
+            text!,
+            rawText,
+            templateFlags);
+    }
+
+    //
+    // Expressions (the hand-written half)
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:2778 — <c>createObjectBindingPattern</c>.</summary>
+    public ObjectBindingPattern CreateObjectBindingPattern(List<BindingElement>? elements)
+    {
+        var node = CreateBaseNode<ObjectBindingPattern>(SyntaxKind.ObjectBindingPattern);
+        node.Elements = CreateNodeArray(elements, null);
+        node.TransformFlags |= PropagateChildrenFlags(node.Elements)
+            | TransformFlags.ContainsES2015
+            | TransformFlags.ContainsBindingPattern;
+
+        if ((node.TransformFlags & TransformFlags.ContainsRestOrSpread) != 0)
+        {
+            node.TransformFlags |= TransformFlags.ContainsES2018 | TransformFlags.ContainsObjectRestOrSpread;
+        }
+
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2790 — <c>updateObjectBindingPattern</c>.</summary>
+    public ObjectBindingPattern UpdateObjectBindingPattern(ObjectBindingPattern? node, List<BindingElement>? elements)
+    {
+        return !ReferenceEquals(node!.Elements, elements)
+            ? Update(CreateObjectBindingPattern(elements), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2848 — <c>createArrayLiteralExpression</c>.</summary>
+    public ArrayLiteralExpression CreateArrayLiteralExpression(List<Expression>? elements, bool? multiLine)
+    {
+        var node = CreateBaseNode<ArrayLiteralExpression>(SyntaxKind.ArrayLiteralExpression);
+
+        // A trailing omitted element needs an explicit trailing comma: `[1, 2, ,]` is an omitted element, while
+        // `[1, 2, ]` is a trailing comma.
+        var lastElement = elements is not null ? Core.LastOrUndefined(elements) : null;
+        var elementsArray = CreateNodeArray(
+            elements,
+            lastElement is not null && NodeTests.IsOmittedExpression(lastElement) ? true : null);
+
+        node.Elements = Parenthesizer.ParenthesizeExpressionsOfCommaDelimitedList(elementsArray);
+        node.MultiLine = multiLine;
+        node.TransformFlags |= PropagateChildrenFlags(node.Elements);
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2862 — <c>updateArrayLiteralExpression</c>.</summary>
+    public ArrayLiteralExpression UpdateArrayLiteralExpression(ArrayLiteralExpression? node, List<Expression>? elements)
+    {
+        return !ReferenceEquals(node!.Elements, elements)
+            ? Update(CreateArrayLiteralExpression(elements, node!.MultiLine), node)
+            : node!;
+    }
+
+    /// <summary>TS's <c>asName</c> where the name may also be a private identifier.</summary>
+    /// <remarks>
+    /// The port's <see cref="AsName"/> answers an <c>Identifier</c> because that is what every other caller expects;
+    /// a member name is a <c>MemberExpression</c> — an <c>Identifier</c> or a <c>PrivateIdentifier</c> — and TS's
+    /// generic <c>asName</c> hands back whatever it was given.
+    /// </remarks>
+    private MemberExpression? AsMemberName(object? name)
+        => name is string text ? CreateIdentifier(text) : name as MemberExpression;
+
+    /// <summary>ported from: factory/nodeFactory.ts:2903 — <c>createPropertyAccessExpression</c>.</summary>
+    public PropertyAccessExpression CreatePropertyAccessExpression(Expression? expression, object? name)
+    {
+        var node = CreateBasePropertyAccessExpression(
+            Parenthesizer.ParenthesizeLeftSideOfAccess(expression, false),
+            null,
+            AsMemberName(name));
+
+        if (NodeTests.IsSuperKeyword(expression!))
+        {
+            // A `super` method call needs a lexical `this`, and it needs `super` hoisting in ES2017/ES2018 functions.
+            node.TransformFlags |= TransformFlags.ContainsES2017 | TransformFlags.ContainsES2018;
+        }
+
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2919 — <c>updatePropertyAccessExpression</c>.</summary>
+    public PropertyAccessExpression UpdatePropertyAccessExpression(
+        PropertyAccessExpression? node,
+        Expression? expression,
+        Node? name)
+    {
+        if (Utilities.IsPropertyAccessChain(node!))
+        {
+            return UpdatePropertyAccessChain(node, expression, node!.QuestionDotToken, name as Identifier);
+        }
+
+        return node!.Expression != expression || node!.Name != name
+            ? Update(CreatePropertyAccessExpression(expression, name), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2930 — <c>createPropertyAccessChain</c>.</summary>
+    public PropertyAccessExpression CreatePropertyAccessChain(
+        Expression? expression,
+        PunctuationToken? questionDotToken,
+        object? name)
+    {
+        var node = CreateBasePropertyAccessExpression(
+            Parenthesizer.ParenthesizeLeftSideOfAccess(expression, true),
+            questionDotToken,
+            AsMemberName(name));
+
+        node.Flags |= NodeFlags.OptionalChain;
+        node.TransformFlags |= TransformFlags.ContainsES2020;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2942 — <c>updatePropertyAccessChain</c>.</summary>
+    public PropertyAccessExpression UpdatePropertyAccessChain(
+        PropertyAccessExpression? node,
+        Expression? expression,
+        PunctuationToken? questionDotToken,
+        Node? name)
+    {
+        Debug.Assert(
+            node is not null && (node.Flags & NodeFlags.OptionalChain) != 0,
+            "Cannot update a PropertyAccessExpression using updatePropertyAccessChain. Use updatePropertyAccess instead.");
+
+        // Updating an existing chain keeps its emit flags rather than taking the ones `createPropertyAccess` would set.
+        return node.Expression != expression
+            || node.QuestionDotToken != questionDotToken
+            || node.Name != name
+            ? Update(CreatePropertyAccessChain(expression, questionDotToken, name), node)
+            : node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2968 — <c>createElementAccessExpression</c>.</summary>
+    public ElementAccessExpression CreateElementAccessExpression(Expression? expression, object? index)
+    {
+        var node = CreateBaseElementAccessExpression(
+            Parenthesizer.ParenthesizeLeftSideOfAccess(expression, false),
+            null,
+            AsExpression(index));
+
+        if (NodeTests.IsSuperKeyword(expression!))
+        {
+            node.TransformFlags |= TransformFlags.ContainsES2017 | TransformFlags.ContainsES2018;
+        }
+
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2984 — <c>updateElementAccessExpression</c>.</summary>
+    public ElementAccessExpression UpdateElementAccessExpression(
+        ElementAccessExpression? node,
+        Expression? expression,
+        Expression? argumentExpression)
+    {
+        if (Utilities.IsElementAccessChain(node!))
+        {
+            return UpdateElementAccessChain(node, expression, node!.QuestionDotToken, argumentExpression);
+        }
+
+        return node!.Expression != expression || node!.ArgumentExpression != argumentExpression
+            ? Update(CreateElementAccessExpression(expression, argumentExpression), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2995 — <c>createElementAccessChain</c>.</summary>
+    public ElementAccessExpression CreateElementAccessChain(
+        Expression? expression,
+        PunctuationToken? questionDotToken,
+        object? index)
+    {
+        var node = CreateBaseElementAccessExpression(
+            Parenthesizer.ParenthesizeLeftSideOfAccess(expression, true),
+            questionDotToken,
+            AsExpression(index));
+
+        node.Flags |= NodeFlags.OptionalChain;
+        node.TransformFlags |= TransformFlags.ContainsES2020;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3007 — <c>updateElementAccessChain</c>.</summary>
+    public ElementAccessExpression UpdateElementAccessChain(
+        ElementAccessExpression? node,
+        Expression? expression,
+        PunctuationToken? questionDotToken,
+        Expression? argumentExpression)
+    {
+        Debug.Assert(
+            node is not null && (node.Flags & NodeFlags.OptionalChain) != 0,
+            "Cannot update a ElementAccessExpression using updateElementAccessChain. Use updateElementAccess instead.");
+
+        return node.Expression != expression
+            || node.QuestionDotToken != questionDotToken
+            || node.ArgumentExpression != argumentExpression
+            ? Update(CreateElementAccessChain(expression, questionDotToken, argumentExpression), node)
+            : node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3018 — <c>createBaseCallExpression</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS declares no return type, so tools/Gen can only see it through the `createBase*` call — and it takes
+    /// the type arguments as an already-built array rather than building them, which puts it outside the fixed shape.
+    /// </remarks>
+    private CallExpression CreateBaseCallExpression(
+        LeftHandSideExpression expression,
+        PunctuationToken? questionDotToken,
+        NodeArray<ITypeNode>? typeArguments,
+        NodeArray<Expression>? argumentsArray)
+    {
+        var node = CreateBaseDeclaration<CallExpression>(SyntaxKind.CallExpression);
+        node.Expression = expression;
+        node.QuestionDotToken = questionDotToken;
+        node.TypeArguments = typeArguments;
+        node.Arguments = argumentsArray;
+        node.TransformFlags |= PropagateChildFlags(node.Expression)
+            | PropagateChildFlags(node.QuestionDotToken)
+            | PropagateChildrenFlags(node.TypeArguments)
+            | PropagateChildrenFlags(node.Arguments);
+
+        if (node.TypeArguments is not null) node.TransformFlags |= TransformFlags.ContainsTypeScript;
+        if (Utilities.IsSuperProperty(node.Expression!)) node.TransformFlags |= TransformFlags.ContainsLexicalThis;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3038 — <c>createCallExpression</c>.</summary>
+    public CallExpression CreateCallExpression(
+        Expression? expression,
+        List<ITypeNode>? typeArguments,
+        List<Expression>? argumentsArray)
+    {
+        var node = CreateBaseCallExpression(
+            Parenthesizer.ParenthesizeLeftSideOfAccess(expression, false),
+            null,
+            AsNodeArray(typeArguments),
+            Parenthesizer.ParenthesizeExpressionsOfCommaDelimitedList(CreateNodeArray(argumentsArray, null)));
+
+        if (NodeTests.IsImportKeyword(node.Expression!)) node.TransformFlags |= TransformFlags.ContainsDynamicImport;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3052 — <c>updateCallExpression</c>.</summary>
+    public CallExpression UpdateCallExpression(
+        CallExpression? node,
+        Expression? expression,
+        List<ITypeNode>? typeArguments,
+        List<Expression>? argumentsArray)
+    {
+        if (Utilities.IsCallChain(node!))
+        {
+            return UpdateCallChain(node, expression, node!.QuestionDotToken, typeArguments, argumentsArray);
+        }
+
+        return node!.Expression != expression
+            || !ReferenceEquals(node!.TypeArguments, typeArguments)
+            || !ReferenceEquals(node!.Arguments, argumentsArray)
+            ? Update(CreateCallExpression(expression, typeArguments, argumentsArray), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3064 — <c>createCallChain</c>.</summary>
+    public CallExpression CreateCallChain(
+        Expression? expression,
+        PunctuationToken? questionDotToken,
+        List<ITypeNode>? typeArguments,
+        List<Expression>? argumentsArray)
+    {
+        var node = CreateBaseCallExpression(
+            Parenthesizer.ParenthesizeLeftSideOfAccess(expression, true),
+            questionDotToken,
+            AsNodeArray(typeArguments),
+            Parenthesizer.ParenthesizeExpressionsOfCommaDelimitedList(CreateNodeArray(argumentsArray, null)));
+
+        node.Flags |= NodeFlags.OptionalChain;
+        node.TransformFlags |= TransformFlags.ContainsES2020;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3077 — <c>updateCallChain</c>.</summary>
+    public CallExpression UpdateCallChain(
+        CallExpression? node,
+        Expression? expression,
+        PunctuationToken? questionDotToken,
+        List<ITypeNode>? typeArguments,
+        List<Expression>? argumentsArray)
+    {
+        Debug.Assert(
+            node is not null && (node.Flags & NodeFlags.OptionalChain) != 0,
+            "Cannot update a CallExpression using updateCallChain. Use updateCall instead.");
+
+        return node.Expression != expression
+            || node.QuestionDotToken != questionDotToken
+            || !ReferenceEquals(node.TypeArguments, typeArguments)
+            || !ReferenceEquals(node.Arguments, argumentsArray)
+            ? Update(CreateCallChain(expression, questionDotToken, typeArguments, argumentsArray), node)
+            : node;
+    }
 }
