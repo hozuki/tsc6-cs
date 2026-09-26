@@ -764,6 +764,29 @@ public class UtilitiesCheckerTests
         Assert.True((Utilities.GetEffectiveModifierFlags(documented) & ModifierFlags.Public) != 0);
         Assert.True(Utilities.HasJSDocParameterTags(documented));
     }
+    [Fact]
+    public void IsSuperCall_AcceptsOnlyACallWhoseCalleeIsTheSuperKeyword()
+    {
+        var ctor = (ConstructorDeclaration)ClassOf(Parse("class C extends B { constructor() { super(); f(); } }")).Members![0];
+        var statements = ctor.Body!.Statements!;
+
+        Assert.True(Utilities.IsSuperCall((Node)((ExpressionStatement)statements[0]).Expression!));
+        Assert.False(Utilities.IsSuperCall((Node)((ExpressionStatement)statements[1]).Expression!));
+        Assert.False(Utilities.IsSuperCall((Node)ctor));
+    }
+
+    [Fact]
+    public void MinAndMax_AnswersBothEndsWithoutScanningTwice()
+    {
+        var values = new List<int> { 3, 1, 4, 1, 5 };
+
+        var (min, max) = Utilities.MinAndMax(values, v => v);
+
+        Assert.Equal(1, min);
+        Assert.Equal(5, max);
+
+        var single = Utilities.MinAndMax(new List<int> { 7 }, v => v);
+        Assert.Equal(7, single.Min);
+        Assert.Equal(7, single.Max);
+    }
 }
-
-

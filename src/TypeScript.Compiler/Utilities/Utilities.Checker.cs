@@ -939,6 +939,47 @@ internal static partial class Utilities
     }
 
     // ---------------------------------------------------------------------------------------------
+    // Call-shape and numeric helpers (utilities.ts:2701-2704, 10362-10370)
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>ported from: src/compiler/utilities.ts:2701-2704 — <c>isSuperCall</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's guard narrows to <c>SuperCall</c>; the port answers <c>bool</c> (mapping rule (d)), which is what
+    /// both landed callers pass to a condition (Checker/Checker.CallResolution.cs, Checker/Checker.Check.Expressions.cs).
+    /// </remarks>
+    public static bool IsSuperCall(Node n)
+        => n.Kind == SyntaxKind.CallExpression && ((CallExpression)n).Expression!.Kind == SyntaxKind.SuperKeyword;
+
+    /// <summary>ported from: src/compiler/utilities.ts:10362-10370 — <c>minAndMax</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's result is the fresh record <c>{ readonly min: number; readonly max: number }</c> over JS numbers, and
+    /// it asserts a non-empty input. The port answers a value tuple of <c>int</c> — the one landed caller's <c>getValue</c>
+    /// returns <c>int</c> (its <c>GetNumNonRestParameters</c>) and destructures the result with
+    /// <c>var (minArgumentCount, maxNonRestParam) = …</c>, so the <c>ValueTuple</c> supplies both the <c>Deconstruct</c> and
+    /// the element type its two consumers already use. The assert is the reference's <c>Debug.assert(arr.length !== 0)</c>.
+    /// </remarks>
+    public static (int Min, int Max) MinAndMax<T>(IList<T>? arr, Func<T, int> getValue)
+    {
+        Debug.Assert(Core.Length(arr) != 0);
+        var min = getValue(arr![0]);
+        var max = min;
+        for (var i = 1; i < arr!.Count; i++)
+        {
+            var value = getValue(arr[i]);
+            if (value < min)
+            {
+                min = value;
+            }
+            else if (value > max)
+            {
+                max = value;
+            }
+        }
+
+        return (min, max);
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // Property names, JSX text and children (utilities.ts:2359-2361, 6046-6057, 11132-11151, 11205-11207)
     // ---------------------------------------------------------------------------------------------
 
