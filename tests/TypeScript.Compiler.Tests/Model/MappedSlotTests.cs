@@ -65,12 +65,31 @@ public class MappedSlotTests
     }
 
     [Fact]
+    public void TypesThatMeanNoValue_GetTheirOwnType()
+    {
+        // `never` 与 `undefined` 不是 `object?`：它们在 Core/JsTypes.cs 里有落点（§12.6）。
+        Assert.Equal("JsNever", Mapper().MapSlot("never", optional: false).Type);
+        Assert.Equal("JsUndefined", Mapper().MapSlot("undefined", optional: false).Type);
+        Assert.Null(Mapper().MapSlot("never", optional: false).Note);
+    }
+
+    [Fact]
+    public void Never_IsDroppedFromUnion()
+    {
+        // 底类型不参与：`A | never` 就是 `A`。
+        var slot = Mapper().MapSlot("Identifier | never", optional: false);
+
+        Assert.Equal("Identifier", slot.Type);
+        Assert.Empty(slot.Overloads);
+    }
+
+    [Fact]
     public void TypeWithNoCSharpCounterpart_KeepsNote()
     {
-        var slot = Mapper().MapSlot("never", optional: false);
+        var slot = Mapper().MapSlot("any", optional: false);
 
         Assert.Equal("object?", slot.Type);
-        Assert.Contains("never", slot.Note);
+        Assert.Contains("any", slot.Note);
     }
 
     [Fact]
@@ -113,6 +132,16 @@ public class MappedSlotTests
         Assert.Contains(
             "PORT-NOTE: <c>BaseNodeFactory</c> is declared outside the extracted sources",
             source);
+    }
+
+    [Fact]
+    public void GeneratedNodes_UseTheValuelessTypes()
+    {
+        // `ArrowFunction.name` 是 `never`（箭头函数没有名字），`FunctionTypeNode.modifiers` 是 `undefined`。
+        var classes = File.ReadAllText(Path.Combine(FindRepoRoot(), "src", "TypeScript.Compiler", "Model", "NodeClasses.cs"));
+
+        Assert.Contains("public JsNever? Name { get; }", classes);
+        Assert.Contains("public JsUndefined? Modifiers { get; }", classes);
     }
 
     private static TsTypeMapper Mapper() => new(

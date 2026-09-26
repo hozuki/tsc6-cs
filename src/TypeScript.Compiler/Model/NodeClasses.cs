@@ -43,8 +43,7 @@ internal sealed partial class ArrowFunction : Expression, IDeclaration, IFlowCon
     public NodeArray<ModifierToken>? Modifiers { get; }
     public PunctuationToken? EqualsGreaterThanToken { get; }
     public Node? Body { get; }
-    /// <remarks>PORT-NOTE: TS's <c>never</c> has no C# counterpart, so the slot stays <c>object?</c>.</remarks>
-    public object? Name { get; }
+    public JsNever? Name { get; }
     public PunctuationToken? AsteriskToken { get; }
     public PunctuationToken? QuestionToken { get; }
     public PunctuationToken? ExclamationToken { get; }
@@ -62,8 +61,8 @@ internal sealed partial class ArrowFunction : Expression, IDeclaration, IFlowCon
     public Node? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? IFunctionLikeDeclarationBase.Body => (Node?)Body;
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? IFunctionLikeDeclarationBase.Body => (Node?)(object?)Body;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>AsExpression</c>.</summary>
@@ -127,7 +126,7 @@ internal sealed partial class BindingElement : Node, IDeclaration, IFlowContaine
     public Node? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>Block</c>.</summary>
@@ -261,7 +260,7 @@ internal partial class ClassLikeDeclarationBase : Node, IDeclaration, IJSDocCont
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>ClassStaticBlockDeclaration</c>.</summary>
@@ -366,7 +365,7 @@ internal sealed partial class ConstructorDeclaration : Node, IClassElement, IDec
     public Node? NextContainer { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? IFunctionLikeDeclarationBase.Body => (Node?)Body;
+    Node? IFunctionLikeDeclarationBase.Body => (Node?)(object?)Body;
 }
 
 /// <summary>ported from types.ts: <c>ConstructorTypeNode</c>.</summary>
@@ -445,7 +444,7 @@ internal abstract partial class DynamicNamedDeclaration : Node, IDeclaration, IN
     public ISymbol? LocalSymbol { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>ElementAccessChain</c>.</summary>
@@ -488,7 +487,7 @@ internal sealed partial class EnumDeclaration : Node, IDeclaration, IDeclaration
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>EnumMember</c>.</summary>
@@ -503,7 +502,7 @@ internal sealed partial class EnumMember : Node, IDeclaration, IJSDocContainer, 
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>ExportAssignment</c>.</summary>
@@ -550,7 +549,7 @@ internal sealed partial class ExportSpecifier : Node, IDeclaration, IJSDocContai
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>Expression</c>.</summary>
@@ -654,8 +653,8 @@ internal sealed partial class FunctionDeclaration : Node, IDeclaration, IDeclara
     public Node? NextContainer { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? IFunctionLikeDeclarationBase.Body => (Node?)Body;
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? IFunctionLikeDeclarationBase.Body => (Node?)(object?)Body;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>FunctionExpression</c>.</summary>
@@ -683,8 +682,8 @@ internal sealed partial class FunctionExpression : Node, IDeclaration, IFlowCont
     public Node? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? IFunctionLikeDeclarationBase.Body => (Node?)Body;
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? IFunctionLikeDeclarationBase.Body => (Node?)(object?)Body;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>FunctionOrConstructorTypeNodeBase</c>.</summary>
@@ -702,7 +701,7 @@ internal partial class FunctionOrConstructorTypeNodeBase : Node, IDeclaration, I
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    ITypeNode? ISignatureDeclarationBase.Type => (ITypeNode?)Type;
+    ITypeNode? ISignatureDeclarationBase.Type => (ITypeNode?)(object?)Type;
 }
 
 /// <summary>ported from types.ts: <c>FunctionTypeNode</c>.</summary>
@@ -710,8 +709,7 @@ internal sealed partial class FunctionTypeNode : FunctionOrConstructorTypeNodeBa
 {
     public override SyntaxKind Kind => SyntaxKind.FunctionType;
 
-    /// <remarks>PORT-NOTE: TS's <c>undefined</c> has no C# counterpart, so the slot stays <c>object?</c>.</remarks>
-    public object? Modifiers { get; }
+    public JsUndefined? Modifiers { get; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
@@ -741,8 +739,8 @@ internal sealed partial class GetAccessorDeclaration : Node, IClassElement, IDec
     public Node? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? IFunctionLikeDeclarationBase.Body => (Node?)Body;
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? IFunctionLikeDeclarationBase.Body => (Node?)(object?)Body;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>HeritageClause</c>.</summary>
@@ -810,7 +808,7 @@ internal sealed partial class ImportClause : Node, IDeclaration, INamedDeclarati
     public ISymbol? LocalSymbol { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>ImportDeclaration</c>.</summary>
@@ -840,7 +838,7 @@ internal sealed partial class ImportEqualsDeclaration : Node, IDeclaration, IDec
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>ImportExpression</c>.</summary>
@@ -862,7 +860,7 @@ internal sealed partial class ImportSpecifier : Node, IDeclaration, INamedDeclar
     public ISymbol? LocalSymbol { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>ImportTypeAssertionContainer</c>.</summary>
@@ -906,7 +904,7 @@ internal sealed partial class IndexSignatureDeclaration : Node, IClassElement, I
     public Node? NextContainer { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    ITypeNode? ISignatureDeclarationBase.Type => (ITypeNode?)Type;
+    ITypeNode? ISignatureDeclarationBase.Type => (ITypeNode?)(object?)Type;
 }
 
 /// <summary>ported from types.ts: <c>IndexedAccessTypeNode</c>.</summary>
@@ -941,7 +939,7 @@ internal sealed partial class InterfaceDeclaration : Node, IDeclaration, IDeclar
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>IntersectionTypeNode</c>.</summary>
@@ -1004,7 +1002,7 @@ internal sealed partial class JSDocCallbackTag : JSDocTag, IDeclaration, ILocals
     public Node? NextContainer { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>JSDocClassTag</c>.</summary>
@@ -1339,7 +1337,7 @@ internal sealed partial class JSDocTypedefTag : JSDocTag, IDeclaration, ILocalsC
     public Node? NextContainer { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>JSDocUnknownTag</c>.</summary>
@@ -1590,8 +1588,8 @@ internal sealed partial class MethodDeclaration : Node, IClassElement, IDeclarat
     public Node? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? IFunctionLikeDeclarationBase.Body => (Node?)Body;
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? IFunctionLikeDeclarationBase.Body => (Node?)(object?)Body;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>MethodSignature</c>.</summary>
@@ -1613,7 +1611,7 @@ internal sealed partial class MethodSignature : Node, IDeclaration, IJSDocContai
     public Node? NextContainer { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>MissingDeclaration</c>.</summary>
@@ -1628,7 +1626,7 @@ internal sealed partial class MissingDeclaration : Node, IDeclaration, IDeclarat
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>ModuleBlock</c>.</summary>
@@ -1655,7 +1653,7 @@ internal sealed partial class ModuleDeclaration : Node, IDeclaration, IDeclarati
     public Node? NextContainer { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>NamedExports</c>.</summary>
@@ -1698,7 +1696,7 @@ internal sealed partial class NamespaceExport : Node, IDeclaration, INamedDeclar
     public ISymbol? LocalSymbol { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>NamespaceExportDeclaration</c>.</summary>
@@ -1713,7 +1711,7 @@ internal sealed partial class NamespaceExportDeclaration : Node, IDeclaration, I
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>NamespaceImport</c>.</summary>
@@ -1726,7 +1724,7 @@ internal sealed partial class NamespaceImport : Node, IDeclaration, INamedDeclar
     public ISymbol? LocalSymbol { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>NewExpression</c>.</summary>
@@ -1852,7 +1850,7 @@ internal sealed partial class ParameterDeclaration : Node, IDeclaration, IJSDocC
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>ParenthesizedExpression</c>.</summary>
@@ -1925,7 +1923,7 @@ internal partial class PropertyAccessExpression : MemberExpression, IDeclaration
     public Node? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>PropertyAssignment</c>.</summary>
@@ -1943,7 +1941,7 @@ internal sealed partial class PropertyAssignment : Node, IDeclaration, IJSDocCon
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>PropertyDeclaration</c>.</summary>
@@ -1962,7 +1960,7 @@ internal partial class PropertyDeclaration : Node, IClassElement, IDeclaration, 
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>PropertySignature</c>.</summary>
@@ -1980,7 +1978,7 @@ internal sealed partial class PropertySignature : Node, IDeclaration, IJSDocCont
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>QualifiedName</c>.</summary>
@@ -2063,8 +2061,8 @@ internal sealed partial class SetAccessorDeclaration : Node, IClassElement, IDec
     public Node? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? IFunctionLikeDeclarationBase.Body => (Node?)Body;
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? IFunctionLikeDeclarationBase.Body => (Node?)(object?)Body;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>ShorthandPropertyAssignment</c>.</summary>
@@ -2083,7 +2081,7 @@ internal sealed partial class ShorthandPropertyAssignment : Node, IDeclaration, 
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>SourceFile</c>.</summary>
@@ -2147,7 +2145,7 @@ internal abstract partial class SourceFile : Node, IDeclaration, ILocalsContaine
     public Node? NextContainer { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    IReadonlyPragmaMap? IReadonlyPragmaContext.Pragmas { get => (IReadonlyPragmaMap?)Pragmas; set => Pragmas = (IReadonlyPragmaMap)value!; }
+    IReadonlyPragmaMap? IReadonlyPragmaContext.Pragmas { get => (IReadonlyPragmaMap?)(object?)Pragmas; set => Pragmas = (IReadonlyPragmaMap)value!; }
 }
 
 /// <summary>ported from types.ts: <c>SpreadAssignment</c>.</summary>
@@ -2369,7 +2367,7 @@ internal sealed partial class TypeAliasDeclaration : Node, IDeclaration, IDeclar
     public Node? NextContainer { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>TypeAssertion</c>.</summary>
@@ -2423,7 +2421,7 @@ internal sealed partial class TypeParameterDeclaration : Node, IDeclaration, IJS
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>TypePredicateNode</c>.</summary>
@@ -2486,7 +2484,7 @@ internal sealed partial class VariableDeclaration : Node, IDeclaration, IJSDocCo
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
-    Node? INamedDeclaration.Name => (Node?)Name;
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>VariableDeclarationList</c>.</summary>

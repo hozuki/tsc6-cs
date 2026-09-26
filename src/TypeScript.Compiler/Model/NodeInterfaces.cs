@@ -80,10 +80,8 @@ internal partial interface IAssertsIdentifierTypePredicate : ITypePredicateBase
 /// <summary>ported from types.ts: <c>AssertsThisTypePredicate</c>.</summary>
 internal partial interface IAssertsThisTypePredicate : ITypePredicateBase
 {
-    /// <remarks>PORT-NOTE: TS's <c>undefined</c> has no C# counterpart, so the slot stays <c>object?</c>.</remarks>
-    object? ParameterName { get; set; }
-    /// <remarks>PORT-NOTE: TS's <c>undefined</c> has no C# counterpart, so the slot stays <c>object?</c>.</remarks>
-    object? ParameterIndex { get; set; }
+    JsUndefined? ParameterName { get; set; }
+    JsUndefined? ParameterIndex { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>AutoGenerateInfo</c>.</summary>
@@ -1065,8 +1063,8 @@ internal partial interface IFutureSourceFile
     object? PackageJsonScope { get; }
     bool? ExternalModuleIndicator { get; }
     bool? CommonJsModuleIndicator { get; }
-    List<object?>? Statements { get; }
-    List<object?>? Imports { get; }
+    List<JsNever>? Statements { get; }
+    List<JsNever>? Imports { get; }
 }
 
 /// <summary>ported from types.ts: <c>GeneratedIdentifier</c>.</summary>
@@ -1744,12 +1742,10 @@ internal partial interface INodeFactory
     TemplateMiddle CreateTemplateMiddle(string? text, string? rawText, TokenFlags? templateFlags);
     TemplateTail CreateTemplateTail(string? text, string? rawText, TokenFlags? templateFlags);
     NoSubstitutionTemplateLiteral CreateNoSubstitutionTemplateLiteral(string? text, string? rawText);
-    /// <remarks>PORT-NOTE: <c>JsxTextAllWhiteSpaces</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
     LiteralLikeNode CreateLiteralLikeNode(object? kind, string? text);
     ITemplateLiteralLikeNode CreateTemplateLiteralLikeNode(SyntaxKind kind, string? text, string? rawText, TokenFlags templateFlags);
     YieldExpression CreateYieldExpression(PunctuationToken? asteriskToken, Expression? expression);
-    /// <remarks>PORT-NOTE: TS's <c>undefined</c> has no C# counterpart, so the slot stays <c>object?</c>.</remarks>
-    YieldExpression CreateYieldExpression(object? asteriskToken, Expression? expression);
+    YieldExpression CreateYieldExpression(JsUndefined? asteriskToken, Expression? expression);
     YieldExpression UpdateYieldExpression(YieldExpression? node, PunctuationToken? asteriskToken, Expression? expression);
     SpreadElement CreateSpreadElement(Expression? expression);
     SpreadElement UpdateSpreadElement(SpreadElement? node, Expression? expression);
@@ -3314,10 +3310,8 @@ internal partial interface ITextSpan
 /// <summary>ported from types.ts: <c>ThisTypePredicate</c>.</summary>
 internal partial interface IThisTypePredicate : ITypePredicateBase
 {
-    /// <remarks>PORT-NOTE: TS's <c>undefined</c> has no C# counterpart, so the slot stays <c>object?</c>.</remarks>
-    object? ParameterName { get; set; }
-    /// <remarks>PORT-NOTE: TS's <c>undefined</c> has no C# counterpart, so the slot stays <c>object?</c>.</remarks>
-    object? ParameterIndex { get; set; }
+    JsUndefined? ParameterName { get; set; }
+    JsUndefined? ParameterIndex { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TransformationContext</c>.</summary>

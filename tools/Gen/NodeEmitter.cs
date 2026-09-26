@@ -223,12 +223,13 @@ internal static class NodeEmitter
                 var name = PascalCase(member.Name);
                 var prefix = $"{interfaceType} {mapper.TypeName(mixin)}.{name}";
 
-                // Both directions need an explicit cast: TS lets a class narrow the member and it lets the
-                // class declare something else entirely (`ArrowFunction.name` is `never`, which is `object?`
-                // here, while the interface says `DeclarationName`), so neither side is implicitly convertible.
+                // Both directions need an explicit cast: TS lets a class narrow the member, and it lets the class
+                // declare something unrelated (`ArrowFunction.name` is `never`), so neither side converts
+                // implicitly. The reads route through `object?` for the same reason — two unrelated reference
+                // types have no direct conversion.
                 explicitImplementations.Add(member.IsReadonly
-                    ? $"    {prefix} => ({interfaceType}){name};"
-                    : $"    {prefix} {{ get => ({interfaceType}){name}; set => {name} = ({own.Type})value!; }}");
+                    ? $"    {prefix} => ({interfaceType})(object?){name};"
+                    : $"    {prefix} {{ get => ({interfaceType})(object?){name}; set => {name} = ({own.Type})value!; }}");
             }
         }
 

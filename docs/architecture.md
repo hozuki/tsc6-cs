@@ -584,7 +584,7 @@ TS 允许子接口**收窄**成员类型 —— `FunctionDeclaration.body` 是 `
 
 ### 12.5 联合类型与索引访问类型（M4c 期间）
 
-M4c 开工前把"退化成 `object?`"的每一处都复核了一遍：`INodeFactory` 的 503 个成员里有 185 个参数位是 `object?`。四条改动之后剩 110，其中 106 个改由重载承担，真正收敛不了的只剩 4 处、且都带注释。
+M4c 开工前把"退化成 `object?`"的每一处都复核了一遍：`INodeFactory` 的 503 个成员里有 185 个参数位是 `object?`。四条改动之后剩 109 —— 其中大多数由重载承担（218 条转发重载，覆盖 106 个槽位），真正收敛不了的只剩 3 处、且都带注释。
 
 **1. 联合类型：能收敛就收敛，收不住就用重载。** 先把成员**映射后的 C# 类型**分成两组：
 
@@ -611,9 +611,26 @@ M4c 开工前把"退化成 `object?`"的每一处都复核了一遍：`INodeFact
 
 推导不出来就保留原文（`T["name"]` 依赖未解析的类型参数，递归别名解析回自身），C# 侧照常降级并注释；`Program` 建不起来时提取照旧进行。索引访问类型在模型里一共 20 处。
 
-**4. 未提取类型保留 `object?`，但加一行注释。** `BaseNodeFactory`（在 `baseNodeFactory.ts`）、`NodeFactoryFlags`（`nodeFactory.ts` 的 `const enum`）都在 `TypeModelSources` 之外，映射器因此返回 `object?` 并附上原因，由 emitter 写成 `<remarks>PORT-NOTE: …</remarks>`。同一个接口里 `converters: NodeConverters` 是真实类型而 `baseFactory: BaseNodeFactory` 是 `object?`，差别只在这份清单。
+**4. 未提取类型保留 `object?`，但加一行注释。** `BaseNodeFactory`（在 `baseNodeFactory.ts`）、`NodeFactoryFlags`（`nodeFactory.ts` 的 `const enum`）都在 `TypeModelSources` 之外，映射器因此返回 `object?` 并附上原因，由 emitter 写成 `<remarks>PORT-NOTE: …</remarks>`。同一个接口里 `converters: NodeConverters` 是真实类型而 `baseFactory: BaseNodeFactory` 是 `object?`，差别只在这份清单。（TS 自身的 `never`/`undefined` 不在这一档，它们有自己的类型，见 §12.6。注释里的名字按限定名整体识别，否则 `SyntaxKind.JsxTextAllWhiteSpaces` 会被拆成两个标识符、把成员名当成未声明的类型。）
 
-**副作用：显式接口实现的两个方向都要 cast。** `DeclarationName` 现在收敛到 `Node`（以前是 `object?`），而 `ArrowFunction.name` 是 `never`（→ `object?`），类上的类型于是比接口更宽。`NodeEmitter` 的显式实现因此读写两侧都写 cast。
+**副作用：显式接口实现的两个方向都要 cast。** `DeclarationName` 现在收敛到 `Node`（以前是 `object?`），而 `ArrowFunction.name` 是 `never`（→ `object?`），类上的类型于是比接口更宽。`NodeEmitter` 的显式实现因此读写两侧都写 cast（读经 `object?` 中转，两个无关引用类型之间没有直接转换）。
+
+### 12.6 TS 里"没有值"的两个类型
+
+`object?` 一个人扛了三种含义：收敛不了的联合、声明在被提取源文件之外的类型、以及 TS 自身的特殊类型。前两种各自有了注释（§12.5），第三种现在有自己的落点：
+
+| TS | C#（`Core/JsTypes.cs`） | 形态 |
+|---|---|---|
+| `undefined` | `JsUndefined` | JS 的 `undefined` 只有一个值，所以是私有构造的**单例**：`JsUndefined.Value` |
+| `never` | `JsNever` | 底类型，没有任何值，所以构造私有、**不存在**实例 |
+
+两者都实现标记接口 `IJsType`。用接口而不是共同基类：TS 的这些特殊类型彼此没有共同结构，而 C# 的基类槽位只有一个 —— 将来若有别的 JS 值语义（JS 的 number/string）要表达，这个接口还能容纳。
+
+- **联合里它们不参与。** `A | undefined` 就是 `A`（可选性由 `?` 注解表达），`A | never` 也是 `A`（底类型）。漏掉后者的后果与漏掉多行联合的前导 `|` 一样：成员集合里掺进一个 `object?`。
+- **它们与其它引用类型成员一样可空**（`JsNever? Name`）。生成类的成员由 parser/factory 在构造之后填充，非可空会撞上 CS8618；而 `JsNever?` 仍然比 `object?` 说得更多 —— 它写明"这里只可能是空"。
+- **没有纳入的**：`void`（116 处几乎全是方法返回类型，C# 的 `void` 已经是对应物）、`any`/`unknown`（只出现在 `_xxxBrand` 这类被跳过的成员上，而 `object` 本来就是"任意值"的正确对应）、`null`（C# 的引用类型已经表达）。
+
+实测落点 9 处：`ArrowFunction.name`（`never`）、`FunctionTypeNode.modifiers`、`FlowUnreachable.node`/`antecedent`、`FlowLabel.node`、`ThisTypePredicate` 与 `AssertsThisTypePredicate` 的 `parameterName`/`parameterIndex`、`DiagnosticWithDetachedLocation.file`、`NodeFactory.createYieldExpression(asteriskToken)`（都是 `undefined`）。另外 `readonly never[]`（"永远是空数组"）现在写成 `List<JsNever>`。
 
 ---
 

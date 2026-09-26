@@ -48,6 +48,9 @@ internal sealed class TsTypeMapper
         "float", "double", "decimal", "bool", "char", "void",
         // The port keeps `number` as int and `string` as a reference type (nullable), so only the generated
         // enums remain to be added.
+        //
+        // `JsUndefined`/`JsNever` are deliberately *not* here: every reference-typed member of a generated class
+        // is nullable (it is filled in after construction), and `JsUndefined?` still says more than `object?`.
     };
 
     /// <summary>
@@ -382,9 +385,7 @@ internal sealed class TsTypeMapper
         {
             case "any":
             case "unknown":
-            case "never":
             case "null":
-            case "undefined":
                 return $"TS's <c>{text}</c> has no C# counterpart, so the slot stays <c>object?</c>.";
         }
 
@@ -406,13 +407,23 @@ internal sealed class TsTypeMapper
 
     /// <summary>Whether a TS name maps to something the port declares.</summary>
     private bool IsKnownName(string name)
-        => s_tsKeywords.Contains(name)
+    {
+        // A qualified name (`SyntaxKind.CommaToken`) is known when its qualifier is: the member is an enum
+        // *member*, which never appears in the type model.
+        var dot = name.IndexOf('.');
+        if (dot > 0) return _enumNames.Contains(name[..dot]);
+
+        return s_tsKeywords.Contains(name)
             || _currentTypeParameters?.Contains(name) == true
             || _model.IsKnown(name)
             || _enumNames.Contains(name)
             || s_overrides.ContainsKey(name);
+    }
 
-    /// <summary>The identifiers in a TS type expression, in order of appearance, skipping string literals.</summary>
+    /// <summary>
+    /// The names in a TS type expression, in order of appearance, skipping string literals. A qualified name
+    /// stays together (`SyntaxKind.CommaToken`), so a caller can tell a member access from a type name.
+    /// </summary>
     private static IEnumerable<string> Identifiers(string text)
     {
         var start = -1;
@@ -436,7 +447,7 @@ internal sealed class TsTypeMapper
                 continue;
             }
 
-            if (char.IsLetterOrDigit(c) || c is '_' or '$')
+            if (char.IsLetterOrDigit(c) || c is '_' or '$' || (c == '.' && start >= 0))
             {
                 if (start < 0) start = i;
                 continue;
@@ -481,12 +492,12 @@ internal sealed class TsTypeMapper
             case "boolean": return "bool";
             case "any":
             case "unknown":
-            case "undefined":
             case "null": return "object?";
+            // The two TS types that mean "no value" have a type of their own instead of `object?`
+            // (Core/JsTypes.cs, docs/architecture.md §12.6).
+            case "undefined": return "JsUndefined";
+            case "never": return "JsNever";
             case "void": return "void";
-            // `never` is TS's bottom type. It shows up as `readonly never[]` for "no elements"; `void` is
-            // not usable as a generic argument, so it maps to object like the other unrepresentable shapes.
-            case "never": return "object?";
             case "this": return "Node";
             case "true":
             case "false": return "bool";
