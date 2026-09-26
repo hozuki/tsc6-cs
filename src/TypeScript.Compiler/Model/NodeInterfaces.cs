@@ -11,7 +11,7 @@
 namespace TypeScript.Compiler;
 
 /// <summary>ported from types.ts: <c>AllAccessorDeclarations</c>.</summary>
-internal interface IAllAccessorDeclarations
+internal partial interface IAllAccessorDeclarations
 {
     Node? FirstAccessor { get; set; }
     Node? SecondAccessor { get; set; }
@@ -20,7 +20,7 @@ internal interface IAllAccessorDeclarations
 }
 
 /// <summary>ported from types.ts: <c>AllDecorators</c>.</summary>
-internal interface IAllDecorators
+internal partial interface IAllDecorators
 {
     List<Decorator>? Decorators { get; set; }
     List<List<Decorator>>? Parameters { get; set; }
@@ -29,26 +29,26 @@ internal interface IAllDecorators
 }
 
 /// <summary>ported from types.ts: <c>AlternateModeDiagnostics</c>.</summary>
-internal interface IAlternateModeDiagnostics
+internal partial interface IAlternateModeDiagnostics
 {
     IDiagnosticMessage? Diagnostic { get; set; }
     Func<object?>? GetOptionsNameMap { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>AmbientModuleDeclaration</c>.</summary>
-internal interface IAmbientModuleDeclaration
+internal partial interface IAmbientModuleDeclaration
 {
 }
 
 /// <summary>ported from types.ts: <c>AmdDependency</c>.</summary>
-internal interface IAmdDependency
+internal partial interface IAmdDependency
 {
     string? Path { get; set; }
     string? Name { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>AnonymousType</c>.</summary>
-internal interface IAnonymousType : IObjectType
+internal partial interface IAnonymousType : IObjectType
 {
     IAnonymousType? Target { get; set; }
     object? Mapper { get; set; }
@@ -56,36 +56,36 @@ internal interface IAnonymousType : IObjectType
 }
 
 /// <summary>ported from types.ts: <c>ArrayDestructuringAssignment</c>.</summary>
-internal interface IArrayDestructuringAssignment
+internal partial interface IArrayDestructuringAssignment
 {
 }
 
 /// <summary>ported from types.ts: <c>AssertClause</c>.</summary>
-internal interface IAssertClause
+internal partial interface IAssertClause
 {
 }
 
 /// <summary>ported from types.ts: <c>AssertEntry</c>.</summary>
-internal interface IAssertEntry
+internal partial interface IAssertEntry
 {
 }
 
 /// <summary>ported from types.ts: <c>AssertsIdentifierTypePredicate</c>.</summary>
-internal interface IAssertsIdentifierTypePredicate : ITypePredicateBase
+internal partial interface IAssertsIdentifierTypePredicate : ITypePredicateBase
 {
     string? ParameterName { get; set; }
     int ParameterIndex { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>AssertsThisTypePredicate</c>.</summary>
-internal interface IAssertsThisTypePredicate : ITypePredicateBase
+internal partial interface IAssertsThisTypePredicate : ITypePredicateBase
 {
     object? ParameterName { get; set; }
     object? ParameterIndex { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>AutoGenerateInfo</c>.</summary>
-internal interface IAutoGenerateInfo
+internal partial interface IAutoGenerateInfo
 {
     GeneratedIdentifierFlags Flags { get; set; }
     int Id { get; }
@@ -94,7 +94,7 @@ internal interface IAutoGenerateInfo
 }
 
 /// <summary>ported from types.ts: <c>AutomaticTypeDirectiveFile</c>.</summary>
-internal interface IAutomaticTypeDirectiveFile
+internal partial interface IAutomaticTypeDirectiveFile
 {
     object? Kind { get; set; }
     string? TypeReference { get; set; }
@@ -102,71 +102,70 @@ internal interface IAutomaticTypeDirectiveFile
 }
 
 /// <summary>ported from types.ts: <c>BigIntLiteralType</c>.</summary>
-internal interface IBigIntLiteralType : ILiteralType
+internal partial interface IBigIntLiteralType : ILiteralType
 {
 }
 
 /// <summary>ported from types.ts: <c>BindablePropertyAssignmentExpression</c>.</summary>
-internal interface IBindablePropertyAssignmentExpression
+internal partial interface IBindablePropertyAssignmentExpression
 {
 }
 
 /// <summary>ported from types.ts: <c>BindableStaticPropertyAssignmentExpression</c>.</summary>
-internal interface IBindableStaticPropertyAssignmentExpression
+internal partial interface IBindableStaticPropertyAssignmentExpression
 {
 }
 
 /// <summary>ported from types.ts: <c>BuildInfo</c>.</summary>
-internal interface IBuildInfo
+internal partial interface IBuildInfo
 {
     string? Version { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>BuildInfoFileVersionMap</c>.</summary>
-internal interface IBuildInfoFileVersionMap
+internal partial interface IBuildInfoFileVersionMap
 {
     Dictionary<string, string>? FileInfos { get; set; }
     Dictionary<string, string>? Roots { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>CallBinding</c>.</summary>
-internal interface ICallBinding
+internal partial interface ICallBinding
 {
     LeftHandSideExpression? Target { get; set; }
     Expression? ThisArg { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>CallChainRoot</c>.</summary>
-internal interface ICallChainRoot
+internal partial interface ICallChainRoot
 {
 }
 
 /// <summary>ported from types.ts: <c>CancellationToken</c>.</summary>
-internal interface ICancellationToken
+internal partial interface ICancellationToken
 {
 }
 
 /// <summary>ported from types.ts: <c>CanonicalDiagnostic</c>.</summary>
-internal interface ICanonicalDiagnostic
+internal partial interface ICanonicalDiagnostic
 {
     int Code { get; set; }
     string? MessageText { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>CheckJsDirective</c>.</summary>
-internal interface ICheckJsDirective : ITextRange
+internal partial interface ICheckJsDirective : ITextRange
 {
     bool Enabled { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ClassElement</c>.</summary>
-internal interface IClassElement : INamedDeclaration
+internal partial interface IClassElement : INamedDeclaration
 {
-    object? _classElementBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>CommandLineOptionBase</c>.</summary>
-internal interface ICommandLineOptionBase
+internal partial interface ICommandLineOptionBase
 {
     string? Name { get; set; }
     object? Type { get; set; }
@@ -197,54 +196,54 @@ internal interface ICommandLineOptionBase
 }
 
 /// <summary>ported from types.ts: <c>CommandLineOptionOfBooleanType</c>.</summary>
-internal interface ICommandLineOptionOfBooleanType : ICommandLineOptionBase
+internal partial interface ICommandLineOptionOfBooleanType : ICommandLineOptionBase
 {
 }
 
 /// <summary>ported from types.ts: <c>CommandLineOptionOfCustomType</c>.</summary>
-internal interface ICommandLineOptionOfCustomType : ICommandLineOptionBase
+internal partial interface ICommandLineOptionOfCustomType : ICommandLineOptionBase
 {
     HashSet<string>? DeprecatedKeys { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>CommandLineOptionOfListType</c>.</summary>
-internal interface ICommandLineOptionOfListType : ICommandLineOptionBase
+internal partial interface ICommandLineOptionOfListType : ICommandLineOptionBase
 {
     Node? Element { get; set; }
     bool? ListPreserveFalsyValues { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>CommandLineOptionOfNumberType</c>.</summary>
-internal interface ICommandLineOptionOfNumberType : ICommandLineOptionBase
+internal partial interface ICommandLineOptionOfNumberType : ICommandLineOptionBase
 {
 }
 
 /// <summary>ported from types.ts: <c>CommandLineOptionOfStringType</c>.</summary>
-internal interface ICommandLineOptionOfStringType : ICommandLineOptionBase
+internal partial interface ICommandLineOptionOfStringType : ICommandLineOptionBase
 {
 }
 
 /// <summary>ported from types.ts: <c>CommentDirective</c>.</summary>
-internal interface ICommentDirective
+internal partial interface ICommentDirective
 {
     ITextRange? Range { get; set; }
     CommentDirectiveType Type { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>CommentDirectivesMap</c>.</summary>
-internal interface ICommentDirectivesMap
+internal partial interface ICommentDirectivesMap
 {
 }
 
 /// <summary>ported from types.ts: <c>CommentRange</c>.</summary>
-internal interface ICommentRange : ITextRange
+internal partial interface ICommentRange : ITextRange
 {
     bool? HasTrailingNewLine { get; set; }
     SyntaxKind Kind { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>CompilerHost</c>.</summary>
-internal interface ICompilerHost : IModuleResolutionHost
+internal partial interface ICompilerHost : IModuleResolutionHost
 {
     Action<string, string, bool, Action<string>, List<SourceFile>, IWriteFileCallbackData, object?>? WriteFile { get; set; }
     Func<bool>? HasChangedAutomaticTypeDirectiveNames { get; set; }
@@ -253,13 +252,13 @@ internal interface ICompilerHost : IModuleResolutionHost
 }
 
 /// <summary>ported from types.ts: <c>CompilerHostLikeForCache</c>.</summary>
-internal interface ICompilerHostLikeForCache
+internal partial interface ICompilerHostLikeForCache
 {
     Action<string, string, bool, Action<string>, List<SourceFile>, IWriteFileCallbackData, object?>? WriteFile { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>CompilerHostLikeWithCache</c>.</summary>
-internal interface ICompilerHostLikeWithCache
+internal partial interface ICompilerHostLikeWithCache
 {
     Func<string, string, string>? OriginalReadFile { get; set; }
     Func<string, bool>? OriginalFileExists { get; set; }
@@ -271,7 +270,7 @@ internal interface ICompilerHostLikeWithCache
 }
 
 /// <summary>ported from types.ts: <c>CompilerOptions</c>.</summary>
-internal interface ICompilerOptions
+internal partial interface ICompilerOptions
 {
     bool? All { get; set; }
     bool? AllowImportingTsExtensions { get; set; }
@@ -413,7 +412,7 @@ internal interface ICompilerOptions
 }
 
 /// <summary>ported from types.ts: <c>ConcretePragmaSpecs</c>.</summary>
-internal interface IConcretePragmaSpecs
+internal partial interface IConcretePragmaSpecs
 {
     object? Reference { get; }
     object? Jsx { get; }
@@ -423,7 +422,7 @@ internal interface IConcretePragmaSpecs
 }
 
 /// <summary>ported from types.ts: <c>ConditionalRoot</c>.</summary>
-internal interface IConditionalRoot
+internal partial interface IConditionalRoot
 {
     ConditionalTypeNode? Node { get; set; }
     IType? CheckType { get; set; }
@@ -437,7 +436,7 @@ internal interface IConditionalRoot
 }
 
 /// <summary>ported from types.ts: <c>ConditionalType</c>.</summary>
-internal interface IConditionalType : IInstantiableType
+internal partial interface IConditionalType : IInstantiableType
 {
     IConditionalRoot? Root { get; set; }
     IType? CheckType { get; set; }
@@ -452,7 +451,7 @@ internal interface IConditionalType : IInstantiableType
 }
 
 /// <summary>ported from types.ts: <c>ConfigFileSpecs</c>.</summary>
-internal interface IConfigFileSpecs
+internal partial interface IConfigFileSpecs
 {
     List<string>? FilesSpecs { get; set; }
     List<string>? IncludeSpecs { get; set; }
@@ -467,13 +466,13 @@ internal interface IConfigFileSpecs
 }
 
 /// <summary>ported from types.ts: <c>CoreTransformationContext</c>.</summary>
-internal interface ICoreTransformationContext
+internal partial interface ICoreTransformationContext
 {
     INodeFactory? Factory { get; }
 }
 
 /// <summary>ported from types.ts: <c>CreateProgramOptions</c>.</summary>
-internal interface ICreateProgramOptions
+internal partial interface ICreateProgramOptions
 {
     List<string>? RootNames { get; set; }
     ICompilerOptions? Options { get; set; }
@@ -485,12 +484,12 @@ internal interface ICreateProgramOptions
 }
 
 /// <summary>ported from types.ts: <c>CustomTransformer</c>.</summary>
-internal interface ICustomTransformer
+internal partial interface ICustomTransformer
 {
 }
 
 /// <summary>ported from types.ts: <c>CustomTransformers</c>.</summary>
-internal interface ICustomTransformers
+internal partial interface ICustomTransformers
 {
     List<Node>? Before { get; set; }
     List<Node>? After { get; set; }
@@ -498,26 +497,25 @@ internal interface ICustomTransformers
 }
 
 /// <summary>ported from types.ts: <c>Declaration</c>.</summary>
-internal interface IDeclaration
+internal partial interface IDeclaration
 {
-    object? _declarationBrand { get; set; }
     ISymbol? Symbol { get; set; }
     ISymbol? LocalSymbol { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>DeclarationStatement</c>.</summary>
-internal interface IDeclarationStatement : INamedDeclaration, IStatement
+internal partial interface IDeclarationStatement : INamedDeclaration, IStatement
 {
 }
 
 /// <summary>ported from types.ts: <c>DeferredTypeReference</c>.</summary>
-internal interface IDeferredTypeReference : ITypeReference
+internal partial interface IDeferredTypeReference : ITypeReference
 {
     Dictionary<string, IType>? Instantiations { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>Diagnostic</c>.</summary>
-internal interface IDiagnostic : IDiagnosticRelatedInformation
+internal partial interface IDiagnostic : IDiagnosticRelatedInformation
 {
     object? ReportsUnnecessary { get; set; }
     object? ReportsDeprecated { get; set; }
@@ -528,12 +526,12 @@ internal interface IDiagnostic : IDiagnosticRelatedInformation
 }
 
 /// <summary>ported from types.ts: <c>DiagnosticCollection</c>.</summary>
-internal interface IDiagnosticCollection
+internal partial interface IDiagnosticCollection
 {
 }
 
 /// <summary>ported from types.ts: <c>DiagnosticMessage</c>.</summary>
-internal interface IDiagnosticMessage
+internal partial interface IDiagnosticMessage
 {
     string? Key { get; set; }
     DiagnosticCategory Category { get; set; }
@@ -545,7 +543,7 @@ internal interface IDiagnosticMessage
 }
 
 /// <summary>ported from types.ts: <c>DiagnosticMessageChain</c>.</summary>
-internal interface IDiagnosticMessageChain
+internal partial interface IDiagnosticMessageChain
 {
     string? MessageText { get; set; }
     DiagnosticCategory Category { get; set; }
@@ -556,7 +554,7 @@ internal interface IDiagnosticMessageChain
 }
 
 /// <summary>ported from types.ts: <c>DiagnosticRelatedInformation</c>.</summary>
-internal interface IDiagnosticRelatedInformation
+internal partial interface IDiagnosticRelatedInformation
 {
     DiagnosticCategory Category { get; set; }
     int Code { get; set; }
@@ -567,18 +565,18 @@ internal interface IDiagnosticRelatedInformation
 }
 
 /// <summary>ported from types.ts: <c>DiagnosticWithDetachedLocation</c>.</summary>
-internal interface IDiagnosticWithDetachedLocation : IDiagnostic
+internal partial interface IDiagnosticWithDetachedLocation : IDiagnostic
 {
     string? FileName { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>DiagnosticWithLocation</c>.</summary>
-internal interface IDiagnosticWithLocation : IDiagnostic
+internal partial interface IDiagnosticWithLocation : IDiagnostic
 {
 }
 
 /// <summary>ported from types.ts: <c>DidYouMeanOptionsDiagnostics</c>.</summary>
-internal interface IDidYouMeanOptionsDiagnostics
+internal partial interface IDidYouMeanOptionsDiagnostics
 {
     IAlternateModeDiagnostics? AlternateMode { get; set; }
     List<Node>? OptionDeclarations { get; set; }
@@ -587,24 +585,24 @@ internal interface IDidYouMeanOptionsDiagnostics
 }
 
 /// <summary>ported from types.ts: <c>DocumentPosition</c>.</summary>
-internal interface IDocumentPosition
+internal partial interface IDocumentPosition
 {
     string? FileName { get; set; }
     int Pos { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>DocumentPositionMapper</c>.</summary>
-internal interface IDocumentPositionMapper
+internal partial interface IDocumentPositionMapper
 {
 }
 
 /// <summary>ported from types.ts: <c>DocumentPositionMapperHost</c>.</summary>
-internal interface IDocumentPositionMapperHost
+internal partial interface IDocumentPositionMapperHost
 {
 }
 
 /// <summary>ported from types.ts: <c>ESDecorateClassContext</c>.</summary>
-internal interface IESDecorateClassContext
+internal partial interface IESDecorateClassContext
 {
     string? Kind { get; set; }
     Expression? Name { get; set; }
@@ -612,14 +610,14 @@ internal interface IESDecorateClassContext
 }
 
 /// <summary>ported from types.ts: <c>ESDecorateClassElementAccess</c>.</summary>
-internal interface IESDecorateClassElementAccess
+internal partial interface IESDecorateClassElementAccess
 {
     bool? Get { get; set; }
     bool? Set { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ESDecorateClassElementContext</c>.</summary>
-internal interface IESDecorateClassElementContext
+internal partial interface IESDecorateClassElementContext
 {
     object? Kind { get; set; }
     object? Name { get; set; }
@@ -630,12 +628,12 @@ internal interface IESDecorateClassElementContext
 }
 
 /// <summary>ported from types.ts: <c>ElementAccessChainRoot</c>.</summary>
-internal interface IElementAccessChainRoot
+internal partial interface IElementAccessChainRoot
 {
 }
 
 /// <summary>ported from types.ts: <c>EmitHelperBase</c>.</summary>
-internal interface IEmitHelperBase
+internal partial interface IEmitHelperBase
 {
     string? Name { get; }
     bool Scoped { get; }
@@ -645,19 +643,19 @@ internal interface IEmitHelperBase
 }
 
 /// <summary>ported from types.ts: <c>EmitHelperFactory</c>.</summary>
-internal interface IEmitHelperFactory
+internal partial interface IEmitHelperFactory
 {
 }
 
 /// <summary>ported from types.ts: <c>EmitHost</c>.</summary>
-internal interface IEmitHost : IScriptReferenceHost, IModuleSpecifierResolutionHost, ISourceFileMayBeEmittedHost
+internal partial interface IEmitHost : IScriptReferenceHost, IModuleSpecifierResolutionHost, ISourceFileMayBeEmittedHost
 {
     Action<string, string, bool, Action<string>, List<SourceFile>, IWriteFileCallbackData, object?>? WriteFile { get; set; }
     object? GetSourceFileFromReference { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>EmitNode</c>.</summary>
-internal interface IEmitNode
+internal partial interface IEmitNode
 {
     EmitFlags Flags { get; set; }
     InternalEmitFlags InternalFlags { get; set; }
@@ -682,12 +680,12 @@ internal interface IEmitNode
 }
 
 /// <summary>ported from types.ts: <c>EmitResolver</c>.</summary>
-internal interface IEmitResolver
+internal partial interface IEmitResolver
 {
 }
 
 /// <summary>ported from types.ts: <c>EmitResult</c>.</summary>
-internal interface IEmitResult
+internal partial interface IEmitResult
 {
     bool EmitSkipped { get; set; }
     List<IDiagnostic>? Diagnostics { get; set; }
@@ -696,36 +694,36 @@ internal interface IEmitResult
 }
 
 /// <summary>ported from types.ts: <c>EmitTextWriter</c>.</summary>
-internal interface IEmitTextWriter : ISymbolWriter
+internal partial interface IEmitTextWriter : ISymbolWriter
 {
 }
 
 /// <summary>ported from types.ts: <c>EmitTransformers</c>.</summary>
-internal interface IEmitTransformers
+internal partial interface IEmitTransformers
 {
     List<Func<ITransformationContext, Func<object?, object?>>>? ScriptTransformers { get; set; }
     List<Func<ITransformationContext, Func<object?, object?>>>? DeclarationTransformers { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>EnumType</c>.</summary>
-internal interface IEnumType : IFreshableType
+internal partial interface IEnumType : IFreshableType
 {
 }
 
 /// <summary>ported from types.ts: <c>ErrorOutputContainer</c>.</summary>
-internal interface IErrorOutputContainer
+internal partial interface IErrorOutputContainer
 {
     List<IDiagnostic>? Errors { get; set; }
     bool? SkipLogging { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>EvaluationResolver</c>.</summary>
-internal interface IEvaluationResolver
+internal partial interface IEvaluationResolver
 {
 }
 
 /// <summary>ported from types.ts: <c>EvaluatorResult</c>.</summary>
-internal interface IEvaluatorResult<T>
+internal partial interface IEvaluatorResult<T>
 {
     object? Value { get; set; }
     bool IsSyntacticallyString { get; set; }
@@ -734,14 +732,14 @@ internal interface IEvaluatorResult<T>
 }
 
 /// <summary>ported from types.ts: <c>EvolvingArrayType</c>.</summary>
-internal interface IEvolvingArrayType : IObjectType
+internal partial interface IEvolvingArrayType : IObjectType
 {
     IType? ElementType { get; set; }
     IType? FinalArrayType { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>FileExtensionInfo</c>.</summary>
-internal interface IFileExtensionInfo
+internal partial interface IFileExtensionInfo
 {
     string? Extension { get; set; }
     bool IsMixedContent { get; set; }
@@ -749,7 +747,7 @@ internal interface IFileExtensionInfo
 }
 
 /// <summary>ported from types.ts: <c>FilePreprocessingFileExplainingDiagnostic</c>.</summary>
-internal interface IFilePreprocessingFileExplainingDiagnostic
+internal partial interface IFilePreprocessingFileExplainingDiagnostic
 {
     object? Kind { get; set; }
     string? File { get; set; }
@@ -759,14 +757,14 @@ internal interface IFilePreprocessingFileExplainingDiagnostic
 }
 
 /// <summary>ported from types.ts: <c>FilePreprocessingLibReferenceDiagnostic</c>.</summary>
-internal interface IFilePreprocessingLibReferenceDiagnostic
+internal partial interface IFilePreprocessingLibReferenceDiagnostic
 {
     object? Kind { get; set; }
     IReferencedFile? Reason { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>FileReference</c>.</summary>
-internal interface IFileReference : ITextRange
+internal partial interface IFileReference : ITextRange
 {
     string? FileName { get; set; }
     object? ResolutionMode { get; set; }
@@ -774,39 +772,38 @@ internal interface IFileReference : ITextRange
 }
 
 /// <summary>ported from types.ts: <c>FlowArrayMutation</c>.</summary>
-internal interface IFlowArrayMutation : IFlowNodeBase
+internal partial interface IFlowArrayMutation : IFlowNodeBase
 {
 }
 
 /// <summary>ported from types.ts: <c>FlowAssignment</c>.</summary>
-internal interface IFlowAssignment : IFlowNodeBase
+internal partial interface IFlowAssignment : IFlowNodeBase
 {
 }
 
 /// <summary>ported from types.ts: <c>FlowCall</c>.</summary>
-internal interface IFlowCall : IFlowNodeBase
+internal partial interface IFlowCall : IFlowNodeBase
 {
 }
 
 /// <summary>ported from types.ts: <c>FlowCondition</c>.</summary>
-internal interface IFlowCondition : IFlowNodeBase
+internal partial interface IFlowCondition : IFlowNodeBase
 {
 }
 
 /// <summary>ported from types.ts: <c>FlowContainer</c>.</summary>
-internal interface IFlowContainer
+internal partial interface IFlowContainer
 {
-    object? _flowContainerBrand { get; set; }
     object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>FlowLabel</c>.</summary>
-internal interface IFlowLabel : IFlowNodeBase
+internal partial interface IFlowLabel : IFlowNodeBase
 {
 }
 
 /// <summary>ported from types.ts: <c>FlowNodeBase</c>.</summary>
-internal interface IFlowNodeBase
+internal partial interface IFlowNodeBase
 {
     FlowFlags Flags { get; set; }
     int Id { get; set; }
@@ -815,29 +812,29 @@ internal interface IFlowNodeBase
 }
 
 /// <summary>ported from types.ts: <c>FlowReduceLabel</c>.</summary>
-internal interface IFlowReduceLabel : IFlowNodeBase
+internal partial interface IFlowReduceLabel : IFlowNodeBase
 {
 }
 
 /// <summary>ported from types.ts: <c>FlowReduceLabelData</c>.</summary>
-internal interface IFlowReduceLabelData
+internal partial interface IFlowReduceLabelData
 {
     IFlowLabel? Target { get; set; }
     List<object?>? Antecedents { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>FlowStart</c>.</summary>
-internal interface IFlowStart : IFlowNodeBase
+internal partial interface IFlowStart : IFlowNodeBase
 {
 }
 
 /// <summary>ported from types.ts: <c>FlowSwitchClause</c>.</summary>
-internal interface IFlowSwitchClause : IFlowNodeBase
+internal partial interface IFlowSwitchClause : IFlowNodeBase
 {
 }
 
 /// <summary>ported from types.ts: <c>FlowSwitchClauseData</c>.</summary>
-internal interface IFlowSwitchClauseData
+internal partial interface IFlowSwitchClauseData
 {
     SwitchStatement? SwitchStatement { get; set; }
     int ClauseStart { get; set; }
@@ -845,37 +842,36 @@ internal interface IFlowSwitchClauseData
 }
 
 /// <summary>ported from types.ts: <c>FlowUnreachable</c>.</summary>
-internal interface IFlowUnreachable : IFlowNodeBase
+internal partial interface IFlowUnreachable : IFlowNodeBase
 {
 }
 
 /// <summary>ported from types.ts: <c>FormatDiagnosticsHost</c>.</summary>
-internal interface IFormatDiagnosticsHost
+internal partial interface IFormatDiagnosticsHost
 {
 }
 
 /// <summary>ported from types.ts: <c>FreshObjectLiteralType</c>.</summary>
-internal interface IFreshObjectLiteralType : IResolvedType
+internal partial interface IFreshObjectLiteralType : IResolvedType
 {
     IResolvedType? RegularType { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>FreshableIntrinsicType</c>.</summary>
-internal interface IFreshableIntrinsicType : IFreshableType, IIntrinsicType
+internal partial interface IFreshableIntrinsicType : IFreshableType, IIntrinsicType
 {
 }
 
 /// <summary>ported from types.ts: <c>FreshableType</c>.</summary>
-internal interface IFreshableType : IType
+internal partial interface IFreshableType : IType
 {
     IFreshableType? FreshType { get; set; }
     IFreshableType? RegularType { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>FunctionLikeDeclarationBase</c>.</summary>
-internal interface IFunctionLikeDeclarationBase : ISignatureDeclarationBase
+internal partial interface IFunctionLikeDeclarationBase : ISignatureDeclarationBase
 {
-    object? _functionLikeDeclarationBrand { get; set; }
     PunctuationToken? AsteriskToken { get; }
     PunctuationToken? QuestionToken { get; }
     PunctuationToken? ExclamationToken { get; }
@@ -885,7 +881,7 @@ internal interface IFunctionLikeDeclarationBase : ISignatureDeclarationBase
 }
 
 /// <summary>ported from types.ts: <c>FutureSourceFile</c>.</summary>
-internal interface IFutureSourceFile
+internal partial interface IFutureSourceFile
 {
     string? Path { get; }
     string? FileName { get; }
@@ -898,12 +894,12 @@ internal interface IFutureSourceFile
 }
 
 /// <summary>ported from types.ts: <c>GeneratedIdentifier</c>.</summary>
-internal interface IGeneratedIdentifier
+internal partial interface IGeneratedIdentifier
 {
 }
 
 /// <summary>ported from types.ts: <c>GeneratedNamePart</c>.</summary>
-internal interface IGeneratedNamePart
+internal partial interface IGeneratedNamePart
 {
     string? Prefix { get; set; }
     Node? Node { get; set; }
@@ -911,29 +907,29 @@ internal interface IGeneratedNamePart
 }
 
 /// <summary>ported from types.ts: <c>GeneratedPrivateIdentifier</c>.</summary>
-internal interface IGeneratedPrivateIdentifier
+internal partial interface IGeneratedPrivateIdentifier
 {
 }
 
 /// <summary>ported from types.ts: <c>GenericType</c>.</summary>
-internal interface IGenericType : IInterfaceType, ITypeReference
+internal partial interface IGenericType : IInterfaceType, ITypeReference
 {
     Dictionary<string, ITypeReference>? Instantiations { get; set; }
     List<VarianceFlags>? Variances { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>GetEffectiveTypeRootsHost</c>.</summary>
-internal interface IGetEffectiveTypeRootsHost
+internal partial interface IGetEffectiveTypeRootsHost
 {
 }
 
 /// <summary>ported from types.ts: <c>HasCurrentDirectory</c>.</summary>
-internal interface IHasCurrentDirectory
+internal partial interface IHasCurrentDirectory
 {
 }
 
 /// <summary>ported from types.ts: <c>HostForUseSourceOfProjectReferenceRedirect</c>.</summary>
-internal interface IHostForUseSourceOfProjectReferenceRedirect
+internal partial interface IHostForUseSourceOfProjectReferenceRedirect
 {
     ICompilerHost? CompilerHost { get; set; }
     Func<object?>? GetSymlinkCache { get; set; }
@@ -941,36 +937,36 @@ internal interface IHostForUseSourceOfProjectReferenceRedirect
 }
 
 /// <summary>ported from types.ts: <c>IdentifierTypePredicate</c>.</summary>
-internal interface IIdentifierTypePredicate : ITypePredicateBase
+internal partial interface IIdentifierTypePredicate : ITypePredicateBase
 {
     string? ParameterName { get; set; }
     int ParameterIndex { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ImportCall</c>.</summary>
-internal interface IImportCall
+internal partial interface IImportCall
 {
 }
 
 /// <summary>ported from types.ts: <c>ImportDeferProperty</c>.</summary>
-internal interface IImportDeferProperty
+internal partial interface IImportDeferProperty
 {
 }
 
 /// <summary>ported from types.ts: <c>ImportMetaProperty</c>.</summary>
-internal interface IImportMetaProperty
+internal partial interface IImportMetaProperty
 {
 }
 
 /// <summary>ported from types.ts: <c>IncompleteType</c>.</summary>
-internal interface IIncompleteType
+internal partial interface IIncompleteType
 {
     object? Flags { get; set; }
     IType? Type { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>IndexInfo</c>.</summary>
-internal interface IIndexInfo
+internal partial interface IIndexInfo
 {
     IType? KeyType { get; set; }
     IType? Type { get; set; }
@@ -980,14 +976,14 @@ internal interface IIndexInfo
 }
 
 /// <summary>ported from types.ts: <c>IndexType</c>.</summary>
-internal interface IIndexType : IInstantiableType
+internal partial interface IIndexType : IInstantiableType
 {
     Node? Type { get; set; }
     IndexFlags IndexFlags { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>IndexedAccessType</c>.</summary>
-internal interface IIndexedAccessType : IInstantiableType
+internal partial interface IIndexedAccessType : IInstantiableType
 {
     IType? ObjectType { get; set; }
     IType? IndexType { get; set; }
@@ -998,7 +994,7 @@ internal interface IIndexedAccessType : IInstantiableType
 }
 
 /// <summary>ported from types.ts: <c>InferenceContext</c>.</summary>
-internal interface IInferenceContext
+internal partial interface IInferenceContext
 {
     List<IInferenceInfo>? Inferences { get; set; }
     ISignature? Signature { get; set; }
@@ -1013,7 +1009,7 @@ internal interface IInferenceContext
 }
 
 /// <summary>ported from types.ts: <c>InferenceInfo</c>.</summary>
-internal interface IInferenceInfo
+internal partial interface IInferenceInfo
 {
     ITypeParameter? TypeParameter { get; set; }
     List<IType>? Candidates { get; set; }
@@ -1026,12 +1022,12 @@ internal interface IInferenceInfo
 }
 
 /// <summary>ported from types.ts: <c>InstanceofExpression</c>.</summary>
-internal interface IInstanceofExpression
+internal partial interface IInstanceofExpression
 {
 }
 
 /// <summary>ported from types.ts: <c>InstantiableType</c>.</summary>
-internal interface IInstantiableType : IType
+internal partial interface IInstantiableType : IType
 {
     IType? ResolvedBaseConstraint { get; set; }
     IIndexType? ResolvedIndexType { get; set; }
@@ -1039,13 +1035,13 @@ internal interface IInstantiableType : IType
 }
 
 /// <summary>ported from types.ts: <c>InstantiationExpressionType</c>.</summary>
-internal interface IInstantiationExpressionType : IAnonymousType
+internal partial interface IInstantiationExpressionType : IAnonymousType
 {
     INodeWithTypeArguments? Node { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>InterfaceType</c>.</summary>
-internal interface IInterfaceType : IObjectType
+internal partial interface IInterfaceType : IObjectType
 {
     List<ITypeParameter>? TypeParameters { get; set; }
     List<ITypeParameter>? OuterTypeParameters { get; set; }
@@ -1057,7 +1053,7 @@ internal interface IInterfaceType : IObjectType
 }
 
 /// <summary>ported from types.ts: <c>InterfaceTypeWithDeclaredMembers</c>.</summary>
-internal interface IInterfaceTypeWithDeclaredMembers : IInterfaceType
+internal partial interface IInterfaceTypeWithDeclaredMembers : IInterfaceType
 {
     List<ISymbol>? DeclaredProperties { get; set; }
     List<ISignature>? DeclaredCallSignatures { get; set; }
@@ -1066,21 +1062,21 @@ internal interface IInterfaceTypeWithDeclaredMembers : IInterfaceType
 }
 
 /// <summary>ported from types.ts: <c>IntersectionType</c>.</summary>
-internal interface IIntersectionType : IUnionOrIntersectionType
+internal partial interface IIntersectionType : IUnionOrIntersectionType
 {
     IType? ResolvedApparentType { get; set; }
     IType? UniqueLiteralFilledInstantiation { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>IntraExpressionInferenceSite</c>.</summary>
-internal interface IIntraExpressionInferenceSite
+internal partial interface IIntraExpressionInferenceSite
 {
     Node? Node { get; set; }
     IType? Type { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>IntrinsicType</c>.</summary>
-internal interface IIntrinsicType : IType
+internal partial interface IIntrinsicType : IType
 {
     string? IntrinsicName { get; set; }
     string? DebugIntrinsicName { get; set; }
@@ -1088,7 +1084,7 @@ internal interface IIntrinsicType : IType
 }
 
 /// <summary>ported from types.ts: <c>IterableOrIteratorType</c>.</summary>
-internal interface IIterableOrIteratorType : IObjectType, IUnionType
+internal partial interface IIterableOrIteratorType : IObjectType, IUnionType
 {
     IIterationTypes? IterationTypesOfGeneratorReturnType { get; set; }
     IIterationTypes? IterationTypesOfAsyncGeneratorReturnType { get; set; }
@@ -1100,7 +1096,7 @@ internal interface IIterableOrIteratorType : IObjectType, IUnionType
 }
 
 /// <summary>ported from types.ts: <c>IterationTypes</c>.</summary>
-internal interface IIterationTypes
+internal partial interface IIterationTypes
 {
     IType? YieldType { get; }
     IType? ReturnType { get; }
@@ -1108,119 +1104,115 @@ internal interface IIterationTypes
 }
 
 /// <summary>ported from types.ts: <c>JSDocArray</c>.</summary>
-internal interface IJSDocArray
+internal partial interface IJSDocArray
 {
     List<JSDocTag>? JsDocCache { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocContainer</c>.</summary>
-internal interface IJSDocContainer
+internal partial interface IJSDocContainer
 {
-    object? _jsdocContainerBrand { get; set; }
     IJSDocArray? JsDoc { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocNamespaceDeclaration</c>.</summary>
-internal interface IJSDocNamespaceDeclaration
+internal partial interface IJSDocNamespaceDeclaration
 {
 }
 
 /// <summary>ported from types.ts: <c>JSDocSatisfiesExpression</c>.</summary>
-internal interface IJSDocSatisfiesExpression
+internal partial interface IJSDocSatisfiesExpression
 {
-    object? _jsDocSatisfiesExpressionBrand { get; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocTypeAssertion</c>.</summary>
-internal interface IJSDocTypeAssertion
+internal partial interface IJSDocTypeAssertion
 {
-    object? _jsDocTypeAssertionBrand { get; }
 }
 
 /// <summary>ported from types.ts: <c>JsonObjectExpressionStatement</c>.</summary>
-internal interface IJsonObjectExpressionStatement
+internal partial interface IJsonObjectExpressionStatement
 {
 }
 
 /// <summary>ported from types.ts: <c>JsxTagNamePropertyAccess</c>.</summary>
-internal interface IJsxTagNamePropertyAccess
+internal partial interface IJsxTagNamePropertyAccess
 {
 }
 
 /// <summary>ported from types.ts: <c>KeywordTypeNode</c>.</summary>
-internal interface IKeywordTypeNode<TKind> : ITypeNode
+internal partial interface IKeywordTypeNode<TKind> : ITypeNode
 {
 }
 
 /// <summary>ported from types.ts: <c>LateBoundBinaryExpressionDeclaration</c>.</summary>
-internal interface ILateBoundBinaryExpressionDeclaration
+internal partial interface ILateBoundBinaryExpressionDeclaration
 {
 }
 
 /// <summary>ported from types.ts: <c>LateBoundDeclaration</c>.</summary>
-internal interface ILateBoundDeclaration
+internal partial interface ILateBoundDeclaration
 {
 }
 
 /// <summary>ported from types.ts: <c>LateBoundElementAccessExpression</c>.</summary>
-internal interface ILateBoundElementAccessExpression
+internal partial interface ILateBoundElementAccessExpression
 {
 }
 
 /// <summary>ported from types.ts: <c>LateBoundName</c>.</summary>
-internal interface ILateBoundName
+internal partial interface ILateBoundName
 {
 }
 
 /// <summary>ported from types.ts: <c>LibFile</c>.</summary>
-internal interface ILibFile
+internal partial interface ILibFile
 {
     object? Kind { get; set; }
     int? Index { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>LibResolution</c>.</summary>
-internal interface ILibResolution<T>
+internal partial interface ILibResolution<T>
 {
     object? Resolution { get; set; }
     string? Actual { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>LineAndCharacter</c>.</summary>
-internal interface ILineAndCharacter
+internal partial interface ILineAndCharacter
 {
     int Line { get; set; }
     int Character { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>LiteralType</c>.</summary>
-internal interface ILiteralType : IFreshableType
+internal partial interface ILiteralType : IFreshableType
 {
     object? Value { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>LocalsContainer</c>.</summary>
-internal interface ILocalsContainer
+internal partial interface ILocalsContainer
 {
-    object? _localsContainerBrand { get; set; }
     Dictionary<string, ISymbol>? Locals { get; set; }
     object? NextContainer { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>MappedSymbol</c>.</summary>
-internal interface IMappedSymbol : ITransientSymbol
+internal partial interface IMappedSymbol : ITransientSymbol
 {
 }
 
 /// <summary>ported from types.ts: <c>MappedSymbolLinks</c>.</summary>
-internal interface IMappedSymbolLinks : ITransientSymbolLinks
+internal partial interface IMappedSymbolLinks : ITransientSymbolLinks
 {
     IMappedType? MappedType { get; set; }
     IType? KeyType { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>MappedType</c>.</summary>
-internal interface IMappedType : IAnonymousType
+internal partial interface IMappedType : IAnonymousType
 {
     MappedTypeNode? Declaration { get; set; }
     ITypeParameter? TypeParameter { get; set; }
@@ -1233,12 +1225,12 @@ internal interface IMappedType : IAnonymousType
 }
 
 /// <summary>ported from types.ts: <c>MinimalResolutionCacheHost</c>.</summary>
-internal interface IMinimalResolutionCacheHost : IModuleResolutionHost
+internal partial interface IMinimalResolutionCacheHost : IModuleResolutionHost
 {
 }
 
 /// <summary>ported from types.ts: <c>ModulePath</c>.</summary>
-internal interface IModulePath
+internal partial interface IModulePath
 {
     string? Path { get; set; }
     bool IsInNodeModules { get; set; }
@@ -1246,46 +1238,46 @@ internal interface IModulePath
 }
 
 /// <summary>ported from types.ts: <c>ModuleResolutionHost</c>.</summary>
-internal interface IModuleResolutionHost
+internal partial interface IModuleResolutionHost
 {
     object? UseCaseSensitiveFileNames { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ModuleSpecifierCache</c>.</summary>
-internal interface IModuleSpecifierCache
+internal partial interface IModuleSpecifierCache
 {
 }
 
 /// <summary>ported from types.ts: <c>ModuleSpecifierOptions</c>.</summary>
-internal interface IModuleSpecifierOptions
+internal partial interface IModuleSpecifierOptions
 {
     object? OverrideImportMode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ModuleSpecifierResolutionHost</c>.</summary>
-internal interface IModuleSpecifierResolutionHost
+internal partial interface IModuleSpecifierResolutionHost
 {
     Dictionary<string, List<string>>? RedirectTargetsMap { get; }
 }
 
 /// <summary>ported from types.ts: <c>NamedDeclaration</c>.</summary>
-internal interface INamedDeclaration : IDeclaration
+internal partial interface INamedDeclaration : IDeclaration
 {
     object? Name { get; }
 }
 
 /// <summary>ported from types.ts: <c>NamespaceDeclaration</c>.</summary>
-internal interface INamespaceDeclaration
+internal partial interface INamespaceDeclaration
 {
 }
 
 /// <summary>ported from types.ts: <c>NodeConverters</c>.</summary>
-internal interface INodeConverters
+internal partial interface INodeConverters
 {
 }
 
 /// <summary>ported from types.ts: <c>NodeFactory</c>.</summary>
-internal interface INodeFactory
+internal partial interface INodeFactory
 {
     IParenthesizerRules? Parenthesizer { get; }
     INodeConverters? Converters { get; }
@@ -1294,7 +1286,7 @@ internal interface INodeFactory
 }
 
 /// <summary>ported from types.ts: <c>NodeLinks</c>.</summary>
-internal interface INodeLinks
+internal partial interface INodeLinks
 {
     NodeCheckFlags Flags { get; set; }
     NodeCheckFlags CalculatedFlags { get; set; }
@@ -1337,50 +1329,48 @@ internal interface INodeLinks
 }
 
 /// <summary>ported from types.ts: <c>NodeVisitor</c>.</summary>
-internal interface INodeVisitor
+internal partial interface INodeVisitor
 {
 }
 
 /// <summary>ported from types.ts: <c>NodeWithTypeArguments</c>.</summary>
-internal interface INodeWithTypeArguments : ITypeNode
+internal partial interface INodeWithTypeArguments : ITypeNode
 {
     NodeArray<ITypeNode>? TypeArguments { get; }
 }
 
 /// <summary>ported from types.ts: <c>NodesVisitor</c>.</summary>
-internal interface INodesVisitor
+internal partial interface INodesVisitor
 {
 }
 
 /// <summary>ported from types.ts: <c>NonNullChain</c>.</summary>
-internal interface INonNullChain
+internal partial interface INonNullChain
 {
-    object? _optionalChainBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>NullableType</c>.</summary>
-internal interface INullableType : IIntrinsicType
+internal partial interface INullableType : IIntrinsicType
 {
 }
 
 /// <summary>ported from types.ts: <c>NumberLiteralType</c>.</summary>
-internal interface INumberLiteralType : ILiteralType
+internal partial interface INumberLiteralType : ILiteralType
 {
 }
 
 /// <summary>ported from types.ts: <c>ObjectDestructuringAssignment</c>.</summary>
-internal interface IObjectDestructuringAssignment
+internal partial interface IObjectDestructuringAssignment
 {
 }
 
 /// <summary>ported from types.ts: <c>ObjectLiteralElement</c>.</summary>
-internal interface IObjectLiteralElement : INamedDeclaration
+internal partial interface IObjectLiteralElement : INamedDeclaration
 {
-    object? _objectLiteralBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ObjectType</c>.</summary>
-internal interface IObjectType : IType
+internal partial interface IObjectType : IType
 {
     ObjectFlags ObjectFlags { get; set; }
     Dictionary<string, ISymbol>? Members { get; set; }
@@ -1392,7 +1382,7 @@ internal interface IObjectType : IType
 }
 
 /// <summary>ported from types.ts: <c>PackageId</c>.</summary>
-internal interface IPackageId
+internal partial interface IPackageId
 {
     string? Name { get; set; }
     string? SubModuleName { get; set; }
@@ -1401,17 +1391,17 @@ internal interface IPackageId
 }
 
 /// <summary>ported from types.ts: <c>ParenthesizerRules</c>.</summary>
-internal interface IParenthesizerRules
+internal partial interface IParenthesizerRules
 {
 }
 
 /// <summary>ported from types.ts: <c>ParseConfigHost</c>.</summary>
-internal interface IParseConfigHost : IModuleResolutionHost
+internal partial interface IParseConfigHost : IModuleResolutionHost
 {
 }
 
 /// <summary>ported from types.ts: <c>ParsedCommandLine</c>.</summary>
-internal interface IParsedCommandLine
+internal partial interface IParsedCommandLine
 {
     ICompilerOptions? Options { get; set; }
     ITypeAcquisition? TypeAcquisition { get; set; }
@@ -1425,27 +1415,27 @@ internal interface IParsedCommandLine
 }
 
 /// <summary>ported from types.ts: <c>PatternAmbientModule</c>.</summary>
-internal interface IPatternAmbientModule
+internal partial interface IPatternAmbientModule
 {
     object? Pattern { get; set; }
     ISymbol? Symbol { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>Placeholder</c>.</summary>
-internal interface IPlaceholder
+internal partial interface IPlaceholder
 {
     object? Kind { get; set; }
     int Order { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>PluginImport</c>.</summary>
-internal interface IPluginImport
+internal partial interface IPluginImport
 {
     string? Name { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>PragmaArgumentSpecification</c>.</summary>
-internal interface IPragmaArgumentSpecification<TName>
+internal partial interface IPragmaArgumentSpecification<TName>
 {
     object? Name { get; set; }
     bool? Optional { get; set; }
@@ -1453,30 +1443,29 @@ internal interface IPragmaArgumentSpecification<TName>
 }
 
 /// <summary>ported from types.ts: <c>PragmaContext</c>.</summary>
-internal interface IPragmaContext : IReadonlyPragmaContext
+internal partial interface IPragmaContext : IReadonlyPragmaContext
 {
 }
 
 /// <summary>ported from types.ts: <c>PragmaDefinition</c>.</summary>
-internal interface IPragmaDefinition<T1, T2, T3, T4>
+internal partial interface IPragmaDefinition<T1, T2, T3, T4>
 {
     object? Args { get; set; }
     PragmaKindFlags? Kind { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>PragmaMap</c>.</summary>
-internal interface IPragmaMap : IReadonlyPragmaMap
+internal partial interface IPragmaMap : IReadonlyPragmaMap
 {
 }
 
 /// <summary>ported from types.ts: <c>PrimaryExpression</c>.</summary>
-internal interface IPrimaryExpression
+internal partial interface IPrimaryExpression
 {
-    object? _primaryExpressionBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>PrintHandlers</c>.</summary>
-internal interface IPrintHandlers
+internal partial interface IPrintHandlers
 {
     Action<EmitHint, Node, Action<EmitHint, Node>>? OnEmitSourceMapOfNode { get; set; }
     Func<Node, SyntaxKind, Action<string>, int, Func<SyntaxKind, Action<string>, int, int>, int>? OnEmitSourceMapOfToken { get; set; }
@@ -1491,12 +1480,12 @@ internal interface IPrintHandlers
 }
 
 /// <summary>ported from types.ts: <c>Printer</c>.</summary>
-internal interface IPrinter
+internal partial interface IPrinter
 {
 }
 
 /// <summary>ported from types.ts: <c>PrinterOptions</c>.</summary>
-internal interface IPrinterOptions
+internal partial interface IPrinterOptions
 {
     bool? RemoveComments { get; set; }
     NewLineKind? NewLine { get; set; }
@@ -1518,37 +1507,37 @@ internal interface IPrinterOptions
 }
 
 /// <summary>ported from types.ts: <c>PrivateIdentifierAutoAccessorPropertyDeclaration</c>.</summary>
-internal interface IPrivateIdentifierAutoAccessorPropertyDeclaration
+internal partial interface IPrivateIdentifierAutoAccessorPropertyDeclaration
 {
 }
 
 /// <summary>ported from types.ts: <c>PrivateIdentifierGetAccessorDeclaration</c>.</summary>
-internal interface IPrivateIdentifierGetAccessorDeclaration
+internal partial interface IPrivateIdentifierGetAccessorDeclaration
 {
 }
 
 /// <summary>ported from types.ts: <c>PrivateIdentifierMethodDeclaration</c>.</summary>
-internal interface IPrivateIdentifierMethodDeclaration
+internal partial interface IPrivateIdentifierMethodDeclaration
 {
 }
 
 /// <summary>ported from types.ts: <c>PrivateIdentifierPropertyAccessExpression</c>.</summary>
-internal interface IPrivateIdentifierPropertyAccessExpression
+internal partial interface IPrivateIdentifierPropertyAccessExpression
 {
 }
 
 /// <summary>ported from types.ts: <c>PrivateIdentifierPropertyDeclaration</c>.</summary>
-internal interface IPrivateIdentifierPropertyDeclaration
+internal partial interface IPrivateIdentifierPropertyDeclaration
 {
 }
 
 /// <summary>ported from types.ts: <c>PrivateIdentifierSetAccessorDeclaration</c>.</summary>
-internal interface IPrivateIdentifierSetAccessorDeclaration
+internal partial interface IPrivateIdentifierSetAccessorDeclaration
 {
 }
 
 /// <summary>ported from types.ts: <c>Program</c>.</summary>
-internal interface IProgram : ITypeCheckerHost, IModuleSpecifierResolutionHost, IScriptReferenceHost
+internal partial interface IProgram : ITypeCheckerHost, IModuleSpecifierResolutionHost, IScriptReferenceHost
 {
     Dictionary<string, ModeAwareCache<IResolvedModuleWithFailedLookupLocations>>? ResolvedModules { get; set; }
     Dictionary<string, ModeAwareCache<IResolvedTypeReferenceDirectiveWithFailedLookupLocations>>? ResolvedTypeReferenceDirectiveNames { get; set; }
@@ -1561,7 +1550,7 @@ internal interface IProgram : ITypeCheckerHost, IModuleSpecifierResolutionHost, 
 }
 
 /// <summary>ported from types.ts: <c>ProjectReference</c>.</summary>
-internal interface IProjectReference
+internal partial interface IProjectReference
 {
     string? Path { get; set; }
     string? OriginalPath { get; set; }
@@ -1570,19 +1559,19 @@ internal interface IProjectReference
 }
 
 /// <summary>ported from types.ts: <c>ProjectReferenceFile</c>.</summary>
-internal interface IProjectReferenceFile
+internal partial interface IProjectReferenceFile
 {
     object? Kind { get; set; }
     int Index { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>PrologueDirective</c>.</summary>
-internal interface IPrologueDirective
+internal partial interface IPrologueDirective
 {
 }
 
 /// <summary>ported from types.ts: <c>PromiseOrAwaitableType</c>.</summary>
-internal interface IPromiseOrAwaitableType : IObjectType, IUnionType
+internal partial interface IPromiseOrAwaitableType : IObjectType, IUnionType
 {
     IType? PromiseTypeOfPromiseConstructor { get; set; }
     IType? PromisedTypeOfPromise { get; set; }
@@ -1590,18 +1579,17 @@ internal interface IPromiseOrAwaitableType : IObjectType, IUnionType
 }
 
 /// <summary>ported from types.ts: <c>PropertyAccessChainRoot</c>.</summary>
-internal interface IPropertyAccessChainRoot
+internal partial interface IPropertyAccessChainRoot
 {
 }
 
 /// <summary>ported from types.ts: <c>PropertyAccessEntityNameExpression</c>.</summary>
-internal interface IPropertyAccessEntityNameExpression
+internal partial interface IPropertyAccessEntityNameExpression
 {
-    object? _propertyAccessExpressionLikeQualifiedNameBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>PropertyDescriptorAttributes</c>.</summary>
-internal interface IPropertyDescriptorAttributes
+internal partial interface IPropertyDescriptorAttributes
 {
     object? Enumerable { get; set; }
     object? Configurable { get; set; }
@@ -1612,19 +1600,19 @@ internal interface IPropertyDescriptorAttributes
 }
 
 /// <summary>ported from types.ts: <c>PseudoBigInt</c>.</summary>
-internal interface IPseudoBigInt
+internal partial interface IPseudoBigInt
 {
     bool Negative { get; set; }
     string? Base10Value { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>Queue</c>.</summary>
-internal interface IQueue<T>
+internal partial interface IQueue<T>
 {
 }
 
 /// <summary>ported from types.ts: <c>RawSourceMap</c>.</summary>
-internal interface IRawSourceMap
+internal partial interface IRawSourceMap
 {
     int Version { get; set; }
     string? File { get; set; }
@@ -1636,7 +1624,7 @@ internal interface IRawSourceMap
 }
 
 /// <summary>ported from types.ts: <c>ReadonlyPragmaContext</c>.</summary>
-internal interface IReadonlyPragmaContext
+internal partial interface IReadonlyPragmaContext
 {
     ScriptTarget LanguageVersion { get; set; }
     IReadonlyPragmaMap? Pragmas { get; set; }
@@ -1649,26 +1637,26 @@ internal interface IReadonlyPragmaContext
 }
 
 /// <summary>ported from types.ts: <c>ReadonlyPragmaMap</c>.</summary>
-internal interface IReadonlyPragmaMap
+internal partial interface IReadonlyPragmaMap
 {
 }
 
 /// <summary>ported from types.ts: <c>ReadonlyTextRange</c>.</summary>
-internal interface IReadonlyTextRange
+internal partial interface IReadonlyTextRange
 {
     int Pos { get; }
     int End { get; }
 }
 
 /// <summary>ported from types.ts: <c>RedirectInfo</c>.</summary>
-internal interface IRedirectInfo
+internal partial interface IRedirectInfo
 {
     SourceFile? RedirectTarget { get; }
     SourceFile? Unredirected { get; }
 }
 
 /// <summary>ported from types.ts: <c>ReferenceFileLocation</c>.</summary>
-internal interface IReferenceFileLocation
+internal partial interface IReferenceFileLocation
 {
     SourceFile? File { get; set; }
     int Pos { get; set; }
@@ -1677,7 +1665,7 @@ internal interface IReferenceFileLocation
 }
 
 /// <summary>ported from types.ts: <c>ReferencedFile</c>.</summary>
-internal interface IReferencedFile
+internal partial interface IReferencedFile
 {
     object? Kind { get; set; }
     string? File { get; set; }
@@ -1685,7 +1673,7 @@ internal interface IReferencedFile
 }
 
 /// <summary>ported from types.ts: <c>RepopulateModuleNotFoundDiagnosticChain</c>.</summary>
-internal interface IRepopulateModuleNotFoundDiagnosticChain
+internal partial interface IRepopulateModuleNotFoundDiagnosticChain
 {
     string? ModuleReference { get; set; }
     object? Mode { get; set; }
@@ -1693,42 +1681,42 @@ internal interface IRepopulateModuleNotFoundDiagnosticChain
 }
 
 /// <summary>ported from types.ts: <c>RequireVariableDeclarationList</c>.</summary>
-internal interface IRequireVariableDeclarationList
+internal partial interface IRequireVariableDeclarationList
 {
 }
 
 /// <summary>ported from types.ts: <c>RequireVariableStatement</c>.</summary>
-internal interface IRequireVariableStatement
+internal partial interface IRequireVariableStatement
 {
 }
 
 /// <summary>ported from types.ts: <c>ResolutionDiagnostics</c>.</summary>
-internal interface IResolutionDiagnostics
+internal partial interface IResolutionDiagnostics
 {
     object? Kind { get; set; }
     List<IDiagnostic>? Diagnostics { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ResolutionLoader</c>.</summary>
-internal interface IResolutionLoader<Entry, Resolution, SourceFile>
+internal partial interface IResolutionLoader<Entry, Resolution, SourceFile>
 {
     object? NameAndMode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ResolutionNameAndModeGetter</c>.</summary>
-internal interface IResolutionNameAndModeGetter<Entry, SourceFile>
+internal partial interface IResolutionNameAndModeGetter<Entry, SourceFile>
 {
 }
 
 /// <summary>ported from types.ts: <c>ResolutionWithResolvedFileName</c>.</summary>
-internal interface IResolutionWithResolvedFileName
+internal partial interface IResolutionWithResolvedFileName
 {
     string? ResolvedFileName { get; set; }
     IPackageId? PackageId { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ResolvedModule</c>.</summary>
-internal interface IResolvedModule
+internal partial interface IResolvedModule
 {
     string? ResolvedFileName { get; set; }
     bool? IsExternalLibraryImport { get; set; }
@@ -1736,7 +1724,7 @@ internal interface IResolvedModule
 }
 
 /// <summary>ported from types.ts: <c>ResolvedModuleFull</c>.</summary>
-internal interface IResolvedModuleFull : IResolvedModule
+internal partial interface IResolvedModuleFull : IResolvedModule
 {
     string? OriginalPath { get; }
     string? Extension { get; set; }
@@ -1744,7 +1732,7 @@ internal interface IResolvedModuleFull : IResolvedModule
 }
 
 /// <summary>ported from types.ts: <c>ResolvedModuleSpecifierInfo</c>.</summary>
-internal interface IResolvedModuleSpecifierInfo
+internal partial interface IResolvedModuleSpecifierInfo
 {
     object? Kind { get; set; }
     List<IModulePath>? ModulePaths { get; set; }
@@ -1754,7 +1742,7 @@ internal interface IResolvedModuleSpecifierInfo
 }
 
 /// <summary>ported from types.ts: <c>ResolvedModuleWithFailedLookupLocations</c>.</summary>
-internal interface IResolvedModuleWithFailedLookupLocations
+internal partial interface IResolvedModuleWithFailedLookupLocations
 {
     IResolvedModuleFull? ResolvedModule { get; }
     List<string>? FailedLookupLocations { get; set; }
@@ -1764,7 +1752,7 @@ internal interface IResolvedModuleWithFailedLookupLocations
 }
 
 /// <summary>ported from types.ts: <c>ResolvedProjectReference</c>.</summary>
-internal interface IResolvedProjectReference
+internal partial interface IResolvedProjectReference
 {
     IParsedCommandLine? CommandLine { get; set; }
     SourceFile? SourceFile { get; set; }
@@ -1772,26 +1760,26 @@ internal interface IResolvedProjectReference
 }
 
 /// <summary>ported from types.ts: <c>ResolvedRefAndOutputDts</c>.</summary>
-internal interface IResolvedRefAndOutputDts
+internal partial interface IResolvedRefAndOutputDts
 {
     IResolvedProjectReference? ResolvedRef { get; set; }
     string? OutputDts { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ResolvedRefAndSource</c>.</summary>
-internal interface IResolvedRefAndSource
+internal partial interface IResolvedRefAndSource
 {
     IResolvedProjectReference? ResolvedRef { get; set; }
     string? Source { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ResolvedType</c>.</summary>
-internal interface IResolvedType : IObjectType, IUnionOrIntersectionType
+internal partial interface IResolvedType : IObjectType, IUnionOrIntersectionType
 {
 }
 
 /// <summary>ported from types.ts: <c>ResolvedTypeReferenceDirective</c>.</summary>
-internal interface IResolvedTypeReferenceDirective
+internal partial interface IResolvedTypeReferenceDirective
 {
     bool Primary { get; set; }
     string? ResolvedFileName { get; set; }
@@ -1801,7 +1789,7 @@ internal interface IResolvedTypeReferenceDirective
 }
 
 /// <summary>ported from types.ts: <c>ResolvedTypeReferenceDirectiveWithFailedLookupLocations</c>.</summary>
-internal interface IResolvedTypeReferenceDirectiveWithFailedLookupLocations
+internal partial interface IResolvedTypeReferenceDirectiveWithFailedLookupLocations
 {
     IResolvedTypeReferenceDirective? ResolvedTypeReferenceDirective { get; }
     List<string>? FailedLookupLocations { get; set; }
@@ -1810,12 +1798,12 @@ internal interface IResolvedTypeReferenceDirectiveWithFailedLookupLocations
 }
 
 /// <summary>ported from types.ts: <c>ReverseMappedSymbol</c>.</summary>
-internal interface IReverseMappedSymbol : ITransientSymbol
+internal partial interface IReverseMappedSymbol : ITransientSymbol
 {
 }
 
 /// <summary>ported from types.ts: <c>ReverseMappedSymbolLinks</c>.</summary>
-internal interface IReverseMappedSymbolLinks : ITransientSymbolLinks
+internal partial interface IReverseMappedSymbolLinks : ITransientSymbolLinks
 {
     IType? PropertyType { get; set; }
     IMappedType? MappedType { get; set; }
@@ -1823,7 +1811,7 @@ internal interface IReverseMappedSymbolLinks : ITransientSymbolLinks
 }
 
 /// <summary>ported from types.ts: <c>ReverseMappedType</c>.</summary>
-internal interface IReverseMappedType : IObjectType
+internal partial interface IReverseMappedType : IObjectType
 {
     IType? Source { get; set; }
     IMappedType? MappedType { get; set; }
@@ -1831,24 +1819,24 @@ internal interface IReverseMappedType : IObjectType
 }
 
 /// <summary>ported from types.ts: <c>RootFile</c>.</summary>
-internal interface IRootFile
+internal partial interface IRootFile
 {
     object? Kind { get; set; }
     int Index { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ScopedEmitHelper</c>.</summary>
-internal interface IScopedEmitHelper : IEmitHelperBase
+internal partial interface IScopedEmitHelper : IEmitHelperBase
 {
 }
 
 /// <summary>ported from types.ts: <c>ScriptReferenceHost</c>.</summary>
-internal interface IScriptReferenceHost
+internal partial interface IScriptReferenceHost
 {
 }
 
 /// <summary>ported from types.ts: <c>SerializedTypeEntry</c>.</summary>
-internal interface ISerializedTypeEntry
+internal partial interface ISerializedTypeEntry
 {
     ITypeNode? Node { get; set; }
     bool? Truncating { get; set; }
@@ -1857,7 +1845,7 @@ internal interface ISerializedTypeEntry
 }
 
 /// <summary>ported from types.ts: <c>Signature</c>.</summary>
-internal interface ISignature
+internal partial interface ISignature
 {
     SignatureFlags Flags { get; set; }
     ITypeChecker? Checker { get; set; }
@@ -1882,7 +1870,7 @@ internal interface ISignature
 }
 
 /// <summary>ported from types.ts: <c>SignatureDeclarationBase</c>.</summary>
-internal interface ISignatureDeclarationBase : INamedDeclaration, IJSDocContainer
+internal partial interface ISignatureDeclarationBase : INamedDeclaration, IJSDocContainer
 {
     NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
     NodeArray<ParameterDeclaration>? Parameters { get; }
@@ -1891,7 +1879,7 @@ internal interface ISignatureDeclarationBase : INamedDeclaration, IJSDocContaine
 }
 
 /// <summary>ported from types.ts: <c>SourceFileImportsList</c>.</summary>
-internal interface ISourceFileImportsList
+internal partial interface ISourceFileImportsList
 {
     object? Imports { get; set; }
     object? ModuleAugmentations { get; set; }
@@ -1901,38 +1889,38 @@ internal interface ISourceFileImportsList
 }
 
 /// <summary>ported from types.ts: <c>SourceFileLike</c>.</summary>
-internal interface ISourceFileLike
+internal partial interface ISourceFileLike
 {
     string? Text { get; }
     List<int>? LineMap { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SourceFileMayBeEmittedHost</c>.</summary>
-internal interface ISourceFileMayBeEmittedHost
+internal partial interface ISourceFileMayBeEmittedHost
 {
     object? GetCanonicalFileName { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SourceMapEmitResult</c>.</summary>
-internal interface ISourceMapEmitResult
+internal partial interface ISourceMapEmitResult
 {
     List<string>? InputSourceFileNames { get; set; }
     IRawSourceMap? SourceMap { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SourceMapGenerator</c>.</summary>
-internal interface ISourceMapGenerator
+internal partial interface ISourceMapGenerator
 {
 }
 
 /// <summary>ported from types.ts: <c>SourceMapRange</c>.</summary>
-internal interface ISourceMapRange : ITextRange
+internal partial interface ISourceMapRange : ITextRange
 {
     ISourceMapSource? Source { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SourceMapSource</c>.</summary>
-internal interface ISourceMapSource
+internal partial interface ISourceMapSource
 {
     string? FileName { get; set; }
     string? Text { get; set; }
@@ -1941,7 +1929,7 @@ internal interface ISourceMapSource
 }
 
 /// <summary>ported from types.ts: <c>SourceMapSpan</c>.</summary>
-internal interface ISourceMapSpan
+internal partial interface ISourceMapSpan
 {
     int EmittedLine { get; set; }
     int EmittedColumn { get; set; }
@@ -1952,24 +1940,23 @@ internal interface ISourceMapSpan
 }
 
 /// <summary>ported from types.ts: <c>Statement</c>.</summary>
-internal interface IStatement : IJSDocContainer
+internal partial interface IStatement : IJSDocContainer
 {
-    object? _statementBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>StringLiteralType</c>.</summary>
-internal interface IStringLiteralType : ILiteralType
+internal partial interface IStringLiteralType : ILiteralType
 {
 }
 
 /// <summary>ported from types.ts: <c>StringMappingType</c>.</summary>
-internal interface IStringMappingType : IInstantiableType
+internal partial interface IStringMappingType : IInstantiableType
 {
     IType? Type { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SubstitutionType</c>.</summary>
-internal interface ISubstitutionType : IInstantiableType
+internal partial interface ISubstitutionType : IInstantiableType
 {
     ObjectFlags ObjectFlags { get; set; }
     IType? BaseType { get; set; }
@@ -1977,22 +1964,22 @@ internal interface ISubstitutionType : IInstantiableType
 }
 
 /// <summary>ported from types.ts: <c>SuperCall</c>.</summary>
-internal interface ISuperCall
+internal partial interface ISuperCall
 {
 }
 
 /// <summary>ported from types.ts: <c>SuperElementAccessExpression</c>.</summary>
-internal interface ISuperElementAccessExpression
+internal partial interface ISuperElementAccessExpression
 {
 }
 
 /// <summary>ported from types.ts: <c>SuperPropertyAccessExpression</c>.</summary>
-internal interface ISuperPropertyAccessExpression
+internal partial interface ISuperPropertyAccessExpression
 {
 }
 
 /// <summary>ported from types.ts: <c>Symbol</c>.</summary>
-internal interface ISymbol
+internal partial interface ISymbol
 {
     SymbolFlags Flags { get; set; }
     string? EscapedName { get; set; }
@@ -2013,15 +2000,14 @@ internal interface ISymbol
 }
 
 /// <summary>ported from types.ts: <c>SymbolAccessibilityResult</c>.</summary>
-internal interface ISymbolAccessibilityResult : ISymbolVisibilityResult
+internal partial interface ISymbolAccessibilityResult : ISymbolVisibilityResult
 {
     string? ErrorModuleName { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SymbolLinks</c>.</summary>
-internal interface ISymbolLinks
+internal partial interface ISymbolLinks
 {
-    object? _symbolLinksBrand { get; set; }
     ISymbol? ImmediateTarget { get; set; }
     ISymbol? AliasTarget { get; set; }
     ISymbol? Target { get; set; }
@@ -2066,13 +2052,13 @@ internal interface ISymbolLinks
 }
 
 /// <summary>ported from types.ts: <c>SymbolTracker</c>.</summary>
-internal interface ISymbolTracker
+internal partial interface ISymbolTracker
 {
     IModuleSpecifierResolutionHost? ModuleResolverHost { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SymbolVisibilityResult</c>.</summary>
-internal interface ISymbolVisibilityResult
+internal partial interface ISymbolVisibilityResult
 {
     SymbolAccessibility Accessibility { get; set; }
     List<object?>? AliasesToMakeVisible { get; set; }
@@ -2081,17 +2067,17 @@ internal interface ISymbolVisibilityResult
 }
 
 /// <summary>ported from types.ts: <c>SymbolWalker</c>.</summary>
-internal interface ISymbolWalker
+internal partial interface ISymbolWalker
 {
 }
 
 /// <summary>ported from types.ts: <c>SymbolWriter</c>.</summary>
-internal interface ISymbolWriter
+internal partial interface ISymbolWriter
 {
 }
 
 /// <summary>ported from types.ts: <c>SyntacticNodeBuilder</c>.</summary>
-internal interface ISyntacticNodeBuilder
+internal partial interface ISyntacticNodeBuilder
 {
     Func<object?, ISymbol, ISyntacticTypeNodeBuilderContext, ITypeNode>? SerializeTypeOfDeclaration { get; set; }
     Func<Node, ISymbol, ISyntacticTypeNodeBuilderContext, ITypeNode>? SerializeReturnTypeForSignature { get; set; }
@@ -2101,7 +2087,7 @@ internal interface ISyntacticNodeBuilder
 }
 
 /// <summary>ported from types.ts: <c>SyntacticTypeNodeBuilderContext</c>.</summary>
-internal interface ISyntacticTypeNodeBuilderContext
+internal partial interface ISyntacticTypeNodeBuilderContext
 {
     NodeBuilderFlags Flags { get; set; }
     object? Tracker { get; set; }
@@ -2113,26 +2099,26 @@ internal interface ISyntacticTypeNodeBuilderContext
 }
 
 /// <summary>ported from types.ts: <c>SyntacticTypeNodeBuilderResolver</c>.</summary>
-internal interface ISyntacticTypeNodeBuilderResolver
+internal partial interface ISyntacticTypeNodeBuilderResolver
 {
 }
 
 /// <summary>ported from types.ts: <c>SynthesizedComment</c>.</summary>
-internal interface ISynthesizedComment : ICommentRange
+internal partial interface ISynthesizedComment : ICommentRange
 {
     string? Text { get; set; }
     bool? HasLeadingNewline { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SyntheticDefaultModuleType</c>.</summary>
-internal interface ISyntheticDefaultModuleType : IType
+internal partial interface ISyntheticDefaultModuleType : IType
 {
     IType? SyntheticType { get; set; }
     IType? DefaultOnlyType { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SyntheticReferenceFileLocation</c>.</summary>
-internal interface ISyntheticReferenceFileLocation
+internal partial interface ISyntheticReferenceFileLocation
 {
     SourceFile? File { get; set; }
     IPackageId? PackageId { get; set; }
@@ -2140,102 +2126,102 @@ internal interface ISyntheticReferenceFileLocation
 }
 
 /// <summary>ported from types.ts: <c>TabStop</c>.</summary>
-internal interface ITabStop
+internal partial interface ITabStop
 {
     object? Kind { get; set; }
     int Order { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TemplateLiteralLikeNode</c>.</summary>
-internal interface ITemplateLiteralLikeNode
+internal partial interface ITemplateLiteralLikeNode
 {
     string? RawText { get; set; }
     TokenFlags? TemplateFlags { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TemplateLiteralType</c>.</summary>
-internal interface ITemplateLiteralType : IInstantiableType
+internal partial interface ITemplateLiteralType : IInstantiableType
 {
     List<string>? Texts { get; set; }
     List<IType>? Types { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TextChangeRange</c>.</summary>
-internal interface ITextChangeRange
+internal partial interface ITextChangeRange
 {
     ITextSpan? Span { get; set; }
     int NewLength { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TextRange</c>.</summary>
-internal interface ITextRange
+internal partial interface ITextRange
 {
     int Pos { get; set; }
     int End { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TextSpan</c>.</summary>
-internal interface ITextSpan
+internal partial interface ITextSpan
 {
     int Start { get; set; }
     int Length { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ThisTypePredicate</c>.</summary>
-internal interface IThisTypePredicate : ITypePredicateBase
+internal partial interface IThisTypePredicate : ITypePredicateBase
 {
     object? ParameterName { get; set; }
     object? ParameterIndex { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TransformationContext</c>.</summary>
-internal interface ITransformationContext : ICoreTransformationContext
+internal partial interface ITransformationContext : ICoreTransformationContext
 {
     Func<EmitHint, Node, Node>? OnSubstituteNode { get; set; }
     Action<EmitHint, Node, Action<EmitHint, Node>>? OnEmitNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TransformationResult</c>.</summary>
-internal interface ITransformationResult<T>
+internal partial interface ITransformationResult<T>
 {
     List<object?>? Transformed { get; set; }
     List<IDiagnosticWithLocation>? Diagnostics { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TransientIdentifier</c>.</summary>
-internal interface ITransientIdentifier
+internal partial interface ITransientIdentifier
 {
     ISymbol? ResolvedSymbol { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TransientSymbol</c>.</summary>
-internal interface ITransientSymbol : ISymbol
+internal partial interface ITransientSymbol : ISymbol
 {
     ITransientSymbolLinks? Links { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TransientSymbolLinks</c>.</summary>
-internal interface ITransientSymbolLinks : ISymbolLinks
+internal partial interface ITransientSymbolLinks : ISymbolLinks
 {
     CheckFlags CheckFlags { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TsConfigOnlyOption</c>.</summary>
-internal interface ITsConfigOnlyOption : ICommandLineOptionBase
+internal partial interface ITsConfigOnlyOption : ICommandLineOptionBase
 {
     Dictionary<string, Node>? ElementOptions { get; set; }
     IDidYouMeanOptionsDiagnostics? ExtraKeyDiagnostics { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TsConfigSourceFile</c>.</summary>
-internal interface ITsConfigSourceFile
+internal partial interface ITsConfigSourceFile
 {
     List<string>? ExtendedSourceFiles { get; set; }
     IConfigFileSpecs? ConfigFileSpecs { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TupleType</c>.</summary>
-internal interface ITupleType : IGenericType
+internal partial interface ITupleType : IGenericType
 {
     List<ElementFlags>? ElementFlags { get; set; }
     int MinLength { get; set; }
@@ -2247,12 +2233,12 @@ internal interface ITupleType : IGenericType
 }
 
 /// <summary>ported from types.ts: <c>TupleTypeReference</c>.</summary>
-internal interface ITupleTypeReference : ITypeReference
+internal partial interface ITupleTypeReference : ITypeReference
 {
 }
 
 /// <summary>ported from types.ts: <c>Type</c>.</summary>
-internal interface IType
+internal partial interface IType
 {
     TypeFlags Flags { get; set; }
     int Id { get; set; }
@@ -2268,7 +2254,7 @@ internal interface IType
 }
 
 /// <summary>ported from types.ts: <c>TypeAcquisition</c>.</summary>
-internal interface ITypeAcquisition
+internal partial interface ITypeAcquisition
 {
     bool? Enable { get; set; }
     List<string>? Include { get; set; }
@@ -2277,31 +2263,29 @@ internal interface ITypeAcquisition
 }
 
 /// <summary>ported from types.ts: <c>TypeChecker</c>.</summary>
-internal interface ITypeChecker
+internal partial interface ITypeChecker
 {
     List<Func<ISymbol, List<ISymbol>, IIndexInfo>>? GetIndexInfosOfIndexSymbol { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TypeCheckerHost</c>.</summary>
-internal interface ITypeCheckerHost : IModuleSpecifierResolutionHost, ISourceFileMayBeEmittedHost
+internal partial interface ITypeCheckerHost : IModuleSpecifierResolutionHost, ISourceFileMayBeEmittedHost
 {
 }
 
 /// <summary>ported from types.ts: <c>TypeElement</c>.</summary>
-internal interface ITypeElement : INamedDeclaration
+internal partial interface ITypeElement : INamedDeclaration
 {
-    object? _typeElementBrand { get; set; }
     PunctuationToken? QuestionToken { get; }
 }
 
 /// <summary>ported from types.ts: <c>TypeNode</c>.</summary>
-internal interface ITypeNode
+internal partial interface ITypeNode
 {
-    object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TypeParameter</c>.</summary>
-internal interface ITypeParameter : IInstantiableType
+internal partial interface ITypeParameter : IInstantiableType
 {
     IType? Constraint { get; set; }
     IType? Default { get; set; }
@@ -2312,14 +2296,14 @@ internal interface ITypeParameter : IInstantiableType
 }
 
 /// <summary>ported from types.ts: <c>TypePredicateBase</c>.</summary>
-internal interface ITypePredicateBase
+internal partial interface ITypePredicateBase
 {
     TypePredicateKind Kind { get; set; }
     IType? Type { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TypeReference</c>.</summary>
-internal interface ITypeReference : IObjectType
+internal partial interface ITypeReference : IObjectType
 {
     IGenericType? Target { get; set; }
     Node? Node { get; set; }
@@ -2330,7 +2314,7 @@ internal interface ITypeReference : IObjectType
 }
 
 /// <summary>ported from types.ts: <c>UnionOrIntersectionType</c>.</summary>
-internal interface IUnionOrIntersectionType : IType
+internal partial interface IUnionOrIntersectionType : IType
 {
     List<IType>? Types { get; set; }
     ObjectFlags ObjectFlags { get; set; }
@@ -2343,7 +2327,7 @@ internal interface IUnionOrIntersectionType : IType
 }
 
 /// <summary>ported from types.ts: <c>UnionType</c>.</summary>
-internal interface IUnionType : IUnionOrIntersectionType
+internal partial interface IUnionType : IUnionOrIntersectionType
 {
     IType? ResolvedReducedType { get; set; }
     IUnionType? RegularType { get; set; }
@@ -2354,24 +2338,24 @@ internal interface IUnionType : IUnionOrIntersectionType
 }
 
 /// <summary>ported from types.ts: <c>UniqueESSymbolType</c>.</summary>
-internal interface IUniqueESSymbolType : IType
+internal partial interface IUniqueESSymbolType : IType
 {
     string? EscapedName { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>UniqueTypeOperatorNode</c>.</summary>
-internal interface IUniqueTypeOperatorNode
+internal partial interface IUniqueTypeOperatorNode
 {
 }
 
 /// <summary>ported from types.ts: <c>UnscopedEmitHelper</c>.</summary>
-internal interface IUnscopedEmitHelper : IEmitHelperBase
+internal partial interface IUnscopedEmitHelper : IEmitHelperBase
 {
     string? ImportName { get; }
 }
 
 /// <summary>ported from types.ts: <c>UserPreferences</c>.</summary>
-internal interface IUserPreferences
+internal partial interface IUserPreferences
 {
     bool? DisableSuggestions { get; }
     object? QuotePreference { get; }
@@ -2420,17 +2404,17 @@ internal interface IUserPreferences
 }
 
 /// <summary>ported from types.ts: <c>ValidImportTypeNode</c>.</summary>
-internal interface IValidImportTypeNode
+internal partial interface IValidImportTypeNode
 {
 }
 
 /// <summary>ported from types.ts: <c>VariableDeclarationInitializedTo</c>.</summary>
-internal interface IVariableDeclarationInitializedTo<T>
+internal partial interface IVariableDeclarationInitializedTo<T>
 {
 }
 
 /// <summary>ported from types.ts: <c>WatchOptions</c>.</summary>
-internal interface IWatchOptions
+internal partial interface IWatchOptions
 {
     WatchFileKind? WatchFile { get; set; }
     WatchDirectoryKind? WatchDirectory { get; set; }
@@ -2441,7 +2425,7 @@ internal interface IWatchOptions
 }
 
 /// <summary>ported from types.ts: <c>WideningContext</c>.</summary>
-internal interface IWideningContext
+internal partial interface IWideningContext
 {
     IWideningContext? Parent { get; set; }
     string? PropertyName { get; set; }
@@ -2450,7 +2434,7 @@ internal interface IWideningContext
 }
 
 /// <summary>ported from types.ts: <c>WriteFileCallbackData</c>.</summary>
-internal interface IWriteFileCallbackData
+internal partial interface IWriteFileCallbackData
 {
     int? SourceMapUrlPos { get; set; }
     IBuildInfo? BuildInfo { get; set; }
@@ -2460,7 +2444,7 @@ internal interface IWriteFileCallbackData
 }
 
 /// <summary>ported from types.ts: <c>WriterContextOut</c>.</summary>
-internal interface IWriterContextOut
+internal partial interface IWriterContextOut
 {
     bool CanIncreaseExpansionDepth { get; set; }
     bool Truncated { get; set; }

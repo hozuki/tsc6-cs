@@ -95,7 +95,7 @@ internal static class NodeEmitter
             .ToList();
 
         sb.AppendLine($"/// <summary>ported from types.ts: <c>{iface.Name}</c>.</summary>");
-        sb.Append($"internal interface {mapper.TypeName(iface.Name)}{GenericsOf(iface.TypeParameters)}");
+        sb.Append($"internal partial interface {mapper.TypeName(iface.Name)}{GenericsOf(iface.TypeParameters)}");
         if (bases.Count != 0) sb.Append($" : {string.Join(", ", bases)}");
         sb.AppendLine();
         sb.AppendLine("{");
@@ -137,7 +137,7 @@ internal static class NodeEmitter
             : IsSealed(model, iface.Name) ? "sealed " : "";
 
         sb.AppendLine($"/// <summary>ported from types.ts: <c>{iface.Name}</c>.</summary>");
-        sb.Append($"internal {modifiers}class {iface.Name}{GenericsOf(iface.TypeParameters)} : {baseName}");
+        sb.Append($"internal {modifiers}partial class {iface.Name}{GenericsOf(iface.TypeParameters)} : {baseName}");
         if (implemented.Count != 0) sb.Append($", {string.Join(", ", implemented)}");
         sb.AppendLine();
         sb.AppendLine("{");
@@ -267,10 +267,10 @@ internal static class NodeEmitter
 
     private static bool Skip(TsMember member, bool extendsNode)
     {
-        // `_xxxBrand` exists only to make TS's structural types nominal, and its declared type is literally
-        // `undefined`. `SyntaxList._children` also starts with an underscore but is real state, so this test is on
-        // the type rather than on the name.
-        if (member.Name.StartsWith('_') && member.Type == "undefined") return true;
+        // `_xxxBrand` exists only to make TS's structural types nominal, so those members are dropped. Real state
+        // that happens to start with an underscore (`SyntaxList._children`) is added by the hand-written part of the
+        // partial class instead — see Model/SyntaxList.cs.
+        if (member.Name.StartsWith('_')) return true;
         // `kind` is emitted from the pinned SyntaxKind (or left abstract) on node types; a non-node type that
         // declares it — CommentRange.kind is a CommentKind — keeps it.
         if (member.Name == "kind" && extendsNode) return true;

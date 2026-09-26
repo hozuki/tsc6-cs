@@ -202,7 +202,7 @@ internal static class DiagnosticEmitter
         sb.AppendLine("/// name (capped at 100 characters) plus the code; the port only implements English, so nothing");
         sb.AppendLine("/// resolves through it yet (D6).");
         sb.AppendLine("/// </remarks>");
-        sb.AppendLine("internal static class Diagnostics");
+        sb.AppendLine("internal static partial class Diagnostics");
         sb.AppendLine("{");
         sb.AppendLine("    private static DiagnosticMessage Diag(");
         sb.AppendLine("        int code,");

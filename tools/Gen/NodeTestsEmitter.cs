@@ -41,7 +41,7 @@ internal static class NodeTestsEmitter
         sb.AppendLine("/// PORT-NOTE: these compare <see cref=\"Node.Kind\"/> rather than typing the node, because several of them");
         sb.AppendLine("/// test a kind that shares its C# class with others (all keywords are <c>KeywordToken</c>).");
         sb.AppendLine("/// </remarks>");
-        sb.AppendLine("internal static class NodeTests");
+        sb.AppendLine("internal static partial class NodeTests");
         sb.AppendLine("{");
 
         foreach (var predicate in model.Predicates)

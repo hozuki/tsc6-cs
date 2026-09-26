@@ -43,7 +43,7 @@ internal static class ScannerTablesEmitter
         sb.AppendLine("/// PORT-NOTE: the Unicode range tables are pairs of inclusive code point bounds, exactly as TS writes");
         sb.AppendLine("/// them; <c>UnicodeES5*</c> is used below ES2015 and <c>UnicodeESNext*</c> from ES2015 on.");
         sb.AppendLine("/// </remarks>");
-        sb.AppendLine("internal static class ScannerTables");
+        sb.AppendLine("internal static partial class ScannerTables");
         sb.AppendLine("{");
 
         var keywordTable = Table(model, "textToKeywordObj");

@@ -15,7 +15,7 @@ namespace TypeScript.Compiler;
 /// PORT-NOTE: these compare <see cref="Node.Kind"/> rather than typing the node, because several of them
 /// test a kind that shares its C# class with others (all keywords are <c>KeywordToken</c>).
 /// </remarks>
-internal static class NodeTests
+internal static partial class NodeTests
 {
     // ported from: src/compiler/factory/nodeTests.ts:235
     public static bool IsNumericLiteral(Node node) => node.Kind == SyntaxKind.NumericLiteral;

@@ -19,7 +19,7 @@ namespace TypeScript.Compiler;
 /// name (capped at 100 characters) plus the code; the port only implements English, so nothing
 /// resolves through it yet (D6).
 /// </remarks>
-internal static class Diagnostics
+internal static partial class Diagnostics
 {
     private static DiagnosticMessage Diag(
         int code,

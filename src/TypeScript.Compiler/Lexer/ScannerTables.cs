@@ -16,7 +16,7 @@ namespace TypeScript.Compiler;
 /// PORT-NOTE: the Unicode range tables are pairs of inclusive code point bounds, exactly as TS writes
 /// them; <c>UnicodeES5*</c> is used below ES2015 and <c>UnicodeESNext*</c> from ES2015 on.
 /// </remarks>
-internal static class ScannerTables
+internal static partial class ScannerTables
 {
     // ported from: src/compiler/scanner.ts:135 — TS: `textToKeywordObj`.
     /// <summary>The reserved words, in source order.</summary>

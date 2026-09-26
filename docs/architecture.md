@@ -335,6 +335,7 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 5. **枚举与诊断表**：优先从 TS 源用脚本生成，避免手工抄写出错（`tools/gen`）。
 6. **热路径性能**：checker/emitter 的集合与字符串操作需注意分配；先保证正确，M6 后统一做性能剖析。
 7. **正则用源生成器**：编译期常量模式一律写成 `[GeneratedRegex]` 的 partial 方法（`private static partial Regex Xxx();`），不用 `new Regex(..., RegexOptions.Compiled)`。生成器会为每个模式生成专用的 `RegexRunner`，既没有首次使用的编译开销，也比 `Compiled` 的反射发射更快。模式在运行时才算出来的地方（`Wildcard.GetRegexFromPattern`）只能用 `new Regex`，并在代码处注明原因。
+8. **生成的类型一律 `partial`，手写部分接在另一个文件里**：`tools/Gen` 产出的每个 `class`/`interface`/`static class` 都带 `partial`（enum 不行，也不需要），这样生成器处理不了或不该校死的成员可以放在**同名的另一个文件**里，由编译器合成同一个类型。收益有两处：一是生成器不必为个别成员长特例——`SyntaxList._children` 原本让 `_` 前缀规则开了个口子，现在由 `Model/SyntaxList.cs` 补齐；二是后面几层（M4c 起）遇到"生成的类需要一个辅助方法/额外接口"时，不必改生成器重跑全量。约定：手写文件以**类型名**命名（`Model/SyntaxList.cs`），与生成物（`Model/NodeClasses.cs`）不同名，生成器只覆盖后者。这条不变量由 `GeneratedPartialTests` 守住。
 
 ---
 
@@ -692,4 +693,6 @@ M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质�
 
 两个 bug 是同一类错误：**排除规则按名字匹配，却没有限定它适用的类型范围**。
 
-修完之后的附带变化：`ITextRange` 现在带 `Pos`/`End`，因此 `Node` 需要**同时**实现 `ITextRange` 与 `IReadonlyTextRange` —— TS 靠结构类型让一个节点充当 `TextRange`（`getSourceMapRange` 的回退分支就是这么写的），C# 没有这个能力。`SyntaxList._children` 也不再被下划线规则误删：那条规则改为按类型判定（brand 成员的声明类型字面就是 `undefined`，而 `_children` 是 `readonly Node[]`）。
+修完之后的附带变化：`ITextRange` 现在带 `Pos`/`End`，因此 `Node` 需要**同时**实现 `ITextRange` 与 `IReadonlyTextRange` —— TS 靠结构类型让一个节点充当 `TextRange`（`getSourceMapRange` 的回退分支就是这么写的），C# 没有这个能力。
+
+`SyntaxList._children` 是第三个被迫处理的成员。它一度让下划线规则开了个按类型判定的口子（brand 成员的声明类型字面就是 `undefined`，而 `_children` 是 `readonly Node[]`），但更好的做法是**根本不改生成器**：生成物全部改成 `partial` 之后，`_children` 由 `Model/SyntaxList.cs` 补上（§9 第 8 条），下划线规则恢复成一句"跳过所有下划线成员"。

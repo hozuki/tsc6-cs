@@ -11,7 +11,7 @@
 namespace TypeScript.Compiler;
 
 /// <summary>ported from types.ts: <c>ArrayBindingPattern</c>.</summary>
-internal sealed class ArrayBindingPattern : Node, IReadonlyTextRange
+internal sealed partial class ArrayBindingPattern : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ArrayBindingPattern;
 
@@ -19,26 +19,24 @@ internal sealed class ArrayBindingPattern : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>ArrayLiteralExpression</c>.</summary>
-internal sealed class ArrayLiteralExpression : Node, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class ArrayLiteralExpression : Node, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ArrayLiteralExpression;
 
     public NodeArray<Expression>? Elements { get; }
     public bool? MultiLine { get; set; }
-    public object? _primaryExpressionBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ArrayTypeNode</c>.</summary>
-internal sealed class ArrayTypeNode : Node, IReadonlyTextRange, ITypeNode
+internal sealed partial class ArrayTypeNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.ArrayType;
 
     public ITypeNode? ElementType { get; }
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ArrowFunction</c>.</summary>
-internal sealed class ArrowFunction : Expression, IDeclaration, IFlowContainer, IFunctionLikeDeclarationBase, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase
+internal sealed partial class ArrowFunction : Expression, IDeclaration, IFlowContainer, IFunctionLikeDeclarationBase, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase
 {
     public override SyntaxKind Kind => SyntaxKind.ArrowFunction;
 
@@ -46,7 +44,6 @@ internal sealed class ArrowFunction : Expression, IDeclaration, IFlowContainer, 
     public PunctuationToken? EqualsGreaterThanToken { get; }
     public Node? Body { get; }
     public object? Name { get; }
-    public object? _functionLikeDeclarationBrand { get; set; }
     public PunctuationToken? AsteriskToken { get; }
     public PunctuationToken? QuestionToken { get; }
     public PunctuationToken? ExclamationToken { get; }
@@ -56,15 +53,11 @@ internal sealed class ArrowFunction : Expression, IDeclaration, IFlowContainer, 
     public NodeArray<ParameterDeclaration>? Parameters { get; }
     public ITypeNode? Type { get; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -72,7 +65,7 @@ internal sealed class ArrowFunction : Expression, IDeclaration, IFlowContainer, 
 }
 
 /// <summary>ported from types.ts: <c>AsExpression</c>.</summary>
-internal sealed class AsExpression : Expression, IReadonlyTextRange
+internal sealed partial class AsExpression : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.AsExpression;
 
@@ -81,18 +74,17 @@ internal sealed class AsExpression : Expression, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>AssignmentExpression</c>.</summary>
-internal abstract class AssignmentExpression<TOperator> : BinaryExpression, IDeclaration, IJSDocContainer, IReadonlyTextRange
+internal abstract partial class AssignmentExpression<TOperator> : BinaryExpression, IDeclaration, IJSDocContainer, IReadonlyTextRange
 {
 }
 
 /// <summary>ported from types.ts: <c>AutoAccessorPropertyDeclaration</c>.</summary>
-internal abstract class AutoAccessorPropertyDeclaration : PropertyDeclaration, IClassElement, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
+internal abstract partial class AutoAccessorPropertyDeclaration : PropertyDeclaration, IClassElement, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
 {
-    public object? _autoAccessorBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>AwaitExpression</c>.</summary>
-internal sealed class AwaitExpression : UnaryExpression, IReadonlyTextRange
+internal sealed partial class AwaitExpression : UnaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.AwaitExpression;
 
@@ -100,29 +92,27 @@ internal sealed class AwaitExpression : UnaryExpression, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>BigIntLiteral</c>.</summary>
-internal sealed class BigIntLiteral : LiteralExpression, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class BigIntLiteral : LiteralExpression, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.BigIntLiteral;
 
 }
 
 /// <summary>ported from types.ts: <c>BinaryExpression</c>.</summary>
-internal class BinaryExpression : Expression, IDeclaration, IJSDocContainer, IReadonlyTextRange
+internal partial class BinaryExpression : Expression, IDeclaration, IJSDocContainer, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.BinaryExpression;
 
     public Expression? Left { get; }
     public Token? OperatorToken { get; }
     public Expression? Right { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>BindingElement</c>.</summary>
-internal sealed class BindingElement : Node, IDeclaration, IFlowContainer, INamedDeclaration, IReadonlyTextRange
+internal sealed partial class BindingElement : Node, IDeclaration, IFlowContainer, INamedDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.BindingElement;
 
@@ -130,10 +120,8 @@ internal sealed class BindingElement : Node, IDeclaration, IFlowContainer, IName
     public PunctuationToken? DotDotDotToken { get; }
     public Node? Name { get; }
     public Expression? Initializer { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -141,35 +129,29 @@ internal sealed class BindingElement : Node, IDeclaration, IFlowContainer, IName
 }
 
 /// <summary>ported from types.ts: <c>Block</c>.</summary>
-internal sealed class Block : Node, IJSDocContainer, ILocalsContainer, IReadonlyTextRange, IStatement
+internal sealed partial class Block : Node, IJSDocContainer, ILocalsContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.Block;
 
     public NodeArray<IStatement>? Statements { get; }
     public bool? MultiLine { get; set; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>BreakStatement</c>.</summary>
-internal sealed class BreakStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
+internal sealed partial class BreakStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.BreakStatement;
 
     public Identifier? Label { get; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>Bundle</c>.</summary>
-internal sealed class Bundle : Node, IReadonlyTextRange
+internal sealed partial class Bundle : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.Bundle;
 
@@ -180,13 +162,12 @@ internal sealed class Bundle : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>CallChain</c>.</summary>
-internal abstract class CallChain : CallExpression, IDeclaration, IReadonlyTextRange
+internal abstract partial class CallChain : CallExpression, IDeclaration, IReadonlyTextRange
 {
-    public object? _optionalChainBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>CallExpression</c>.</summary>
-internal class CallExpression : LeftHandSideExpression, IDeclaration, IReadonlyTextRange
+internal partial class CallExpression : LeftHandSideExpression, IDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.CallExpression;
 
@@ -194,13 +175,12 @@ internal class CallExpression : LeftHandSideExpression, IDeclaration, IReadonlyT
     public PunctuationToken? QuestionDotToken { get; }
     public NodeArray<ITypeNode>? TypeArguments { get; }
     public NodeArray<Expression>? Arguments { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>CallSignatureDeclaration</c>.</summary>
-internal sealed class CallSignatureDeclaration : Node, IDeclaration, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase, ITypeElement
+internal sealed partial class CallSignatureDeclaration : Node, IDeclaration, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase, ITypeElement
 {
     public override SyntaxKind Kind => SyntaxKind.CallSignature;
 
@@ -209,73 +189,64 @@ internal sealed class CallSignatureDeclaration : Node, IDeclaration, IJSDocConta
     public NodeArray<ParameterDeclaration>? Parameters { get; }
     public ITypeNode? Type { get; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _typeElementBrand { get; set; }
     public PunctuationToken? QuestionToken { get; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>CaseBlock</c>.</summary>
-internal sealed class CaseBlock : Node, ILocalsContainer, IReadonlyTextRange
+internal sealed partial class CaseBlock : Node, ILocalsContainer, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.CaseBlock;
 
     public NodeArray<object?>? Clauses { get; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>CaseClause</c>.</summary>
-internal sealed class CaseClause : Node, IJSDocContainer, IReadonlyTextRange
+internal sealed partial class CaseClause : Node, IJSDocContainer, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.CaseClause;
 
     public Expression? Expression { get; }
     public NodeArray<IStatement>? Statements { get; }
     public object? FallthroughFlowNode { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>CatchClause</c>.</summary>
-internal sealed class CatchClause : Node, ILocalsContainer, IReadonlyTextRange
+internal sealed partial class CatchClause : Node, ILocalsContainer, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.CatchClause;
 
     public VariableDeclaration? VariableDeclaration { get; }
     public Block? Block { get; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ClassDeclaration</c>.</summary>
-internal sealed class ClassDeclaration : ClassLikeDeclarationBase, IDeclaration, IDeclarationStatement, IJSDocContainer, INamedDeclaration, IReadonlyTextRange, IStatement
+internal sealed partial class ClassDeclaration : ClassLikeDeclarationBase, IDeclaration, IDeclarationStatement, IJSDocContainer, INamedDeclaration, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.ClassDeclaration;
 
     public NodeArray<Node>? Modifiers { get; }
-    public object? _statementBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ClassExpression</c>.</summary>
-internal sealed class ClassExpression : ClassLikeDeclarationBase, IDeclaration, IJSDocContainer, INamedDeclaration, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class ClassExpression : ClassLikeDeclarationBase, IDeclaration, IJSDocContainer, INamedDeclaration, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ClassExpression;
 
     public NodeArray<Node>? Modifiers { get; }
-    public object? _primaryExpressionBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ClassLikeDeclarationBase</c>.</summary>
-internal class ClassLikeDeclarationBase : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
+internal partial class ClassLikeDeclarationBase : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ClassDeclaration | SyntaxKind.ClassExpression;
 
@@ -283,10 +254,8 @@ internal class ClassLikeDeclarationBase : Node, IDeclaration, IJSDocContainer, I
     public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
     public NodeArray<HeritageClause>? HeritageClauses { get; }
     public NodeArray<IClassElement>? Members { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -294,7 +263,7 @@ internal class ClassLikeDeclarationBase : Node, IDeclaration, IJSDocContainer, I
 }
 
 /// <summary>ported from types.ts: <c>ClassStaticBlockDeclaration</c>.</summary>
-internal sealed class ClassStaticBlockDeclaration : Node, IClassElement, IDeclaration, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange
+internal sealed partial class ClassStaticBlockDeclaration : Node, IClassElement, IDeclaration, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ClassStaticBlockDeclaration;
 
@@ -302,20 +271,16 @@ internal sealed class ClassStaticBlockDeclaration : Node, IClassElement, IDeclar
     public object? EndFlowNode { get; set; }
     public object? ReturnFlowNode { get; set; }
     public NodeArray<Node>? Modifiers { get; }
-    public object? _classElementBrand { get; set; }
     public object? Name { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>CommaListExpression</c>.</summary>
-internal sealed class CommaListExpression : Expression, IReadonlyTextRange
+internal sealed partial class CommaListExpression : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.CommaListExpression;
 
@@ -323,7 +288,7 @@ internal sealed class CommaListExpression : Expression, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>ComputedPropertyName</c>.</summary>
-internal sealed class ComputedPropertyName : Node, IReadonlyTextRange
+internal sealed partial class ComputedPropertyName : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ComputedPropertyName;
 
@@ -331,7 +296,7 @@ internal sealed class ComputedPropertyName : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>ConditionalExpression</c>.</summary>
-internal sealed class ConditionalExpression : Expression, IReadonlyTextRange
+internal sealed partial class ConditionalExpression : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ConditionalExpression;
 
@@ -345,7 +310,7 @@ internal sealed class ConditionalExpression : Expression, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>ConditionalTypeNode</c>.</summary>
-internal sealed class ConditionalTypeNode : Node, ILocalsContainer, IReadonlyTextRange, ITypeNode
+internal sealed partial class ConditionalTypeNode : Node, ILocalsContainer, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.ConditionalType;
 
@@ -353,14 +318,12 @@ internal sealed class ConditionalTypeNode : Node, ILocalsContainer, IReadonlyTex
     public ITypeNode? ExtendsType { get; }
     public ITypeNode? TrueType { get; }
     public ITypeNode? FalseType { get; }
-    public object? _typeNodeBrand { get; set; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ConstructSignatureDeclaration</c>.</summary>
-internal sealed class ConstructSignatureDeclaration : Node, IDeclaration, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase, ITypeElement
+internal sealed partial class ConstructSignatureDeclaration : Node, IDeclaration, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase, ITypeElement
 {
     public override SyntaxKind Kind => SyntaxKind.ConstructSignature;
 
@@ -369,20 +332,16 @@ internal sealed class ConstructSignatureDeclaration : Node, IDeclaration, IJSDoc
     public NodeArray<ParameterDeclaration>? Parameters { get; }
     public ITypeNode? Type { get; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _typeElementBrand { get; set; }
     public PunctuationToken? QuestionToken { get; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ConstructorDeclaration</c>.</summary>
-internal sealed class ConstructorDeclaration : Node, IClassElement, IDeclaration, IFunctionLikeDeclarationBase, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase
+internal sealed partial class ConstructorDeclaration : Node, IClassElement, IDeclaration, IFunctionLikeDeclarationBase, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase
 {
     public override SyntaxKind Kind => SyntaxKind.Constructor;
 
@@ -390,7 +349,6 @@ internal sealed class ConstructorDeclaration : Node, IClassElement, IDeclaration
     public Block? Body { get; }
     public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
     public ITypeNode? Type { get; }
-    public object? _functionLikeDeclarationBrand { get; set; }
     public PunctuationToken? AsteriskToken { get; }
     public PunctuationToken? QuestionToken { get; }
     public PunctuationToken? ExclamationToken { get; }
@@ -399,13 +357,9 @@ internal sealed class ConstructorDeclaration : Node, IClassElement, IDeclaration
     public object? Name { get; }
     public NodeArray<ParameterDeclaration>? Parameters { get; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _classElementBrand { get; set; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 
@@ -414,43 +368,36 @@ internal sealed class ConstructorDeclaration : Node, IClassElement, IDeclaration
 }
 
 /// <summary>ported from types.ts: <c>ConstructorTypeNode</c>.</summary>
-internal sealed class ConstructorTypeNode : FunctionOrConstructorTypeNodeBase, IDeclaration, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase, ITypeNode
+internal sealed partial class ConstructorTypeNode : FunctionOrConstructorTypeNodeBase, IDeclaration, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.ConstructorType;
 
     public NodeArray<object?>? Modifiers { get; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ContinueStatement</c>.</summary>
-internal sealed class ContinueStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
+internal sealed partial class ContinueStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.ContinueStatement;
 
     public Identifier? Label { get; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>DebuggerStatement</c>.</summary>
-internal sealed class DebuggerStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
+internal sealed partial class DebuggerStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.DebuggerStatement;
 
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>Decorator</c>.</summary>
-internal sealed class Decorator : Node, IReadonlyTextRange
+internal sealed partial class Decorator : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.Decorator;
 
@@ -458,7 +405,7 @@ internal sealed class Decorator : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>DefaultClause</c>.</summary>
-internal sealed class DefaultClause : Node, IReadonlyTextRange
+internal sealed partial class DefaultClause : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.DefaultClause;
 
@@ -467,7 +414,7 @@ internal sealed class DefaultClause : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>DeleteExpression</c>.</summary>
-internal sealed class DeleteExpression : UnaryExpression, IReadonlyTextRange
+internal sealed partial class DeleteExpression : UnaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.DeleteExpression;
 
@@ -475,25 +422,23 @@ internal sealed class DeleteExpression : UnaryExpression, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>DoStatement</c>.</summary>
-internal sealed class DoStatement : IterationStatement, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
+internal sealed partial class DoStatement : IterationStatement, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.DoStatement;
 
     public Expression? Expression { get; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>DynamicNamedBinaryExpression</c>.</summary>
-internal abstract class DynamicNamedBinaryExpression : BinaryExpression, IDeclaration, IJSDocContainer, IReadonlyTextRange
+internal abstract partial class DynamicNamedBinaryExpression : BinaryExpression, IDeclaration, IJSDocContainer, IReadonlyTextRange
 {
 }
 
 /// <summary>ported from types.ts: <c>DynamicNamedDeclaration</c>.</summary>
-internal abstract class DynamicNamedDeclaration : Node, IDeclaration, INamedDeclaration, IReadonlyTextRange
+internal abstract partial class DynamicNamedDeclaration : Node, IDeclaration, INamedDeclaration, IReadonlyTextRange
 {
     public ComputedPropertyName? Name { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 
@@ -502,51 +447,42 @@ internal abstract class DynamicNamedDeclaration : Node, IDeclaration, INamedDecl
 }
 
 /// <summary>ported from types.ts: <c>ElementAccessChain</c>.</summary>
-internal abstract class ElementAccessChain : ElementAccessExpression, IDeclaration, IFlowContainer, IJSDocContainer, IReadonlyTextRange
+internal abstract partial class ElementAccessChain : ElementAccessExpression, IDeclaration, IFlowContainer, IJSDocContainer, IReadonlyTextRange
 {
-    public object? _optionalChainBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ElementAccessExpression</c>.</summary>
-internal class ElementAccessExpression : MemberExpression, IDeclaration, IFlowContainer, IJSDocContainer, IReadonlyTextRange
+internal partial class ElementAccessExpression : MemberExpression, IDeclaration, IFlowContainer, IJSDocContainer, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ElementAccessExpression;
 
     public LeftHandSideExpression? Expression { get; }
     public PunctuationToken? QuestionDotToken { get; }
     public Expression? ArgumentExpression { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>EmptyStatement</c>.</summary>
-internal sealed class EmptyStatement : Node, IJSDocContainer, IReadonlyTextRange, IStatement
+internal sealed partial class EmptyStatement : Node, IJSDocContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.EmptyStatement;
 
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>EnumDeclaration</c>.</summary>
-internal sealed class EnumDeclaration : Node, IDeclaration, IDeclarationStatement, IJSDocContainer, INamedDeclaration, IReadonlyTextRange, IStatement
+internal sealed partial class EnumDeclaration : Node, IDeclaration, IDeclarationStatement, IJSDocContainer, INamedDeclaration, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.EnumDeclaration;
 
     public NodeArray<Node>? Modifiers { get; }
     public Identifier? Name { get; }
     public NodeArray<EnumMember>? Members { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -554,21 +490,19 @@ internal sealed class EnumDeclaration : Node, IDeclaration, IDeclarationStatemen
 }
 
 /// <summary>ported from types.ts: <c>EnumMember</c>.</summary>
-internal sealed class EnumMember : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
+internal sealed partial class EnumMember : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.EnumMember;
 
     public object? Name { get; }
     public Expression? Initializer { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ExportAssignment</c>.</summary>
-internal sealed class ExportAssignment : Node, IDeclaration, IDeclarationStatement, IJSDocContainer, INamedDeclaration, IReadonlyTextRange, IStatement
+internal sealed partial class ExportAssignment : Node, IDeclaration, IDeclarationStatement, IJSDocContainer, INamedDeclaration, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.ExportAssignment;
 
@@ -576,11 +510,8 @@ internal sealed class ExportAssignment : Node, IDeclaration, IDeclarationStateme
     public bool? IsExportEquals { get; }
     public Expression? Expression { get; }
     public Node? Name { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -588,7 +519,7 @@ internal sealed class ExportAssignment : Node, IDeclaration, IDeclarationStateme
 }
 
 /// <summary>ported from types.ts: <c>ExportDeclaration</c>.</summary>
-internal sealed class ExportDeclaration : Node, IDeclaration, IDeclarationStatement, IJSDocContainer, INamedDeclaration, IReadonlyTextRange, IStatement
+internal sealed partial class ExportDeclaration : Node, IDeclaration, IDeclarationStatement, IJSDocContainer, INamedDeclaration, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.ExportDeclaration;
 
@@ -599,11 +530,8 @@ internal sealed class ExportDeclaration : Node, IDeclaration, IDeclarationStatem
     public IAssertClause? AssertClause { get; }
     public ImportAttributes? Attributes { get; }
     public Node? Name { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -611,17 +539,15 @@ internal sealed class ExportDeclaration : Node, IDeclaration, IDeclarationStatem
 }
 
 /// <summary>ported from types.ts: <c>ExportSpecifier</c>.</summary>
-internal sealed class ExportSpecifier : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
+internal sealed partial class ExportSpecifier : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ExportSpecifier;
 
     public bool IsTypeOnly { get; }
     public Node? PropertyName { get; }
     public Node? Name { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -629,36 +555,31 @@ internal sealed class ExportSpecifier : Node, IDeclaration, IJSDocContainer, INa
 }
 
 /// <summary>ported from types.ts: <c>Expression</c>.</summary>
-internal abstract class Expression : Node, IReadonlyTextRange
+internal abstract partial class Expression : Node, IReadonlyTextRange
 {
-    public object? _expressionBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ExpressionStatement</c>.</summary>
-internal sealed class ExpressionStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
+internal sealed partial class ExpressionStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.ExpressionStatement;
 
     public Expression? Expression { get; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ExpressionWithTypeArguments</c>.</summary>
-internal sealed class ExpressionWithTypeArguments : MemberExpression, INodeWithTypeArguments, IReadonlyTextRange, ITypeNode
+internal sealed partial class ExpressionWithTypeArguments : MemberExpression, INodeWithTypeArguments, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.ExpressionWithTypeArguments;
 
     public LeftHandSideExpression? Expression { get; }
     public NodeArray<ITypeNode>? TypeArguments { get; }
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ExternalModuleReference</c>.</summary>
-internal sealed class ExternalModuleReference : Node, IReadonlyTextRange
+internal sealed partial class ExternalModuleReference : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ExternalModuleReference;
 
@@ -666,66 +587,58 @@ internal sealed class ExternalModuleReference : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>FalseLiteral</c>.</summary>
-internal sealed class FalseLiteral : Node, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class FalseLiteral : Node, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.FalseKeyword;
 
-    public object? _primaryExpressionBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ForInStatement</c>.</summary>
-internal sealed class ForInStatement : IterationStatement, IFlowContainer, IJSDocContainer, ILocalsContainer, IReadonlyTextRange, IStatement
+internal sealed partial class ForInStatement : IterationStatement, IFlowContainer, IJSDocContainer, ILocalsContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.ForInStatement;
 
     public object? Initializer { get; }
     public Expression? Expression { get; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ForOfStatement</c>.</summary>
-internal sealed class ForOfStatement : IterationStatement, IFlowContainer, IJSDocContainer, ILocalsContainer, IReadonlyTextRange, IStatement
+internal sealed partial class ForOfStatement : IterationStatement, IFlowContainer, IJSDocContainer, ILocalsContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.ForOfStatement;
 
     public KeywordToken? AwaitModifier { get; }
     public object? Initializer { get; }
     public Expression? Expression { get; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ForStatement</c>.</summary>
-internal sealed class ForStatement : IterationStatement, IFlowContainer, IJSDocContainer, ILocalsContainer, IReadonlyTextRange, IStatement
+internal sealed partial class ForStatement : IterationStatement, IFlowContainer, IJSDocContainer, ILocalsContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.ForStatement;
 
     public object? Initializer { get; }
     public Expression? Condition { get; }
     public Expression? Incrementor { get; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>FunctionDeclaration</c>.</summary>
-internal sealed class FunctionDeclaration : Node, IDeclaration, IDeclarationStatement, IFunctionLikeDeclarationBase, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase, IStatement
+internal sealed partial class FunctionDeclaration : Node, IDeclaration, IDeclarationStatement, IFunctionLikeDeclarationBase, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.FunctionDeclaration;
 
     public NodeArray<Node>? Modifiers { get; }
     public Identifier? Name { get; }
     public Block? Body { get; }
-    public object? _functionLikeDeclarationBrand { get; set; }
     public PunctuationToken? AsteriskToken { get; }
     public PunctuationToken? QuestionToken { get; }
     public PunctuationToken? ExclamationToken { get; }
@@ -735,13 +648,9 @@ internal sealed class FunctionDeclaration : Node, IDeclaration, IDeclarationStat
     public NodeArray<ParameterDeclaration>? Parameters { get; }
     public ITypeNode? Type { get; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _statementBrand { get; set; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 
@@ -751,15 +660,13 @@ internal sealed class FunctionDeclaration : Node, IDeclaration, IDeclarationStat
 }
 
 /// <summary>ported from types.ts: <c>FunctionExpression</c>.</summary>
-internal sealed class FunctionExpression : Node, IDeclaration, IFlowContainer, IFunctionLikeDeclarationBase, IJSDocContainer, ILocalsContainer, INamedDeclaration, IPrimaryExpression, IReadonlyTextRange, ISignatureDeclarationBase
+internal sealed partial class FunctionExpression : Node, IDeclaration, IFlowContainer, IFunctionLikeDeclarationBase, IJSDocContainer, ILocalsContainer, INamedDeclaration, IPrimaryExpression, IReadonlyTextRange, ISignatureDeclarationBase
 {
     public override SyntaxKind Kind => SyntaxKind.FunctionExpression;
 
     public NodeArray<object?>? Modifiers { get; }
     public Identifier? Name { get; }
     public Block? Body { get; }
-    public object? _primaryExpressionBrand { get; set; }
-    public object? _functionLikeDeclarationBrand { get; set; }
     public PunctuationToken? AsteriskToken { get; }
     public PunctuationToken? QuestionToken { get; }
     public PunctuationToken? ExclamationToken { get; }
@@ -769,15 +676,11 @@ internal sealed class FunctionExpression : Node, IDeclaration, IFlowContainer, I
     public NodeArray<ParameterDeclaration>? Parameters { get; }
     public ITypeNode? Type { get; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -786,20 +689,17 @@ internal sealed class FunctionExpression : Node, IDeclaration, IFlowContainer, I
 }
 
 /// <summary>ported from types.ts: <c>FunctionOrConstructorTypeNodeBase</c>.</summary>
-internal class FunctionOrConstructorTypeNodeBase : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase, ITypeNode
+internal partial class FunctionOrConstructorTypeNodeBase : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.FunctionType | SyntaxKind.ConstructorType;
 
     public ITypeNode? Type { get; }
-    public object? _typeNodeBrand { get; set; }
     public object? Name { get; }
     public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
     public NodeArray<ParameterDeclaration>? Parameters { get; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -807,18 +707,17 @@ internal class FunctionOrConstructorTypeNodeBase : Node, IDeclaration, IJSDocCon
 }
 
 /// <summary>ported from types.ts: <c>FunctionTypeNode</c>.</summary>
-internal sealed class FunctionTypeNode : FunctionOrConstructorTypeNodeBase, IDeclaration, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase, ITypeNode
+internal sealed partial class FunctionTypeNode : FunctionOrConstructorTypeNodeBase, IDeclaration, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.FunctionType;
 
     public object? Modifiers { get; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>GetAccessorDeclaration</c>.</summary>
-internal sealed class GetAccessorDeclaration : Node, IClassElement, IDeclaration, IFlowContainer, IFunctionLikeDeclarationBase, IJSDocContainer, ILocalsContainer, INamedDeclaration, IObjectLiteralElement, IReadonlyTextRange, ISignatureDeclarationBase, ITypeElement
+internal sealed partial class GetAccessorDeclaration : Node, IClassElement, IDeclaration, IFlowContainer, IFunctionLikeDeclarationBase, IJSDocContainer, ILocalsContainer, INamedDeclaration, IObjectLiteralElement, IReadonlyTextRange, ISignatureDeclarationBase, ITypeElement
 {
     public override SyntaxKind Kind => SyntaxKind.GetAccessor;
 
@@ -826,7 +725,6 @@ internal sealed class GetAccessorDeclaration : Node, IClassElement, IDeclaration
     public object? Name { get; }
     public Block? Body { get; }
     public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
-    public object? _functionLikeDeclarationBrand { get; set; }
     public PunctuationToken? AsteriskToken { get; }
     public PunctuationToken? QuestionToken { get; }
     public PunctuationToken? ExclamationToken { get; }
@@ -835,18 +733,11 @@ internal sealed class GetAccessorDeclaration : Node, IClassElement, IDeclaration
     public NodeArray<ParameterDeclaration>? Parameters { get; }
     public ITypeNode? Type { get; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _classElementBrand { get; set; }
-    public object? _typeElementBrand { get; set; }
-    public object? _objectLiteralBrand { get; set; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -854,7 +745,7 @@ internal sealed class GetAccessorDeclaration : Node, IClassElement, IDeclaration
 }
 
 /// <summary>ported from types.ts: <c>HeritageClause</c>.</summary>
-internal sealed class HeritageClause : Node, IReadonlyTextRange
+internal sealed partial class HeritageClause : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.HeritageClause;
 
@@ -863,38 +754,31 @@ internal sealed class HeritageClause : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>Identifier</c>.</summary>
-internal sealed class Identifier : Node, IDeclaration, IFlowContainer, IJSDocContainer, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class Identifier : Node, IDeclaration, IFlowContainer, IJSDocContainer, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.Identifier;
 
     public string? EscapedText { get; }
-    public object? _primaryExpressionBrand { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>IfStatement</c>.</summary>
-internal sealed class IfStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
+internal sealed partial class IfStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.IfStatement;
 
     public Expression? Expression { get; }
     public IStatement? ThenStatement { get; }
     public IStatement? ElseStatement { get; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ImportAttribute</c>.</summary>
-internal sealed class ImportAttribute : Node, IReadonlyTextRange
+internal sealed partial class ImportAttribute : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ImportAttribute;
 
@@ -903,7 +787,7 @@ internal sealed class ImportAttribute : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>ImportAttributes</c>.</summary>
-internal sealed class ImportAttributes : Node, IReadonlyTextRange
+internal sealed partial class ImportAttributes : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ImportAttributes;
 
@@ -913,7 +797,7 @@ internal sealed class ImportAttributes : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>ImportClause</c>.</summary>
-internal sealed class ImportClause : Node, IDeclaration, INamedDeclaration, IReadonlyTextRange
+internal sealed partial class ImportClause : Node, IDeclaration, INamedDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ImportClause;
 
@@ -921,7 +805,6 @@ internal sealed class ImportClause : Node, IDeclaration, INamedDeclaration, IRea
     public SyntaxKind PhaseModifier { get; }
     public Identifier? Name { get; }
     public object? NamedBindings { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 
@@ -930,7 +813,7 @@ internal sealed class ImportClause : Node, IDeclaration, INamedDeclaration, IRea
 }
 
 /// <summary>ported from types.ts: <c>ImportDeclaration</c>.</summary>
-internal sealed class ImportDeclaration : Node, IJSDocContainer, IReadonlyTextRange, IStatement
+internal sealed partial class ImportDeclaration : Node, IJSDocContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.ImportDeclaration;
 
@@ -939,13 +822,11 @@ internal sealed class ImportDeclaration : Node, IJSDocContainer, IReadonlyTextRa
     public Expression? ModuleSpecifier { get; }
     public IAssertClause? AssertClause { get; }
     public ImportAttributes? Attributes { get; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ImportEqualsDeclaration</c>.</summary>
-internal sealed class ImportEqualsDeclaration : Node, IDeclaration, IDeclarationStatement, IJSDocContainer, INamedDeclaration, IReadonlyTextRange, IStatement
+internal sealed partial class ImportEqualsDeclaration : Node, IDeclaration, IDeclarationStatement, IJSDocContainer, INamedDeclaration, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.ImportEqualsDeclaration;
 
@@ -953,11 +834,8 @@ internal sealed class ImportEqualsDeclaration : Node, IDeclaration, IDeclaration
     public Identifier? Name { get; }
     public bool IsTypeOnly { get; }
     public object? ModuleReference { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -965,22 +843,20 @@ internal sealed class ImportEqualsDeclaration : Node, IDeclaration, IDeclaration
 }
 
 /// <summary>ported from types.ts: <c>ImportExpression</c>.</summary>
-internal sealed class ImportExpression : Node, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class ImportExpression : Node, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ImportKeyword;
 
-    public object? _primaryExpressionBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ImportSpecifier</c>.</summary>
-internal sealed class ImportSpecifier : Node, IDeclaration, INamedDeclaration, IReadonlyTextRange
+internal sealed partial class ImportSpecifier : Node, IDeclaration, INamedDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ImportSpecifier;
 
     public Node? PropertyName { get; }
     public Identifier? Name { get; }
     public bool IsTypeOnly { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 
@@ -989,7 +865,7 @@ internal sealed class ImportSpecifier : Node, IDeclaration, INamedDeclaration, I
 }
 
 /// <summary>ported from types.ts: <c>ImportTypeAssertionContainer</c>.</summary>
-internal sealed class ImportTypeAssertionContainer : Node, IReadonlyTextRange
+internal sealed partial class ImportTypeAssertionContainer : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ImportTypeAssertionContainer;
 
@@ -998,7 +874,7 @@ internal sealed class ImportTypeAssertionContainer : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>ImportTypeNode</c>.</summary>
-internal sealed class ImportTypeNode : Node, INodeWithTypeArguments, IReadonlyTextRange, ITypeNode
+internal sealed partial class ImportTypeNode : Node, INodeWithTypeArguments, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.ImportType;
 
@@ -1008,11 +884,10 @@ internal sealed class ImportTypeNode : Node, INodeWithTypeArguments, IReadonlyTe
     public ImportAttributes? Attributes { get; }
     public Node? Qualifier { get; }
     public NodeArray<ITypeNode>? TypeArguments { get; }
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>IndexSignatureDeclaration</c>.</summary>
-internal sealed class IndexSignatureDeclaration : Node, IClassElement, IDeclaration, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase, ITypeElement
+internal sealed partial class IndexSignatureDeclaration : Node, IClassElement, IDeclaration, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase, ITypeElement
 {
     public override SyntaxKind Kind => SyntaxKind.IndexSignature;
 
@@ -1022,15 +897,10 @@ internal sealed class IndexSignatureDeclaration : Node, IClassElement, IDeclarat
     public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
     public NodeArray<ParameterDeclaration>? Parameters { get; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _classElementBrand { get; set; }
-    public object? _typeElementBrand { get; set; }
     public PunctuationToken? QuestionToken { get; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 
@@ -1039,26 +909,24 @@ internal sealed class IndexSignatureDeclaration : Node, IClassElement, IDeclarat
 }
 
 /// <summary>ported from types.ts: <c>IndexedAccessTypeNode</c>.</summary>
-internal sealed class IndexedAccessTypeNode : Node, IReadonlyTextRange, ITypeNode
+internal sealed partial class IndexedAccessTypeNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.IndexedAccessType;
 
     public ITypeNode? ObjectType { get; }
     public ITypeNode? IndexType { get; }
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>InferTypeNode</c>.</summary>
-internal sealed class InferTypeNode : Node, IReadonlyTextRange, ITypeNode
+internal sealed partial class InferTypeNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.InferType;
 
     public TypeParameterDeclaration? TypeParameter { get; }
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>InterfaceDeclaration</c>.</summary>
-internal sealed class InterfaceDeclaration : Node, IDeclaration, IDeclarationStatement, IJSDocContainer, INamedDeclaration, IReadonlyTextRange, IStatement
+internal sealed partial class InterfaceDeclaration : Node, IDeclaration, IDeclarationStatement, IJSDocContainer, INamedDeclaration, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.InterfaceDeclaration;
 
@@ -1067,11 +935,8 @@ internal sealed class InterfaceDeclaration : Node, IDeclaration, IDeclarationSta
     public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
     public NodeArray<HeritageClause>? HeritageClauses { get; }
     public NodeArray<ITypeElement>? Members { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -1079,25 +944,22 @@ internal sealed class InterfaceDeclaration : Node, IDeclaration, IDeclarationSta
 }
 
 /// <summary>ported from types.ts: <c>IntersectionTypeNode</c>.</summary>
-internal sealed class IntersectionTypeNode : Node, IReadonlyTextRange, ITypeNode
+internal sealed partial class IntersectionTypeNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.IntersectionType;
 
     public NodeArray<ITypeNode>? Types { get; }
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>IterationStatement</c>.</summary>
-internal abstract class IterationStatement : Node, IJSDocContainer, IReadonlyTextRange, IStatement
+internal abstract partial class IterationStatement : Node, IJSDocContainer, IReadonlyTextRange, IStatement
 {
     public IStatement? Statement { get; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDoc</c>.</summary>
-internal sealed class JSDoc : Node, IReadonlyTextRange
+internal sealed partial class JSDoc : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDoc;
 
@@ -1106,14 +968,14 @@ internal sealed class JSDoc : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JSDocAllType</c>.</summary>
-internal sealed class JSDocAllType : JSDocType, IReadonlyTextRange, ITypeNode
+internal sealed partial class JSDocAllType : JSDocType, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocAllType;
 
 }
 
 /// <summary>ported from types.ts: <c>JSDocAugmentsTag</c>.</summary>
-internal sealed class JSDocAugmentsTag : JSDocTag, IReadonlyTextRange
+internal sealed partial class JSDocAugmentsTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocAugmentsTag;
 
@@ -1121,24 +983,22 @@ internal sealed class JSDocAugmentsTag : JSDocTag, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JSDocAuthorTag</c>.</summary>
-internal sealed class JSDocAuthorTag : JSDocTag, IReadonlyTextRange
+internal sealed partial class JSDocAuthorTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocAuthorTag;
 
 }
 
 /// <summary>ported from types.ts: <c>JSDocCallbackTag</c>.</summary>
-internal sealed class JSDocCallbackTag : JSDocTag, IDeclaration, ILocalsContainer, INamedDeclaration, IReadonlyTextRange
+internal sealed partial class JSDocCallbackTag : JSDocTag, IDeclaration, ILocalsContainer, INamedDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocCallbackTag;
 
     public Node? FullName { get; }
     public Identifier? Name { get; }
     public JSDocSignature? TypeExpression { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 
@@ -1147,35 +1007,33 @@ internal sealed class JSDocCallbackTag : JSDocTag, IDeclaration, ILocalsContaine
 }
 
 /// <summary>ported from types.ts: <c>JSDocClassTag</c>.</summary>
-internal sealed class JSDocClassTag : JSDocTag, IReadonlyTextRange
+internal sealed partial class JSDocClassTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocClassTag;
 
 }
 
 /// <summary>ported from types.ts: <c>JSDocDeprecatedTag</c>.</summary>
-internal sealed class JSDocDeprecatedTag : JSDocTag, IReadonlyTextRange
+internal sealed partial class JSDocDeprecatedTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocDeprecatedTag;
 
 }
 
 /// <summary>ported from types.ts: <c>JSDocEnumTag</c>.</summary>
-internal sealed class JSDocEnumTag : JSDocTag, IDeclaration, ILocalsContainer, IReadonlyTextRange
+internal sealed partial class JSDocEnumTag : JSDocTag, IDeclaration, ILocalsContainer, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocEnumTag;
 
     public JSDocTypeExpression? TypeExpression { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocFunctionType</c>.</summary>
-internal sealed class JSDocFunctionType : JSDocType, IDeclaration, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase, ITypeNode
+internal sealed partial class JSDocFunctionType : JSDocType, IDeclaration, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocFunctionType;
 
@@ -1184,18 +1042,15 @@ internal sealed class JSDocFunctionType : JSDocType, IDeclaration, IJSDocContain
     public NodeArray<ParameterDeclaration>? Parameters { get; }
     public ITypeNode? Type { get; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocImplementsTag</c>.</summary>
-internal sealed class JSDocImplementsTag : JSDocTag, IReadonlyTextRange
+internal sealed partial class JSDocImplementsTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocImplementsTag;
 
@@ -1203,7 +1058,7 @@ internal sealed class JSDocImplementsTag : JSDocTag, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JSDocImportTag</c>.</summary>
-internal sealed class JSDocImportTag : JSDocTag, IReadonlyTextRange
+internal sealed partial class JSDocImportTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocImportTag;
 
@@ -1213,7 +1068,7 @@ internal sealed class JSDocImportTag : JSDocTag, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JSDocLink</c>.</summary>
-internal sealed class JSDocLink : Node, IReadonlyTextRange
+internal sealed partial class JSDocLink : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocLink;
 
@@ -1222,7 +1077,7 @@ internal sealed class JSDocLink : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JSDocLinkCode</c>.</summary>
-internal sealed class JSDocLinkCode : Node, IReadonlyTextRange
+internal sealed partial class JSDocLinkCode : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocLinkCode;
 
@@ -1231,7 +1086,7 @@ internal sealed class JSDocLinkCode : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JSDocLinkPlain</c>.</summary>
-internal sealed class JSDocLinkPlain : Node, IReadonlyTextRange
+internal sealed partial class JSDocLinkPlain : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocLinkPlain;
 
@@ -1240,7 +1095,7 @@ internal sealed class JSDocLinkPlain : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JSDocMemberName</c>.</summary>
-internal sealed class JSDocMemberName : Node, IReadonlyTextRange
+internal sealed partial class JSDocMemberName : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocMemberName;
 
@@ -1249,7 +1104,7 @@ internal sealed class JSDocMemberName : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JSDocNameReference</c>.</summary>
-internal sealed class JSDocNameReference : Node, IReadonlyTextRange
+internal sealed partial class JSDocNameReference : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocNameReference;
 
@@ -1257,7 +1112,7 @@ internal sealed class JSDocNameReference : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JSDocNamepathType</c>.</summary>
-internal sealed class JSDocNamepathType : JSDocType, IReadonlyTextRange, ITypeNode
+internal sealed partial class JSDocNamepathType : JSDocType, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocNamepathType;
 
@@ -1265,7 +1120,7 @@ internal sealed class JSDocNamepathType : JSDocType, IReadonlyTextRange, ITypeNo
 }
 
 /// <summary>ported from types.ts: <c>JSDocNonNullableType</c>.</summary>
-internal sealed class JSDocNonNullableType : JSDocType, IReadonlyTextRange, ITypeNode
+internal sealed partial class JSDocNonNullableType : JSDocType, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocNonNullableType;
 
@@ -1274,7 +1129,7 @@ internal sealed class JSDocNonNullableType : JSDocType, IReadonlyTextRange, ITyp
 }
 
 /// <summary>ported from types.ts: <c>JSDocNullableType</c>.</summary>
-internal sealed class JSDocNullableType : JSDocType, IReadonlyTextRange, ITypeNode
+internal sealed partial class JSDocNullableType : JSDocType, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocNullableType;
 
@@ -1283,7 +1138,7 @@ internal sealed class JSDocNullableType : JSDocType, IReadonlyTextRange, ITypeNo
 }
 
 /// <summary>ported from types.ts: <c>JSDocOptionalType</c>.</summary>
-internal sealed class JSDocOptionalType : JSDocType, IReadonlyTextRange, ITypeNode
+internal sealed partial class JSDocOptionalType : JSDocType, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocOptionalType;
 
@@ -1291,7 +1146,7 @@ internal sealed class JSDocOptionalType : JSDocType, IReadonlyTextRange, ITypeNo
 }
 
 /// <summary>ported from types.ts: <c>JSDocOverloadTag</c>.</summary>
-internal sealed class JSDocOverloadTag : JSDocTag, IReadonlyTextRange
+internal sealed partial class JSDocOverloadTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocOverloadTag;
 
@@ -1299,68 +1154,67 @@ internal sealed class JSDocOverloadTag : JSDocTag, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JSDocOverrideTag</c>.</summary>
-internal sealed class JSDocOverrideTag : JSDocTag, IReadonlyTextRange
+internal sealed partial class JSDocOverrideTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocOverrideTag;
 
 }
 
 /// <summary>ported from types.ts: <c>JSDocParameterTag</c>.</summary>
-internal sealed class JSDocParameterTag : JSDocPropertyLikeTag, IDeclaration, IReadonlyTextRange
+internal sealed partial class JSDocParameterTag : JSDocPropertyLikeTag, IDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocParameterTag;
 
 }
 
 /// <summary>ported from types.ts: <c>JSDocPrivateTag</c>.</summary>
-internal sealed class JSDocPrivateTag : JSDocTag, IReadonlyTextRange
+internal sealed partial class JSDocPrivateTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocPrivateTag;
 
 }
 
 /// <summary>ported from types.ts: <c>JSDocPropertyLikeTag</c>.</summary>
-internal abstract class JSDocPropertyLikeTag : JSDocTag, IDeclaration, IReadonlyTextRange
+internal abstract partial class JSDocPropertyLikeTag : JSDocTag, IDeclaration, IReadonlyTextRange
 {
     public Node? Name { get; }
     public JSDocTypeExpression? TypeExpression { get; }
     public bool IsNameFirst { get; }
     public bool IsBracketed { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocPropertyTag</c>.</summary>
-internal sealed class JSDocPropertyTag : JSDocPropertyLikeTag, IDeclaration, IReadonlyTextRange
+internal sealed partial class JSDocPropertyTag : JSDocPropertyLikeTag, IDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocPropertyTag;
 
 }
 
 /// <summary>ported from types.ts: <c>JSDocProtectedTag</c>.</summary>
-internal sealed class JSDocProtectedTag : JSDocTag, IReadonlyTextRange
+internal sealed partial class JSDocProtectedTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocProtectedTag;
 
 }
 
 /// <summary>ported from types.ts: <c>JSDocPublicTag</c>.</summary>
-internal sealed class JSDocPublicTag : JSDocTag, IReadonlyTextRange
+internal sealed partial class JSDocPublicTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocPublicTag;
 
 }
 
 /// <summary>ported from types.ts: <c>JSDocReadonlyTag</c>.</summary>
-internal sealed class JSDocReadonlyTag : JSDocTag, IReadonlyTextRange
+internal sealed partial class JSDocReadonlyTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocReadonlyTag;
 
 }
 
 /// <summary>ported from types.ts: <c>JSDocReturnTag</c>.</summary>
-internal sealed class JSDocReturnTag : JSDocTag, IReadonlyTextRange
+internal sealed partial class JSDocReturnTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocReturnTag;
 
@@ -1368,7 +1222,7 @@ internal sealed class JSDocReturnTag : JSDocTag, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JSDocSatisfiesTag</c>.</summary>
-internal sealed class JSDocSatisfiesTag : JSDocTag, IReadonlyTextRange
+internal sealed partial class JSDocSatisfiesTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocSatisfiesTag;
 
@@ -1376,7 +1230,7 @@ internal sealed class JSDocSatisfiesTag : JSDocTag, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JSDocSeeTag</c>.</summary>
-internal sealed class JSDocSeeTag : JSDocTag, IReadonlyTextRange
+internal sealed partial class JSDocSeeTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocSeeTag;
 
@@ -1384,32 +1238,29 @@ internal sealed class JSDocSeeTag : JSDocTag, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JSDocSignature</c>.</summary>
-internal sealed class JSDocSignature : JSDocType, IDeclaration, IJSDocContainer, ILocalsContainer, IReadonlyTextRange, ITypeNode
+internal sealed partial class JSDocSignature : JSDocType, IDeclaration, IJSDocContainer, ILocalsContainer, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocSignature;
 
     public List<JSDocTemplateTag>? TypeParameters { get; }
     public List<JSDocParameterTag>? Parameters { get; }
     public JSDocReturnTag? Type { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocTag</c>.</summary>
-internal abstract class JSDocTag : Node, IReadonlyTextRange
+internal abstract partial class JSDocTag : Node, IReadonlyTextRange
 {
     public Identifier? TagName { get; }
     public object? Comment { get; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocTemplateTag</c>.</summary>
-internal sealed class JSDocTemplateTag : JSDocTag, IReadonlyTextRange
+internal sealed partial class JSDocTemplateTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocTemplateTag;
 
@@ -1418,7 +1269,7 @@ internal sealed class JSDocTemplateTag : JSDocTag, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JSDocText</c>.</summary>
-internal sealed class JSDocText : Node, IReadonlyTextRange
+internal sealed partial class JSDocText : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocText;
 
@@ -1426,7 +1277,7 @@ internal sealed class JSDocText : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JSDocThisTag</c>.</summary>
-internal sealed class JSDocThisTag : JSDocTag, IReadonlyTextRange
+internal sealed partial class JSDocThisTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocThisTag;
 
@@ -1434,7 +1285,7 @@ internal sealed class JSDocThisTag : JSDocTag, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JSDocThrowsTag</c>.</summary>
-internal sealed class JSDocThrowsTag : JSDocTag, IReadonlyTextRange
+internal sealed partial class JSDocThrowsTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocThrowsTag;
 
@@ -1442,35 +1293,31 @@ internal sealed class JSDocThrowsTag : JSDocTag, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JSDocType</c>.</summary>
-internal abstract class JSDocType : Node, IReadonlyTextRange, ITypeNode
+internal abstract partial class JSDocType : Node, IReadonlyTextRange, ITypeNode
 {
-    public object? _jsDocTypeBrand { get; set; }
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocTypeExpression</c>.</summary>
-internal sealed class JSDocTypeExpression : Node, IReadonlyTextRange, ITypeNode
+internal sealed partial class JSDocTypeExpression : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocTypeExpression;
 
     public ITypeNode? Type { get; }
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocTypeLiteral</c>.</summary>
-internal sealed class JSDocTypeLiteral : JSDocType, IDeclaration, IReadonlyTextRange, ITypeNode
+internal sealed partial class JSDocTypeLiteral : JSDocType, IDeclaration, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocTypeLiteral;
 
     public List<JSDocPropertyLikeTag>? JsDocPropertyTags { get; }
     public bool IsArrayType { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocTypeTag</c>.</summary>
-internal sealed class JSDocTypeTag : JSDocTag, IReadonlyTextRange
+internal sealed partial class JSDocTypeTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocTypeTag;
 
@@ -1478,17 +1325,15 @@ internal sealed class JSDocTypeTag : JSDocTag, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JSDocTypedefTag</c>.</summary>
-internal sealed class JSDocTypedefTag : JSDocTag, IDeclaration, ILocalsContainer, INamedDeclaration, IReadonlyTextRange
+internal sealed partial class JSDocTypedefTag : JSDocTag, IDeclaration, ILocalsContainer, INamedDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocTypedefTag;
 
     public Node? FullName { get; }
     public Identifier? Name { get; }
     public Node? TypeExpression { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 
@@ -1497,21 +1342,21 @@ internal sealed class JSDocTypedefTag : JSDocTag, IDeclaration, ILocalsContainer
 }
 
 /// <summary>ported from types.ts: <c>JSDocUnknownTag</c>.</summary>
-internal sealed class JSDocUnknownTag : JSDocTag, IReadonlyTextRange
+internal sealed partial class JSDocUnknownTag : JSDocTag, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocTag;
 
 }
 
 /// <summary>ported from types.ts: <c>JSDocUnknownType</c>.</summary>
-internal sealed class JSDocUnknownType : JSDocType, IReadonlyTextRange, ITypeNode
+internal sealed partial class JSDocUnknownType : JSDocType, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocUnknownType;
 
 }
 
 /// <summary>ported from types.ts: <c>JSDocVariadicType</c>.</summary>
-internal sealed class JSDocVariadicType : JSDocType, IReadonlyTextRange, ITypeNode
+internal sealed partial class JSDocVariadicType : JSDocType, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocVariadicType;
 
@@ -1519,43 +1364,40 @@ internal sealed class JSDocVariadicType : JSDocType, IReadonlyTextRange, ITypeNo
 }
 
 /// <summary>ported from types.ts: <c>JsonMinusNumericLiteral</c>.</summary>
-internal sealed class JsonMinusNumericLiteral : PrefixUnaryExpression, IReadonlyTextRange
+internal sealed partial class JsonMinusNumericLiteral : PrefixUnaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.PrefixUnaryExpression;
 
 }
 
 /// <summary>ported from types.ts: <c>JsonSourceFile</c>.</summary>
-internal abstract class JsonSourceFile : SourceFile, IDeclaration, ILocalsContainer, IReadonlyPragmaContext, IReadonlyTextRange
+internal abstract partial class JsonSourceFile : SourceFile, IDeclaration, ILocalsContainer, IReadonlyPragmaContext, IReadonlyTextRange
 {
 }
 
 /// <summary>ported from types.ts: <c>JsxAttribute</c>.</summary>
-internal sealed class JsxAttribute : Node, IDeclaration, IReadonlyTextRange
+internal sealed partial class JsxAttribute : Node, IDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxAttribute;
 
     public object? Name { get; }
     public object? Initializer { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JsxAttributes</c>.</summary>
-internal sealed class JsxAttributes : Node, IDeclaration, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class JsxAttributes : Node, IDeclaration, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxAttributes;
 
     public NodeArray<object?>? Properties { get; }
-    public object? _primaryExpressionBrand { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JsxClosingElement</c>.</summary>
-internal sealed class JsxClosingElement : Node, IReadonlyTextRange
+internal sealed partial class JsxClosingElement : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxClosingElement;
 
@@ -1563,25 +1405,24 @@ internal sealed class JsxClosingElement : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JsxClosingFragment</c>.</summary>
-internal sealed class JsxClosingFragment : Expression, IReadonlyTextRange
+internal sealed partial class JsxClosingFragment : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxClosingFragment;
 
 }
 
 /// <summary>ported from types.ts: <c>JsxElement</c>.</summary>
-internal sealed class JsxElement : Node, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class JsxElement : Node, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxElement;
 
     public JsxOpeningElement? OpeningElement { get; }
     public NodeArray<object?>? Children { get; }
     public JsxClosingElement? ClosingElement { get; }
-    public object? _primaryExpressionBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JsxExpression</c>.</summary>
-internal sealed class JsxExpression : Expression, IReadonlyTextRange
+internal sealed partial class JsxExpression : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxExpression;
 
@@ -1590,18 +1431,17 @@ internal sealed class JsxExpression : Expression, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JsxFragment</c>.</summary>
-internal sealed class JsxFragment : Node, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class JsxFragment : Node, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxFragment;
 
     public JsxOpeningFragment? OpeningFragment { get; }
     public NodeArray<object?>? Children { get; }
     public JsxClosingFragment? ClosingFragment { get; }
-    public object? _primaryExpressionBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JsxNamespacedName</c>.</summary>
-internal sealed class JsxNamespacedName : Node, IReadonlyTextRange
+internal sealed partial class JsxNamespacedName : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxNamespacedName;
 
@@ -1610,7 +1450,7 @@ internal sealed class JsxNamespacedName : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JsxOpeningElement</c>.</summary>
-internal sealed class JsxOpeningElement : Expression, IReadonlyTextRange
+internal sealed partial class JsxOpeningElement : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxOpeningElement;
 
@@ -1620,38 +1460,35 @@ internal sealed class JsxOpeningElement : Expression, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>JsxOpeningFragment</c>.</summary>
-internal sealed class JsxOpeningFragment : Expression, IReadonlyTextRange
+internal sealed partial class JsxOpeningFragment : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxOpeningFragment;
 
 }
 
 /// <summary>ported from types.ts: <c>JsxSelfClosingElement</c>.</summary>
-internal sealed class JsxSelfClosingElement : Node, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class JsxSelfClosingElement : Node, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxSelfClosingElement;
 
     public object? TagName { get; }
     public NodeArray<ITypeNode>? TypeArguments { get; }
     public JsxAttributes? Attributes { get; }
-    public object? _primaryExpressionBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JsxSpreadAttribute</c>.</summary>
-internal sealed class JsxSpreadAttribute : Node, IDeclaration, INamedDeclaration, IObjectLiteralElement, IReadonlyTextRange
+internal sealed partial class JsxSpreadAttribute : Node, IDeclaration, INamedDeclaration, IObjectLiteralElement, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxSpreadAttribute;
 
     public Expression? Expression { get; }
-    public object? _objectLiteralBrand { get; set; }
     public object? Name { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JsxText</c>.</summary>
-internal sealed class JsxText : LiteralLikeNode, IReadonlyTextRange
+internal sealed partial class JsxText : LiteralLikeNode, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.JsxText;
 
@@ -1659,34 +1496,28 @@ internal sealed class JsxText : LiteralLikeNode, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>LabeledStatement</c>.</summary>
-internal sealed class LabeledStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
+internal sealed partial class LabeledStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.LabeledStatement;
 
     public Identifier? Label { get; }
     public IStatement? Statement { get; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>LeftHandSideExpression</c>.</summary>
-internal abstract class LeftHandSideExpression : UpdateExpression, IReadonlyTextRange
+internal abstract partial class LeftHandSideExpression : UpdateExpression, IReadonlyTextRange
 {
-    public object? _leftHandSideExpressionBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>LiteralExpression</c>.</summary>
-internal abstract class LiteralExpression : LiteralLikeNode, IPrimaryExpression, IReadonlyTextRange
+internal abstract partial class LiteralExpression : LiteralLikeNode, IPrimaryExpression, IReadonlyTextRange
 {
-    public object? _literalExpressionBrand { get; set; }
-    public object? _primaryExpressionBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>LiteralLikeNode</c>.</summary>
-internal abstract class LiteralLikeNode : Node, IReadonlyTextRange
+internal abstract partial class LiteralLikeNode : Node, IReadonlyTextRange
 {
     public string? Text { get; set; }
     public bool? IsUnterminated { get; set; }
@@ -1694,16 +1525,15 @@ internal abstract class LiteralLikeNode : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>LiteralTypeNode</c>.</summary>
-internal sealed class LiteralTypeNode : Node, IReadonlyTextRange, ITypeNode
+internal sealed partial class LiteralTypeNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.LiteralType;
 
     public Node? Literal { get; }
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>MappedTypeNode</c>.</summary>
-internal sealed class MappedTypeNode : Node, IDeclaration, ILocalsContainer, IReadonlyTextRange, ITypeNode
+internal sealed partial class MappedTypeNode : Node, IDeclaration, ILocalsContainer, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.MappedType;
 
@@ -1713,35 +1543,29 @@ internal sealed class MappedTypeNode : Node, IDeclaration, ILocalsContainer, IRe
     public Node? QuestionToken { get; }
     public ITypeNode? Type { get; }
     public NodeArray<ITypeElement>? Members { get; }
-    public object? _typeNodeBrand { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>MemberExpression</c>.</summary>
-internal abstract class MemberExpression : LeftHandSideExpression, IReadonlyTextRange
+internal abstract partial class MemberExpression : LeftHandSideExpression, IReadonlyTextRange
 {
-    public object? _memberExpressionBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>MetaProperty</c>.</summary>
-internal sealed class MetaProperty : Node, IFlowContainer, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class MetaProperty : Node, IFlowContainer, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.MetaProperty;
 
     public SyntaxKind KeywordToken { get; }
     public Identifier? Name { get; }
-    public object? _primaryExpressionBrand { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>MethodDeclaration</c>.</summary>
-internal sealed class MethodDeclaration : Node, IClassElement, IDeclaration, IFlowContainer, IFunctionLikeDeclarationBase, IJSDocContainer, ILocalsContainer, INamedDeclaration, IObjectLiteralElement, IReadonlyTextRange, ISignatureDeclarationBase
+internal sealed partial class MethodDeclaration : Node, IClassElement, IDeclaration, IFlowContainer, IFunctionLikeDeclarationBase, IJSDocContainer, ILocalsContainer, INamedDeclaration, IObjectLiteralElement, IReadonlyTextRange, ISignatureDeclarationBase
 {
     public override SyntaxKind Kind => SyntaxKind.MethodDeclaration;
 
@@ -1749,7 +1573,6 @@ internal sealed class MethodDeclaration : Node, IClassElement, IDeclaration, IFl
     public object? Name { get; }
     public Block? Body { get; }
     public PunctuationToken? ExclamationToken { get; }
-    public object? _functionLikeDeclarationBrand { get; set; }
     public PunctuationToken? AsteriskToken { get; }
     public PunctuationToken? QuestionToken { get; }
     public object? EndFlowNode { get; set; }
@@ -1758,17 +1581,11 @@ internal sealed class MethodDeclaration : Node, IClassElement, IDeclaration, IFl
     public NodeArray<ParameterDeclaration>? Parameters { get; }
     public ITypeNode? Type { get; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _classElementBrand { get; set; }
-    public object? _objectLiteralBrand { get; set; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -1776,7 +1593,7 @@ internal sealed class MethodDeclaration : Node, IClassElement, IDeclaration, IFl
 }
 
 /// <summary>ported from types.ts: <c>MethodSignature</c>.</summary>
-internal sealed class MethodSignature : Node, IDeclaration, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase, ITypeElement
+internal sealed partial class MethodSignature : Node, IDeclaration, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, ISignatureDeclarationBase, ITypeElement
 {
     public override SyntaxKind Kind => SyntaxKind.MethodSignature;
 
@@ -1786,69 +1603,55 @@ internal sealed class MethodSignature : Node, IDeclaration, IJSDocContainer, ILo
     public NodeArray<ParameterDeclaration>? Parameters { get; }
     public ITypeNode? Type { get; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _typeElementBrand { get; set; }
     public PunctuationToken? QuestionToken { get; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>MissingDeclaration</c>.</summary>
-internal sealed class MissingDeclaration : Node, IDeclaration, IDeclarationStatement, IJSDocContainer, INamedDeclaration, IPrimaryExpression, IReadonlyTextRange, IStatement
+internal sealed partial class MissingDeclaration : Node, IDeclaration, IDeclarationStatement, IJSDocContainer, INamedDeclaration, IPrimaryExpression, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.MissingDeclaration;
 
     public Identifier? Name { get; }
     public NodeArray<Node>? Modifiers { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _primaryExpressionBrand { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
     object? INamedDeclaration.Name => Name;
 }
 
 /// <summary>ported from types.ts: <c>ModuleBlock</c>.</summary>
-internal sealed class ModuleBlock : Node, IJSDocContainer, IReadonlyTextRange, IStatement
+internal sealed partial class ModuleBlock : Node, IJSDocContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.ModuleBlock;
 
     public NodeArray<IStatement>? Statements { get; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ModuleDeclaration</c>.</summary>
-internal sealed class ModuleDeclaration : Node, IDeclaration, IDeclarationStatement, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, IStatement
+internal sealed partial class ModuleDeclaration : Node, IDeclaration, IDeclarationStatement, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.ModuleDeclaration;
 
     public NodeArray<Node>? Modifiers { get; }
     public object? Name { get; }
     public Node? Body { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>NamedExports</c>.</summary>
-internal sealed class NamedExports : Node, IReadonlyTextRange
+internal sealed partial class NamedExports : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.NamedExports;
 
@@ -1856,7 +1659,7 @@ internal sealed class NamedExports : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>NamedImports</c>.</summary>
-internal sealed class NamedImports : Node, IReadonlyTextRange
+internal sealed partial class NamedImports : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.NamedImports;
 
@@ -1864,7 +1667,7 @@ internal sealed class NamedImports : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>NamedTupleMember</c>.</summary>
-internal sealed class NamedTupleMember : Node, IDeclaration, IJSDocContainer, IReadonlyTextRange, ITypeNode
+internal sealed partial class NamedTupleMember : Node, IDeclaration, IJSDocContainer, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.NamedTupleMember;
 
@@ -1872,21 +1675,17 @@ internal sealed class NamedTupleMember : Node, IDeclaration, IJSDocContainer, IR
     public Identifier? Name { get; }
     public Token? QuestionToken { get; }
     public ITypeNode? Type { get; }
-    public object? _typeNodeBrand { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>NamespaceExport</c>.</summary>
-internal sealed class NamespaceExport : Node, IDeclaration, INamedDeclaration, IReadonlyTextRange
+internal sealed partial class NamespaceExport : Node, IDeclaration, INamedDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.NamespaceExport;
 
     public Node? Name { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 
@@ -1895,17 +1694,14 @@ internal sealed class NamespaceExport : Node, IDeclaration, INamedDeclaration, I
 }
 
 /// <summary>ported from types.ts: <c>NamespaceExportDeclaration</c>.</summary>
-internal sealed class NamespaceExportDeclaration : Node, IDeclaration, IDeclarationStatement, IJSDocContainer, INamedDeclaration, IReadonlyTextRange, IStatement
+internal sealed partial class NamespaceExportDeclaration : Node, IDeclaration, IDeclarationStatement, IJSDocContainer, INamedDeclaration, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.NamespaceExportDeclaration;
 
     public Identifier? Name { get; }
     public NodeArray<Node>? Modifiers { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -1913,12 +1709,11 @@ internal sealed class NamespaceExportDeclaration : Node, IDeclaration, IDeclarat
 }
 
 /// <summary>ported from types.ts: <c>NamespaceImport</c>.</summary>
-internal sealed class NamespaceImport : Node, IDeclaration, INamedDeclaration, IReadonlyTextRange
+internal sealed partial class NamespaceImport : Node, IDeclaration, INamedDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.NamespaceImport;
 
     public Identifier? Name { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 
@@ -1927,33 +1722,30 @@ internal sealed class NamespaceImport : Node, IDeclaration, INamedDeclaration, I
 }
 
 /// <summary>ported from types.ts: <c>NewExpression</c>.</summary>
-internal sealed class NewExpression : Node, IDeclaration, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class NewExpression : Node, IDeclaration, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.NewExpression;
 
     public LeftHandSideExpression? Expression { get; }
     public NodeArray<ITypeNode>? TypeArguments { get; }
     public NodeArray<Expression>? Arguments { get; }
-    public object? _primaryExpressionBrand { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>NoSubstitutionTemplateLiteral</c>.</summary>
-internal sealed class NoSubstitutionTemplateLiteral : LiteralExpression, IDeclaration, IPrimaryExpression, IReadonlyTextRange, ITemplateLiteralLikeNode
+internal sealed partial class NoSubstitutionTemplateLiteral : LiteralExpression, IDeclaration, IPrimaryExpression, IReadonlyTextRange, ITemplateLiteralLikeNode
 {
     public override SyntaxKind Kind => SyntaxKind.NoSubstitutionTemplateLiteral;
 
     public TokenFlags? TemplateFlags { get; set; }
     public string? RawText { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>NonNullExpression</c>.</summary>
-internal sealed class NonNullExpression : LeftHandSideExpression, IReadonlyTextRange
+internal sealed partial class NonNullExpression : LeftHandSideExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.NonNullExpression;
 
@@ -1961,49 +1753,43 @@ internal sealed class NonNullExpression : LeftHandSideExpression, IReadonlyTextR
 }
 
 /// <summary>ported from types.ts: <c>NotEmittedStatement</c>.</summary>
-internal sealed class NotEmittedStatement : Node, IJSDocContainer, IReadonlyTextRange, IStatement
+internal sealed partial class NotEmittedStatement : Node, IJSDocContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.NotEmittedStatement;
 
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>NotEmittedTypeElement</c>.</summary>
-internal sealed class NotEmittedTypeElement : Node, IDeclaration, INamedDeclaration, IReadonlyTextRange, ITypeElement
+internal sealed partial class NotEmittedTypeElement : Node, IDeclaration, INamedDeclaration, IReadonlyTextRange, ITypeElement
 {
     public override SyntaxKind Kind => SyntaxKind.NotEmittedTypeElement;
 
-    public object? _typeElementBrand { get; set; }
     public object? Name { get; }
     public PunctuationToken? QuestionToken { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>NullLiteral</c>.</summary>
-internal sealed class NullLiteral : Node, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class NullLiteral : Node, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.NullKeyword;
 
-    public object? _primaryExpressionBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>NumericLiteral</c>.</summary>
-internal sealed class NumericLiteral : LiteralExpression, IDeclaration, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class NumericLiteral : LiteralExpression, IDeclaration, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.NumericLiteral;
 
     public TokenFlags NumericLiteralFlags { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ObjectBindingPattern</c>.</summary>
-internal sealed class ObjectBindingPattern : Node, IReadonlyTextRange
+internal sealed partial class ObjectBindingPattern : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ObjectBindingPattern;
 
@@ -2011,43 +1797,39 @@ internal sealed class ObjectBindingPattern : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>ObjectLiteralExpression</c>.</summary>
-internal sealed class ObjectLiteralExpression : ObjectLiteralExpressionBase<object?>, IDeclaration, IJSDocContainer, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class ObjectLiteralExpression : ObjectLiteralExpressionBase<object?>, IDeclaration, IJSDocContainer, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ObjectLiteralExpression;
 
     public bool? MultiLine { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ObjectLiteralExpressionBase</c>.</summary>
-internal abstract class ObjectLiteralExpressionBase<T> : Node, IDeclaration, IPrimaryExpression, IReadonlyTextRange
+internal abstract partial class ObjectLiteralExpressionBase<T> : Node, IDeclaration, IPrimaryExpression, IReadonlyTextRange
 {
     public NodeArray<object?>? Properties { get; }
-    public object? _primaryExpressionBrand { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>OmittedExpression</c>.</summary>
-internal sealed class OmittedExpression : Expression, IReadonlyTextRange
+internal sealed partial class OmittedExpression : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.OmittedExpression;
 
 }
 
 /// <summary>ported from types.ts: <c>OptionalTypeNode</c>.</summary>
-internal sealed class OptionalTypeNode : Node, IReadonlyTextRange, ITypeNode
+internal sealed partial class OptionalTypeNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.OptionalType;
 
     public ITypeNode? Type { get; }
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ParameterDeclaration</c>.</summary>
-internal sealed class ParameterDeclaration : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
+internal sealed partial class ParameterDeclaration : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.Parameter;
 
@@ -2057,10 +1839,8 @@ internal sealed class ParameterDeclaration : Node, IDeclaration, IJSDocContainer
     public PunctuationToken? QuestionToken { get; }
     public ITypeNode? Type { get; }
     public Expression? Initializer { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -2068,27 +1848,24 @@ internal sealed class ParameterDeclaration : Node, IDeclaration, IJSDocContainer
 }
 
 /// <summary>ported from types.ts: <c>ParenthesizedExpression</c>.</summary>
-internal sealed class ParenthesizedExpression : Node, IJSDocContainer, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class ParenthesizedExpression : Node, IJSDocContainer, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ParenthesizedExpression;
 
     public Expression? Expression { get; }
-    public object? _primaryExpressionBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ParenthesizedTypeNode</c>.</summary>
-internal sealed class ParenthesizedTypeNode : Node, IReadonlyTextRange, ITypeNode
+internal sealed partial class ParenthesizedTypeNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.ParenthesizedType;
 
     public ITypeNode? Type { get; }
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>PartiallyEmittedExpression</c>.</summary>
-internal sealed class PartiallyEmittedExpression : LeftHandSideExpression, IReadonlyTextRange
+internal sealed partial class PartiallyEmittedExpression : LeftHandSideExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.PartiallyEmittedExpression;
 
@@ -2096,7 +1873,7 @@ internal sealed class PartiallyEmittedExpression : LeftHandSideExpression, IRead
 }
 
 /// <summary>ported from types.ts: <c>PostfixUnaryExpression</c>.</summary>
-internal sealed class PostfixUnaryExpression : UpdateExpression, IReadonlyTextRange
+internal sealed partial class PostfixUnaryExpression : UpdateExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.PostfixUnaryExpression;
 
@@ -2105,7 +1882,7 @@ internal sealed class PostfixUnaryExpression : UpdateExpression, IReadonlyTextRa
 }
 
 /// <summary>ported from types.ts: <c>PrefixUnaryExpression</c>.</summary>
-internal class PrefixUnaryExpression : UpdateExpression, IReadonlyTextRange
+internal partial class PrefixUnaryExpression : UpdateExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.PrefixUnaryExpression;
 
@@ -2114,34 +1891,29 @@ internal class PrefixUnaryExpression : UpdateExpression, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>PrivateIdentifier</c>.</summary>
-internal sealed class PrivateIdentifier : Node, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class PrivateIdentifier : Node, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.PrivateIdentifier;
 
     public string? EscapedText { get; }
-    public object? _primaryExpressionBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>PropertyAccessChain</c>.</summary>
-internal abstract class PropertyAccessChain : PropertyAccessExpression, IDeclaration, IFlowContainer, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
+internal abstract partial class PropertyAccessChain : PropertyAccessExpression, IDeclaration, IFlowContainer, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
 {
-    public object? _optionalChainBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>PropertyAccessExpression</c>.</summary>
-internal class PropertyAccessExpression : MemberExpression, IDeclaration, IFlowContainer, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
+internal partial class PropertyAccessExpression : MemberExpression, IDeclaration, IFlowContainer, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.PropertyAccessExpression;
 
     public LeftHandSideExpression? Expression { get; }
     public PunctuationToken? QuestionDotToken { get; }
     public Node? Name { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -2149,7 +1921,7 @@ internal class PropertyAccessExpression : MemberExpression, IDeclaration, IFlowC
 }
 
 /// <summary>ported from types.ts: <c>PropertyAssignment</c>.</summary>
-internal sealed class PropertyAssignment : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IObjectLiteralElement, IReadonlyTextRange
+internal sealed partial class PropertyAssignment : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IObjectLiteralElement, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.PropertyAssignment;
 
@@ -2158,16 +1930,13 @@ internal sealed class PropertyAssignment : Node, IDeclaration, IJSDocContainer, 
     public NodeArray<Node>? Modifiers { get; }
     public PunctuationToken? QuestionToken { get; }
     public PunctuationToken? ExclamationToken { get; }
-    public object? _objectLiteralBrand { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>PropertyDeclaration</c>.</summary>
-internal class PropertyDeclaration : Node, IClassElement, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
+internal partial class PropertyDeclaration : Node, IClassElement, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.PropertyDeclaration;
 
@@ -2177,16 +1946,13 @@ internal class PropertyDeclaration : Node, IClassElement, IDeclaration, IJSDocCo
     public PunctuationToken? ExclamationToken { get; }
     public ITypeNode? Type { get; }
     public Expression? Initializer { get; }
-    public object? _classElementBrand { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>PropertySignature</c>.</summary>
-internal sealed class PropertySignature : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange, ITypeElement
+internal sealed partial class PropertySignature : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange, ITypeElement
 {
     public override SyntaxKind Kind => SyntaxKind.PropertySignature;
 
@@ -2195,56 +1961,48 @@ internal sealed class PropertySignature : Node, IDeclaration, IJSDocContainer, I
     public PunctuationToken? QuestionToken { get; }
     public ITypeNode? Type { get; }
     public Expression? Initializer { get; }
-    public object? _typeElementBrand { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>QualifiedName</c>.</summary>
-internal sealed class QualifiedName : Node, IFlowContainer, IReadonlyTextRange
+internal sealed partial class QualifiedName : Node, IFlowContainer, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.QualifiedName;
 
     public Node? Left { get; }
     public Identifier? Right { get; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>RegularExpressionLiteral</c>.</summary>
-internal sealed class RegularExpressionLiteral : LiteralExpression, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class RegularExpressionLiteral : LiteralExpression, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.RegularExpressionLiteral;
 
 }
 
 /// <summary>ported from types.ts: <c>RestTypeNode</c>.</summary>
-internal sealed class RestTypeNode : Node, IReadonlyTextRange, ITypeNode
+internal sealed partial class RestTypeNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.RestType;
 
     public ITypeNode? Type { get; }
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ReturnStatement</c>.</summary>
-internal sealed class ReturnStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
+internal sealed partial class ReturnStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.ReturnStatement;
 
     public Expression? Expression { get; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SatisfiesExpression</c>.</summary>
-internal sealed class SatisfiesExpression : Expression, IReadonlyTextRange
+internal sealed partial class SatisfiesExpression : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.SatisfiesExpression;
 
@@ -2253,21 +2011,18 @@ internal sealed class SatisfiesExpression : Expression, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>SemicolonClassElement</c>.</summary>
-internal sealed class SemicolonClassElement : Node, IClassElement, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
+internal sealed partial class SemicolonClassElement : Node, IClassElement, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.SemicolonClassElement;
 
-    public object? _classElementBrand { get; set; }
     public object? Name { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SetAccessorDeclaration</c>.</summary>
-internal sealed class SetAccessorDeclaration : Node, IClassElement, IDeclaration, IFlowContainer, IFunctionLikeDeclarationBase, IJSDocContainer, ILocalsContainer, INamedDeclaration, IObjectLiteralElement, IReadonlyTextRange, ISignatureDeclarationBase, ITypeElement
+internal sealed partial class SetAccessorDeclaration : Node, IClassElement, IDeclaration, IFlowContainer, IFunctionLikeDeclarationBase, IJSDocContainer, ILocalsContainer, INamedDeclaration, IObjectLiteralElement, IReadonlyTextRange, ISignatureDeclarationBase, ITypeElement
 {
     public override SyntaxKind Kind => SyntaxKind.SetAccessor;
 
@@ -2276,7 +2031,6 @@ internal sealed class SetAccessorDeclaration : Node, IClassElement, IDeclaration
     public Block? Body { get; }
     public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
     public ITypeNode? Type { get; }
-    public object? _functionLikeDeclarationBrand { get; set; }
     public PunctuationToken? AsteriskToken { get; }
     public PunctuationToken? QuestionToken { get; }
     public PunctuationToken? ExclamationToken { get; }
@@ -2284,18 +2038,11 @@ internal sealed class SetAccessorDeclaration : Node, IClassElement, IDeclaration
     public object? ReturnFlowNode { get; set; }
     public NodeArray<ParameterDeclaration>? Parameters { get; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _classElementBrand { get; set; }
-    public object? _typeElementBrand { get; set; }
-    public object? _objectLiteralBrand { get; set; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -2303,7 +2050,7 @@ internal sealed class SetAccessorDeclaration : Node, IClassElement, IDeclaration
 }
 
 /// <summary>ported from types.ts: <c>ShorthandPropertyAssignment</c>.</summary>
-internal sealed class ShorthandPropertyAssignment : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IObjectLiteralElement, IReadonlyTextRange
+internal sealed partial class ShorthandPropertyAssignment : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IObjectLiteralElement, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ShorthandPropertyAssignment;
 
@@ -2313,11 +2060,8 @@ internal sealed class ShorthandPropertyAssignment : Node, IDeclaration, IJSDocCo
     public NodeArray<Node>? Modifiers { get; }
     public PunctuationToken? QuestionToken { get; }
     public PunctuationToken? ExclamationToken { get; }
-    public object? _objectLiteralBrand { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -2325,7 +2069,7 @@ internal sealed class ShorthandPropertyAssignment : Node, IDeclaration, IJSDocCo
 }
 
 /// <summary>ported from types.ts: <c>SourceFile</c>.</summary>
-internal abstract class SourceFile : Node, IDeclaration, ILocalsContainer, IReadonlyPragmaContext, IReadonlyTextRange
+internal abstract partial class SourceFile : Node, IDeclaration, ILocalsContainer, IReadonlyPragmaContext, IReadonlyTextRange
 {
     public NodeArray<IStatement>? Statements { get; }
     public Token? EndOfFileToken { get; }
@@ -2378,10 +2122,8 @@ internal abstract class SourceFile : Node, IDeclaration, ILocalsContainer, IRead
     public Node? LocalJsxFragmentFactory { get; set; }
     public object? EndFlowNode { get; set; }
     public JSDocParsingMode? JsDocParsingMode { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 
@@ -2390,22 +2132,19 @@ internal abstract class SourceFile : Node, IDeclaration, ILocalsContainer, IRead
 }
 
 /// <summary>ported from types.ts: <c>SpreadAssignment</c>.</summary>
-internal sealed class SpreadAssignment : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IObjectLiteralElement, IReadonlyTextRange
+internal sealed partial class SpreadAssignment : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IObjectLiteralElement, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.SpreadAssignment;
 
     public Expression? Expression { get; }
-    public object? _objectLiteralBrand { get; set; }
     public object? Name { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SpreadElement</c>.</summary>
-internal sealed class SpreadElement : Expression, IReadonlyTextRange
+internal sealed partial class SpreadElement : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.SpreadElement;
 
@@ -2413,52 +2152,45 @@ internal sealed class SpreadElement : Expression, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>StringLiteral</c>.</summary>
-internal sealed class StringLiteral : LiteralExpression, IDeclaration, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class StringLiteral : LiteralExpression, IDeclaration, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.StringLiteral;
 
     public Node? TextSourceNode { get; }
     public bool? SingleQuote { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SuperExpression</c>.</summary>
-internal sealed class SuperExpression : Node, IFlowContainer, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class SuperExpression : Node, IFlowContainer, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.SuperKeyword;
 
-    public object? _primaryExpressionBrand { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SwitchStatement</c>.</summary>
-internal sealed class SwitchStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
+internal sealed partial class SwitchStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.SwitchStatement;
 
     public Expression? Expression { get; }
     public CaseBlock? CaseBlock { get; }
     public bool? PossiblyExhaustive { get; set; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SyntaxList</c>.</summary>
-internal sealed class SyntaxList : Node, IReadonlyTextRange
+internal sealed partial class SyntaxList : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.SyntaxList;
 
-    public List<Node>? _children { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SyntheticExpression</c>.</summary>
-internal sealed class SyntheticExpression : Expression, IReadonlyTextRange
+internal sealed partial class SyntheticExpression : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.SyntheticExpression;
 
@@ -2468,7 +2200,7 @@ internal sealed class SyntheticExpression : Expression, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>SyntheticReferenceExpression</c>.</summary>
-internal sealed class SyntheticReferenceExpression : LeftHandSideExpression, IReadonlyTextRange
+internal sealed partial class SyntheticReferenceExpression : LeftHandSideExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.SyntheticReferenceExpression;
 
@@ -2477,7 +2209,7 @@ internal sealed class SyntheticReferenceExpression : LeftHandSideExpression, IRe
 }
 
 /// <summary>ported from types.ts: <c>TaggedTemplateExpression</c>.</summary>
-internal sealed class TaggedTemplateExpression : MemberExpression, IReadonlyTextRange
+internal sealed partial class TaggedTemplateExpression : MemberExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.TaggedTemplateExpression;
 
@@ -2488,17 +2220,16 @@ internal sealed class TaggedTemplateExpression : MemberExpression, IReadonlyText
 }
 
 /// <summary>ported from types.ts: <c>TemplateExpression</c>.</summary>
-internal sealed class TemplateExpression : Node, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class TemplateExpression : Node, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.TemplateExpression;
 
     public TemplateHead? Head { get; }
     public NodeArray<TemplateSpan>? TemplateSpans { get; }
-    public object? _primaryExpressionBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TemplateHead</c>.</summary>
-internal sealed class TemplateHead : Node, IReadonlyTextRange, ITemplateLiteralLikeNode
+internal sealed partial class TemplateHead : Node, IReadonlyTextRange, ITemplateLiteralLikeNode
 {
     public override SyntaxKind Kind => SyntaxKind.TemplateHead;
 
@@ -2507,27 +2238,25 @@ internal sealed class TemplateHead : Node, IReadonlyTextRange, ITemplateLiteralL
 }
 
 /// <summary>ported from types.ts: <c>TemplateLiteralTypeNode</c>.</summary>
-internal sealed class TemplateLiteralTypeNode : Node, IReadonlyTextRange, ITypeNode
+internal sealed partial class TemplateLiteralTypeNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.TemplateLiteralType;
 
     public TemplateHead? Head { get; }
     public NodeArray<TemplateLiteralTypeSpan>? TemplateSpans { get; }
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TemplateLiteralTypeSpan</c>.</summary>
-internal sealed class TemplateLiteralTypeSpan : Node, IReadonlyTextRange, ITypeNode
+internal sealed partial class TemplateLiteralTypeSpan : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.TemplateLiteralTypeSpan;
 
     public ITypeNode? Type { get; }
     public Node? Literal { get; }
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TemplateMiddle</c>.</summary>
-internal sealed class TemplateMiddle : Node, IReadonlyTextRange, ITemplateLiteralLikeNode
+internal sealed partial class TemplateMiddle : Node, IReadonlyTextRange, ITemplateLiteralLikeNode
 {
     public override SyntaxKind Kind => SyntaxKind.TemplateMiddle;
 
@@ -2536,7 +2265,7 @@ internal sealed class TemplateMiddle : Node, IReadonlyTextRange, ITemplateLitera
 }
 
 /// <summary>ported from types.ts: <c>TemplateSpan</c>.</summary>
-internal sealed class TemplateSpan : Node, IReadonlyTextRange
+internal sealed partial class TemplateSpan : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.TemplateSpan;
 
@@ -2545,7 +2274,7 @@ internal sealed class TemplateSpan : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>TemplateTail</c>.</summary>
-internal sealed class TemplateTail : Node, IReadonlyTextRange, ITemplateLiteralLikeNode
+internal sealed partial class TemplateTail : Node, IReadonlyTextRange, ITemplateLiteralLikeNode
 {
     public override SyntaxKind Kind => SyntaxKind.TemplateTail;
 
@@ -2554,70 +2283,59 @@ internal sealed class TemplateTail : Node, IReadonlyTextRange, ITemplateLiteralL
 }
 
 /// <summary>ported from types.ts: <c>ThisExpression</c>.</summary>
-internal sealed class ThisExpression : Node, IFlowContainer, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class ThisExpression : Node, IFlowContainer, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ThisKeyword;
 
-    public object? _primaryExpressionBrand { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ThisTypeNode</c>.</summary>
-internal sealed class ThisTypeNode : Node, IReadonlyTextRange, ITypeNode
+internal sealed partial class ThisTypeNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.ThisType;
 
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ThrowStatement</c>.</summary>
-internal sealed class ThrowStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
+internal sealed partial class ThrowStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.ThrowStatement;
 
     public Expression? Expression { get; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TrueLiteral</c>.</summary>
-internal sealed class TrueLiteral : Node, IPrimaryExpression, IReadonlyTextRange
+internal sealed partial class TrueLiteral : Node, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.TrueKeyword;
 
-    public object? _primaryExpressionBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TryStatement</c>.</summary>
-internal sealed class TryStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
+internal sealed partial class TryStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.TryStatement;
 
     public Block? TryBlock { get; }
     public CatchClause? CatchClause { get; }
     public Block? FinallyBlock { get; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TupleTypeNode</c>.</summary>
-internal sealed class TupleTypeNode : Node, IReadonlyTextRange, ITypeNode
+internal sealed partial class TupleTypeNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.TupleType;
 
     public NodeArray<Node>? Elements { get; }
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TypeAliasDeclaration</c>.</summary>
-internal sealed class TypeAliasDeclaration : Node, IDeclaration, IDeclarationStatement, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, IStatement
+internal sealed partial class TypeAliasDeclaration : Node, IDeclaration, IDeclarationStatement, IJSDocContainer, ILocalsContainer, INamedDeclaration, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.TypeAliasDeclaration;
 
@@ -2625,13 +2343,9 @@ internal sealed class TypeAliasDeclaration : Node, IDeclaration, IDeclarationSta
     public Identifier? Name { get; }
     public NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
     public ITypeNode? Type { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _localsContainerBrand { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public object? NextContainer { get; set; }
 
@@ -2640,7 +2354,7 @@ internal sealed class TypeAliasDeclaration : Node, IDeclaration, IDeclarationSta
 }
 
 /// <summary>ported from types.ts: <c>TypeAssertion</c>.</summary>
-internal sealed class TypeAssertion : UnaryExpression, IReadonlyTextRange
+internal sealed partial class TypeAssertion : UnaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.TypeAssertionExpression;
 
@@ -2649,19 +2363,17 @@ internal sealed class TypeAssertion : UnaryExpression, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>TypeLiteralNode</c>.</summary>
-internal sealed class TypeLiteralNode : Node, IDeclaration, IReadonlyTextRange, ITypeNode
+internal sealed partial class TypeLiteralNode : Node, IDeclaration, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.TypeLiteral;
 
     public NodeArray<ITypeElement>? Members { get; }
-    public object? _typeNodeBrand { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TypeOfExpression</c>.</summary>
-internal sealed class TypeOfExpression : UnaryExpression, IReadonlyTextRange
+internal sealed partial class TypeOfExpression : UnaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.TypeOfExpression;
 
@@ -2669,17 +2381,16 @@ internal sealed class TypeOfExpression : UnaryExpression, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>TypeOperatorNode</c>.</summary>
-internal sealed class TypeOperatorNode : Node, IReadonlyTextRange, ITypeNode
+internal sealed partial class TypeOperatorNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.TypeOperator;
 
     public SyntaxKind Operator { get; }
     public ITypeNode? Type { get; }
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TypeParameterDeclaration</c>.</summary>
-internal sealed class TypeParameterDeclaration : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
+internal sealed partial class TypeParameterDeclaration : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.TypeParameter;
 
@@ -2688,10 +2399,8 @@ internal sealed class TypeParameterDeclaration : Node, IDeclaration, IJSDocConta
     public ITypeNode? Constraint { get; }
     public ITypeNode? Default { get; }
     public Expression? Expression { get; set; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -2699,59 +2408,53 @@ internal sealed class TypeParameterDeclaration : Node, IDeclaration, IJSDocConta
 }
 
 /// <summary>ported from types.ts: <c>TypePredicateNode</c>.</summary>
-internal sealed class TypePredicateNode : Node, IReadonlyTextRange, ITypeNode
+internal sealed partial class TypePredicateNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.TypePredicate;
 
     public KeywordToken? AssertsModifier { get; }
     public Node? ParameterName { get; }
     public ITypeNode? Type { get; }
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TypeQueryNode</c>.</summary>
-internal sealed class TypeQueryNode : Node, INodeWithTypeArguments, IReadonlyTextRange, ITypeNode
+internal sealed partial class TypeQueryNode : Node, INodeWithTypeArguments, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.TypeQuery;
 
     public Node? ExprName { get; }
     public NodeArray<ITypeNode>? TypeArguments { get; }
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TypeReferenceNode</c>.</summary>
-internal sealed class TypeReferenceNode : Node, INodeWithTypeArguments, IReadonlyTextRange, ITypeNode
+internal sealed partial class TypeReferenceNode : Node, INodeWithTypeArguments, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.TypeReference;
 
     public Node? TypeName { get; }
     public NodeArray<ITypeNode>? TypeArguments { get; }
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>UnaryExpression</c>.</summary>
-internal abstract class UnaryExpression : Expression, IReadonlyTextRange
+internal abstract partial class UnaryExpression : Expression, IReadonlyTextRange
 {
-    public object? _unaryExpressionBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>UnionTypeNode</c>.</summary>
-internal sealed class UnionTypeNode : Node, IReadonlyTextRange, ITypeNode
+internal sealed partial class UnionTypeNode : Node, IReadonlyTextRange, ITypeNode
 {
     public override SyntaxKind Kind => SyntaxKind.UnionType;
 
     public NodeArray<ITypeNode>? Types { get; }
-    public object? _typeNodeBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>UpdateExpression</c>.</summary>
-internal abstract class UpdateExpression : UnaryExpression, IReadonlyTextRange
+internal abstract partial class UpdateExpression : UnaryExpression, IReadonlyTextRange
 {
-    public object? _updateExpressionBrand { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>VariableDeclaration</c>.</summary>
-internal sealed class VariableDeclaration : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
+internal sealed partial class VariableDeclaration : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.VariableDeclaration;
 
@@ -2759,10 +2462,8 @@ internal sealed class VariableDeclaration : Node, IDeclaration, IJSDocContainer,
     public PunctuationToken? ExclamationToken { get; }
     public ITypeNode? Type { get; }
     public Expression? Initializer { get; }
-    public object? _declarationBrand { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -2770,7 +2471,7 @@ internal sealed class VariableDeclaration : Node, IDeclaration, IJSDocContainer,
 }
 
 /// <summary>ported from types.ts: <c>VariableDeclarationList</c>.</summary>
-internal sealed class VariableDeclarationList : Node, IReadonlyTextRange
+internal sealed partial class VariableDeclarationList : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.VariableDeclarationList;
 
@@ -2778,21 +2479,18 @@ internal sealed class VariableDeclarationList : Node, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>VariableStatement</c>.</summary>
-internal sealed class VariableStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
+internal sealed partial class VariableStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.VariableStatement;
 
     public NodeArray<Node>? Modifiers { get; }
     public VariableDeclarationList? DeclarationList { get; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>VoidExpression</c>.</summary>
-internal sealed class VoidExpression : UnaryExpression, IReadonlyTextRange
+internal sealed partial class VoidExpression : UnaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.VoidExpression;
 
@@ -2800,31 +2498,27 @@ internal sealed class VoidExpression : UnaryExpression, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>WhileStatement</c>.</summary>
-internal sealed class WhileStatement : IterationStatement, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
+internal sealed partial class WhileStatement : IterationStatement, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.WhileStatement;
 
     public Expression? Expression { get; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>WithStatement</c>.</summary>
-internal sealed class WithStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
+internal sealed partial class WithStatement : Node, IFlowContainer, IJSDocContainer, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.WithStatement;
 
     public Expression? Expression { get; }
     public IStatement? Statement { get; }
-    public object? _statementBrand { get; set; }
-    public object? _jsdocContainerBrand { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public object? _flowContainerBrand { get; set; }
     public object? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>YieldExpression</c>.</summary>
-internal sealed class YieldExpression : Expression, IReadonlyTextRange
+internal sealed partial class YieldExpression : Expression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.YieldExpression;
 
