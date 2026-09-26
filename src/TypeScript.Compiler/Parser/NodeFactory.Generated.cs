@@ -2742,22 +2742,6 @@ internal partial class NodeFactory
         throw new NotImplementedException("the port has not reached `updateShorthandPropertyAssignment` yet");
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createImmediatelyInvokedFunctionExpression</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateImmediatelyInvokedFunctionExpression(List<IStatement>? statements, ParameterDeclaration? param, Expression? paramValue)
-    {
-        throw new NotImplementedException("the port has not reached `createImmediatelyInvokedFunctionExpression` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createImmediatelyInvokedArrowFunction</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateImmediatelyInvokedArrowFunction(List<IStatement>? statements, ParameterDeclaration? param, Expression? paramValue)
-    {
-        throw new NotImplementedException("the port has not reached `createImmediatelyInvokedArrowFunction` yet");
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTypeCheck</c>.</summary>
     /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
     /// it yet (docs/architecture.md §15.7).</remarks>
@@ -2772,102 +2756,6 @@ internal partial class NodeFactory
     public object? CreateIsNotTypeCheck(Expression? value, string? tag)
     {
         throw new NotImplementedException("the port has not reached `createIsNotTypeCheck` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createMethodCall</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateMethodCall(Expression? @object, object? methodName, List<Expression>? argumentsList)
-    {
-        throw new NotImplementedException("the port has not reached `createMethodCall` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createFunctionBindCall</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateFunctionBindCall(Expression? target, Expression? thisArg, List<Expression>? argumentsList)
-    {
-        throw new NotImplementedException("the port has not reached `createFunctionBindCall` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createFunctionCallCall</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateFunctionCallCall(Expression? target, Expression? thisArg, List<Expression>? argumentsList)
-    {
-        throw new NotImplementedException("the port has not reached `createFunctionCallCall` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createFunctionApplyCall</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateFunctionApplyCall(Expression? target, Expression? thisArg, Expression? argumentsExpression)
-    {
-        throw new NotImplementedException("the port has not reached `createFunctionApplyCall` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createGlobalMethodCall</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateGlobalMethodCall(string? globalObjectName, string? methodName, List<Expression>? argumentsList)
-    {
-        throw new NotImplementedException("the port has not reached `createGlobalMethodCall` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createArraySliceCall</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateArraySliceCall(Expression? array, object? start)
-    {
-        throw new NotImplementedException("the port has not reached `createArraySliceCall` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createArrayConcatCall</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateArrayConcatCall(Expression? array, List<Expression>? argumentsList)
-    {
-        throw new NotImplementedException("the port has not reached `createArrayConcatCall` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createObjectDefinePropertyCall</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateObjectDefinePropertyCall(Expression? target, object? propertyName, Expression? attributes)
-    {
-        throw new NotImplementedException("the port has not reached `createObjectDefinePropertyCall` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createObjectGetOwnPropertyDescriptorCall</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateObjectGetOwnPropertyDescriptorCall(Expression? target, object? propertyName)
-    {
-        throw new NotImplementedException("the port has not reached `createObjectGetOwnPropertyDescriptorCall` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createReflectGetCall</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public CallExpression CreateReflectGetCall(Expression? target, Expression? propertyKey, Expression? receiver)
-    {
-        throw new NotImplementedException("the port has not reached `createReflectGetCall` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createReflectSetCall</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public CallExpression CreateReflectSetCall(Expression? target, Expression? propertyKey, Expression? value, Expression? receiver)
-    {
-        throw new NotImplementedException("the port has not reached `createReflectSetCall` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createPropertyDescriptor</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreatePropertyDescriptor(IPropertyDescriptorAttributes? attributes, bool? singleLine)
-    {
-        throw new NotImplementedException("the port has not reached `createPropertyDescriptor` yet");
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateOuterExpression</c>.</summary>

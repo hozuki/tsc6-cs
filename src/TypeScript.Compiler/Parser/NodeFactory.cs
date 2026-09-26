@@ -3261,4 +3261,170 @@ internal partial class NodeFactory
                 node)
             : node!;
     }
+
+    //
+    // Emit helpers (the hand-written half)
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:6411 — <c>createImmediatelyInvokedFunctionExpression</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS declares two overloads — with and without a parameter — and one body. The C# signature takes the
+    /// optional parameter and value directly, which serves both call shapes.
+    /// </remarks>
+    public CallExpression CreateImmediatelyInvokedFunctionExpression(
+        List<IStatement>? statements,
+        ParameterDeclaration? param = null,
+        Expression? paramValue = null)
+        => CreateCallExpression(
+            CreateFunctionExpression(
+                null,           // modifiers
+                null,           // asteriskToken
+                null,           // name
+                null,           // typeParameters
+                param is not null ? [param] : [],
+                null,           // type
+                CreateBlock(statements, true)),
+            null,               // typeArguments
+            paramValue is not null ? [paramValue] : []);
+
+    /// <summary>ported from: factory/nodeFactory.ts:6429 — <c>createImmediatelyInvokedArrowFunction</c>.</summary>
+    public CallExpression CreateImmediatelyInvokedArrowFunction(
+        List<IStatement>? statements,
+        ParameterDeclaration? param = null,
+        Expression? paramValue = null)
+        => CreateCallExpression(
+            CreateArrowFunction(
+                null,           // modifiers
+                null,           // typeParameters
+                param is not null ? [param] : [],
+                null,           // type
+                null,           // equalsGreaterThanToken
+                CreateBlock(statements, true)),
+            null,               // typeArguments
+            paramValue is not null ? [paramValue] : []);
+
+    /// <summary>ported from: factory/nodeFactory.ts:6484 — <c>createMethodCall</c>.</summary>
+    public CallExpression CreateMethodCall(Expression? @object, object? methodName, List<Expression>? argumentsList)
+    {
+        // Preserve the optionality of `object`.
+        if (Utilities.IsCallChain(@object!))
+        {
+            return CreateCallChain(
+                CreatePropertyAccessChain(@object, null, methodName),
+                null, // questionDotToken
+                null, // typeArguments
+                argumentsList);
+        }
+
+        return CreateCallExpression(
+            CreatePropertyAccessExpression(@object, methodName),
+            null, // typeArguments
+            argumentsList);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6501 — <c>createFunctionBindCall</c>.</summary>
+    public CallExpression CreateFunctionBindCall(Expression? target, Expression? thisArg, List<Expression>? argumentsList)
+    {
+        var arguments = new List<Expression> { thisArg! };
+        if (argumentsList is not null) arguments.AddRange(argumentsList);
+        return CreateMethodCall(target, "bind", arguments);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6505 — <c>createFunctionCallCall</c>.</summary>
+    public CallExpression CreateFunctionCallCall(Expression? target, Expression? thisArg, List<Expression>? argumentsList)
+    {
+        var arguments = new List<Expression> { thisArg! };
+        if (argumentsList is not null) arguments.AddRange(argumentsList);
+        return CreateMethodCall(target, "call", arguments);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6509 — <c>createFunctionApplyCall</c>.</summary>
+    public CallExpression CreateFunctionApplyCall(
+        Expression? target,
+        Expression? thisArg,
+        Expression? argumentsExpression)
+        => CreateMethodCall(target, "apply", [thisArg!, argumentsExpression!]);
+
+    /// <summary>ported from: factory/nodeFactory.ts:6513 — <c>createGlobalMethodCall</c>.</summary>
+    public CallExpression CreateGlobalMethodCall(
+        string? globalObjectName,
+        string? methodName,
+        List<Expression>? argumentsList)
+        => CreateMethodCall(CreateIdentifier(globalObjectName, null, null), methodName, argumentsList);
+
+    /// <summary>ported from: factory/nodeFactory.ts:6517 — <c>createArraySliceCall</c>.</summary>
+    public CallExpression CreateArraySliceCall(Expression? array, object? start)
+        => CreateMethodCall(array, "slice", start is null ? [] : [AsExpression(start)!]);
+
+    /// <summary>ported from: factory/nodeFactory.ts:6521 — <c>createArrayConcatCall</c>.</summary>
+    public CallExpression CreateArrayConcatCall(Expression? array, List<Expression>? argumentsList)
+        => CreateMethodCall(array, "concat", argumentsList);
+
+    /// <summary>ported from: factory/nodeFactory.ts:6525 — <c>createObjectDefinePropertyCall</c>.</summary>
+    public CallExpression CreateObjectDefinePropertyCall(
+        Expression? target,
+        object? propertyName,
+        Expression? attributes)
+        => CreateGlobalMethodCall("Object", "defineProperty", [target!, AsExpression(propertyName)!, attributes!]);
+
+    /// <summary>ported from: factory/nodeFactory.ts:6529 — <c>createObjectGetOwnPropertyDescriptorCall</c>.</summary>
+    public CallExpression CreateObjectGetOwnPropertyDescriptorCall(Expression? target, object? propertyName)
+        => CreateGlobalMethodCall("Object", "getOwnPropertyDescriptor", [target!, AsExpression(propertyName)!]);
+
+    /// <summary>ported from: factory/nodeFactory.ts:6533 — <c>createReflectGetCall</c>.</summary>
+    public CallExpression CreateReflectGetCall(
+        Expression? target,
+        Expression? propertyKey,
+        Expression? receiver)
+        => CreateGlobalMethodCall(
+            "Reflect",
+            "get",
+            receiver is not null ? [target!, propertyKey!, receiver] : [target!, propertyKey!]);
+
+    /// <summary>ported from: factory/nodeFactory.ts:6537 — <c>createReflectSetCall</c>.</summary>
+    public CallExpression CreateReflectSetCall(
+        Expression? target,
+        Expression? propertyKey,
+        Expression? value,
+        Expression? receiver)
+        => CreateGlobalMethodCall(
+            "Reflect",
+            "set",
+            receiver is not null
+                ? [target!, propertyKey!, value!, receiver]
+                : [target!, propertyKey!, value!]);
+
+    /// <summary>ported from: factory/nodeFactory.ts:6543 — <c>tryAddPropertyAssignment</c>.</summary>
+    private bool TryAddPropertyAssignment(
+        List<PropertyAssignment> properties,
+        string propertyName,
+        Expression? expression)
+    {
+        if (expression is null) return false;
+
+        properties.Add(CreatePropertyAssignment(propertyName, expression));
+        return true;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6549 — <c>createPropertyDescriptor</c>.</summary>
+    public ObjectLiteralExpression CreatePropertyDescriptor(
+        IPropertyDescriptorAttributes? attributes,
+        bool? singleLine)
+    {
+        var properties = new List<PropertyAssignment>();
+        TryAddPropertyAssignment(properties, "enumerable", AsExpression(attributes!.Enumerable));
+        TryAddPropertyAssignment(properties, "configurable", AsExpression(attributes.Configurable));
+
+        var isData = TryAddPropertyAssignment(properties, "writable", AsExpression(attributes.Writable));
+        isData = TryAddPropertyAssignment(properties, "value", attributes.Value) || isData;
+
+        var isAccessor = TryAddPropertyAssignment(properties, "get", attributes.Get);
+        isAccessor = TryAddPropertyAssignment(properties, "set", attributes.Set) || isAccessor;
+
+        Debug.Assert(
+            !(isData && isAccessor),
+            "A PropertyDescriptor may not be both an accessor descriptor and a data descriptor.");
+
+        return CreateObjectLiteralExpression(properties.Cast<Node>().ToList(), singleLine != true);
+    }
 }
