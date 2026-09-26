@@ -401,19 +401,15 @@ internal sealed partial class Program
             return GetDeclarationDiagnosticsFromTransform(GetEmitHost(s_noopWriteFile), resolver, sourceFile) ?? [];
         });
 
-    /// <summary>ported from: src/compiler/transformers/declarations.ts:221-… — <c>getDeclarationDiagnostics</c>.</summary>
-    /// <remarks>
-    /// PORT-NOTE (the named blocker): the reference's declaration-diagnostics entry is the declaration transformer's
-    /// (<c>src/compiler/transformers/declarations.ts:221</c>), which the transform batches M7-B7 own — it transforms the
-    /// source file with <c>transformDeclarations</c> and turns the diagnostics on the result into
-    /// <c>DiagnosticWithLocation</c>s. Everything around it is real (the caching, the cancellation scope and the
-    /// resolver's acquisition above), so this member reports the missing half by name rather than answering an empty
-    /// diagnostic list, which would silently pass <c>--declaration</c> errors. §15.15's first ruling is the form.
-    /// </remarks>
-    private static List<IDiagnosticWithLocation> GetDeclarationDiagnosticsFromTransform(IEmitHost host, IEmitResolver resolver, SourceFile sourceFile)
-        => throw new NotSupportedException(
-            "getDeclarationDiagnostics (src/compiler/transformers/declarations.ts:221) is not ported yet: the declaration "
-            + "transformer belongs to the transform batches M7-B2…B7 (docs/architecture.md §15.15).");
+    /// <summary>ported from: src/compiler/transformers/declarations.ts:221-238 — <c>getDeclarationDiagnostics</c>.</summary>
+    /// <remarks>PORT-NOTE: the member is the declaration transformer's own entry point
+    /// (<see cref="DeclarationsTransform.GetDeclarationDiagnostics"/>, landed with the transform), which is why this
+    /// facade carries no body of its own: the reference's <c>program.getDeclarationDiagnosticsForFileNoCache</c> calls
+    /// that function directly and the port's `Program`/`DeclarationsTransform` split needs the name reachable from both
+    /// (the same arrangement <see cref="ForEachEmittedFile"/> records). Its <c>undefined</c> arm stays <c>null</c>, and
+    /// the call site above is the reference's own <c>|| emptyArray</c>.</remarks>
+    private static List<IDiagnosticWithLocation>? GetDeclarationDiagnosticsFromTransform(IEmitHost host, IEmitResolver resolver, SourceFile sourceFile)
+        => DeclarationsTransform.GetDeclarationDiagnostics(host, resolver, sourceFile);
 
     // ---------------------------------------------------------------------------------------------
     // The emitter members the program's own call sites reach unqualified (emitter.ts:446-570)

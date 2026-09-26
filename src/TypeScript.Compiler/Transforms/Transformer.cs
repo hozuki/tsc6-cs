@@ -30,39 +30,159 @@ internal static class Transformer
 {
     /// <summary>ported from: src/compiler/transformer.ts:120-125 — <c>getTransformers</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE (the named blocker): every transformer factory this family names — <c>transformTypeScript</c>,
-    /// <c>transformLegacyDecorators</c>, <c>transformJsx</c>, <c>transformESNext</c>, <c>transformESDecorators</c>,
-    /// <c>transformClassFields</c>, <c>transformES2021</c>…<c>transformES2015</c>, <c>transformGenerators</c>,
-    /// <c>transformECMAScriptModule</c>, <c>transformImpliedNodeFormatDependentModule</c>, <c>transformSystemModule</c>,
-    /// <c>transformModule</c> and <c>transformDeclarations</c> — belongs to the transform batches M7-B2…B7, so the
-    /// three list builders are the sanctioned §15.15 ruling-1 loud failure rather than a silently empty transformer
-    /// list. The <c>customTransformers</c> halves land with them: <see cref="WrapScriptTransformerFactory"/> and
-    /// <see cref="WrapDeclarationTransformerFactory"/> below are already real and are what those batches call.
+    /// PORT-NOTE: the reference returns the object literal
+    /// <c>{ scriptTransformers, declarationTransformers }</c>; the port states the same two slots on
+    /// <see cref="EmitTransformers"/>. The two list builders below are this member's own body split out exactly as the
+    /// reference splits it.
     /// </remarks>
     internal static EmitTransformers GetTransformers(
         ICompilerOptions compilerOptions,
         ICustomTransformers? customTransformers = null,
         object? emitOnly = null)
-        => throw TransformerListNotLanded("getTransformers (transformer.ts:120)");
+        => new()
+        {
+            ScriptTransformers = GetScriptTransformers(compilerOptions, customTransformers, emitOnly),
+            DeclarationTransformers = GetDeclarationTransformers(customTransformers),
+        };
 
     /// <summary>ported from: src/compiler/transformer.ts:127-190 — <c>getScriptTransformers</c>.</summary>
-    /// <remarks>PORT-NOTE: the §15.15 ruling-1 named blocker; see <see cref="GetTransformers"/>.</remarks>
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>if (emitOnly) return emptyArray</c> shares the module-level empty array with
+    /// <c>noTransformers</c>; <see cref="NoTransformers"/>.ScriptTransformers is that same value here (a
+    /// <c>List&lt;…&gt;</c> instead of a frozen array), and nothing mutates what this member answers.
+    /// <para>
+    /// PORT-NOTE: <c>map(customTransformers.before, wrapScriptTransformerFactory)</c> — and the <c>after</c> half below —
+    /// is stated as the explicit loop because <c>WrapScriptTransformerFactory</c> reads the element as the reference's
+    /// two-shaped union (a factory delegate or a <c>CustomTransformerFactory</c>) through the port's <c>object?</c>.
+    /// </para>
+    /// </remarks>
     private static List<Func<ITransformerContext, Func<object?, object?>>> GetScriptTransformers(
         ICompilerOptions compilerOptions,
         ICustomTransformers? customTransformers,
         object? emitOnly)
-        => throw TransformerListNotLanded("getScriptTransformers (transformer.ts:127)");
+    {
+        if (Js.IsTruthy(emitOnly))
+        {
+            // PORT-NOTE: the reference's `emptyArray` is a non-null frozen array; the port's shared empty list lives on
+            // the nullable `EmitTransformers` slot, and `noTransformers` is its only writer, so the assertion is the
+            // reference's own guarantee.
+            return NoTransformers.ScriptTransformers!;
+        }
+
+        var languageVersion = Utilities.GetEmitScriptTarget(compilerOptions);
+        var moduleKind = Utilities.GetEmitModuleKind(compilerOptions);
+        var useDefineForClassFields = Utilities.GetUseDefineForClassFields(compilerOptions);
+        var transformers = new List<Func<ITransformerContext, Func<object?, object?>>>();
+
+        if (customTransformers?.Before is { } before)
+        {
+            foreach (var transformer in before)
+            {
+                transformers.Add(WrapScriptTransformerFactory(transformer));
+            }
+        }
+
+        transformers.Add(TypeScriptTransform.TransformTypeScript);
+
+        if (Js.IsTruthy(compilerOptions.ExperimentalDecorators))
+        {
+            transformers.Add(LegacyDecorators.TransformLegacyDecorators);
+        }
+
+        if (Utilities.GetJSXTransformEnabled(compilerOptions))
+        {
+            transformers.Add(JsxTransform.TransformJsx);
+        }
+
+        if (languageVersion < ScriptTarget.ESNext)
+        {
+            transformers.Add(ESNextTransform.TransformESNext);
+        }
+
+        if (!Js.IsTruthy(compilerOptions.ExperimentalDecorators)
+            && (languageVersion < ScriptTarget.ESNext || !useDefineForClassFields))
+        {
+            transformers.Add(ESDecorators.TransformESDecorators);
+        }
+
+        transformers.Add(ClassFieldsTransform.TransformClassFields);
+
+        if (languageVersion < ScriptTarget.ES2021)
+        {
+            transformers.Add(ES2021Transform.TransformES2021);
+        }
+
+        if (languageVersion < ScriptTarget.ES2020)
+        {
+            transformers.Add(ES2020Transform.TransformES2020);
+        }
+
+        if (languageVersion < ScriptTarget.ES2019)
+        {
+            transformers.Add(ES2019Transform.TransformES2019);
+        }
+
+        if (languageVersion < ScriptTarget.ES2018)
+        {
+            transformers.Add(ES2018Transform.TransformES2018);
+        }
+
+        if (languageVersion < ScriptTarget.ES2017)
+        {
+            transformers.Add(ES2017Transform.TransformES2017);
+        }
+
+        if (languageVersion < ScriptTarget.ES2016)
+        {
+            transformers.Add(ES2016Transform.TransformES2016);
+        }
+
+        if (languageVersion < ScriptTarget.ES2015)
+        {
+            transformers.Add(ES2015Transform.TransformES2015);
+            transformers.Add(GeneratorsTransform.TransformGenerators);
+        }
+
+        transformers.Add(GetModuleTransformer(moduleKind));
+
+        if (customTransformers?.After is { } after)
+        {
+            foreach (var transformer in after)
+            {
+                transformers.Add(WrapScriptTransformerFactory(transformer));
+            }
+        }
+
+        return transformers;
+    }
 
     /// <summary>ported from: src/compiler/transformer.ts:192-197 — <c>getDeclarationTransformers</c>.</summary>
-    /// <remarks>PORT-NOTE: the §15.15 ruling-1 named blocker; see <see cref="GetTransformers"/>.</remarks>
+    /// <remarks>PORT-NOTE: the reference's <c>addRange(…, map(customTransformers.afterDeclarations, …))</c> is the
+    /// explicit loop, for the reason <see cref="GetScriptTransformers"/> records.</remarks>
     private static List<Func<ITransformerContext, Func<object?, object?>>> GetDeclarationTransformers(ICustomTransformers? customTransformers)
-        => throw TransformerListNotLanded("getDeclarationTransformers (transformer.ts:192)");
+    {
+        var transformers = new List<Func<ITransformerContext, Func<object?, object?>>>
+        {
+            DeclarationsTransform.TransformDeclarations,
+        };
+
+        if (customTransformers?.AfterDeclarations is { } afterDeclarations)
+        {
+            foreach (var transformer in afterDeclarations)
+            {
+                transformers.Add(WrapDeclarationTransformerFactory(transformer));
+            }
+        }
+
+        return transformers;
+    }
 
     /// <summary>ported from: src/compiler/transformer.ts:78-116 — <c>getModuleTransformer</c>.</summary>
-    /// <remarks>PORT-NOTE: the §15.15 ruling-1 named blocker of the same family — every arm of the reference's switch
-    /// answers one of the module transformers the batches own, so its body cannot be stated before they exist.</remarks>
+    /// <remarks>PORT-NOTE: the reference's switch is stated by the module slice itself — the selection belongs to
+    /// <see cref="ImpliedNodeFormatDependent.GetModuleTransformer"/>, which quotes this member's line range — so this
+    /// member defers to it rather than holding a second copy of the switch.</remarks>
     private static Func<ITransformerContext, Func<object?, object?>> GetModuleTransformer(ModuleKind moduleKind)
-        => throw TransformerListNotLanded("getModuleTransformer (transformer.ts:78)");
+        => ImpliedNodeFormatDependent.GetModuleTransformer(moduleKind);
 
     /// <summary>ported from: src/compiler/transformer.ts:117 — <c>noTransformers</c>.</summary>
     /// <remarks>PORT-NOTE: TS shares <c>emptyArray</c> between the two slots; this instance is the same value, and
@@ -144,11 +264,6 @@ internal static class Transformer
         where T : Node
         => new TransformationContext<T>(resolver, host, factory, options, nodes, transformers, allowDtsFiles).Transform();
 
-    /// <summary>The failure every member of the transformer-list family reports.</summary>
-    /// <remarks>PORT-NOTE: §15.15's first ruling — the message names the member, its <c>transformer.ts</c> line and the
-    /// batches that unblock it, so a caller cannot mistake the failure for a silently empty transformer list.</remarks>
-    internal static NotSupportedException TransformerListNotLanded(string what)
-        => new($"{what} is not ported yet: every transformer factory it names belongs to the transform batches M7-B2…B7 (docs/architecture.md §15.15).");
 }
 
 // ported from: src/compiler/transformer.ts:104-114 — the two const enums `transformNodes` closes over.

@@ -798,8 +798,8 @@ internal static partial class Utilities
             SyntaxKind.VoidExpression => VisitEachChildOfVoidExpression((VoidExpression)(Node)(object)node, visitor, context, nodeVisitor),
             // ported from: src/compiler/visitorPublic.ts:1769
             SyntaxKind.AwaitExpression => VisitEachChildOfAwaitExpression((AwaitExpression)(Node)(object)node, visitor, context, nodeVisitor),
-            // ported from: src/compiler/visitorPublic.ts:1776
-            SyntaxKind.PrefixUnaryExpression => VisitEachChildOfPrefixUnaryExpression((JsonMinusNumericLiteral)(Node)(object)node, visitor, context, nodeVisitor),
+            // ported from: src/compiler/visitorPublic.ts:1154
+            SyntaxKind.PrefixUnaryExpression => VisitEachChildOfPrefixUnaryExpression((PrefixUnaryExpression)(Node)(object)node, visitor, context, nodeVisitor),
             // ported from: src/compiler/visitorPublic.ts:1783
             SyntaxKind.PostfixUnaryExpression => VisitEachChildOfPostfixUnaryExpression((PostfixUnaryExpression)(Node)(object)node, visitor, context, nodeVisitor),
             // ported from: src/compiler/visitorPublic.ts:1790
@@ -1494,8 +1494,12 @@ internal static partial class Utilities
             Debug.CheckDefined(nodeVisitor.Visit(node.Expression, visitor, Utilities.IsExpression))
         );
 
-    /// <summary>ported from: src/compiler/visitorPublic.ts:1776 — <c>visitEachChildOfPrefixUnaryExpression</c>.</summary>
-    private static Node VisitEachChildOfPrefixUnaryExpression(JsonMinusNumericLiteral node, Func<Node, object?> visitor, IVisitorTransformationContext context, NodeVisitor nodeVisitor)
+    /// <summary>ported from: src/compiler/visitorPublic.ts:1154 — <c>visitEachChildOfPrefixUnaryExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: the parameter is <c>PrefixUnaryExpression</c>, the type the reference's table entry infers and
+    /// <c>updatePrefixUnaryExpression</c> takes (nodeFactory.ts:3387). Stating it as the <c>JsonMinusNumericLiteral</c>
+    /// subtype cast every plain <c>-x</c>/<c>+x</c> node at the dispatch site — the 18 emit crashes on
+    /// <c>PrefixUnaryExpression → JsonMinusNumericLiteral</c>.</remarks>
+    private static Node VisitEachChildOfPrefixUnaryExpression(PrefixUnaryExpression node, Func<Node, object?> visitor, IVisitorTransformationContext context, NodeVisitor nodeVisitor)
         => context.Factory!.UpdatePrefixUnaryExpression(
             node,
             Debug.CheckDefined(nodeVisitor.Visit(node.Operand, visitor, Utilities.IsExpression))

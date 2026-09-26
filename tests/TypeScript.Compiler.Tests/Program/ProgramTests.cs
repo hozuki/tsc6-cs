@@ -42,7 +42,7 @@ public class ProgramTests
     {
         // PORT-NOTE: `verifyCompilerOptions`'s emit-path check calls `Program.GetEmitHost` and
         // `Program.ForEachEmittedFile`, which M6 could not reach (`Program/Program.EmitBoundary.cs` was loud then).
-        // Both are real now — `TheEmitSurfaceIsRealAndTheTransformerChainIsItsNamedBlocker` runs the check unskipped —
+        // Both are real now — `TheEmitSurfaceIsRealAndTheTransformerChainIsAssembled` runs the check unskipped —
         // and the default here keeps the flag for the file-graph tests, which are about the graph rather than the
         // output-path check the reference's own build mode also suppresses.
         var options = new FakeCompilerOptions { SuppressOutputPathCheck = suppressOutputPathCheck };
@@ -90,7 +90,7 @@ public class ProgramTests
     }
 
     [Fact]
-    public void TheEmitSurfaceIsRealAndTheTransformerChainIsItsNamedBlocker()
+    public void TheEmitSurfaceIsRealAndTheTransformerChainIsAssembled()
     {
         var (program, _, _, options) = CreateProgramOverOneFile("const x = 1;\n");
 
@@ -130,18 +130,41 @@ public class ProgramTests
         Assert.Equal("/out/a.d.ts", Program.GetOutputDeclarationFileName("/a.ts", configFile, /*ignoreCase*/ false));
 
         // The declaration diagnostics are real down to the declaration transformer: a declaration file answers the
-        // empty list, and a source file reaches the transform's entry point, which is the named M7-B7 blocker.
+        // empty list, and a source file runs the transform (`const x = 1;` is declarable, so it answers no diagnostics).
         var sourceFile = program.GetSourceFile("/a.ts")!;
         var declarationFile = program.GetSourceFiles().First(file => file.IsDeclarationFile);
         Assert.Empty(program.GetDeclarationDiagnostics(declarationFile));
-        var declarationDiagnostics = Assert.Throws<NotSupportedException>(() => program.GetDeclarationDiagnostics(sourceFile));
-        Assert.StartsWith("getDeclarationDiagnostics (src/compiler/transformers/declarations.ts:221)", declarationDiagnostics.Message, StringComparison.Ordinal);
-        Assert.Contains("M7-B2", declarationDiagnostics.Message, StringComparison.Ordinal);
+        Assert.Empty(program.GetDeclarationDiagnostics(sourceFile));
 
-        // The transformer list is the one named blocker left in the emit path.
-        var transformers = Assert.Throws<NotSupportedException>(() => Transformer.GetTransformers(options));
-        Assert.StartsWith("getTransformers (transformer.ts:120)", transformers.Message, StringComparison.Ordinal);
-        Assert.Contains("transform batches M7-B2", transformers.Message, StringComparison.Ordinal);
+        // The transformer list is the reference's own composition (transformer.ts:127-197), for options that select
+        // both the language-version tail and a per-file module transformer. Delegates compare by target and method
+        // (`Delegate.Equals`), which is how the reference's factory identity is stated here.
+        var chainOptions = new FakeCompilerOptions { Target = ScriptTarget.ES5, Module = ModuleKind.CommonJS };
+        var transformers = Transformer.GetTransformers(chainOptions);
+        var scriptTransformers = transformers.ScriptTransformers!;
+
+        // transformer.ts:134-188 — the TypeScript transform first, the class-field transform before the ES2015 one
+        // (transformer.ts:161-166, the ordering es2015.ts:2276-2278's unreachable default arm depends on), the
+        // generator transform immediately after it, and the module transformer last.
+        Assert.Equal(TypeScriptTransform.TransformTypeScript, scriptTransformers[0]);
+        Assert.True(
+            scriptTransformers.IndexOf(ClassFieldsTransform.TransformClassFields)
+                < scriptTransformers.IndexOf(ES2015Transform.TransformES2015),
+            "transformClassFields must precede transformES2015 (transformer.ts:161-166).");
+        Assert.Equal(
+            ES2015Transform.TransformES2015,
+            scriptTransformers[scriptTransformers.IndexOf(GeneratorsTransform.TransformGenerators) - 1]);
+        Assert.Equal(ImpliedNodeFormatDependent.GetModuleTransformer(ModuleKind.CommonJS), scriptTransformers[^1]);
+
+        // transformer.ts:192-197 — the declaration half is the declaration transform, plus any custom
+        // `afterDeclarations` factories.
+        Assert.Equal(DeclarationsTransform.TransformDeclarations, Assert.Single(transformers.DeclarationTransformers!));
+
+        // transformer.ts:128 — `emitOnly` answers the module-level empty array that `noTransformers` shares; the port
+        // keeps it as the one list `NoTransformers` holds.
+        Assert.Same(
+            Transformer.NoTransformers.ScriptTransformers,
+            Transformer.GetTransformers(chainOptions, emitOnly: true).ScriptTransformers);
 
         // `verifyCompilerOptions`'s emit-path check runs `GetEmitHost` and `forEachEmittedFile` for a program over
         // default options — the path M6 could not reach — so `createProgram` now completes without the flag that

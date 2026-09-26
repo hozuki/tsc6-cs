@@ -9,14 +9,12 @@ namespace TypeScript.Compiler;
 // below is `_sourceMapSource!` / `savedSourceMapSource!`: the value the reference is guaranteed to hold at that point,
 // never a fallback.
 //
-// PORT-NOTE: `SourceMapGenerator` (src/compiler/sourcemap.ts:60-250) is the later M7-B slice
-// (docs/architecture.md §17.4 item 8), so nothing in the port implements `ISourceMapGenerator` yet and
-// `_sourceMapGenerator` is null on every path that reaches a mapping. Each call site keeps the reference's call and
-// asks for the generator through `SourceMapGeneratorNotSupported`, one named blocker per member — never a silently
-// dropped mapping. The whole family is inert while `_sourceMapsDisabled` is true, which is every path the four
-// `Checker.*ToString` helpers take: `setWriter` computes `sourceMapsDisabled = !writer || !sourceMapGenerator`
-// (emitter.ts:1412-1420) and `writeNode`/`writeList` pass no generator (emitter.ts:1342/1350), which is what
-// `printNode`/`printList` go through.
+// PORT-NOTE: `SourceMapGenerator` (src/compiler/sourcemap.ts:36-360) is the port's
+// `Transforms/SourceMap.Generator.cs`, and `_sourceMapGenerator` is the value the reference's `sourceMapGenerator!`
+// is: `setWriter` computes `sourceMapsDisabled = !writer || !sourceMapGenerator` (emitter.ts:1412-1420), so every
+// mapping call site below is only reachable while the generator is present, and reads it with `!`. The family stays
+// inert while `_sourceMapsDisabled` is true, which is every path the four `Checker.*ToString` helpers take:
+// `writeNode`/`writeList` pass no generator (emitter.ts:1342/1350), which is what `printNode`/`printList` go through.
 internal sealed partial class Printer
 {
     // ---------------------------------------------------------------------------------------------
@@ -124,7 +122,7 @@ internal sealed partial class Printer
         var lineAndCharacter = ScannerUtilities.ComputeLineAndCharacterOfPosition(lineStarts, pos);
         var sourceLine = lineAndCharacter.Line;
         var sourceCharacter = lineAndCharacter.Character;
-        (_sourceMapGenerator ?? throw SourceMapGeneratorNotSupported("addMapping", 143)).AddMapping(
+        _sourceMapGenerator!.AddMapping(
             _writer.GetLine(),
             _writer.GetColumn(),
             _sourceMapSourceIndex,
@@ -220,10 +218,10 @@ internal sealed partial class Printer
             return;
         }
 
-        _sourceMapSourceIndex = (_sourceMapGenerator ?? throw SourceMapGeneratorNotSupported("addSource", 86)).AddSource(source.FileName);
+        _sourceMapSourceIndex = _sourceMapGenerator!.AddSource(source.FileName);
         if (Js.IsTruthy(_printerOptions.InlineSources))
         {
-            (_sourceMapGenerator ?? throw SourceMapGeneratorNotSupported("setSourceContent", 102)).SetSourceContent(_sourceMapSourceIndex, source.Text);
+            _sourceMapGenerator!.SetSourceContent(_sourceMapSourceIndex, source.Text);
         }
 
         _mostRecentlyAddedSourceMapSource = source;
@@ -242,22 +240,4 @@ internal sealed partial class Printer
     /// <c>Extension.Json</c> is the typed enum member, whose string is <c>.Value</c>.</remarks>
     private bool IsJsonSourceMapSource(ISourceMapSource sourceFile)
         => Paths.FileExtensionIs(sourceFile.FileName!, Extension.Json.Value);
-
-    /// <summary>ported from: src/compiler/sourcemap.ts:86-250 — the generator members the printer calls.</summary>
-    /// <remarks>
-    /// PORT-NOTE: the reference reaches the generator through <c>sourceMapGenerator!.addSource(…)</c> /
-    /// <c>setSourceContent(…)</c> / <c>addMapping(…)</c> (emitter.ts:6304, 6310, 6235). <c>SourceMapGenerator</c> is
-    /// <c>sourcemap.ts</c>, the later M7-B slice (docs/architecture.md §17.4 item 8: "sourcemap.ts (823) + printer
-    /// 的 source-map 路径"), so no implementation exists for <c>_sourceMapGenerator</c> to hold: each call site keeps
-    /// the reference's call and asks for the generator through this guard, which names the member and its
-    /// <c>sourcemap.ts</c> line — exactly one blocker per missing member, the same loud, named failure
-    /// <c>Checker.PrinterNotSupported</c> (Checker/Checker.Stringify.cs:939-947) is. It returns the exception rather
-    /// than throwing it because the call sites are expressions.
-    /// </remarks>
-    private static NotSupportedException SourceMapGeneratorNotSupported(string member, int referenceLine)
-        => new NotSupportedException(
-            $"SourceMapGenerator.{member} (src/compiler/sourcemap.ts:{referenceLine}) is not ported yet — sourcemap.ts is "
-            + "the later M7-B slice (docs/architecture.md §17.4 item 8), so the printer cannot attach this mapping. "
-            + "Nothing is emitted silently in its place: the printer's source-map path is only reachable once that "
-            + "slice lands.");
 }

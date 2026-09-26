@@ -1857,3 +1857,47 @@ printer 落地后，语料从"崩溃"变成"能跑"，此前被门控掩盖的�
 4. **`Checker/Checker.Check.Source.cs` 的 `IsSymbolOfDeclarationWithCollidingName` 读了空值**：参考末尾 `return links.isDeclarationWithCollidingName!` 是**类型层断言**（容器无局部变量时该槽保持 `undefined`，真值测试即假），端口 `.Value` 抛"Nullable object must have a value"。
 
 **验收（实测）**：build 0 错误 0 警告、测试 **1,284/1,284**（+30 es2015 +39 generators +2 访问器真值例；另删除 1 例不可能出现在参考管线里的静态属性初始化用例 —— `transformClassFields` 无条件跑在 `transformES2015` 之前，transformer.ts:161-166 + es2015.ts:2276-2278，该用例归 M7-B5 用真链验证）；**TypeDiff 全语料仍 `same=5905 diverged=3 port-crash=0`（零回归）**。
+
+### 17.12 M7-B 批次 4：余下全部转换器 + 转换器链组装
+
+一次并行 8 切片把 `transformers/` 剩余部分全部落地（每片自带以 `ts.transpileModule`/`tsc` 6.0.3 真值钉定的测试）：
+
+| 切片 | 参考 | 端口文件 | 测试 |
+|---|---|---|---|
+| 语言版本小尾巴 | `esnext.ts`(800)+`es2021.ts`(106)+`es2020.ts`(267) | `ESNextTransform.cs`/`ES2021Transform.cs`/`ES2020Transform.cs` | 39+11+20 |
+| 异步/对象展平 | `es2017.ts`(1,154)+`es2018.ts`(1,486)+`es2016.ts`(122)+`es2019.ts`(51) | `ES2017Transform{,.Substitution,.Support}.cs`/`ES2018Transform{,.Substitution}.cs`/`ES2016Transform.cs`/`ES2019Transform.cs` | 4 文件 |
+| 类字段与命名求值 | `classFields.ts`(3,360)+`namedEvaluation.ts`(489) | `ClassFieldsTransform{,.Visitor,.Fields,.Expressions,.Classes,.PrivateNames,.Substitution}.cs`+`NamedEvaluation.cs` | 19（真链 `[transformTypeScript, transformClassFields, transformES2015]`） |
+| 装饰器 | `legacyDecorators.ts`(846)+`esDecorators.ts`(2,533) | `LegacyDecorators.cs`+`ESDecorators{,.ClassLike,…}.cs` | 17 |
+| 模块 | `module/module.ts`(2,504)+`module/system.ts`(2,050)+`module/{esnextAnd2015,impliedNodeFormatDependent}.ts`(439+99) | `Transforms/Module/{ModuleTransform*.cs,SystemTransform*.cs,EsNextAnd2015.cs,ImpliedNodeFormatDependent.cs}`（6,079 行） | 23 |
+| JSX | `jsx.ts`(937) | `JsxTransform{,.Text}.cs`（1,403 行，含 253 项实体表逐字生成） | 50 |
+| 声明发射 | `declarations.ts`(1,977)+`declarations/diagnostics.ts`(812) | `Transforms/Declarations/DeclarationsTransform{,.Reporting,.Members,.Statements,.Support}.cs`+`DeclarationsDiagnostics.cs` | 见其自述 |
+| sourcemap | `sourcemap.ts`(823)+printer 映射路径 | `SourceMap{,.Generator,.Mappings,.DocumentPosition}.cs`；`Emit/Printer.SourceMaps.cs` 的具名阻断换成真生成器 | 18 |
+
+**转换器链组装（transformer.ts:78-197，M7-B/C 的最后一个具名阻断）**：`Transforms/Transformer.cs` 的三个列表构建器从"响亮阻断"变成参考自身组合 —— `GetScriptTransformers` 按 `transformer.ts:127-190` 的顺序与门控压入 19 个工厂（`transformTypeScript` → 装饰器、JSX、ESNext、ESDecorators、**classFields（无条件）**、ES2021…ES2015、generators → `getModuleTransformer` → 自定义 after），`GetDeclarationTransformers` 为 `transformDeclarations` + 自定义 `afterDeclarations`，`emitOnly` 回答共享空表；`GetModuleTransformer` 委派给 `ImpliedNodeFormatDependent.GetModuleTransformer`（模块切片的公开成员，参考 switch 的唯一家）；`TransformerListNotLanded` 删除。
+
+**同时收口的基础缺陷与门控**：
+1. **`Utilities.GetDecorators`/`GetModifiers` 只做 cast 不做 filter**（`Utilities/Utilities.Checker.cs`）：参考 `filter(node.modifiers, isDecorator)`/`isModifier`（utilitiesPublic.ts:1024-1034）；端口对共享 modifiers 槽整体 `Cast<>`，任何"装饰器 + 关键字修饰符"（`@dec static y = 2`）都抛 `InvalidCastException`。装饰器切片端到端复现，已修。
+2. **`Program.GetDeclarationDiagnosticsFromTransform` 的最后具名阻断换成真调用**（`DeclarationsTransform.GetDeclarationDiagnostics`，declarations.ts:221-238）⇒ `--declaration` 的诊断路径贯通。
+3. **`Utilities/Utilities.Visitor.cs` 的 `PrefixUnaryExpression` 分派把参数窄成 `JsonMinusNumericLiteral` 子类型**（`JsonMinusNumericLiteral : PrefixUnaryExpression`，模型 NodeClasses.cs:1375）：参考的 `visitEachChildOfPrefixUnaryExpression`（visitorPublic.ts:1154）与 `updatePrefixUnaryExpression`（nodeFactory.ts:3387）都取基类型；端口的窄化在分派点**强转**每个 `-x`/`+x`，即 EmitDiff 首轮全语料里 18 条崩溃的全部成因。已改基类型 + 纠引注行号。
+4. **四处参考 `utilities.ts` 成员从切片私有副本归位 `Utilities`**（各切片报告点名）：`IsStringDoubleQuoted`(3917-3919)、`IsAmbientPropertyDeclaration`(2197-2199)、`IsNodeWithPossibleHoistedDeclaration`(4964-4988)、`IsEffectiveStrictModeSourceFile`(2166-2192) 进 `Utilities.Checker.cs`，`IsNonNullChain`(utilitiesPublic.ts:1437-1439) 进 `Utilities.cs`（`IsPropertyAccessChain`/`IsCallChain` 旁），私有副本删除、调用点改指。
+5. **模块切片的 4 个测试失败是它自己的测试夹具缺陷**，非产品缺陷：`CreateProgram` 把 `EsModuleInterop` 默认成 `false`，而参考（以及端口 `Utilities.GetESModuleInterop`）是 `?? true`，导致 `__importStar`/`__importDefault` 未被请求（期望值本就是参考字节）⇒ 夹具参数改为 `bool? = null` 透传默认。期望值未改一字。
+6. **`ProgramTests` 的阻断断言换成真行为断言**：`TheEmitSurfaceIsRealAndTheTransformerChainIsAssembled` 断言 `GetDeclarationDiagnostics` 不再抛、并逐项校验链的组成（首为 `TransformTypeScript`、`ClassFields` 先于 `ES2015`、`Generators` 紧随其后、末为 `ImpliedNodeFormatDependent.GetModuleTransformer(CommonJS)`、声明侧为 `TransformDeclarations`、`emitOnly` 与 `NoTransformers` 同实例）。
+
+### 17.13 M7-C 首次贯通：EmitDiff 全语料逐字节一致
+
+组装 `getTransformers` 后（§17.12），`tools/EmitDiff` 对同一份 5,908 文件语料同时跑参考 `lib/typescript.js`（6.0.3）与端口 `Program.Emit`（单文件程序、`target/module=ESNext`、`allowJs`、`newLine=LF`、`suppressOutputPathCheck`），对每个文件写出的 `.js` 取 FNV-1a 哈希逐字节比对：
+
+| 轮次 | 结果 | 说明 |
+|---|---|---|
+| 首轮（未修 visitor 窄化） | `same=5890 diverged=0 port-crash=18` | 18 条崩溃**全部**是同一缺陷：`Utilities.VisitEachChildWorker` 把 `PrefixUnaryExpression` 分派强转成 `JsonMinusNumericLiteral`（§17.12 缺陷 3），任何含 `-x`/`+x` 的文件即崩 |
+| 修后（当前树） | **`same=5908/5908 diverged=0 port-crash=0 ts-error=0 unpaired=0`（VERDICT clean）** | 5,908 个文件的 `.js` 与参考**逐字节相同**，零崩溃、零分歧 |
+
+同一树的 checker 侧外环（`tools/TypeDiff`，真源 `lib/typescript.js`）：**`same=5905/5908 diverged=3 port-crash=0`** —— 与本批次之前的基线完全相同（零回归），剩余 3 条为已记录的诊断码错配与两条类型 id 偏移。
+
+验收命令（可复现）：
+```
+dotnet run --project tools/EmitDiff -- --cases D:/Source/GitHub/TypeScript/tests/cases/conformance --out artifacts/M7-C-emit-final
+dotnet run --project tools/TypeDiff -- --cases D:/Source/GitHub/TypeScript/tests/cases/conformance --out artifacts/M7-C-typeside-final
+```
+
+**仍未闭合（M7-C 尾项，已登记）**：声明发射（`.d.ts`）与 `tsc --declaration` 的逐字节比对（declarations 切片已发现一例"解构 + 参数属性 + 显式数组类型"分歧）；`.js.map`/`sourceMappingURL` 侧与 `tsc --sourceMap` 的比对；剩余 3 条 TypeDiff 分歧；`.errors.txt`/baseline 全量比对（P1b）。

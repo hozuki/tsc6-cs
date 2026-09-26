@@ -267,6 +267,12 @@ internal static partial class Utilities
     public static bool IsCallChain(Node node)
         => NodeTests.IsCallExpression(node) && (node.Flags & NodeFlags.OptionalChain) != 0;
 
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1437-1439 — <c>isNonNullChain</c>.</summary>
+    /// <remarks>PORT-NOTE: <c>isNonNullExpression(node) &amp;&amp; !!(node.flags &amp; NodeFlags.OptionalChain)</c> is stated
+    /// with the enum-mask test the three predicates above use.</remarks>
+    public static bool IsNonNullChain(Node node)
+        => NodeTests.IsNonNullExpression(node) && (node.Flags & NodeFlags.OptionalChain) != 0;
+
     /// <summary>ported from: src/compiler/utilities.ts:5343 — <c>isSuperProperty</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: TS casts to the *union* <c>PropertyAccessExpression | ElementAccessExpression</c> and reads

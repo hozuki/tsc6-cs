@@ -1230,21 +1230,24 @@ internal static partial class Utilities
     /// PORT-NOTE: TS's parameter is <c>HasDecorators</c> and its result is <c>readonly Decorator[] | undefined</c>; the
     /// port filters the node's <c>modifiers</c> slot — which the model spreads over its classes, so it reads the same
     /// private <c>ModifiersOf</c> helper <c>Utilities/Utilities.Binder.cs</c> uses for
-    /// <c>getSyntacticModifierFlagsNoCache</c> — and casts the filtered elements to the concrete <c>Decorator</c> the
-    /// <c>IsDecorator</c> kind test licenses. The <c>undefined</c> arm stays <c>null</c>.
+    /// <c>getSyntacticModifierFlagsNoCache</c> — by <c>isDecorator</c> (utilitiesPublic.ts) and casts the survivors to the
+    /// concrete <c>Decorator</c> that filter licenses. The filter is not optional: decorators and modifiers share the
+    /// slot (TS 5.0+), so casting every element throws on any decorated node that also carries a keyword modifier
+    /// (<c>@dec static y = 2</c>). The <c>undefined</c> arm stays <c>null</c>.
     /// </remarks>
     public static List<Decorator>? GetDecorators(Node node)
-        => HasDecorators(node) ? [.. ModifiersOf(node)!.Cast<Decorator>()] : null;
+        => HasDecorators(node) ? [.. ModifiersOf(node)!.Where(NodeTests.IsDecorator).Cast<Decorator>()] : null;
 
     /// <summary>ported from: src/compiler/utilitiesPublic.ts:1030-1034 — <c>getModifiers</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: TS's parameter is <c>HasModifiers</c> and its result is <c>readonly Modifier[] | undefined</c>. The
-    /// port reads the <c>modifiers</c> slot through the same private helper as <see cref="GetDecorators"/> and casts the
-    /// filtered elements to the model's <c>ModifierToken</c> (Model/Token.cs), which is the concrete type
-    /// <c>Utilities.IsModifierKind</c> licenses; <c>ModifierFlags.Modifier</c> is the enum's own mask.
+    /// port reads the <c>modifiers</c> slot through the same private helper as <see cref="GetDecorators"/> and filters by
+    /// <c>isModifierKind</c> (the keyword test <see cref="IsModifier"/> is stated on — hence the <c>ModifierFlags.Modifier</c>
+    /// guard reuses <c>hasSyntacticModifier</c>), then casts the survivors to the model's <c>ModifierToken</c>
+    /// (Model/Token.cs). Decorators share the slot, so they must not survive this read.
     /// </remarks>
     public static List<ModifierToken>? GetModifiers(Node node)
-        => HasSyntacticModifier(node, ModifierFlags.Modifier) ? [.. ModifiersOf(node)!.Cast<ModifierToken>()] : null;
+        => HasSyntacticModifier(node, ModifierFlags.Modifier) ? [.. ModifiersOf(node)!.Where(n => IsModifierKind(n.Kind)).Cast<ModifierToken>()] : null;
 
     /// <summary>ported from: src/compiler/utilities.ts:7253-7275 — <c>getModifierFlagsWorker</c> (file-local upstream).</summary>
     /// <remarks>
@@ -1906,6 +1909,89 @@ internal sealed class EvaluatorResultValue<T> : IEvaluatorResult<T>
     /// <summary>ported from: src/compiler/utilities.ts:3912-3914 — <c>isSingleOrDoubleQuote</c>.</summary>
     public static bool IsSingleOrDoubleQuote(int charCode)
         => charCode == CharacterCodes.SingleQuote || charCode == CharacterCodes.DoubleQuote;
+
+    /// <summary>ported from: src/compiler/utilities.ts:3917-3919 — <c>isStringDoubleQuoted</c>.</summary>
+    /// <remarks>PORT-NOTE: the reference's parameter is <c>StringLiteralLike</c>, whose only landed caller holds a
+    /// parsed <see cref="StringLiteral"/>; <c>charCodeAt(0)</c> answers <c>NaN</c> on empty text there and this member
+    /// answers <c>false</c> (no string literal's source text is empty, so the two agree on every reachable input).</remarks>
+    public static bool IsStringDoubleQuoted(StringLiteral str, SourceFile sourceFile)
+    {
+        var text = GetSourceTextOfNodeFromSourceFile(sourceFile, str);
+        return text.Length > 0 && text[0] == (char)CharacterCodes.DoubleQuote;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:2197-2199 — <c>isAmbientPropertyDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: TS's <c>!!(node.flags &amp; NodeFlags.Ambient) || hasSyntacticModifier(node, ModifierFlags.Ambient)</c>
+    /// is stated with the enum-mask test the port uses throughout; <c>hasSyntacticModifier</c> is the member below.</remarks>
+    public static bool IsAmbientPropertyDeclaration(PropertyDeclaration node)
+        => (node.Flags & NodeFlags.Ambient) != 0 || HasSyntacticModifier(node, ModifierFlags.Ambient);
+
+    /// <summary>ported from: src/compiler/utilities.ts:4964-4988 — <c>isNodeWithPossibleHoistedDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: TS's member is a type guard over the <c>NodeWithPossibleHoistedDeclaration</c> union; the port
+    /// states the same kind test as a <c>bool</c> (rule (d)), because no member of the union has a shape its callers read
+    /// beyond the kind.</remarks>
+    public static bool IsNodeWithPossibleHoistedDeclaration(Node node)
+        => node.Kind switch
+        {
+            SyntaxKind.Block
+                or SyntaxKind.VariableStatement
+                or SyntaxKind.WithStatement
+                or SyntaxKind.IfStatement
+                or SyntaxKind.SwitchStatement
+                or SyntaxKind.CaseBlock
+                or SyntaxKind.CaseClause
+                or SyntaxKind.DefaultClause
+                or SyntaxKind.LabeledStatement
+                or SyntaxKind.ForStatement
+                or SyntaxKind.ForInStatement
+                or SyntaxKind.ForOfStatement
+                or SyntaxKind.DoStatement
+                or SyntaxKind.WhileStatement
+                or SyntaxKind.TryStatement
+                or SyntaxKind.CatchClause => true,
+            _ => false,
+        };
+
+    /// <summary>ported from: src/compiler/utilities.ts:2166-2192 — <c>isEffectiveStrictModeSourceFile</c>.</summary>
+    /// <remarks>PORT-NOTE: <c>startsWithUseStrict(node.statements)</c> is
+    /// <see cref="FactoryUtilities.StartsWithUseStrict"/>, <c>getAlwaysStrict</c>/<c>getIsolatedModules</c> are
+    /// <see cref="GetAlwaysStrict"/>/<see cref="GetIsolatedModules"/>, and <c>isExternalModule</c> is
+    /// <see cref="Parser.IsExternalModule"/>.</remarks>
+    public static bool IsEffectiveStrictModeSourceFile(SourceFile node, ICompilerOptions compilerOptions)
+    {
+        // We can only verify strict mode for JS/TS files
+        switch (node.ScriptKind)
+        {
+            case ScriptKind.JS:
+            case ScriptKind.TS:
+            case ScriptKind.JSX:
+            case ScriptKind.TSX:
+                break;
+            default:
+                return false;
+        }
+        // Strict mode does not matter for declaration files.
+        if (node.IsDeclarationFile)
+        {
+            return false;
+        }
+        // If `alwaysStrict` is set, then treat the file as strict.
+        if (GetAlwaysStrict(compilerOptions))
+        {
+            return true;
+        }
+        // Starting with a "use strict" directive indicates the file is strict.
+        if (FactoryUtilities.StartsWithUseStrict(node.Statements!))
+        {
+            return true;
+        }
+        if (Parser.IsExternalModule(node) || GetIsolatedModules(compilerOptions))
+        {
+            // Modules are always strict.
+            return true;
+        }
+        return false;
+    }
 
     /// <summary>ported from: src/compiler/utilities.ts:3525-3534 — <c>nodeIsDecorated</c> (the three overloads at 3525/3527/3529 and the implementation at 3531-3534).</summary>
     /// <remarks>
