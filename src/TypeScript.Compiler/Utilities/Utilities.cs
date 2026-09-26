@@ -30,13 +30,33 @@ namespace TypeScript.Compiler;
 /// </remarks>
 internal static partial class Utilities
 {
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:946-948 — the duck-typed <c>name</c> read
+    /// <c>isNamedDeclaration</c> is defined by.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS asks <c>!!(node as NamedDeclaration).name</c> — a slot read, not a type test — so it answers for
+    /// every declaration that carries a <c>name</c>, including the two the model cannot mark
+    /// <see cref="INamedDeclaration"/>: types.ts declares their <c>name</c> without <c>extends NamedDeclaration</c>
+    /// (<c>JsxAttribute</c> at types.ts:3274-3280, <c>NamedTupleMember</c>), so a plain
+    /// <c>is INamedDeclaration</c> test would answer false where TS answers true. The port states the same question as
+    /// this switch, which the members that need the read share — <see cref="IsNamedDeclaration"/>,
+    /// <c>getNonAssignedNameOfDeclaration</c> and the binder's <c>getDisplayName</c>/<c>declareSymbol</c>.
+    /// </remarks>
+    public static Node? GetNamedDeclarationName(Node node) => node switch
+    {
+        INamedDeclaration named => named.Name,
+        JsxAttribute jsxAttribute => jsxAttribute.Name,
+        NamedTupleMember namedTupleMember => namedTupleMember.Name,
+        _ => null,
+    };
+
     /// <summary>ported from: src/compiler/utilitiesPublic.ts:946 — <c>isNamedDeclaration</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: TS narrows to <c>NamedDeclaration &amp; { name: DeclarationName }</c>, which is what lets a caller
-    /// read <c>name</c> without another check. The port answers with the interface, and its <c>Name</c> is
-    /// <c>object?</c> — that is what <c>DeclarationName</c> maps to (§12.5) — so callers narrow once more.
+    /// read <c>name</c> without another check. The port answers <c>bool</c> and the caller reads the slot through
+    /// <see cref="GetNamedDeclarationName"/> — the honest C# spelling of TS's duck-typed read — because a C# type test
+    /// cannot ask "does this node have a name slot".
     /// </remarks>
-    public static bool IsNamedDeclaration(Node node) => node is INamedDeclaration { Name: not null };
+    public static bool IsNamedDeclaration(Node node) => GetNamedDeclarationName(node) is not null;
 
     /// <summary>ported from: src/compiler/utilitiesPublic.ts:1657 — <c>isPropertyName</c>.</summary>
     /// <remarks>

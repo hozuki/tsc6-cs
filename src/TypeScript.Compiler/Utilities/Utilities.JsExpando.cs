@@ -732,8 +732,14 @@ internal static partial class Utilities
     /// established one of the two kinds (through <see cref="IsAccessExpression"/>, <c>isPropertyAccessExpression</c> or
     /// <c>isLiteralLikeElementAccess</c>), so the default arm is a programming error rather than an answer TS can
     /// reach.
+    /// <para>
+    /// PORT-NOTE: this member is <c>public</c> rather than private because the binder reads the same union member:
+    /// <c>bindWorker</c>'s access-expression arm declares the module export symbol on <c>expr.expression</c>
+    /// (binder.ts:2896) and its binary-expression arm tests <c>left.expression</c> (binder.ts:2920). Making the read
+    /// reachable keeps one home for it instead of a second kind switch in the binder.
+    /// </para>
     /// </remarks>
-    private static Expression GetAccessExpressionExpression(Node node) => node switch
+    public static Expression GetAccessExpressionExpression(Node node) => node switch
     {
         PropertyAccessExpression propertyAccess => propertyAccess.Expression!,
         ElementAccessExpression elementAccess => elementAccess.Expression!,

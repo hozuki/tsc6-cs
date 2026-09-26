@@ -370,10 +370,12 @@ internal static partial class Utilities
     /// <summary>ported from: src/compiler/utilitiesPublic.ts:951-995 — <c>getNonAssignedNameOfDeclaration</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: TS answers <c>DeclarationName | undefined</c>; <c>DeclarationName</c> is the port's <c>object?</c>
-    /// (§12.5), and the caller narrows to the node it wants. TS's final <c>(declaration as NamedDeclaration).name</c> is
-    /// the port's <c>as INamedDeclaration</c> — a C# <c>as</c> answers <c>null</c> for exactly the nodes whose TS read
-    /// would answer <c>undefined</c>. The JSDoc arms read <c>name.kind</c> off a slot the model declares nullable; a
-    /// null name therefore answers no name instead of throwing.
+    /// (§12.5), and the caller narrows to the node it wants. TS's final <c>(declaration as NamedDeclaration).name</c>
+    /// is a duck-typed slot read, not a type test, so it answers for the declarations the model leaves out of
+    /// <see cref="INamedDeclaration"/> — <c>JsxAttribute</c> and <c>NamedTupleMember</c> — and the port reads it
+    /// through <see cref="GetNamedDeclarationName"/> for that reason. A declaration with no name slot answers
+    /// <c>null</c>, which is TS's <c>undefined</c>. The JSDoc arms read <c>name.kind</c> off a slot the model declares
+    /// nullable; a null name therefore answers no name instead of throwing.
     /// <para>
     /// PORT-NOTE: the JS-assignment arms lean on the expando batch inside this same partial class —
     /// <c>getAssignmentDeclarationKind</c>, <c>getElementOrPropertyAccessArgumentExpressionOrName</c> and
@@ -422,7 +424,7 @@ internal static partial class Utilities
                 break;
         }
 
-        return (declaration as INamedDeclaration)?.Name;
+        return GetNamedDeclarationName(declaration);
     }
 
     /// <summary>ported from: src/compiler/utilitiesPublic.ts:997-1001 — <c>getNameOfDeclaration</c>.</summary>
@@ -668,9 +670,10 @@ internal static partial class Utilities
 
     /// <summary>ported from: src/compiler/utilitiesPublic.ts:678-680 — <c>getCombinedNodeFlags</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS shares <c>getCombinedFlags</c> with <c>getCombinedModifierFlags</c>; that sibling needs
-    /// <c>getEffectiveModifierFlags</c>, which arrives with the JSDoc/effective-modifier slice, so only the node-flags
-    /// entry point is stated here.
+    /// PORT-NOTE: TS shares <c>getCombinedFlags</c> with <c>getCombinedModifierFlags</c>; that sibling now composes this
+    /// same walk with <c>getSyntacticModifierFlags</c> where TS uses <c>getEffectiveModifierFlags</c> (which is still
+    /// the JSDoc/effective-modifier slice's to land) — see <c>Utilities.GetCombinedModifierFlags</c> in
+    /// Utilities/Utilities.Binder.Modifiers.cs for the walk's second entry point and that substitution's reason.
     /// </remarks>
     public static NodeFlags GetCombinedNodeFlags(Node node) => (NodeFlags)GetCombinedFlags(node, GetNodeFlags);
 

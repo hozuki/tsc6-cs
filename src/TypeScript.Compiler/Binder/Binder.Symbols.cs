@@ -206,16 +206,21 @@ internal partial class Binder
 
     /// <summary>ported from: src/compiler/binder.ts:737-747 — <c>getDisplayName</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS's <c>isNamedDeclaration</c> guard narrows to a node that has a name; the port's helper answers
-    /// <c>bool</c>, so the name is taken through <see cref="INamedDeclaration"/>. <c>unescapeLeadingUnderscores</c> is
-    /// applied to <c>checkDefined(getDeclarationName(node))</c> — a declaration that reaches the fallback always has
-    /// one, and the port says so with <see cref="Debug.CheckDefined{T}(T?, string?)"/> rather than the null-forgiving
-    /// operator, so a factory bug fails loudly.
+    /// PORT-NOTE: TS's <c>isNamedDeclaration(node) ? declarationNameToString(node.name) : …</c> reads the duck-typed
+    /// name slot; the port takes that slot once through <see cref="Utilities.GetNamedDeclarationName"/>, which is what
+    /// keeps a JSX attribute (a declaration whose name the model does not mark <see cref="INamedDeclaration"/>) out of
+    /// the fallback and out of a cast that would throw (§12.9). <c>unescapeLeadingUnderscores</c> is applied to
+    /// <c>checkDefined(getDeclarationName(node))</c> — a declaration that reaches the fallback always has one, and the
+    /// port says so with <see cref="Debug.CheckDefined{T}(T?, string?)"/> rather than the null-forgiving operator, so a
+    /// factory bug fails loudly.
     /// </remarks>
     internal string GetDisplayName(IDeclaration node)
-        => Utilities.IsNamedDeclaration((Node)node)
-            ? Utilities.DeclarationNameToString(((INamedDeclaration)node).Name)
+    {
+        var name = Utilities.GetNamedDeclarationName((Node)node);
+        return name is not null
+            ? Utilities.DeclarationNameToString(name)
             : Utilities.UnescapeLeadingUnderscores(Debug.CheckDefined(GetDeclarationName(node), "a declaration reported by getDisplayName must have a name"));
+    }
 
     /// <summary>ported from: src/compiler/binder.ts:749-885 — <c>declareSymbol</c>.</summary>
     /// <remarks>
@@ -319,9 +324,11 @@ internal partial class Binder
                 else if ((includes & SymbolFlags.Variable) == 0 || (symbol.Flags & SymbolFlags.Assignment) == 0)
                 {
                     // Assignment declarations are allowed to merge with variables, no matter what other flags they have.
-                    if (Utilities.IsNamedDeclaration(node))
+                    // TS's isNamedDeclaration guard plus node.name is the duck-typed slot read, which a JSX attribute
+                    // also satisfies even though the model does not mark it INamedDeclaration.
+                    if (Utilities.GetNamedDeclarationName(node) is { } declarationNameNode)
                     {
-                        Utilities.SetParent(((INamedDeclaration)node).Name, node);
+                        Utilities.SetParent(declarationNameNode, node);
                     }
 
                     // Report errors every position with duplicate declaration

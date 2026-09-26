@@ -37,48 +37,55 @@ function stripBom(text) {
 // (the id map is per "flowKey" call) and prints the graph as lines: the referenced node first, the referrer after.
 // node= is the payload the flow node carries: a node's kind(pos,end), the switch-clause payload, or the reduce-label
 // payload whose target is dumped as part of the same sequence.
-function dumpFlow(flow, out) {
+// One id map per *file* (see the FlowDumper equivalent in Program.cs): numbering inside a single key call would re-print
+// a shared subgraph once per reference, and nesting a subgraph's text into its ancestors' strings would make the dump
+// grow far faster than the graph. One `F#` line per flow node, every flow-node-valued field a `#id` reference or `-`.
+function flowDumper(out) {
     const ids = new Map();
     let next = 1;
-    return describe(flow);
 
-    function describe(f) {
+    function key(f) {
         if (!f) return "-";
         if (ids.has(f)) return "#" + ids.get(f);
         const id = next++;
         ids.set(f, id);
-        let nodeDesc = "-";
+
+        let ante = "-";
+        if (Array.isArray(f.antecedent)) ante = "[" + f.antecedent.map(key).join(",") + "]";
+        else if (f.antecedent) ante = key(f.antecedent);
+        out.push(`F#${id} flags=${f.flags} ante=${ante}`);
+
         if (f.node && typeof f.node.kind === "number") {
-            nodeDesc = `${f.node.kind}(${f.node.pos},${f.node.end})`;
+            out.push(`F#${id} node=${f.node.kind}(${f.node.pos},${f.node.end})`);
         } else if (f.node && f.node.switchStatement) {
-            nodeDesc = `clause(${f.node.switchStatement.pos},${f.node.switchStatement.end},${f.node.clauseStart},${f.node.clauseEnd})`;
+            out.push(`F#${id} clause=${f.node.switchStatement.pos},${f.node.switchStatement.end},${f.node.clauseStart},${f.node.clauseEnd}`);
         } else if (f.node && f.node.target) {
-            nodeDesc = `reduce(target=${describe(f.node.target)},antecedents=${f.node.antecedents ? f.node.antecedents.length : 0})`;
+            const outer = Array.isArray(f.node.antecedents) ? "[" + f.node.antecedents.map(key).join(",") + "]" : "-";
+            out.push(`F#${id} reduce target=${key(f.node.target)} outer=${outer}`);
         }
-        let anteDesc = "-";
-        if (Array.isArray(f.antecedent)) anteDesc = "[" + f.antecedent.map(describe).join(",") + "]";
-        else if (f.antecedent) anteDesc = describe(f.antecedent);
-        out.push(`F#${id} flags=${f.flags} node=${nodeDesc} ante=${anteDesc}`);
+
         return "#" + id;
     }
+
+    return key;
 }
 
-function dumpNode(node, depth, out) {
-    const flow = node.flowNode ? dumpFlow(node.flowNode, out) : "-";
+function dumpNode(node, depth, out, flowKey) {
+    const flow = node.flowNode ? flowKey(node.flowNode) : "-";
     out.push(`N${depth} ${node.kind}(${node.pos},${node.end}) nflags=${node.flags === undefined ? 0 : node.flags} flow=${flow}`);
     if (node.kind === ts.SyntaxKind.SourceFile) {
-        out.push(`X${depth} endFlowNode=${node.endFlowNode ? dumpFlow(node.endFlowNode, out) : "-"}`);
+        out.push(`X${depth} endFlowNode=${node.endFlowNode ? flowKey(node.endFlowNode) : "-"}`);
     }
     if (node.kind === ts.SyntaxKind.SwitchStatement) {
         out.push(`X${depth} possiblyExhaustive=${node.possiblyExhaustive === undefined ? "-" : node.possiblyExhaustive ? 1 : 0}`);
     }
     if (node.kind === ts.SyntaxKind.ConditionalExpression) {
-        out.push(`X${depth} flowNodeWhenTrue=${node.flowNodeWhenTrue ? dumpFlow(node.flowNodeWhenTrue, out) : "-"} flowNodeWhenFalse=${node.flowNodeWhenFalse ? dumpFlow(node.flowNodeWhenFalse, out) : "-"}`);
+        out.push(`X${depth} flowNodeWhenTrue=${node.flowNodeWhenTrue ? flowKey(node.flowNodeWhenTrue) : "-"} flowNodeWhenFalse=${node.flowNodeWhenFalse ? flowKey(node.flowNodeWhenFalse) : "-"}`);
     }
     if (node.fallthroughFlowNode) {
-        out.push(`X${depth} fallthroughFlowNode=${dumpFlow(node.fallthroughFlowNode, out)}`);
+        out.push(`X${depth} fallthroughFlowNode=${flowKey(node.fallthroughFlowNode)}`);
     }
-    ts.forEachChild(node, (child) => dumpNode(child, depth + 1, out));
+    ts.forEachChild(node, (child) => dumpNode(child, depth + 1, out, flowKey));
 }
 
 // The file name must be the corpus-relative path on both sides: the parser derives "is this a declaration
@@ -101,7 +108,7 @@ function dump(text, options, kind, fileName) {
     const program = ts.createProgram([fileName], options, host);
     program.getTypeChecker(); // initializes binding: this is what builds the flow graph
     const out = [];
-    dumpNode(program.getSourceFile(fileName), 0, out);
+    dumpNode(program.getSourceFile(fileName), 0, out, flowDumper(out));
     return out.join("\n") + "\n";
 }
 

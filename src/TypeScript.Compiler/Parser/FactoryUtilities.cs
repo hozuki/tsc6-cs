@@ -500,15 +500,16 @@ internal static partial class FactoryUtilities
 
     /// <summary>ported from: src/compiler/factory/utilities.ts:617-621 — <c>isJSDocTypeAssertion</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS's body is
-    /// <c>isParenthesizedExpression(node) &amp;&amp; isInJSFile(node) &amp;&amp; !!getJSDocTypeTag(node)</c>.
-    /// <c>getJSDocTypeTag</c> belongs to the JSDoc helper family that arrives with M5, and the only caller is
-    /// <see cref="IsOuterExpression"/>'s <see cref="OuterExpressionKinds.ExcludeJSDocTypeAssertion"/> branch. A
-    /// placeholder answer of <c>false</c> would silently stop excluding JSDoc type assertions in every JS file, so this
-    /// is a loud blocker instead — the same choice §15.8 makes for the factory's own stubs.
+    /// PORT-NOTE: this member was a loud stub while <c>getJSDocTypeTag</c> was unported (§15.8's choice of a throw over a
+    /// placeholder answer). That dependency has since landed (Utilities/Utilities.JSDoc.cs), and M5-2's
+    /// <c>isNarrowingExpression</c> is the binder's own call site of this predicate (binder.ts:1252), so the reference
+    /// body is stated now. The <c>isInJSFile</c> test is the reference's second conjunct and is what keeps the predicate
+    /// from looking at JSDoc on a TS file's parentheses.
     /// </remarks>
     public static bool IsJSDocTypeAssertion(Node node)
-        => throw new NotImplementedException("isJSDocTypeAssertion needs getJSDocTypeTag, which arrives with the JSDoc helpers in M5");
+        => NodeTests.IsParenthesizedExpression(node)
+            && Utilities.IsInJSFile(node)
+            && Utilities.GetJSDocTypeTag(node) is not null;
 
     /// <summary>ported from: src/compiler/factory/utilities.ts:631-651 — <c>isOuterExpression</c>.</summary>
     public static bool IsOuterExpression(Node node, OuterExpressionKinds kinds = OuterExpressionKinds.All) => node.Kind switch
@@ -1254,7 +1255,18 @@ internal static partial class FactoryUtilities
             return State.Done;
         }
 
-        /// <summary>ported from: src/compiler/factory/utilities.ts:1392-1398 — <c>BinaryExpressionState.pushStack</c>.</summary>
+        /// <summary>ported from: src/compiler/factory/utilities.ts:1395-1400 — <c>BinaryExpressionState.pushStack</c>.</summary>
+        /// <remarks>
+        /// PORT-NOTE: TS assigns into the frame slot (<c>stateStack[stackIndex] = enter</c>, and the same for the two
+        /// other stacks), which *reuses* the slot a previously completed deeper frame left behind — a JavaScript array
+        /// assignment past the end appends, at the end it assigns. The port's lists therefore assign when the slot
+        /// exists and append only when the frame is past the end. Appending unconditionally is wrong: a walk that pops a
+        /// frame and then pushes a new one at the same depth — any binary expression with a binary expression on *both*
+        /// sides, e.g. <c>(a + b) + (c + d)</c> or the comma expression in
+        /// <c>if (y = "", typeof x === "string")</c> — would read the popped frame's <c>done</c> state, end the walk one
+        /// frame early, and fail the <c>Debug.Assert(stackIndex == 0)</c> in <c>Run</c> (M5-2 found this through the
+        /// binder's use of the trampoline; the factory's own use of it has the same shape).
+        /// </remarks>
         private static int PushStack(
             int stackIndex,
             List<State> stateStack,
@@ -1263,9 +1275,19 @@ internal static partial class FactoryUtilities
             BinaryExpression node)
         {
             stackIndex++;
-            stateStack.Add(State.Enter);
-            nodeStack.Add(node);
-            userStateStack.Add(default!);
+            if (stackIndex < stateStack.Count)
+            {
+                stateStack[stackIndex] = State.Enter;
+                nodeStack[stackIndex] = node;
+                userStateStack[stackIndex] = default!;
+            }
+            else
+            {
+                stateStack.Add(State.Enter);
+                nodeStack.Add(node);
+                userStateStack.Add(default!);
+            }
+
             return stackIndex;
         }
 

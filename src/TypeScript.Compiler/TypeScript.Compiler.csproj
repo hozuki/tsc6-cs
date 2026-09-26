@@ -13,9 +13,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- tools/AstDiff（§7 的 P1a 差分装置）直接调用 internal 的 Parser / ForEachChildTable / 节点模型；
-         授权方式与测试项目一致（见 AssemblyInfo.cs）。 -->
+    <!-- tools/AstDiff（§7 的 P1a 差分装置）与 tools/BindDiff（绑定/流图差分，M5）直接调用 internal 的
+         Parser / Binder / ForEachChildTable / 节点模型；授权方式与测试项目一致（见 AssemblyInfo.cs）。 -->
     <InternalsVisibleTo Include="AstDiff" />
+    <InternalsVisibleTo Include="BindDiff" />
   </ItemGroup>
 
 </Project>

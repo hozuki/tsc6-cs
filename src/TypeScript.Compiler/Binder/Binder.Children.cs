@@ -210,8 +210,20 @@ internal partial class Binder
 
             case SyntaxKind.Block:
             case SyntaxKind.ModuleBlock:
-                BindEachFunctionsFirst(((Block)node).Statements);
+            {
+                // PORT-NOTE: TS writes `(node as Block).statements` for both kinds (binder.ts:1216-1219) — an
+                // unsound cast its erased types make harmless, since a ModuleBlock carries a `statements` slot too.
+                // C#'s cast is checked, so the read is a pattern switch over the two classes that declare
+                // `Statements`; the cast would throw on every namespace or module body.
+                var statements = node switch
+                {
+                    Block block => block.Statements,
+                    ModuleBlock moduleBlock => moduleBlock.Statements,
+                    _ => null,
+                };
+                BindEachFunctionsFirst(statements);
                 break;
+            }
 
             case SyntaxKind.BindingElement:
                 BindBindingElementFlow((BindingElement)node);

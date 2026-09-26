@@ -37,6 +37,11 @@ internal sealed class TsTypeMapper
         ["TokenSyntaxKind"] = "SyntaxKind",
         ["IdentifierTypePredicate"] = "TypePredicateBase",
         ["ThisTypePredicate"] = "TypePredicateBase",
+        // `FlowNode` is the union of the nine `Flow*` interfaces (types.ts:4170-4179). None of them reaches
+        // `Node`, so the union's common base collapses to `Node` — a type the values never are — and
+        // `IFlowNodeBase` is a mixin the class implementing the union must satisfy by hand. The port has exactly
+        // one concrete class for the union (`Model/FlowNode.cs`), and every slot TS types `FlowNode` names it.
+        ["FlowNode"] = "FlowNode",
     };
 
     private readonly TsTypeModel _model;

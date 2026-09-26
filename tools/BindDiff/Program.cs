@@ -101,7 +101,14 @@ internal static class Program
 
         Directory.CreateDirectory(settings.Out);
         var paths = new OutputPaths(settings.Out);
-        foreach (var stale in new[] { paths.PortHashes, paths.PortCrashes, paths.Report, paths.Divergences })
+        foreach (var stale in new[] { paths.PortHashes, paths.PortCrashes, paths.TsHashes, paths.TsErrors, paths.TsSummary, paths.Report, paths.Divergences })
+        {
+            File.Delete(stale);
+        }
+
+        // The batched node pass writes one hash/error file per batch; a previous run may have left more of them than this
+        // one produces, and the comparison must not read another run's leftovers.
+        foreach (var stale in Directory.GetFiles(settings.Out, "ts-hashes.*.txt").Concat(Directory.GetFiles(settings.Out, "ts-errors.*.txt")))
         {
             File.Delete(stale);
         }
@@ -211,19 +218,18 @@ internal static class Program
     private static string Dump(SourceFile file)
     {
         var outLines = new List<string>();
-        AppendNode(file, 0, outLines);
+        var flows = new FlowDumper(outLines);
+        AppendNode(file, 0, outLines, flows);
         return string.Join("\n", outLines) + "\n";
     }
 
-    private static void AppendNode(Node node, int depth, List<string> outLines)
+    private static void AppendNode(Node node, int depth, List<string> outLines, FlowDumper flows)
     {
-        var flow = node is IFlowContainer container && container.FlowNode is { } containerFlow
-            ? FlowKey(containerFlow, outLines)
-            : "-";
+        var flow = node is IFlowContainer container ? flows.Key(container.FlowNode) : "-";
         outLines.Add($"N{depth} {(int)node.Kind}({node.Pos},{node.End}) nflags={(int)node.Flags} flow={flow}");
         if (node is SourceFile sourceFile)
         {
-            outLines.Add($"X{depth} endFlowNode={(sourceFile.EndFlowNode is { } endFlow ? FlowKey(endFlow, outLines) : "-")}");
+            outLines.Add($"X{depth} endFlowNode={flows.Key(sourceFile.EndFlowNode)}");
         }
 
         if (node is SwitchStatement switchStatement)
@@ -233,70 +239,79 @@ internal static class Program
 
         if (node is ConditionalExpression conditionalExpression)
         {
-            outLines.Add($"X{depth} flowNodeWhenTrue={(conditionalExpression.FlowNodeWhenTrue is { } whenTrue ? FlowKey(whenTrue, outLines) : "-")}"
-                + $" flowNodeWhenFalse={(conditionalExpression.FlowNodeWhenFalse is { } whenFalse ? FlowKey(whenFalse, outLines) : "-")}");
+            outLines.Add($"X{depth} flowNodeWhenTrue={flows.Key(conditionalExpression.FlowNodeWhenTrue)}"
+                + $" flowNodeWhenFalse={flows.Key(conditionalExpression.FlowNodeWhenFalse)}");
         }
 
         switch (node)
         {
             case CaseClause { FallthroughFlowNode: { } caseFallthrough }:
-                outLines.Add($"X{depth} fallthroughFlowNode={FlowKey(caseFallthrough, outLines)}");
+                outLines.Add($"X{depth} fallthroughFlowNode={flows.Key(caseFallthrough)}");
                 break;
             case DefaultClause { FallthroughFlowNode: { } defaultFallthrough }:
-                outLines.Add($"X{depth} fallthroughFlowNode={FlowKey(defaultFallthrough, outLines)}");
+                outLines.Add($"X{depth} fallthroughFlowNode={flows.Key(defaultFallthrough)}");
                 break;
         }
 
-        ForEachChildTable.ForEachChild(node, child => AppendNode(child, depth + 1, outLines));
+        ForEachChildTable.ForEachChild(node, child => AppendNode(child, depth + 1, outLines, flows));
     }
 
-    /// <summary>The port of <c>ts-flow-dump.cjs</c>'s <c>dumpFlow</c>: one <c>F#</c> line per flow node, in a
-    /// deterministic antecedent-first order, with the graph's already-printed nodes referred to as <c>#id</c>.</summary>
-    private static string FlowKey(FlowNode flow, List<string> outLines)
+    /// <summary>
+    /// Prints each flow node once per file and refers to it by <c>#id</c> afterwards.
+    /// </summary>
+    /// <remarks>
+    /// The two obvious alternatives both explode. Numbering inside a single <c>key</c> call re-prints one graph once per
+    /// reference to it (the same file has thousands of references), and embedding the antecedents' descriptions into a
+    /// node's line nests a whole subgraph into every ancestor's string. Either way the dump grows far faster than the
+    /// flow graph does — the reason this tool once reached tens of gigabytes on the full corpus. So: one shared id map per
+    /// file, one <c>F#</c> line per flow node, and every field that names another flow node is a <c>#id</c> reference (or
+    /// <c>-</c>). The reference half (<c>ts-flow-dump.cjs</c>) emits exactly the same lines.
+    /// </remarks>
+    private sealed class FlowDumper(List<string> outLines)
     {
-        var ids = new Dictionary<FlowNode, int>();
-        var next = 1;
-        return Describe(flow);
+        private readonly Dictionary<FlowNode, int> _ids = [];
+        private int _next = 1;
 
-        string Describe(FlowNode? node)
+        /// <summary>The <c>#id</c> of <paramref name="flow"/>, printing it (and the nodes it reaches) on first use.</summary>
+        public string Key(FlowNode? flow)
         {
-            if (node is null)
+            if (flow is null)
             {
                 return "-";
             }
 
-            if (ids.TryGetValue(node, out var existing))
+            if (_ids.TryGetValue(flow, out var existing))
             {
                 return "#" + existing;
             }
 
-            var id = next++;
-            ids[node] = id;
-            var nodeDesc = "-";
-            switch (node.Node)
+            var id = _next++;
+            _ids[flow] = id;
+
+            var antecedent = flow.Antecedent switch
+            {
+                List<FlowNode> many => "[" + string.Join(",", many.Select(Key)) + "]",
+                FlowNode single => Key(single),
+                _ => "-",
+            };
+            outLines.Add($"F#{id} flags={(int)flow.Flags} ante={antecedent}");
+
+            switch (flow.Node)
             {
                 case Node payload:
-                    nodeDesc = $"{(int)payload.Kind}({payload.Pos},{payload.End})";
+                    outLines.Add($"F#{id} node={(int)payload.Kind}({payload.Pos},{payload.End})");
                     break;
                 case FlowSwitchClauseData clauseData:
-                    nodeDesc = $"clause({clauseData.SwitchStatement!.Pos},{clauseData.SwitchStatement.End},{clauseData.ClauseStart},{clauseData.ClauseEnd})";
+                    outLines.Add($"F#{id} clause={clauseData.SwitchStatement!.Pos},{clauseData.SwitchStatement.End},{clauseData.ClauseStart},{clauseData.ClauseEnd}");
                     break;
                 case FlowReduceLabelData reduceData:
-                    nodeDesc = $"reduce(target={Describe(reduceData.Target as FlowNode)},antecedents={reduceData.Antecedents?.Count ?? 0})";
+                    var targets = reduceData.Antecedents is { } reduceAntecedents
+                        ? "[" + string.Join(",", reduceAntecedents.Select(Key)) + "]"
+                        : "-";
+                    outLines.Add($"F#{id} reduce target={Key(reduceData.Target as FlowNode)} outer={targets}");
                     break;
             }
 
-            var anteDesc = "-";
-            if (node.Antecedent is List<FlowNode> antecedents)
-            {
-                anteDesc = "[" + string.Join(",", antecedents.Select(Describe)) + "]";
-            }
-            else if (node.Antecedent is FlowNode antecedent)
-            {
-                anteDesc = Describe(antecedent);
-            }
-
-            outLines.Add($"F#{id} flags={(int)node.Flags} node={nodeDesc} ante={anteDesc}");
             return "#" + id;
         }
     }
@@ -538,6 +553,9 @@ internal static class Program
             ? File.ReadAllText(Path.Combine(settings.Out, "ts-summary.txt")).Trim()
             : string.Empty;
         if (tsSide.Length > 0) sb.Append("TS-SIDE ").Append(tsSide).Append('\n');
+        // The tool reports its own peak: it is the number that catches a dump that grows faster than the graph it prints
+        // (this one reached tens of gigabytes before the flow dumper was rewritten to print each node once).
+        sb.Append("# port peak working set ").Append(Process.GetCurrentProcess().PeakWorkingSet64 / (1024 * 1024)).Append(" MiB\n");
         sb.Append("SUMMARY files=").Append(fileCount)
           .Append(" same=").Append(same)
           .Append(" diverged=").Append(divergences.Count)
