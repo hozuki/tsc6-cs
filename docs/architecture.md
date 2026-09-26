@@ -1817,7 +1817,7 @@ printer 落地后，语料从"崩溃"变成"能跑"，此前被门控掩盖的�
 
 **验收（实测）**：build 0 错误 0 警告、测试 **1,206/1,206**、**TypeDiff 全语料仍 `same=5905 diverged=3 port-crash=0`（零回归）**。批次 2 的期望值改为用参考真值测定：`ts.transpileModule(src, options)`（6.0.3）为 24/27 例的直接 oracle，另两例用 `node lib/tsc.js` 复核（`transpileModule` 隐含 `isolatedModules`，无法建模 const enum 保留与跨文件别名解析）；其中 1 例期望写错（点号命名空间的中间变量是 `var B;` 而非 `let B;`，`ts.ts:2026`）已按参考改正，另 2 处"本链比参考小"（ES 模块转换器未装、const enum 内联用 `tsc` 测）在测试处注明而非掩盖。
 
-### 17.11 M7-B 批次 3（二）：`generators.ts` —— 生成器降级 + 一处跨切片 printer 缺陷
+### 17.11 M7-B 批次 3（一，切片自述）：`generators.ts` —— 生成器降级 + 一处跨切片 printer 缺陷
 
 本批次的一半（`es2015.ts`，5,065 行）由并行切片交付；本节记 `generators.ts`（3,284 行）这一半。
 
