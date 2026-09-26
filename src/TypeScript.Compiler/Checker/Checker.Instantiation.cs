@@ -54,7 +54,9 @@ internal sealed partial class Checker
     private readonly List<Dictionary<string, IType>> _activeTypeMappersCaches = [];
 
     /// <summary>ported from: src/compiler/checker.ts:2342 — <c>activeTypeMappersCount</c>.</summary>
-    private int _activeTypeMappersCount;
+    /// <remarks>PORT-NOTE: <c>internal</c> rather than <c>private</c> for the reason <c>Checker.cs</c>'s state note gives —
+    /// these are the checker's state, not one slice's, and the M6 tests assert on the counter's shape.</remarks>
+    internal int _activeTypeMappersCount;
 
     /// <summary>ported from: src/compiler/checker.ts:2123 — <c>restrictiveMapper</c>.</summary>
     /// <remarks>PORT-NOTE: TS's literal is <c>makeFunctionTypeMapper(t => t.flags &amp; TypeFlags.TypeParameter ? getRestrictiveTypeParameter(t as TypeParameter) : t, …)</c>; the port's arm spells out the <c>as TypeParameter</c> narrowing as an <see cref="ITypeParameter"/> cast.</remarks>
@@ -113,7 +115,14 @@ internal sealed partial class Checker
         => InstantiateList(signatures, mapper, (signature, mapperArg) => InstantiateSignature(signature, mapperArg));
 
     /// <summary>ported from: src/compiler/checker.ts:20568-20570 — <c>instantiateIndexInfos</c>.</summary>
-    internal List<IndexInfo>? InstantiateIndexInfos(List<IndexInfo>? indexInfos, TypeMapper mapper)
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>IndexInfo</c> is an interface (types.ts:7067), which the model spells
+    /// <see cref="IIndexInfo"/> and which is the face the model's index-info slots hold
+    /// (<c>GetIndexInfosOfType</c> answers <c>List&lt;IIndexInfo&gt;</c>). Both this member and
+    /// <see cref="InstantiateIndexInfo"/> are therefore stated over that face, so the reference's
+    /// <c>instantiateIndexInfos(getIndexInfosOfType(…), mapper)</c> compiles without a projection.
+    /// </remarks>
+    internal List<IIndexInfo>? InstantiateIndexInfos(List<IIndexInfo>? indexInfos, TypeMapper mapper)
         => InstantiateList(indexInfos, mapper, InstantiateIndexInfo);
 
     // ---------------------------------------------------------------------------------------------
@@ -221,7 +230,7 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:20646-20648 — <c>createOuterReturnMapper</c>.</summary>
     /// <remarks>Returns a mapper that combines the context's return mapper with one that erases additional type parameters to their inferences at creation time.</remarks>
     internal TypeMapper CreateOuterReturnMapper(IInferenceContext context)
-        => (TypeMapper?)(context.OuterReturnMapper ??= MergeTypeMappers((TypeMapper?)context.ReturnMapper, (TypeMapper?)CloneInferenceContext(context).Mapper));
+        => (TypeMapper)(context.OuterReturnMapper ??= MergeTypeMappers((TypeMapper?)context.ReturnMapper, (TypeMapper)CloneInferenceContext(context).Mapper!))!;
 
     /// <summary>ported from: src/compiler/checker.ts:20650-20652 — <c>combineTypeMappers</c>.</summary>
     internal TypeMapper CombineTypeMappers(TypeMapper? mapper1, TypeMapper mapper2)
@@ -414,7 +423,7 @@ internal sealed partial class Checker
                 if (Core.Length(templateTagParameters) > 0)
                 {
                     outerTypeParameters ??= [];
-                    outerTypeParameters.AddRange(templateTagParameters);
+                    outerTypeParameters.AddRange(templateTagParameters!);
                 }
             }
 
@@ -457,7 +466,7 @@ internal sealed partial class Checker
             {
                 targetInstantiations = new Dictionary<string, IType>();
                 ((IDeferredTypeReference)target).Instantiations = targetInstantiations;
-                targetInstantiations[GetTypeListId(typeParameters) + GetAliasId(target.AliasSymbol, target.AliasTypeArguments)] = target;
+                targetInstantiations[GetTypeListId([.. typeParameters]) + GetAliasId(target.AliasSymbol, target.AliasTypeArguments)] = target;
             }
 
             if (!targetInstantiations.TryGetValue(id, out var result))
@@ -625,7 +634,7 @@ internal sealed partial class Checker
             var mappedTypeVariable = InstantiateType(typeVariable, mapper)!;
             if (!ReferenceEquals(typeVariable, mappedTypeVariable))
             {
-                return MapTypeWithAlias(GetReducedType(mappedTypeVariable), InstantiateConstituent, aliasSymbol, aliasTypeArguments);
+                return MapTypeWithAlias(GetReducedType(mappedTypeVariable), InstantiateConstituent, aliasSymbol, aliasTypeArguments)!;
             }
         }
 
@@ -658,7 +667,7 @@ internal sealed partial class Checker
 
                     if (IsArrayOrTupleOrIntersection(t))
                     {
-                        return GetIntersectionType(Core.Map(((IUnionOrIntersectionType)t).Types!, InstantiateConstituent)!);
+                        return GetIntersectionType(Core.Map(((IUnionOrIntersectionType)t).Types!, (u, _) => InstantiateConstituent(u))!);
                     }
                 }
 
@@ -785,7 +794,7 @@ internal sealed partial class Checker
                 // distributive conditional type T extends U ? X : Y is instantiated with A | B for T, the
                 // result is (A extends U ? X : Y) | (B extends U ? X : Y).
                 result = distributionType is not null && !ReferenceEquals(checkType, distributionType) && (distributionType.Flags & (TypeFlags.Union | TypeFlags.Never)) != 0
-                    ? MapTypeWithAlias(distributionType, t => GetConditionalType(root, PrependTypeMapping(checkType, t, newMapper), forConstraint), aliasSymbol, aliasTypeArguments)
+                    ? MapTypeWithAlias(distributionType, t => GetConditionalType(root, PrependTypeMapping(checkType, t, newMapper), forConstraint), aliasSymbol, aliasTypeArguments)!
                     : GetConditionalType(root, newMapper, forConstraint, aliasSymbol, aliasTypeArguments);
                 root.Instantiations[id] = result;
             }
@@ -1045,7 +1054,8 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:21174-21176 — <c>instantiateIndexInfo</c>.</summary>
-    internal IndexInfo InstantiateIndexInfo(IndexInfo info, TypeMapper mapper)
+    /// <remarks>PORT-NOTE: the <c>IIndexInfo</c> face, as <see cref="InstantiateIndexInfos"/> records.</remarks>
+    internal IIndexInfo InstantiateIndexInfo(IIndexInfo info, TypeMapper mapper)
         => CreateIndexInfo(info.KeyType!, InstantiateType(info.Type, mapper)!, info.IsReadonly, info.Declaration, info.Components);
 
     /// <summary>The <c>objectFlags</c> writer of <c>getObjectTypeInstantiation</c> (checker.ts:20793-20804).</summary>

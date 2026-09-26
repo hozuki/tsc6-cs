@@ -146,6 +146,21 @@ internal static partial class Utilities
     public static Node GetEnclosingBlockScopeContainer(Node node)
         => FindAncestor(node.Parent, current => IsBlockScope(current, current.Parent))!;
 
+    /// <summary>ported from: src/compiler/utilities.ts:2337-2343 — <c>forEachEnclosingBlockScopeContainer</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>while (container)</c> tests the non-null result of <c>getEnclosingBlockScopeContainer</c>
+    /// for truthiness; the port reads it into a local and tests that, which is the same walk.
+    /// </remarks>
+    public static void ForEachEnclosingBlockScopeContainer(Node node, Action<Node> cb)
+    {
+        var container = GetEnclosingBlockScopeContainer(node);
+        while (container is not null)
+        {
+            cb(container);
+            container = GetEnclosingBlockScopeContainer(container);
+        }
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Diagnostics and error spans
     // ---------------------------------------------------------------------------------------------
@@ -634,10 +649,15 @@ internal static partial class Utilities
     /// PORT-NOTE: TS's <c>readonly Extension[]</c> holds <c>const enum</c> members whose values <em>are</em> the
     /// extension strings, so it doubles as a <c>readonly string[]</c>. The port's <see cref="Extension"/> is a struct
     /// and <c>Paths</c> is string-based, so the list holds the strings, named through the enum members they come from
-    /// (the shape <see cref="SupportedDeclarationExtensions"/> uses). TS does not export this constant, so neither does
-    /// the port.
+    /// (the shape <see cref="SupportedDeclarationExtensions"/> uses).
+    /// <para>
+    /// PORT-NOTE: TS does not export this constant, but two of its three readers are in other files —
+    /// <see cref="RemoveFileExtension"/> and <see cref="TryRemoveExtension"/> here, and
+    /// <see cref="TryGetExtensionFromPath"/>, which the M6-1 slice added to <c>Program/Utilities.Program.cs</c>. It is
+    /// therefore <c>internal</c> and named after the reference, like every other ported member.
+    /// </para>
     /// </remarks>
-    private static readonly IList<string> s_extensionsToRemove =
+    internal static readonly IList<string> ExtensionsToRemove =
     [
         Extension.Dts.Value,
         Extension.Dmts.Value,
@@ -660,7 +680,7 @@ internal static partial class Utilities
     /// </remarks>
     public static string RemoveFileExtension(string path)
     {
-        foreach (var ext in s_extensionsToRemove)
+        foreach (var ext in ExtensionsToRemove)
         {
             var extensionless = TryRemoveExtension(path, ext);
             if (extensionless is not null)

@@ -410,7 +410,7 @@ internal sealed partial class Checker
             var moduleNotFoundError = (((Node)moduleName.Parent!.Parent!).Flags & NodeFlags.Ambient) == 0
                 ? Diagnostics.Invalid_module_name_in_augmentation_module_0_cannot_be_found
                 : null;
-            var mainModule = ResolveExternalModuleNameWorker(moduleName, moduleName, moduleNotFoundError, /*ignoreErrors*/ false, /*isForAugmentation*/ true);
+            var mainModule = ResolveExternalModuleNameWorker(moduleName, (Expression)moduleName, moduleNotFoundError, /*ignoreErrors*/ false, /*isForAugmentation*/ true);
             if (mainModule is null)
             {
                 return;
@@ -469,7 +469,8 @@ internal sealed partial class Checker
             Core.ForEach(targetSymbol.Declarations, (IDeclaration declaration, int _) =>
             {
                 // checkTypeNameIsReserved will have added better diagnostics for type declarations.
-                if (!NodeTests.IsTypeDeclaration((Node)declaration))
+                // PORT-NOTE: `isTypeDeclaration` is a utilities.ts member (utilities.ts:11025), so it is called qualified.
+                if (!Utilities.IsTypeDeclaration((Node)declaration))
                 {
                     _diagnostics.Add(Utilities.CreateDiagnosticForNode((Node)declaration, Diagnostics.Declaration_name_conflicts_with_built_in_global_identifier_0, Utilities.UnescapeLeadingUnderscores(name)));
                 }

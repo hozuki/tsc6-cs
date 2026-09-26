@@ -33,7 +33,7 @@ public class UtilitiesCheckerTests
     private static FunctionDeclaration FuncOf(SourceFile file, int index = 0) => (FunctionDeclaration)file.Statements![index];
 
     private static VariableDeclaration VarOf(SourceFile file, int index = 0)
-        => (VariableDeclaration)((VariableStatement)file.Statements![index]).DeclarationList.Declarations![0];
+        => (VariableDeclaration)((VariableStatement)file.Statements![index]).DeclarationList!.Declarations![0];
 
     /// <summary>The two-slot face <c>PseudoBigIntToString</c> reads.</summary>
     private sealed class FakePseudoBigInt : IPseudoBigInt
@@ -84,7 +84,7 @@ public class UtilitiesCheckerTests
 
         Assert.True(Utilities.IsEntityName((Node)qualified));
         Assert.True(Utilities.IsEntityName((Node)qualified.Right!));
-        Assert.False(Utilities.IsEntityName((Node)((BinaryExpression)((ExpressionStatement)Parse("a.b = 1;").Statements![0]).Expression).Left!));
+        Assert.False(Utilities.IsEntityName((Node)((BinaryExpression)((ExpressionStatement)Parse("a.b = 1;").Statements![0]).Expression!).Left!));
     }
 
     [Fact]
@@ -351,10 +351,10 @@ public class UtilitiesCheckerTests
         var qualified = VarOf(Parse("let x: A.B.C;"));
         Assert.Equal("A.B.C", Utilities.EntityNameToString((Node)((TypeReferenceNode)qualified.Type!).TypeName!));
 
-        var access = ((BinaryExpression)((ExpressionStatement)Parse("a.b.c = 1;").Statements![0]).Expression).Left!;
+        var access = ((BinaryExpression)((ExpressionStatement)Parse("a.b.c = 1;").Statements![0]).Expression!).Left!;
         Assert.Equal("a.b.c", Utilities.EntityNameToString((Node)access));
 
-        var thisAccess = ((BinaryExpression)((ExpressionStatement)Parse("this.x = 1;").Statements![0]).Expression).Left!;
+        var thisAccess = ((BinaryExpression)((ExpressionStatement)Parse("this.x = 1;").Statements![0]).Expression!).Left!;
         Assert.Equal("this.x", Utilities.EntityNameToString((Node)thisAccess));
     }
 
@@ -574,7 +574,7 @@ public class UtilitiesCheckerTests
     {
         var file = Parse("const x = <div>\n  {a}\n  {}\n  b\n</div>;", ScriptKind.TSX);
         var element = (JsxElement)((VariableDeclaration)
-            ((VariableStatement)file.Statements![0]).DeclarationList.Declarations![0]).Initializer!;
+            ((VariableStatement)file.Statements![0]).DeclarationList!.Declarations![0]).Initializer!;
 
         var children = Utilities.GetSemanticJsxChildren(element.Children!);
 
@@ -589,7 +589,7 @@ public class UtilitiesCheckerTests
     {
         var file = Parse("const x = <div a:b=\"1\" c=\"2\" />;", ScriptKind.TSX);
         var element = (JsxSelfClosingElement)((VariableDeclaration)
-            ((VariableStatement)file.Statements![0]).DeclarationList.Declarations![0]).Initializer!;
+            ((VariableStatement)file.Statements![0]).DeclarationList!.Declarations![0]).Initializer!;
         var attributes = element.Attributes!.Properties!;
 
         Assert.Equal(SyntaxKind.JsxNamespacedName, ((JsxAttribute)attributes[0]).Name!.Kind);

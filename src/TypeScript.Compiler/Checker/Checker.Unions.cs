@@ -103,12 +103,15 @@ internal sealed partial class Checker
     /// <remarks>
     /// PORT-NOTE: TS's <c>identity</c>/<c>compareValues</c> pair is <c>Core.Identity</c> and the int comparer
     /// <c>(a, b) =&gt; Core.CompareValues(a, b)</c>, the shape <c>Lexer/ScannerUtilities.cs</c>'s
-    /// <c>computeLineOfPosition</c> uses for the same call.
+    /// <c>computeLineOfPosition</c> uses for the same call. The <c>stableTypeOrdering</c> arm passes <see cref="CompareTypes"/>,
+    /// whose JS-sort <c>int</c> result the port's <c>Comparison</c>-returning <c>Core.Comparer&lt;T&gt;</c> takes through
+    /// <c>Core.CompareValues(CompareTypes(a, b), 0)</c>, the adapter <c>getNamedMembers</c> uses (see
+    /// Checker/Checker.Check.Sort.cs).
     /// </remarks>
     internal bool ContainsType(List<IType> types, IType type)
     {
         return _stableTypeOrdering
-            ? Core.BinarySearch(types, type, Core.Identity, CompareTypes) >= 0
+            ? Core.BinarySearch(types, type, Core.Identity, (a, b) => Core.CompareValues(CompareTypes(a, b), 0)) >= 0
             : Core.BinarySearch(types, type, GetTypeId, static (a, b) => Core.CompareValues(a, b)) >= 0;
     }
 
@@ -119,7 +122,7 @@ internal sealed partial class Checker
     internal bool InsertType(List<IType> types, IType type)
     {
         var index = _stableTypeOrdering
-            ? Core.BinarySearch(types, type, Core.Identity, CompareTypes)
+            ? Core.BinarySearch(types, type, Core.Identity, (a, b) => Core.CompareValues(CompareTypes(a, b), 0))
             : Core.BinarySearch(types, type, GetTypeId, static (a, b) => Core.CompareValues(a, b));
         if (index < 0)
         {
@@ -153,7 +156,7 @@ internal sealed partial class Checker
             {
                 var len = typeSet.Count;
                 var index = _stableTypeOrdering
-                    ? Core.BinarySearch(typeSet, type, Core.Identity, CompareTypes)
+                    ? Core.BinarySearch(typeSet, type, Core.Identity, (a, b) => Core.CompareValues(CompareTypes(a, b), 0))
                     : (len != 0 && type.Id > typeSet[len - 1].Id ? ~len : Core.BinarySearch(typeSet, type, GetTypeId, static (a, b) => Core.CompareValues(a, b)));
                 if (index < 0)
                 {

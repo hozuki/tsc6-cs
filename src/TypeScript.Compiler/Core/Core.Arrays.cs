@@ -655,6 +655,31 @@ internal static partial class Core
         return result;
     }
 
+    // ported from: src/compiler/core.ts:619-632
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>some</c> predicate is <c>(value: T, index: number) =&gt; boolean</c>. The port's original
+    /// overload narrowed that to <c>Func&lt;T, bool&gt;</c>, which cannot express the reference's own index-reading
+    /// callers; this overload restores that shape. The two coexist by lambda arity, and this body is the reference's
+    /// own loop rather than a delegation through the one-predicate form, because the index it passes must be the
+    /// element's position — an <c>IndexOf</c>-based delegation would report the first occurrence for a duplicated
+    /// element.
+    /// </remarks>
+    public static bool Some<T>(IList<T>? array, Func<T, int, bool> predicate)
+    {
+        if (array is not null)
+        {
+            for (var i = 0; i < array.Count; i++)
+            {
+                if (predicate(array[i], i))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     // ported from: src/compiler/core.ts:618-632
     public static bool Some<T>(IList<T>? array, Func<T, bool>? predicate = null)
     {
@@ -1520,6 +1545,20 @@ internal static partial class Core
         }
 
         return result;
+    }
+
+    /// <summary>ported from: src/compiler/core.ts:17 — <c>emptyArray</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>emptyArray</c> is one shared <c>never[]</c>, whose emptiness is a compile-time fact —
+    /// nothing can write through a <c>never[]</c>. C# has no such element type, so the port keeps one shared instance
+    /// per element type <em>in a nested class</em> and callers read <c>Core.EmptyArray&lt;T&gt;.Value</c>. The instance
+    /// is shared rather than freshly allocated because two call sites in the checker test its identity
+    /// (<c>type.resolvedBaseTypes === emptyArray</c>, checker.ts:13410); nothing in the port writes through it, which
+    /// is the invariant the reference gets from the element type.
+    /// </remarks>
+    internal static class EmptyArray<T>
+    {
+        public static readonly List<T> Value = [];
     }
 
     /// <summary>

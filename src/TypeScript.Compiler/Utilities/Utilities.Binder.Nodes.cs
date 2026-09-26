@@ -50,6 +50,21 @@ internal static partial class Utilities
     /// </remarks>
     public static Node? GetContainingClass(Node node) => FindAncestor(node.Parent, n => IsClassLike(n));
 
+    /// <summary>ported from: src/compiler/utilities.ts:3157-3160 — <c>getContainingClassExcludingClassDecorators</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's guard answers <c>ClassLikeDeclaration | undefined</c> (the same two classes
+    /// <see cref="GetContainingClass"/> widens), so the port keeps <c>Node?</c>. Its inner <c>findAncestor</c> callback
+    /// returns the <c>"quit"</c> sentinel for a class-like node and a truth value for a decorator; the port states both
+    /// arms of that as the <c>bool?</c> the ported <c>FindAncestor</c> overload takes.
+    /// </remarks>
+    public static Node? GetContainingClassExcludingClassDecorators(Node node)
+    {
+        var decorator = FindAncestor(node.Parent, n => IsClassLike(n) ? null : NodeTests.IsDecorator(n) ? true : false);
+        return decorator is not null && IsClassLike(decorator.Parent!)
+            ? GetContainingClass(decorator.Parent!)
+            : GetContainingClass(decorator ?? node);
+    }
+
     /// <summary>ported from: src/compiler/utilities.ts:3182-3250 — <c>getThisContainer</c>.</summary>
     /// <remarks>
     /// <para>
@@ -146,6 +161,78 @@ internal static partial class Utilities
         }
     }
 
+    /// <summary>ported from: src/compiler/utilities.ts:3338-3380 — <c>getSuperContainer</c>.</summary>
+    /// <remarks>
+    /// <para>
+    /// PORT-NOTE: TS declares three overloads (3335-3338) whose return type narrows on <c>stopOnFunctions</c>
+    /// (<c>SuperContainer</c> vs <c>SuperContainerOrFunctions</c>, both unions of node classes with no shared C#
+    /// anchor), so the port keeps the single implementation signature and answers <c>Node?</c>; the one caller passes
+    /// <c>stopOnFunctions: true</c> and reads the result as a <c>Node</c>.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: TS's <c>node = node.parent; if (!node) return undefined;</c> at the top of the loop is the port's
+    /// <c>next</c> read plus the null test, as in <see cref="GetThisContainer"/>; each <c>break</c> still re-enters
+    /// through the parent read, which is what makes the decorator arm's parent the node the next iteration tests.
+    /// </para>
+    /// </remarks>
+    public static Node? GetSuperContainer(Node node, bool stopOnFunctions)
+    {
+        var current = node;
+        while (true)
+        {
+            var next = current.Parent;
+            if (next is null)
+            {
+                return null;
+            }
+
+            current = next;
+            switch (current.Kind)
+            {
+                case SyntaxKind.ComputedPropertyName:
+                    current = current.Parent!;
+                    break;
+
+                case SyntaxKind.FunctionDeclaration:
+                case SyntaxKind.FunctionExpression:
+                case SyntaxKind.ArrowFunction:
+                    if (!stopOnFunctions)
+                    {
+                        continue;
+                    }
+                    // falls through
+                    goto case SyntaxKind.PropertyDeclaration;
+
+                case SyntaxKind.PropertyDeclaration:
+                case SyntaxKind.PropertySignature:
+                case SyntaxKind.MethodDeclaration:
+                case SyntaxKind.MethodSignature:
+                case SyntaxKind.Constructor:
+                case SyntaxKind.GetAccessor:
+                case SyntaxKind.SetAccessor:
+                case SyntaxKind.ClassStaticBlockDeclaration:
+                    return current;
+
+                case SyntaxKind.Decorator:
+                    // Decorators are always applied outside of the body of a class or method.
+                    if (current.Parent!.Kind == SyntaxKind.Parameter && IsClassElement(current.Parent!.Parent!))
+                    {
+                        // If the decorator's parent is a Parameter, we resolve the this container from
+                        // the grandparent class declaration.
+                        current = current.Parent!.Parent!;
+                    }
+                    else if (IsClassElement(current.Parent!))
+                    {
+                        // If the decorator's parent is a class element, we resolve the 'this' container
+                        // from the parent class declaration.
+                        current = current.Parent!;
+                    }
+
+                    break;
+            }
+        }
+    }
+
     /// <summary>ported from: src/compiler/utilities.ts:3383-3395 — <c>getImmediatelyInvokedFunctionExpression</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: the parenthesized walk reads <c>parent</c> before testing it, exactly as TS does; the port
@@ -188,6 +275,27 @@ internal static partial class Utilities
 
     /// <summary>ported from: src/compiler/utilities.ts:4925-4927 — <c>isAssignmentTarget</c>.</summary>
     public static bool IsAssignmentTarget(Node node) => Js.IsTruthy(GetAssignmentTarget(node));
+
+    /// <summary>ported from: src/compiler/utilities.ts:4935-4938 — <c>isInCompoundLikeAssignment</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>!!target &amp;&amp; isAssignmentExpression(target, …)</c> is the port's <c>target is not
+    /// null &amp;&amp; …</c>; TS's private <c>isCompoundLikeAssignment</c> (utilities.ts:4929-4932) is the private
+    /// member below, and its <c>isShiftOperatorOrHigher</c> is <c>FactoryUtilities</c>'s.
+    /// </remarks>
+    public static bool IsInCompoundLikeAssignment(Node node)
+    {
+        var target = GetAssignmentTarget(node);
+        return target is not null
+            && IsAssignmentExpression(target, /*excludeCompoundAssignment*/ true)
+            && IsCompoundLikeAssignment(target);
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:4929-4932 — <c>isCompoundLikeAssignment</c>.</summary>
+    private static bool IsCompoundLikeAssignment(Node assignment)
+    {
+        var right = SkipParentheses(((BinaryExpression)assignment).Right!);
+        return right.Kind == SyntaxKind.BinaryExpression && FactoryUtilities.IsShiftOperatorOrHigher(((BinaryExpression)right).OperatorToken!.Kind);
+    }
 
     /// <summary>ported from: src/compiler/utilities.ts:4854-4897 — <c>getAssignmentTarget</c>.</summary>
     /// <remarks>

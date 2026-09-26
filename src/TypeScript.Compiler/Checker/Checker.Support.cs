@@ -21,6 +21,7 @@ namespace TypeScript.Compiler;
 // ported from: src/compiler/utilities.ts:5063-5069 (isNodeDescendantOf)
 // ported from: src/compiler/utilities.ts:7444-7497 (the two tryGetClass* helpers, isExpressionWithTypeArgumentsInClassExtendsClause)
 // ported from: src/compiler/utilities.ts:7505-7522 (getFirstIdentifier)
+// ported from: src/compiler/utilities.ts:10920-10936 (isNumericLiteralName)
 // ported from: src/compiler/utilities.ts:8045-8065 (getDeclarationModifierFlagsFromSymbol)
 // ported from: src/compiler/utilities.ts:8275-8277 (getClassLikeDeclarationOfSymbol)
 // ported from: src/compiler/utilities.ts:8280-8282 (getObjectFlags)
@@ -246,7 +247,7 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:14935-14937 — <c>getConstraintDeclarationForMappedType</c>.</summary>
     internal ITypeNode? GetConstraintDeclarationForMappedType(IMappedType type)
-        => GetEffectiveConstraintOfTypeParameter(type.Declaration!.TypeParameter!);
+        => Utilities.GetEffectiveConstraintOfTypeParameter(type.Declaration!.TypeParameter!);
 
     /// <summary>ported from: src/compiler/checker.ts:14939-14943 — <c>isMappedTypeWithKeyofConstraintDeclaration</c>.</summary>
     /// <remarks>
@@ -607,7 +608,7 @@ internal sealed partial class Checker
             }
 
             // The source types were normalized; ensure the result is normalized too.
-            return GetNormalizedType(GetIntersectionType(constraints, IntersectionFlags.NoConstraintReduction), /*writing*/ false);
+            return GetNormalizedType(GetIntersectionType(constraints!, IntersectionFlags.NoConstraintReduction), /*writing*/ false);
         }
 
         return null;
@@ -714,7 +715,7 @@ internal sealed partial class Checker
                         {
                             var diagnostic = Error((Node)errorNode, Diagnostics.Type_parameter_0_has_a_circular_constraint, TypeToString(t));
                             var currentNode = _currentNode;
-                            if (currentNode is not null && !IsNodeDescendantOf((Node)errorNode, currentNode) && !IsNodeDescendantOf(currentNode, (Node)errorNode))
+                            if (currentNode is not null && !Utilities.IsNodeDescendantOf((Node)errorNode, currentNode) && !Utilities.IsNodeDescendantOf(currentNode, (Node)errorNode))
                             {
                                 Utilities.AddRelatedInfo(diagnostic, Utilities.CreateDiagnosticForNode(currentNode, Diagnostics.Circularity_originates_in_type_at_this_location));
                             }
@@ -999,7 +1000,12 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:15526-15528 — <c>isArrayOrTupleOrIntersection</c>.</summary>
-    internal static bool IsArrayOrTupleOrIntersection(IType type)
+    /// <remarks>
+    /// PORT-NOTE: TS declares no statics here — <c>isArrayOrTupleOrIntersection</c> is a <c>createTypeChecker</c>
+    /// member and reads <c>isArrayOrTupleType</c>, which is an instance member of this class
+    /// (<c>Checker.Relations.Identical.cs</c>); the port's one-word <c>static</c> made that call CS0120.
+    /// </remarks>
+    internal bool IsArrayOrTupleOrIntersection(IType type)
         => (type.Flags & TypeFlags.Intersection) != 0 && Core.Every(((IIntersectionType)type).Types, (IType t, int _) => IsArrayOrTupleType(t));
 
     /// <summary>ported from: src/compiler/checker.ts:15530-15535 — <c>isMappedTypeGenericIndexedAccess</c>.</summary>
@@ -1141,7 +1147,7 @@ internal sealed partial class Checker
     // ---------------------------------------------------------------------------------------------
 
     /// <summary>ported from: src/compiler/checker.ts:15981-15983 — <c>findIndexInfo</c>.</summary>
-    internal static IndexInfo? FindIndexInfo(IList<IIndexInfo> indexInfos, IType keyType)
+    internal static IIndexInfo? FindIndexInfo(IList<IIndexInfo> indexInfos, IType keyType)
         => Core.Find(indexInfos, (IIndexInfo info, int _) => ReferenceEquals(info.KeyType, keyType));
 
     /// <summary>ported from: src/compiler/checker.ts:15985-16010 — <c>findApplicableIndexInfo</c>.</summary>
@@ -1151,7 +1157,7 @@ internal sealed partial class Checker
     /// (<c>applicableInfo ? applicableInfo : stringIndexInfo &amp;&amp; isApplicableIndexType(…) ? stringIndexInfo : undefined</c>)
     /// is written with <c>??</c> and an explicit null.
     /// </remarks>
-    internal IndexInfo? FindApplicableIndexInfo(IList<IIndexInfo> indexInfos, IType keyType)
+    internal IIndexInfo? FindApplicableIndexInfo(IList<IIndexInfo> indexInfos, IType keyType)
     {
         // Index signatures for type 'string' are considered only when no other index signatures apply.
         IIndexInfo? stringIndexInfo = null;
@@ -1199,14 +1205,14 @@ internal sealed partial class Checker
             || (ReferenceEquals(target, _stringType) && IsTypeAssignableTo(source, _numberType))
             || (ReferenceEquals(target, _numberType)
                 && (ReferenceEquals(source, _numericStringType)
-                    || ((source.Flags & TypeFlags.StringLiteral) != 0 && Utilities.IsNumericLiteralName(((IStringLiteralType)source).Value!))));
+                    || ((source.Flags & TypeFlags.StringLiteral) != 0 && Utilities.IsNumericLiteralName((string)((IStringLiteralType)source).Value!))));
 
     /// <summary>ported from: src/compiler/checker.ts:16034-16037 — <c>getIndexInfoOfType</c>.</summary>
     /// <remarks>
     /// Return the indexing info of the given kind in the given type. Creates synthetic union index types when necessary
     /// and maps primitive types and type parameters are to their apparent types.
     /// </remarks>
-    internal IndexInfo? GetIndexInfoOfType(IType type, IType keyType) => FindIndexInfo(GetIndexInfosOfType(type), keyType);
+    internal IIndexInfo? GetIndexInfoOfType(IType type, IType keyType) => FindIndexInfo(GetIndexInfosOfType(type), keyType);
 
     /// <summary>ported from: src/compiler/checker.ts:16040-16042 — <c>getIndexTypeOfType</c>.</summary>
     /// <remarks>
@@ -1224,10 +1230,10 @@ internal sealed partial class Checker
         => Core.Filter(GetIndexInfosOfType(type), info => IsApplicableIndexType(keyType, info.KeyType!))!;
 
     /// <summary>ported from: src/compiler/checker.ts:16048-16050 — <c>getApplicableIndexInfo</c>.</summary>
-    internal IndexInfo? GetApplicableIndexInfo(IType type, IType keyType) => FindApplicableIndexInfo(GetIndexInfosOfType(type), keyType);
+    internal IIndexInfo? GetApplicableIndexInfo(IType type, IType keyType) => FindApplicableIndexInfo(GetIndexInfosOfType(type), keyType);
 
     /// <summary>ported from: src/compiler/checker.ts:16052-16054 — <c>getApplicableIndexInfoForName</c>.</summary>
-    internal IndexInfo? GetApplicableIndexInfoForName(IType type, string name)
+    internal IIndexInfo? GetApplicableIndexInfoForName(IType type, string name)
         => GetApplicableIndexInfo(type, IsLateBoundName(name) ? _esSymbolType : GetStringLiteralType(Utilities.UnescapeLeadingUnderscores(name)));
 
     /// <summary>ported from: src/compiler/checker.ts:16058-16067 — <c>getTypeParametersFromDeclaration</c>.</summary>
@@ -1748,7 +1754,10 @@ internal sealed partial class Checker
             }
 
             // If the symbol of the node has members, treat it like a constructor.
-            var symbol = GetSymbolOfDeclaration(func);
+            // PORT-NOTE: `getSymbolOfDeclaration` is ported as the IDeclaration-taking member (`getSymbolOfNode` is the
+            // Node-taking one), and TS's `func` is the FunctionDeclaration | FunctionExpression union, so the node face
+            // reaches it through the cast the reference's narrowing supplies for free.
+            var symbol = GetSymbolOfDeclaration((IDeclaration)func);
             return symbol.Members is { Count: > 0 };
         }
 
@@ -1798,12 +1807,678 @@ internal sealed partial class Checker
             _ => ObjectFlags.None,
         }
         : ObjectFlags.None;
+
+    // ---------------------------------------------------------------------------------------------
+    // The checker.ts helpers outside the assigned bands
+    //
+    // The reference declarations these port: isInstantiatedModule (checker.ts:1479-1483, file scope
+    // above createTypeChecker), isDefinitelyReferenceToGlobalSymbolObject (:2414-2426),
+    // isTypeInvalidDueToUnionDiscriminant (:15119-15127), getAllPossiblePropertiesOfTypes
+    // (:15129-15146), tryFindAmbientModule (:16078-16085), the return-type-of-signature trio
+    // (:16543-16560), getInferredTypeParameterConstraint (:16764-16839), getParentSymbolOfTypeParameter
+    // (:16866-16870), the context-sensitivity family (:21180-21267), getExternalModuleFileFromDeclaration
+    // (:51546-51553), filterPrimitivesIfContainsNonPrimitive (:53730-53738) and the four
+    // duplicate-declaration helpers at the reference file's tail (:54202-54258).
+    //
+    // PORT-NOTE: TS declares five of them (isInstantiatedModule, isNotAccessor, isNotOverload,
+    // isDeclarationNameOrImportPropertyName, signatureHasLiteralTypes) at checker.ts file scope and the
+    // rest as locals of createTypeChecker; the port states every one as a member of this class, which is
+    // where their landed call sites — all inside Checker partials — call them by bare name. §15.15's
+    // Utilities rule does not reach them: none of them is declared in utilities.ts.
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>ported from: src/compiler/checker.ts:1479-1483 — <c>isInstantiatedModule</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>getModuleInstanceState</c> is the binder's (binder.ts:330), ported as
+    /// <see cref="Binder.GetModuleInstanceState"/>; its other caller, Checker.Check.Classes.cs, wrote
+    /// <c>Utilities.IsInstantiatedModule</c> while Checker.Check.Modules.cs called it by bare name — the two
+    /// agreed on <c>Checker</c> and the qualified call site dropped its qualifier.
+    /// </remarks>
+    internal bool IsInstantiatedModule(ModuleDeclaration node, bool preserveConstEnums)
+    {
+        var moduleState = Binder.GetModuleInstanceState(node);
+        return moduleState == ModuleInstanceState.Instantiated
+            || (preserveConstEnums && moduleState == ModuleInstanceState.ConstEnumOnly);
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:2414-2426 — <c>isDefinitelyReferenceToGlobalSymbolObject</c>.</summary>
+    /// <remarks>
+    /// <para>
+    /// PORT-NOTE: the reference reads the slots off the union its three guards narrowed; C# keeps the declared face and
+    /// states each narrowed read as a cast, the same shape <c>Checker.Relations.Identical.cs</c>'s node walks use. The
+    /// parameter is <c>Node?</c> because that is what both interfaces this forwards to declare
+    /// (<c>IEmitResolver</c>, <c>ISyntacticTypeNodeBuilderResolver</c>; Model/NodeInterfaces.cs:842, :3315) and what
+    /// both forwarding call sites pass; the reference's non-optional parameter is why the extra absent-node arm answers
+    /// <c>false</c> rather than asserting.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: <c>getGlobalSymbol(…, undefined) || unknownSymbol</c> is <c>GetGlobalSymbol(…) ?? _unknownSymbol</c> —
+    /// the reference's <c>||</c> tests truthiness of an object that is never falsy when present; <c>getResolvedSymbol</c>
+    /// answers the unknown symbol rather than <c>undefined</c> for an unresolved name.
+    /// </para>
+    /// </remarks>
+    internal bool IsDefinitelyReferenceToGlobalSymbolObject(Node? node)
+    {
+        if (node is null || !NodeTests.IsPropertyAccessExpression(node))
+        {
+            return false;
+        }
+
+        var access = (PropertyAccessExpression)node;
+        if (!NodeTests.IsIdentifier(access.Name!))
+        {
+            return false;
+        }
+
+        if (!NodeTests.IsPropertyAccessExpression(access.Expression!) && !NodeTests.IsIdentifier(access.Expression!))
+        {
+            return false;
+        }
+
+        if (NodeTests.IsIdentifier(access.Expression!))
+        {
+            // Exactly `Symbol.something` and `Symbol` either does not resolve or definitely resolves to the global Symbol
+            var expression = (Identifier)access.Expression!;
+            return Utilities.IdText(expression) == "Symbol"
+                && ReferenceEquals(
+                    GetResolvedSymbol(expression),
+                    GetGlobalSymbol("Symbol", SymbolFlags.Value | SymbolFlags.ExportValue, /*diagnostic*/ null) ?? _unknownSymbol);
+        }
+
+        var outerAccess = (PropertyAccessExpression)access.Expression!;
+        if (!NodeTests.IsIdentifier(outerAccess.Expression!))
+        {
+            return false;
+        }
+
+        // Exactly `globalThis.Symbol.something` and `globalThis` resolves to the global `globalThis`
+        return Utilities.IdText(outerAccess.Name!) == "Symbol"
+            && Utilities.IdText(outerAccess.Expression!) == "globalThis"
+            && ReferenceEquals(GetResolvedSymbol((Identifier)outerAccess.Expression!), _globalThisSymbol);
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:15119-15127 — <c>isTypeInvalidDueToUnionDiscriminant</c>.</summary>
+    /// <remarks>
+    /// <para>
+    /// PORT-NOTE: the reference's <c>obj: ObjectLiteralExpression | JsxAttributes</c> is what the generated
+    /// <c>ITypeChecker</c> slot widens to <see cref="MemberExpression"/>, and the two properties lists (whose
+    /// element union TS states as <c>ObjectLiteralElementLike | JsxAttributeLike</c>) are read through the same
+    /// switch, since <see cref="MemberExpression"/> itself carries no <c>properties</c> slot.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: <c>property.name</c> off that element union is
+    /// <see cref="Utilities.GetNameOfDeclaration"/>'s shape — an optional slot every member carries — so the port
+    /// reads it through <see cref="PropertyNameOfElement"/> (the port's <see cref="JsxAttribute"/> implements no
+    /// named-declaration interface, so an <c>INamedDeclaration</c> pattern alone would drop JSX attributes).
+    /// </para>
+    /// </remarks>
+    internal bool IsTypeInvalidDueToUnionDiscriminant(IType? contextualType, MemberExpression? obj)
+    {
+        var list = obj switch
+        {
+            ObjectLiteralExpression objectLiteral => (IList<Node>?)objectLiteral.Properties,
+            JsxAttributes jsxAttributes => jsxAttributes.Properties,
+            _ => null,
+        };
+        return Core.Some(list, property =>
+        {
+            var propertyName = PropertyNameOfElement(property);
+            var nameType = propertyName is not null
+                ? NodeTests.IsJsxNamespacedName(propertyName)
+                    ? GetStringLiteralType(Utilities.GetTextOfJsxAttributeName(propertyName))
+                    : GetLiteralTypeFromPropertyName(propertyName)
+                : null;
+            var name = nameType is not null && Utilities.IsTypeUsableAsPropertyName(nameType)
+                ? Utilities.GetPropertyNameFromType(nameType)
+                : null;
+            var expected = name is null ? null : GetTypeOfPropertyOfType(contextualType, name);
+            return expected is not null && IsLiteralType(expected) && !IsTypeAssignableTo(GetTypeOfNode(property), expected);
+        });
+    }
+
+    /// <summary>The <c>property.name</c> read of <see cref="IsTypeInvalidDueToUnionDiscriminant"/> (checker.ts:15121).</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS reads the optional <c>name</c> of the <c>ObjectLiteralElementLike | JsxAttributeLike</c> element
+    /// union; the port's <see cref="JsxAttribute"/> has the slot but implements no named-declaration interface, so the
+    /// switch names it first and then takes the interface the object-literal elements do implement.
+    /// </remarks>
+    private static Node? PropertyNameOfElement(Node property) => property switch
+    {
+        JsxAttribute jsxAttribute => jsxAttribute.Name,
+        INamedDeclaration namedDeclaration => namedDeclaration.Name,
+        _ => null,
+    };
+
+    /// <summary>ported from: src/compiler/checker.ts:15129-15146 — <c>getAllPossiblePropertiesOfTypes</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the generated <c>ITypeChecker</c> slot passes a nullable list, so the parameter is
+    /// <c>List&lt;IType&gt;?</c> and the one read asserts it the way the wrapper's sibling slots do; TS's
+    /// <c>createSymbolTable</c> is the ported <see cref="Utilities.CreateSymbolTable"/>, <c>Map.has</c>/<c>Map.set</c>
+    /// are <see cref="SymbolTable.ContainsKey"/>/its indexer, and <c>arrayFrom(props.values())</c> is the
+    /// collection expression over <see cref="SymbolTable.Values"/>.
+    /// </remarks>
+    internal List<ISymbol> GetAllPossiblePropertiesOfTypes(List<IType>? types)
+    {
+        var unionType = GetUnionType(types!);
+        if ((unionType.Flags & TypeFlags.Union) == 0)
+        {
+            return GetAugmentedPropertiesOfType(unionType);
+        }
+
+        var props = Utilities.CreateSymbolTable();
+        foreach (var memberType in types!)
+        {
+            foreach (var member in GetAugmentedPropertiesOfType(memberType))
+            {
+                var escapedName = member.EscapedName!;
+                if (!props.ContainsKey(escapedName))
+                {
+                    var prop = CreateUnionOrIntersectionProperty((UnionOrIntersectionType)unionType, escapedName);
+                    // May be undefined if the property is private
+                    if (prop is not null)
+                    {
+                        props[escapedName] = prop;
+                    }
+                }
+            }
+        }
+
+        return [.. props.Values];
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:16078-16085 — <c>tryFindAmbientModule</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>globals</c> is the checker's global <see cref="SymbolTable"/> slot
+    /// (<c>_globals</c>), and <c>'"' + moduleName + '"' as __String</c> is that same string, since the port's
+    /// <c>__String</c> is <c>string</c>.
+    /// </remarks>
+    internal ISymbol? TryFindAmbientModule(string moduleName, bool withAugmentations)
+    {
+        if (Utilities.IsExternalModuleNameRelative(moduleName))
+        {
+            return null;
+        }
+
+        var symbol = GetSymbol(_globals, "\"" + moduleName + "\"", SymbolFlags.ValueModule);
+        // merged symbol is module declaration symbol combined with all augmentations
+        return symbol is not null && withAugmentations ? GetMergedSymbol(symbol) : symbol;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:16543-16546 — <c>isResolvingReturnTypeOfSignature</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>signature.compositeSignatures &amp;&amp; some(…)</c> is <see cref="Core.Some"/>, which is
+    /// already false for the absent list the <c>&amp;&amp;</c> guards.
+    /// </remarks>
+    internal bool IsResolvingReturnTypeOfSignature(ISignature signature)
+        => Core.Some(signature.CompositeSignatures, IsResolvingReturnTypeOfSignature)
+            || signature.ResolvedReturnType is null && FindResolutionCycleStartIndex(signature, TypeSystemPropertyName.ResolvedReturnType) >= 0;
+
+    /// <summary>ported from: src/compiler/checker.ts:16548-16550 — <c>getRestTypeOfSignature</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>tryGetRestTypeOfSignature(signature) || anyType</c> tests truthiness of a type, which is
+    /// never falsy when present, so the port's <c>??</c> is the same answer.
+    /// </remarks>
+    internal IType GetRestTypeOfSignature(ISignature signature) => TryGetRestTypeOfSignature(signature) ?? _anyType;
+
+    /// <summary>ported from: src/compiler/checker.ts:16552-16560 — <c>tryGetRestTypeOfSignature</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: <c>isTupleType(sigRestType) ? getRestTypeOfTupleType(sigRestType) : sigRestType</c> narrows to the
+    /// tuple face in TS; the port states the cast <see cref="GetRestTypeOfTupleType"/>'s parameter asks for.
+    /// </remarks>
+    internal IType? TryGetRestTypeOfSignature(ISignature signature)
+    {
+        if (SignatureHasRestParameter(signature))
+        {
+            var parameters = signature.Parameters!;
+            var sigRestType = GetTypeOfSymbol(parameters[parameters.Count - 1]);
+            var restType = IsTupleType(sigRestType) ? GetRestTypeOfTupleType((ITypeReference)sigRestType) : sigRestType;
+            return restType is not null ? GetIndexTypeOfType(restType, _numberType) : null;
+        }
+
+        return null;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:16764-16839 — <c>getInferredTypeParameterConstraint</c>.</summary>
+    /// <remarks>
+    /// <para>
+    /// PORT-NOTE: TS's <c>typeParameter.symbol?.declarations</c> guard becomes the null-conditional test on the
+    /// symbol's list; <c>declaration</c> is the <c>Declaration</c> face, so each <c>declaration.parent</c> read is the
+    /// port's cast to <see cref="Node"/>.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: the destructuring <c>const [childTypeParameter = declaration.parent, grandParent] = walkUp…</c>
+    /// becomes two statements: the walk (the ported
+    /// <see cref="Utilities.WalkUpParenthesizedTypesAndGetParentAndChild"/>) and the reference's default for the
+    /// undefined first element.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: <c>stringNumberSymbolType</c>, <c>unknownType</c> and <c>stringType</c> are the port's
+    /// <c>_stringNumberSymbolType</c>, <c>_unknownType</c> and <c>_stringType</c>; <c>append(inferences, x)</c> is
+    /// <see cref="Core.Append{T}"/>, whose absent-input answer the reference states as a fresh one-element array.
+    /// </para>
+    /// </remarks>
+    internal IType? GetInferredTypeParameterConstraint(ITypeParameter typeParameter, bool omitTypeReferences = false)
+    {
+        List<IType>? inferences = null;
+        if (typeParameter.Symbol?.Declarations is { } declarations)
+        {
+            foreach (var declaration in declarations)
+            {
+                var declarationNode = (Node)declaration;
+                if (declarationNode.Parent!.Kind != SyntaxKind.InferType)
+                {
+                    continue;
+                }
+
+                // When an 'infer T' declaration is immediately contained in a type reference node
+                // (such as 'Foo<infer T>'), T's constraint is inferred from the constraint of the
+                // corresponding type parameter in 'Foo'. When multiple 'infer T' declarations are
+                // present, we form an intersection of the inferred constraint types.
+                var (childTypeParameter, grandParent) =
+                    Utilities.WalkUpParenthesizedTypesAndGetParentAndChild(declarationNode.Parent!.Parent!);
+                var childTypeParameterNode = (Node?)childTypeParameter ?? declarationNode.Parent!;
+                if (grandParent.Kind == SyntaxKind.TypeReference && !omitTypeReferences)
+                {
+                    var typeReference = (TypeReferenceNode)grandParent;
+                    var typeParameters = GetTypeParametersForTypeReferenceOrImport(typeReference);
+                    if (typeParameters is not null)
+                    {
+                        var index = typeReference.TypeArguments!.IndexOf((ITypeNode)childTypeParameterNode);
+                        if (index < typeParameters.Count)
+                        {
+                            var declaredConstraint = GetConstraintOfTypeParameter(typeParameters[index]);
+                            if (declaredConstraint is not null)
+                            {
+                                // Type parameter constraints can reference other type parameters so
+                                // constraints need to be instantiated. If instantiation produces the
+                                // type parameter itself, we discard that inference. For example, in
+                                //   type Foo<T extends string, U extends T> = [T, U];
+                                //   type Bar<T> = T extends Foo<infer X, infer X> ? Foo<X, X> : T;
+                                // the instantiated constraint for U is X, so we discard that inference.
+                                var mapper = MakeDeferredTypeMapper(
+                                    typeParameters,
+                                    Core.Map(
+                                        typeParameters,
+                                        (ITypeParameter _, int i) => (Func<IType>)(() => GetEffectiveTypeArgumentAtIndex(typeReference, typeParameters, i)))!);
+                                var constraint = InstantiateType(declaredConstraint, mapper)!;
+                                if (!ReferenceEquals(constraint, typeParameter))
+                                {
+                                    inferences = (List<IType>?)Core.Append(inferences, constraint);
+                                }
+                            }
+                        }
+                    }
+                }
+                // When an 'infer T' declaration is immediately contained in a rest parameter declaration, a rest type
+                // or a named rest tuple element, we infer an 'unknown[]' constraint.
+                else if (
+                    grandParent.Kind == SyntaxKind.Parameter && ((ParameterDeclaration)grandParent).DotDotDotToken is not null
+                    || grandParent.Kind == SyntaxKind.RestType
+                    || grandParent.Kind == SyntaxKind.NamedTupleMember && ((NamedTupleMember)grandParent).DotDotDotToken is not null)
+                {
+                    inferences = (List<IType>?)Core.Append(inferences, CreateArrayType(_unknownType));
+                }
+                // When an 'infer T' declaration is immediately contained in a string template type, we infer a 'string'
+                // constraint.
+                else if (grandParent.Kind == SyntaxKind.TemplateLiteralTypeSpan)
+                {
+                    inferences = (List<IType>?)Core.Append(inferences, _stringType);
+                }
+                // When an 'infer T' declaration is in the constraint position of a mapped type, we infer a 'keyof any'
+                // constraint.
+                else if (grandParent.Kind == SyntaxKind.TypeParameter && grandParent.Parent!.Kind == SyntaxKind.MappedType)
+                {
+                    inferences = (List<IType>?)Core.Append(inferences, _stringNumberSymbolType);
+                }
+                // When an 'infer T' declaration is the template of a mapped type, and that mapped type is the extends
+                // clause of a conditional whose check type is also a mapped type, give it a constraint equal to the template
+                // of the check type's mapped type
+                else if (
+                    grandParent.Kind == SyntaxKind.MappedType && ((MappedTypeNode)grandParent).Type is { } mappedTypeTemplate
+                    && ReferenceEquals(Utilities.SkipParentheses((Node)mappedTypeTemplate), declarationNode.Parent)
+                    && grandParent.Parent is ConditionalTypeNode enclosingConditional
+                    && ReferenceEquals(enclosingConditional.ExtendsType, grandParent)
+                    && enclosingConditional.CheckType is MappedTypeNode { Type: not null } checkMappedType)
+                {
+                    var nodeType = GetTypeFromTypeNode(checkMappedType.Type!);
+                    inferences = (List<IType>?)Core.Append(
+                        inferences,
+                        InstantiateType(
+                            nodeType,
+                            MakeUnaryTypeMapper(
+                                GetDeclaredTypeOfTypeParameter(GetSymbolOfDeclaration(checkMappedType.TypeParameter!)!),
+                                checkMappedType.TypeParameter!.Constraint is not null
+                                    ? GetTypeFromTypeNode(checkMappedType.TypeParameter.Constraint)
+                                    : _stringNumberSymbolType)));
+                }
+            }
+        }
+
+        return inferences is not null ? GetIntersectionType(inferences) : null;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:16866-16870 — <c>getParentSymbolOfTypeParameter</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>getDeclarationOfKind&lt;TypeParameterDeclaration&gt;</c> is the ported generic
+    /// <see cref="Utilities.GetDeclarationOfKind{T}"/>; the host of a <c>@template</c> tag is the
+    /// <see cref="Utilities.GetEffectiveContainerForJSDocTemplateTag"/> answer, which the port returns as the node
+    /// face and <see cref="GetSymbolOfNode"/> takes.
+    /// </remarks>
+    internal ISymbol? GetParentSymbolOfTypeParameter(ITypeParameter typeParameter)
+    {
+        var tp = Utilities.GetDeclarationOfKind<TypeParameterDeclaration>(typeParameter.Symbol!, SyntaxKind.TypeParameter)!;
+        Node? host = NodeTests.IsJSDocTemplateTag(tp.Parent!)
+            ? (Node?)Utilities.GetEffectiveContainerForJSDocTemplateTag((JSDocTemplateTag)tp.Parent!)
+            : tp.Parent;
+        return host is not null ? GetSymbolOfNode(host) : null;
+    }
+
+    /// <summary>Returns true if the given expression contains (at any level of nesting) a function or arrow expression
+    /// that is subject to contextual typing.</summary>
+    /// <remarks>
+    /// <para>ported from: src/compiler/checker.ts:21180-21218 — <c>isContextSensitive</c>.</para>
+    /// <para>
+    /// PORT-NOTE: the reference's parameter is the <c>Expression | MethodDeclaration | ObjectLiteralElementLike |
+    /// JsxAttributeLike | JsxChild</c> union, which the port's <see cref="Node"/> is the upper bound of; the
+    /// deliberately dead <c>methodDeclaration</c> case of the reference's assert is kept against the same
+    /// <see cref="Utilities.IsObjectLiteralMethod"/> test.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: <c>node.parent.parent.children</c> is read through <see cref="JsxChildrenOfOpeningElement"/>, since
+    /// only the <c>JsxElement</c>/<c>JsxFragment</c> classes the guard admits carry the slot; the two literal-bag
+    /// cases (<c>JsxAttribute</c>, <c>JsxExpression | YieldExpression</c>) select their class explicitly, because C#
+    /// cannot reach an optional slot through the widened union.
+    /// </para>
+    /// </remarks>
+    internal bool IsContextSensitive(Node? node)
+    {
+        if (node is null)
+        {
+            return false;
+        }
+
+        Debug.Assert(node.Kind != SyntaxKind.MethodDeclaration || Utilities.IsObjectLiteralMethod(node));
+        switch (node.Kind)
+        {
+            case SyntaxKind.FunctionExpression:
+            case SyntaxKind.ArrowFunction:
+            case SyntaxKind.MethodDeclaration:
+            case SyntaxKind.FunctionDeclaration: // Function declarations can have context when annotated with a jsdoc @type
+                return IsContextSensitiveFunctionLikeDeclaration(node);
+            case SyntaxKind.ObjectLiteralExpression:
+                return Core.Some(((ObjectLiteralExpression)node).Properties, IsContextSensitive);
+            case SyntaxKind.ArrayLiteralExpression:
+                return Core.Some(((ArrayLiteralExpression)node).Elements, IsContextSensitive);
+            case SyntaxKind.ConditionalExpression:
+                return IsContextSensitive(((ConditionalExpression)node).WhenTrue)
+                    || IsContextSensitive(((ConditionalExpression)node).WhenFalse);
+            case SyntaxKind.BinaryExpression:
+                var binary = (BinaryExpression)node;
+                return (binary.OperatorToken!.Kind == SyntaxKind.BarBarToken
+                        || binary.OperatorToken.Kind == SyntaxKind.QuestionQuestionToken)
+                    && (IsContextSensitive(binary.Left) || IsContextSensitive(binary.Right));
+            case SyntaxKind.PropertyAssignment:
+                return IsContextSensitive(((PropertyAssignment)node).Initializer);
+            case SyntaxKind.ParenthesizedExpression:
+                return IsContextSensitive(((ParenthesizedExpression)node).Expression);
+            case SyntaxKind.JsxAttributes:
+                return Core.Some(((JsxAttributes)node).Properties, IsContextSensitive)
+                    || NodeTests.IsJsxOpeningElement(node.Parent!)
+                        && JsxChildrenOfOpeningElement(node.Parent!.Parent!) is { } jsxChildren
+                        && Core.Some(jsxChildren, IsContextSensitive);
+            case SyntaxKind.JsxAttribute:
+                // If there is no initializer, JSX attribute has a boolean value of true which is not context sensitive.
+                return ((JsxAttribute)node).Initializer is { } attributeInitializer && IsContextSensitive(attributeInitializer);
+            case SyntaxKind.JsxExpression:
+            case SyntaxKind.YieldExpression:
+                // It is possible to that node.expression is undefined (e.g <div x={} />)
+                var bagExpression = node switch
+                {
+                    JsxExpression jsxExpression => jsxExpression.Expression,
+                    YieldExpression yieldExpression => yieldExpression.Expression,
+                    _ => null,
+                };
+                return bagExpression is not null && IsContextSensitive(bagExpression);
+        }
+
+        return false;
+    }
+
+    /// <summary>The <c>node.parent.parent.children</c> read of <see cref="IsContextSensitive"/> (checker.ts:21201).</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS reaches <c>children</c> off the <c>JsxElement</c> its <c>isJsxOpeningElement</c> guard narrowed the
+    /// parent to; the port's <see cref="Node"/> carries no such slot, so the two classes that declare it are named.
+    /// </remarks>
+    private static NodeArray<Node>? JsxChildrenOfOpeningElement(Node node) => node switch
+    {
+        JsxElement jsxElement => jsxElement.Children,
+        JsxFragment jsxFragment => jsxFragment.Children,
+        _ => null,
+    };
+
+    /// <summary>ported from: src/compiler/checker.ts:21220-21222 — <c>isContextSensitiveFunctionLikeDeclaration</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>FunctionLikeDeclaration</c> is the port's widened <see cref="Node"/>;
+    /// <c>hasContextSensitiveParameters</c> is the <c>utilities.ts:10880</c> helper that the port states as
+    /// <see cref="Utilities.HasContextSensitiveParameters"/>. The two <c>has…</c> helpers beside it are file-local
+    /// upstream, so they stay <c>private</c> here.
+    /// </remarks>
+    private bool IsContextSensitiveFunctionLikeDeclaration(Node node)
+        => Utilities.HasContextSensitiveParameters(node)
+            || HasContextSensitiveReturnExpression(node)
+            || HasContextSensitiveYieldExpression(node);
+
+    /// <summary>ported from: src/compiler/checker.ts:21224-21232 — <c>hasContextSensitiveReturnExpression</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference reads <c>typeParameters</c>/<c>returnType</c>/<c>body</c> off the
+    /// <c>FunctionLikeDeclaration</c> union; the port takes the <see cref="IFunctionLikeDeclarationBase"/> face the
+    /// widened <see cref="Node"/> reaches through a cast, and its <c>body</c> is the <c>Block | Expression</c> union
+    /// TS's <c>ConciseBody</c> is — so the non-block arm is a <see cref="Node"/> and the block arm the ported
+    /// <see cref="Utilities.ForEachReturnStatement{T}"/>, whose <c>T | undefined</c> answer the reference's <c>!!</c>
+    /// collapses.
+    /// </remarks>
+    private bool HasContextSensitiveReturnExpression(Node node)
+    {
+        var declaration = (IFunctionLikeDeclarationBase)node;
+        if (declaration.TypeParameters is not null
+            || Utilities.GetEffectiveReturnTypeNode(node) is not null
+            || declaration.Body is null)
+        {
+            return false;
+        }
+
+        if (declaration.Body.Kind != SyntaxKind.Block)
+        {
+            return IsContextSensitive(declaration.Body);
+        }
+
+        return Utilities.ForEachReturnStatement<bool>(
+            (Block)declaration.Body,
+            statement => statement.Expression is not null && IsContextSensitive(statement.Expression)) == true;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:21234-21243 — <c>hasContextSensitiveYieldExpression</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>node.body &amp;&amp; forEachYieldExpression(node.body as Block, …)</c> is the port's
+    /// <c>is Block</c> test — a generator's body is always a block, and the cast the reference writes is the same
+    /// assumption; <c>getFunctionFlags</c> is the ported <see cref="Utilities.GetFunctionFlags"/>.
+    /// </remarks>
+    private bool HasContextSensitiveYieldExpression(Node node)
+    {
+        if ((Utilities.GetFunctionFlags(node) & FunctionFlags.Generator) == 0)
+        {
+            return false;
+        }
+
+        return ((IFunctionLikeDeclarationBase)node).Body is Block body
+            && Utilities.ForEachYieldExpression<bool>(body, IsContextSensitive) == true;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:21245-21248 — <c>isContextSensitiveFunctionOrObjectLiteralMethod</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's member is a type guard (<c>func is FunctionExpression | ArrowFunction | MethodDeclaration</c>)
+    /// whose narrowed type has no C# name, so the port answers the guard's boolean; <c>isFunctionExpressionOrArrowFunction</c>
+    /// and <c>isObjectLiteralMethod</c> are the ported <see cref="Utilities.IsFunctionExpressionOrArrowFunction"/> and
+    /// <see cref="Utilities.IsObjectLiteralMethod"/>.
+    /// </remarks>
+    internal bool IsContextSensitiveFunctionOrObjectLiteralMethod(Node node)
+        => (Utilities.IsFunctionExpressionOrArrowFunction(node) || Utilities.IsObjectLiteralMethod(node))
+            && IsContextSensitiveFunctionLikeDeclaration(node);
+
+    /// <summary>ported from: src/compiler/checker.ts:21250-21267 — <c>getTypeWithoutSignatures</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>resolved.constructSignatures.length || resolved.callSignatures.length</c> reads two
+    /// <c>readonly Signature[]</c> slots that the port states as nullable lists, so each length is the absent-tolerant
+    /// count; <c>createObjectType(ObjectFlags.Anonymous, type.symbol)</c> is the ported
+    /// <see cref="CreateObjectType"/>, whose <see cref="ObjectType"/> carries all five assigned slots, and TS's
+    /// <c>emptyArray</c> is the port's empty collection expression.
+    /// </remarks>
+    internal IType GetTypeWithoutSignatures(IType type)
+    {
+        if ((type.Flags & TypeFlags.Object) != 0)
+        {
+            var resolved = ResolveStructuredTypeMembers((UnionOrIntersectionType)type);
+            if ((resolved.ConstructSignatures?.Count ?? 0) != 0 || (resolved.CallSignatures?.Count ?? 0) != 0)
+            {
+                var result = CreateObjectType(ObjectFlags.Anonymous, type.Symbol);
+                result.Members = resolved.Members;
+                result.Properties = resolved.Properties;
+                result.CallSignatures = [];
+                result.ConstructSignatures = [];
+                result.IndexInfos = [];
+                return result;
+            }
+        }
+        else if ((type.Flags & TypeFlags.Intersection) != 0)
+        {
+            return GetIntersectionType(
+                Core.Map(((IIntersectionType)type).Types, (IType t, int _) => GetTypeWithoutSignatures(t))!);
+        }
+
+        return type;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:51546-51553 — <c>getExternalModuleFileFromDeclaration</c>.</summary>
+    /// <remarks>
+    /// <para>
+    /// PORT-NOTE: the reference's parameter is the <c>AnyImportOrReExport | ModuleDeclaration | ImportTypeNode |
+    /// ImportCall</c> union, which the port's <see cref="Node"/> is the upper bound of (the <c>IEmitResolver</c> and
+    /// <c>ISyntacticTypeNodeBuilderResolver</c> slots both declare <see cref="Node"/>); <c>tryCast(declaration.name,
+    /// isStringLiteral)</c> is <see cref="Core.TryCast{TOut, TIn}"/>, and <c>getExternalModuleName</c> the ported
+    /// <see cref="Utilities.GetExternalModuleName"/>, whose <see cref="Expression"/> face is the specifier type both
+    /// the cast and the reference's own <c>Expression</c> parameter want.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: the resolved symbol's declaration is fetched through the ported
+    /// <see cref="Utilities.GetDeclarationOfKind"/> and cast to the <see cref="SourceFile"/> the reference's
+    /// <c>getDeclarationOfKind(moduleSymbol, SyntaxKind.SourceFile)</c> answers.
+    /// </para>
+    /// </remarks>
+    internal SourceFile? GetExternalModuleFileFromDeclaration(Node declaration)
+    {
+        Expression? specifier = declaration.Kind == SyntaxKind.ModuleDeclaration
+            ? Core.TryCast<StringLiteral, Node>(((ModuleDeclaration)declaration).Name, NodeTests.IsStringLiteral)
+            : Utilities.GetExternalModuleName(declaration);
+        var moduleSymbol = ResolveExternalModuleNameWorker(specifier!, specifier!, /*moduleNotFoundError*/ null); // TODO: GH#18217
+        if (moduleSymbol is null)
+        {
+            return null;
+        }
+
+        return (SourceFile?)Utilities.GetDeclarationOfKind(moduleSymbol, SyntaxKind.SourceFile);
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:53730-53738 — <c>filterPrimitivesIfContainsNonPrimitive</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's parameter is the <c>UnionType</c> class; the port's one caller passes
+    /// <see cref="IUnionType"/>, whose <see cref="IType"/> base is what <see cref="MaybeTypeOfKind"/> and
+    /// <see cref="FilterType"/> take, so the member's parameter is that interface.
+    /// </remarks>
+    internal IType FilterPrimitivesIfContainsNonPrimitive(IUnionType type)
+    {
+        if (MaybeTypeOfKind(type, TypeFlags.NonPrimitive))
+        {
+            var result = FilterType(type, t => (t.Flags & TypeFlags.Primitive) == 0);
+            if ((result.Flags & TypeFlags.Never) == 0)
+            {
+                return result;
+            }
+        }
+
+        return type;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:54202-54205 — <c>isNotAccessor</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: <c>isAccessor</c> is the <c>utilities.ts</c> predicate, ported as
+    /// <see cref="Utilities.IsAccessor"/>; the reference's <c>Declaration</c> parameter is the port's
+    /// <see cref="IDeclaration"/> face, which the ported predicate takes as a <see cref="Node"/>.
+    /// </remarks>
+    internal bool IsNotAccessor(IDeclaration declaration) => !Utilities.IsAccessor((Node)declaration);
+
+    /// <summary>ported from: src/compiler/checker.ts:54207-54210 — <c>isNotOverload</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>(declaration as FunctionDeclaration).body</c> is a compile-time narrowing with no runtime
+    /// cast (a <c>MethodDeclaration</c> answers its own body through it), so the port selects the body with the
+    /// pattern switch over exactly the two kinds the left operand admits — a real cast to
+    /// <see cref="FunctionDeclaration"/> would throw for the method declaration.
+    /// </remarks>
+    internal bool IsNotOverload(IDeclaration declaration)
+    {
+        var node = (Node)declaration;
+        return node.Kind != SyntaxKind.FunctionDeclaration && node.Kind != SyntaxKind.MethodDeclaration
+            || FunctionLikeBodyOf(node) is not null;
+    }
+
+    /// <summary>The <c>body</c> read of <see cref="IsNotOverload"/> (checker.ts:54208-54209).</summary>
+    private static Block? FunctionLikeBodyOf(Node node) => node switch
+    {
+        FunctionDeclaration functionDeclaration => functionDeclaration.Body,
+        MethodDeclaration methodDeclaration => methodDeclaration.Body,
+        _ => null,
+    };
+
+    /// <summary>ported from: src/compiler/checker.ts:1410 — <c>isNotOverloadAndNotAccessor</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS composes the two predicates with core.ts's <c>and(isNotOverload, isNotAccessor)</c>
+    /// (core.ts:2454-2456), which the port does not carry as a helper — the two calls are stated in sequence, which is
+    /// that combinator's body.
+    /// </remarks>
+    internal bool IsNotOverloadAndNotAccessor(IDeclaration declaration)
+        => IsNotOverload(declaration) && IsNotAccessor(declaration);
+
+    /// <summary>ported from: src/compiler/checker.ts:54213-54221 — <c>isDeclarationNameOrImportPropertyName</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the default arm is <c>utilities.ts:5073</c>'s <c>isDeclarationName</c>, the ported
+    /// <see cref="Utilities.IsDeclarationName"/>; the two specifier arms test the name with
+    /// <see cref="NodeTests.IsIdentifier"/> / the string-literal kind, as the reference does.
+    /// </remarks>
+    internal bool IsDeclarationNameOrImportPropertyName(Node name)
+    {
+        switch (name.Parent!.Kind)
+        {
+            case SyntaxKind.ImportSpecifier:
+            case SyntaxKind.ExportSpecifier:
+                return NodeTests.IsIdentifier(name) || name.Kind == SyntaxKind.StringLiteral;
+            default:
+                return Utilities.IsDeclarationName(name);
+        }
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:54256-54258 — <c>signatureHasLiteralTypes</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: <c>static</c> as its landed sibling <c>SignatureHasRestParameter</c> is
+    /// (Checker.Check.Calls.cs), which lets the reference's own <c>some(candidates, signatureHasLiteralTypes)</c>
+    /// method-group call site stay a method group.
+    /// </remarks>
+    internal static bool SignatureHasLiteralTypes(ISignature s) => (s.Flags & SignatureFlags.HasLiteralTypes) != 0;
 }
 
 // ported from: src/compiler/utilities.ts:625-636 (getDeclarationOfKind)
 // ported from: src/compiler/utilitiesPublic.ts:1351-1355 (getEffectiveConstraintOfTypeParameter)
 // ported from: src/compiler/utilities.ts:2788-2882 (isPartOfTypeNode), 2884-2888 (isPartOfTypeExpressionWithTypeArguments)
 // ported from: src/compiler/utilities.ts:5014-5016 (walkUpParenthesizedExpressions), 5001-5006 (the walkUp helper it wraps)
+// ported from: src/compiler/utilities.ts:5025-5036 (walkUpParenthesizedTypesAndGetParentAndChild)
 // ported from: src/compiler/utilities.ts:5063-5069 (isNodeDescendantOf)
 // ported from: src/compiler/utilities.ts:7444-7497 (tryGetClassExtending/Implementing…, isExpressionWithTypeArgumentsInClassExtendsClause)
 // ported from: src/compiler/utilities.ts:7505-7522 (getFirstIdentifier)
@@ -1812,6 +2487,12 @@ internal sealed partial class Checker
 // ported from: src/compiler/utilities.ts:10920-10936 (isNumericLiteralName)
 // ported from: src/compiler/utilities.ts:4780-4782 (getJSDocOverloadTags)
 // ported from: src/compiler/utilitiesPublic.ts:1121-1123 (getJSDocClassTag)
+//
+// PORT-NOTE: this second class in the file — a `Utilities` partial beside the checker slice that needs it — is the
+// layout Main settled on 2026-09-26 ("a `Utilities` partial may live beside its slice's file; the rule is one class,
+// not one directory"), the same shape as Program/Utilities.Program.cs and Utilities/Utilities.Binder*.cs. Every name
+// here has exactly one declaration in the solution, and Checker/Utilities.Checker.cs (the utilities slice) is the file
+// that later extends this class.
 /// <summary>
 /// The <c>utilities.ts</c> helpers the checker's landed slices call that no slice has declared yet.
 /// </summary>
@@ -1831,9 +2512,12 @@ internal sealed partial class Checker
 /// <c>Utilities/Utilities.Binder.Modifiers.cs:33</c>), so the checker's call sites use those and no copy is added here.
 /// </para>
 /// <para>
-/// PORT-NOTE: the two helpers of <see cref="IsPartOfTypeNode"/> that the port adds (<c>isPartOfTypeExpressionWithTypeArguments</c>
-/// and the folded <c>isExpressionWithTypeArgumentsInClassExtendsClause</c>) are file-local functions upstream, so they
-/// stay <c>private</c> here and cannot collide with a later declaration.
+/// PORT-NOTE: the two helpers of <see cref="IsPartOfTypeNode"/> that the port adds are file-local functions upstream
+/// (utilities.ts:2884, :7444-7497). <c>isPartOfTypeExpressionWithTypeArguments</c> stays <c>private</c> — only
+/// <c>IsPartOfTypeNode</c> calls it. <c>isExpressionWithTypeArgumentsInClassExtendsClause</c> is <c>internal</c>
+/// because a landed slice calls it across classes as
+/// <c>Utilities.IsExpressionWithTypeArgumentsInClassExtendsClause(…)</c> (Checker/Checker.Check.Source.cs, the
+/// reference's checker.ts:49983). Each name is unique in the solution, so a second declaration anywhere is a CS0111.
 /// </para>
 /// </remarks>
 internal static partial class Utilities
@@ -1883,10 +2567,10 @@ internal static partial class Utilities
         }
 
         if (NodeTests.IsJSDocTemplateTag(node.Parent!)
-            && ((JSDocTemplateTag)node.Parent).TypeParameters is { Count: > 0 } typeParameters
+            && ((JSDocTemplateTag)node.Parent!).TypeParameters is { Count: > 0 } typeParameters
             && ReferenceEquals(node, typeParameters[0]))
         {
-            return ((JSDocTemplateTag)node.Parent).Constraint;
+            return ((JSDocTemplateTag)node.Parent!).Constraint;
         }
 
         return null;
@@ -1929,7 +2613,7 @@ internal static partial class Utilities
             return symbol.Parent is not null && (symbol.Parent.Flags & SymbolFlags.Class) != 0 ? flags : flags & ~ModifierFlags.AccessibilityModifier;
         }
 
-        var checkFlags = (symbol.Flags & SymbolFlags.Transient) != 0 ? ((ITransientSymbol)symbol).Links.CheckFlags : CheckFlags.None;
+        var checkFlags = (symbol.Flags & SymbolFlags.Transient) != 0 ? ((ITransientSymbol)symbol).Links!.CheckFlags : CheckFlags.None;
         if ((checkFlags & CheckFlags.Synthetic) != 0)
         {
             // NOTE: potentially unchecked cast to TransientSymbol
@@ -2015,7 +2699,8 @@ internal static partial class Utilities
     /// <remarks>
     /// PORT-NOTE: TS's parameter is a non-optional <c>Node</c> while its <c>while (node)</c> test tolerates the
     /// <c>undefined</c> a walked-off root supplies; the port states the walk honestly as <c>Node?</c>, which every
-    /// caller's non-null argument converts to.
+    /// caller's non-null argument converts to. Every call site inside a <c>Checker</c> partial qualifies it as
+    /// <c>Utilities.IsNodeDescendantOf(…)</c>.
     /// </remarks>
     public static bool IsNodeDescendantOf(Node? node, Node? ancestor)
     {
@@ -2223,8 +2908,15 @@ internal static partial class Utilities
     /// predicate with the same answer — the heritage clause is a class-extends clause exactly when it is not an
     /// <c>implements</c> clause, and the <c>@augments</c> arm of the reference's record answers
     /// <c>isImplements: false</c> for a class-like host.
+    /// <para>
+    /// PORT-NOTE: <c>internal</c> rather than <c>private</c> because a landed slice calls it across classes as
+    /// <c>Utilities.IsExpressionWithTypeArgumentsInClassExtendsClause(name.Parent)</c>
+    /// (Checker/Checker.Check.Source.cs, the reference's <c>getSymbolOfNameOrPropertyAccessExpression</c> arm at
+    /// checker.ts:49983). The class is <c>internal</c>, so this is the same effective accessibility as
+    /// <c>public</c>; the name stays unique in the solution.
+    /// </para>
     /// </remarks>
-    private static bool IsExpressionWithTypeArgumentsInClassExtendsClause(Node node)
+    internal static bool IsExpressionWithTypeArgumentsInClassExtendsClause(Node node)
     {
         if (!NodeTests.IsExpressionWithTypeArguments(node))
         {
@@ -2238,5 +2930,36 @@ internal static partial class Utilities
         }
 
         return NodeTests.IsJSDocAugmentsTag(parent) && GetEffectiveJSDocHost(parent) is { } host && IsClassLike(host);
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:5025-5036 — <c>walkUpParenthesizedTypesAndGetParentAndChild</c>.</summary>
+    /// <remarks>
+    /// <para>
+    /// Walks up parenthesized types. It returns both the outermost parenthesized type and its parent. If given node is
+    /// not a parenthesized type, <c>null</c> is returned as the former.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: TS's return type is the tuple <c>[ParenthesizedTypeNode | undefined, Node]</c>; the port answers the
+    /// value tuple <c>(ParenthesizedTypeNode?, Node)</c>, which its one caller — the checker's
+    /// <c>GetInferredTypeParameterConstraint</c> — destructures the same way (and applies the same
+    /// <c>?? declaration.parent</c> default for the absent first element).
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: the reference's loop tests <c>node &amp;&amp; node.kind === SyntaxKind.ParenthesizedType</c> against a
+    /// <c>Node | undefined</c> walk; the port states the walk as <c>Node?</c> so the same test is honest, and asserts
+    /// the non-null answer the reference's return type declares.
+    /// </para>
+    /// </remarks>
+    public static (ParenthesizedTypeNode? Child, Node Parent) WalkUpParenthesizedTypesAndGetParentAndChild(Node node)
+    {
+        ParenthesizedTypeNode? child = null;
+        Node? current = node;
+        while (current is not null && current.Kind == SyntaxKind.ParenthesizedType)
+        {
+            child = (ParenthesizedTypeNode)current;
+            current = current.Parent;
+        }
+
+        return (child, current!);
     }
 }

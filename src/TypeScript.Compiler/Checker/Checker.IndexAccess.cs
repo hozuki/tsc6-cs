@@ -170,7 +170,9 @@ internal sealed partial class Checker
     /// <c>ForEachType</c>/<c>ForEachMappedTypePropertyKeyTypeAndIndexSignatureKeyType</c>/<c>FilterType</c>/
     /// <c>GetLowerBoundOfKeyType</c>/<c>InstantiateType</c>/<c>AppendTypeMapping</c>/<c>GetTypeListId</c> are sibling
     /// references; this file declares none of them. The nested callback is a <c>Action&lt;IType&gt;</c>, the shape TS's
-    /// <c>(keyType: Type) =&gt; void</c> has once a C# port drops <c>forEachType</c>'s generic return.
+    /// <c>(keyType: Type) =&gt; void</c> has once a C# port drops <c>forEachType</c>'s generic return; the two
+    /// <c>forEachType</c> call sites adapt it with <c>ForEachType&lt;object&gt;(…, t =&gt; { …; return null; })</c>, the shape
+    /// the port's other void callbacks use, because <c>ForEachType&lt;TU&gt;</c> takes a <c>Func&lt;IType, TU?&gt;</c>.
     /// </para>
     /// </remarks>
     internal IType GetIndexTypeForMappedType(IMappedType type, IndexFlags indexFlags)
@@ -196,7 +198,7 @@ internal sealed partial class Checker
                 return GetIndexTypeForGenericType(type, indexFlags);
             }
             // Include the generic component in the resulting type.
-            ForEachType(constraintType, AddMemberForKeyType);
+            ForEachType<object>(constraintType, t => { AddMemberForKeyType(t); return null; });
         }
         else if (IsMappedTypeWithKeyofConstraintDeclaration(type))
         {
@@ -205,7 +207,7 @@ internal sealed partial class Checker
         }
         else
         {
-            ForEachType(GetLowerBoundOfKeyType(constraintType), AddMemberForKeyType);
+            ForEachType<object>(GetLowerBoundOfKeyType(constraintType), t => { AddMemberForKeyType(t); return null; });
         }
         // We had to pick apart the constraintType to potentially map/filter it - compare the final resulting list with the
         // original constraintType, so we can return the union that preserves aliases/origin data if possible.
@@ -247,7 +249,7 @@ internal sealed partial class Checker
         }
         if (NodeTests.IsComputedPropertyName(name))
         {
-            return GetRegularTypeOfLiteralType(CheckComputedPropertyName(name));
+            return GetRegularTypeOfLiteralType(CheckComputedPropertyName((ComputedPropertyName)name));
         }
         var propertyName = Utilities.GetPropertyNameForPropertyNameNode(name);
         if (propertyName is not null)
@@ -270,12 +272,12 @@ internal sealed partial class Checker
     /// </remarks>
     internal IType GetLiteralTypeFromProperty(ISymbol prop, TypeFlags include, bool includeNonPublic = false)
     {
-        if (includeNonPublic || (GetDeclarationModifierFlagsFromSymbol(prop) & ModifierFlags.NonPublicAccessibilityModifier) == 0)
+        if (includeNonPublic || (Utilities.GetDeclarationModifierFlagsFromSymbol(prop) & ModifierFlags.NonPublicAccessibilityModifier) == 0)
         {
             var type = GetSymbolLinks(GetLateBoundSymbol(prop)).NameType;
             if (type is null)
             {
-                var name = Utilities.GetNameOfDeclaration(prop.ValueDeclaration) as Node;
+                var name = Utilities.GetNameOfDeclaration(prop.ValueDeclaration as Node) as Node;
                 IType? nameType = null;
                 if (name is not null)
                 {
@@ -475,7 +477,7 @@ internal sealed partial class Checker
         if (unionIndex >= 0)
         {
             return CheckCrossProductUnion(types) ?
-                MapType(types[unionIndex], t => GetTemplateLiteralType(texts, Core.ReplaceElement(types, unionIndex, t))) :
+                MapType(types[unionIndex], t => GetTemplateLiteralType(texts, (List<IType>)Core.ReplaceElement(types, unionIndex, t)))! :
                 _errorType;
         }
         if (Core.Contains(types, _wildcardType))
@@ -581,7 +583,7 @@ internal sealed partial class Checker
     {
         if ((type.Flags & (TypeFlags.Union | TypeFlags.Never)) != 0)
         {
-            return MapType(type, t => GetStringMappingType(symbol, t));
+            return MapType(type, t => GetStringMappingType(symbol, t))!;
         }
         if ((type.Flags & TypeFlags.StringLiteral) != 0)
         {
@@ -836,7 +838,7 @@ internal sealed partial class Checker
             {
                 if ((accessFlags & AccessFlags.ReportDeprecated) != 0 && accessNode is not null && prop.Declarations is not null && IsDeprecatedSymbol(prop) && IsUncalledFunctionReference(accessNode, prop))
                 {
-                    var deprecatedNode = accessExpression?.ArgumentExpression ?? (NodeTests.IsIndexedAccessTypeNode(accessNode) ? ((IndexedAccessTypeNode)accessNode).IndexType! : accessNode);
+                    var deprecatedNode = accessExpression?.ArgumentExpression ?? (NodeTests.IsIndexedAccessTypeNode(accessNode) ? (Node)((IndexedAccessTypeNode)accessNode).IndexType! : accessNode);
                     // PORT-NOTE: TS passes `prop.declarations` (a `Declaration[]`) to `addDeprecatedSuggestion(location,
                     // declarations: Node[], …)`; the port's member takes `IList<Node>` and a symbol's declarations are
                     // `List<IDeclaration>`, so the projection is explicit. It allocates once, on the deprecated-property
@@ -1094,7 +1096,7 @@ internal sealed partial class Checker
     internal Node GetIndexNodeForAccessExpression(Node accessNode)
     {
         return accessNode.Kind == SyntaxKind.ElementAccessExpression ? ((ElementAccessExpression)accessNode).ArgumentExpression! :
-            accessNode.Kind == SyntaxKind.IndexedAccessType ? ((IndexedAccessTypeNode)accessNode).IndexType! :
+            accessNode.Kind == SyntaxKind.IndexedAccessType ? (Node)((IndexedAccessTypeNode)accessNode).IndexType! :
             accessNode.Kind == SyntaxKind.ComputedPropertyName ? ((ComputedPropertyName)accessNode).Expression! :
             accessNode;
     }
@@ -1292,7 +1294,7 @@ internal sealed partial class Checker
         if (IsGenericTupleType(objectType) && (indexType.Flags & TypeFlags.NumberLike) != 0)
         {
             var elementType = GetElementTypeOfSliceOfTupleType(
-                objectType,
+                (ITypeReference)objectType,
                 (indexType.Flags & TypeFlags.Number) != 0 ? 0 : ((ITupleType)((ITupleTypeReference)objectType).Target!).FixedLength,
                 /*endSkipCount*/ 0,
                 writing);
@@ -1310,7 +1312,7 @@ internal sealed partial class Checker
             var mappedType = (IMappedType)objectType;
             if (GetMappedTypeNameTypeKind(mappedType) != MappedTypeNameTypeKind.Remapping)
             {
-                var simplified = MapType(SubstituteIndexedMappedType(mappedType, type.IndexType!), t => GetSimplifiedType(t, writing));
+                var simplified = MapType(SubstituteIndexedMappedType(mappedType, type.IndexType!), t => GetSimplifiedType(t, writing))!;
                 SetCached(simplified);
                 return simplified;
             }

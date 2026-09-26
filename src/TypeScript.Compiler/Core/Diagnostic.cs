@@ -133,3 +133,42 @@ internal sealed class Diagnostic : IDiagnosticWithDetachedLocation, IDiagnosticW
 
     public ICanonicalDiagnostic? CanonicalHead { get; set; }
 }
+
+// ported from: src/compiler/types.ts:4426-4433 — interface DiagnosticMessageChain
+/// <summary>
+/// A diagnostic whose message is a chain (a head message plus elaborations) — TS's <c>DiagnosticMessageChain</c>.
+/// </summary>
+/// <remarks>
+/// PORT-NOTE: TS declares this as an interface and <c>chainDiagnosticMessages</c> (utilities.ts:8751-8765) builds it
+/// as an object literal, so the port needs the constructible class — the same treatment <c>DiagnosticMessage</c> got.
+/// <see cref="IDiagnosticMessageChain.RepopulateInfo"/> exists for the localization path (M8) and is left null.
+/// </remarks>
+internal sealed class DiagnosticMessageChain : IDiagnosticMessageChain
+{
+    /// <summary>ported from: src/compiler/utilities.ts:8751-8765 — the <c>chainDiagnosticMessages</c> literal.</summary>
+    public DiagnosticMessageChain(string? messageText, DiagnosticCategory category, int code, List<IDiagnosticMessageChain>? next = null)
+    {
+        MessageText = messageText;
+        Category = category;
+        Code = code;
+        Next = next;
+    }
+
+    /// <summary>ported from: src/compiler/types.ts:4427 — <c>DiagnosticMessageChain.messageText</c>.</summary>
+    public string? MessageText { get; set; }
+
+    /// <summary>ported from: src/compiler/types.ts:4428 — <c>DiagnosticMessageChain.category</c>.</summary>
+    public DiagnosticCategory Category { get; set; }
+
+    /// <summary>ported from: src/compiler/types.ts:4429 — <c>DiagnosticMessageChain.code</c>.</summary>
+    public int Code { get; set; }
+
+    /// <summary>ported from: src/compiler/types.ts:4430 — <c>DiagnosticMessageChain.next</c>.</summary>
+    public List<IDiagnosticMessageChain>? Next { get; set; }
+
+    /// <summary>ported from: src/compiler/types.ts:4431 — <c>DiagnosticMessageChain.repopulateInfo</c>.</summary>
+    public Func<object?>? RepopulateInfo { get; set; }
+
+    /// <summary>ported from: src/compiler/types.ts:4432 — <c>DiagnosticMessageChain.canonicalHead</c>.</summary>
+    public ICanonicalDiagnostic? CanonicalHead { get; set; }
+}

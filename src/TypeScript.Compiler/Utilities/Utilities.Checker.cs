@@ -780,17 +780,36 @@ internal static partial class Utilities
         return [];
     }
 
-    /// <summary>The <c>node.typeParameters</c> read of <see cref="GetEffectiveTypeParameterDeclarations"/> (utilitiesPublic.ts:1332).</summary>
+    /// <summary>ported from: src/compiler/types.ts:3536-3541 — the <c>typeParameters</c> slot of the
+    /// <c>DeclarationWithTypeParameterChildren</c> union.</summary>
     /// <remarks>
-    /// PORT-NOTE: the model splits the slot over two faces plus the type-alias class
-    /// (<c>IClassLikeDeclarationBase.TypeParameters</c>, <c>ISignatureDeclarationBase.TypeParameters</c>,
-    /// <c>TypeAliasDeclaration.TypeParameters</c>), so the read is a three-arm pattern.
+    /// PORT-NOTE: that union is <c>SignatureDeclaration | ClassLikeDeclaration | InterfaceDeclaration |
+    /// TypeAliasDeclaration | JSDocTemplateTag</c>, and C# must name each face: the two class kinds reach the slot
+    /// through <see cref="IClassLikeDeclarationBase"/>, the function-like kinds through
+    /// <see cref="ISignatureDeclarationBase"/>, and the remaining three are concrete classes. (In release-6.0
+    /// <c>InterfaceDeclaration</c> extends <c>DeclarationStatement, JSDocContainer</c> — *not*
+    /// <c>ClassLikeDeclarationBase</c>, because its <c>kind</c> is a single member — so an <c>is
+    /// IClassLikeDeclarationBase</c> test cannot cover it.)
+    /// <para>
+    /// PORT-NOTE: one home for the read. It was declared three times under this name — here, on <c>Checker</c>
+    /// (<c>Checker.Check.Symbols.cs</c>) and on <c>Program</c> (<c>Program.DiagnosticsAggregation.cs</c>) — with this
+    /// copy missing the <c>InterfaceDeclaration</c> arm and none of them covering <c>JSDocTemplateTag</c>, which is
+    /// what <c>docs/architecture.md</c> §15.15's "one name, one owner, one home" and its deciding question (a read whose
+    /// reference declaration is in <c>utilities.ts</c>/<c>utilitiesPublic.ts</c> belongs to <c>Utilities</c>) forbid;
+    /// the other two now call this member. The missing
+    /// face was not cosmetic: <c>getEffectiveTypeParameterDeclarations</c> answered "no type parameters" for every
+    /// generic interface, so <c>getDeclaredTypeOfSymbol</c> built a non-generic type for it and <c>getGlobalType</c>
+    /// failed its arity check — <c>globalArrayType</c>, <c>globalPromiseType</c> and their neighbours resolved to
+    /// <c>emptyGenericType</c> and every <c>createArrayType</c> produced the empty object type.
+    /// </para>
     /// </remarks>
-    private static NodeArray<TypeParameterDeclaration>? TypeParametersOf(Node node) => node switch
+    internal static NodeArray<TypeParameterDeclaration>? TypeParametersOf(Node node) => node switch
     {
         IClassLikeDeclarationBase declaration => declaration.TypeParameters,
+        InterfaceDeclaration declaration => declaration.TypeParameters,
         ISignatureDeclarationBase declaration => declaration.TypeParameters,
         TypeAliasDeclaration declaration => declaration.TypeParameters,
+        JSDocTemplateTag declaration => declaration.TypeParameters,
         _ => null,
     };
 
@@ -1159,6 +1178,19 @@ internal static partial class Utilities
     /// </remarks>
     public static bool IsInfinityOrNaNString(string name)
         => name == "Infinity" || name == "-Infinity" || name == "NaN";
+
+    /// <summary>ported from: src/compiler/utilities.ts:10905-10907 — <c>isCatchClauseVariableDeclaration</c>.</summary>
+    public static bool IsCatchClauseVariableDeclaration(Node node)
+        => node.Kind == SyntaxKind.VariableDeclaration && node.Parent!.Kind == SyntaxKind.CatchClause;
+
+    /// <summary>ported from: src/compiler/utilities.ts:11104-11108 — <c>isNonNullAccess</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's guard narrows to <c>AccessExpression</c>; the port answers <c>bool</c> (mapping rule (d)), which
+    /// is all its one caller reads (<c>Checker.Inference.cs</c>'s <c>narrowTypeByDiscriminant</c>). The operand read is
+    /// the union member <see cref="GetAccessExpressionExpression"/> reaches.
+    /// </remarks>
+    public static bool IsNonNullAccess(Node node)
+        => IsAccessExpression(node) && NodeTests.IsNonNullExpression(GetAccessExpressionExpression((Expression)node));
 
     // ---------------------------------------------------------------------------------------------
     // Modifier and decorator readers (utilities.ts:7211-7238; utilitiesPublic.ts:1024-1034, 1131-1177)
@@ -1541,4 +1573,1751 @@ internal sealed class EvaluatorResultValue<T> : IEvaluatorResult<T>
     public bool HasExternalReferences { get; set; }
 }
 
+
+    // ---------------------------------------------------------------------------------------------
+    // The A1 low band — `utilities.ts` / `utilitiesPublic.ts` members (artifacts/order/A1-util-low.txt).
+    //
+    // PORT-NOTE: the band's members are the reference's own. The helpers they are defined in terms of, which no order
+    // file assigns and no landed slice declares, are declared here too, exactly as the reference has them
+    // (`isTypeOnlyImportDeclaration`/`isTypeOnlyExportDeclaration`, `isNonContextualKeyword`, `isScopeMarker`,
+    // `isQuoteOrBacktick`, `formatJSDocLink`, `isCommonJSContainingModuleKind`, `isProtoSetter`, the `nodeIsDecorated`
+    // cluster, `getFirstConstructorWithBody` and `createSingleLineStringWriter`): the file header's rule (f) makes a
+    // file-local upstream helper a `private static` member of this class, and one name owns one home only if the
+    // helper is declared by the slice that needs it. Each such member's own remark says so.
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>ported from: src/compiler/utilities.ts:7241-7243 — <c>getSelectedEffectiveModifierFlags</c>.</summary>
+    public static ModifierFlags GetSelectedEffectiveModifierFlags(Node node, ModifierFlags flags)
+        => GetEffectiveModifierFlags(node) & flags;
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1536-1548 — <c>isTypeOnlyImportDeclaration</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: not an entry of the assignment, but <c>isTypeOnlyImportOrExportDeclaration</c> is defined in terms
+    /// of it and no file declares it. The reference's <c>ImportSpecifier</c> arm reads
+    /// <c>node.parent.parent.phaseModifier</c>, i.e. <c>ImportDeclaration.phaseModifier</c>, which the generated model
+    /// does not carry (<c>Model/NodeClasses.cs</c> declares <c>PhaseModifier</c> on <c>ImportClause</c> alone); the arm
+    /// therefore reads the <c>ImportClause</c>'s slot, which the parser fills from the same `type` token
+    /// (<c>NodeFactory.cs:1892</c>). The other two arms are the reference's, verbatim.
+    /// </remarks>
+    public static bool IsTypeOnlyImportDeclaration(Node node)
+    {
+        switch (node.Kind)
+        {
+            case SyntaxKind.ImportSpecifier:
+                return ((ImportSpecifier)node).IsTypeOnly
+                    || (((ImportSpecifier)node).Parent!.Parent as ImportDeclaration)?.ImportClause?.PhaseModifier == SyntaxKind.TypeKeyword;
+            case SyntaxKind.NamespaceImport:
+                return ((ImportClause)((NamespaceImport)node).Parent!).PhaseModifier == SyntaxKind.TypeKeyword;
+            case SyntaxKind.ImportClause:
+                return ((ImportClause)node).PhaseModifier == SyntaxKind.TypeKeyword;
+            case SyntaxKind.ImportEqualsDeclaration:
+                return ((ImportEqualsDeclaration)node).IsTypeOnly;
+        }
+        return false;
+    }
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1550-1560 — <c>isTypeOnlyExportDeclaration</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: not an entry of the assignment, but <c>isTypeOnlyImportOrExportDeclaration</c> is defined in terms
+    /// of it and no file declares it.
+    /// </remarks>
+    public static bool IsTypeOnlyExportDeclaration(Node node)
+    {
+        switch (node.Kind)
+        {
+            case SyntaxKind.ExportSpecifier:
+                return ((ExportSpecifier)node).IsTypeOnly || ((ExportDeclaration)((ExportSpecifier)node).Parent!.Parent!).IsTypeOnly;
+            case SyntaxKind.ExportDeclaration:
+                return ((ExportDeclaration)node).IsTypeOnly
+                    && ((ExportDeclaration)node).ModuleSpecifier is not null
+                    && ((ExportDeclaration)node).ExportClause is null;
+            case SyntaxKind.NamespaceExport:
+                return ((ExportDeclaration)((NamespaceExport)node).Parent!).IsTypeOnly;
+        }
+        return false;
+    }
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1562-1564 — <c>isTypeOnlyImportOrExportDeclaration</c>.</summary>
+    public static bool IsTypeOnlyImportOrExportDeclaration(Node node)
+        => IsTypeOnlyImportDeclaration(node) || IsTypeOnlyExportDeclaration(node);
+
+    /// <summary>ported from: src/compiler/utilities.ts:6782-6790 — <c>getThisParameter</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's parameter is the <c>SignatureDeclaration | JSDocSignature</c> union and the body reads
+    /// <c>signature.parameters</c> only after the <c>isJSDocSignature</c> test — <c>JSDocSignature</c> is not an
+    /// <c>SignatureDeclaration</c>, so the port's parameter is <see cref="INode"/> (the common face of the landed
+    /// callers' <c>Node</c> and <c>IFunctionLikeDeclarationBase</c>) and the <c>ISignatureDeclarationBase</c> cast sits
+    /// inside the test, in the reference's order.
+    /// </remarks>
+    public static ParameterDeclaration? GetThisParameter(INode signature)
+    {
+        // callback tags do not currently support this parameters
+        if (signature is not JSDocSignature)
+        {
+            var parameters = ((ISignatureDeclarationBase)signature).Parameters;
+            if (parameters is not null && parameters.Count != 0)
+            {
+                var thisParameter = parameters[0];
+                if (ParameterIsThisKeyword(thisParameter))
+                {
+                    return thisParameter;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:3789-3791 — <c>isInternalModuleImportEqualsDeclaration</c>.</summary>
+    public static bool IsInternalModuleImportEqualsDeclaration(Node node)
+        => node.Kind == SyntaxKind.ImportEqualsDeclaration
+            && ((ImportEqualsDeclaration)node).ModuleReference!.Kind != SyntaxKind.ExternalModuleReference;
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:2116-2128 — <c>isIterationStatement</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's two type-guard overloads (the <c>false</c>-only one answering
+    /// <c>IterationStatement</c> and the <c>boolean</c> one answering <c>IterationStatement | LabeledStatement</c>)
+    /// collapse into this one member: C# has no type predicates (mapping rule (d)) and every landed caller passes the
+    /// flag explicitly and tests the result for truth.
+    /// </remarks>
+    public static bool IsIterationStatement(Node node, bool lookInLabeledStatements)
+    {
+        switch (node.Kind)
+        {
+            case SyntaxKind.ForStatement:
+            case SyntaxKind.ForInStatement:
+            case SyntaxKind.ForOfStatement:
+            case SyntaxKind.DoStatement:
+            case SyntaxKind.WhileStatement:
+                return true;
+            case SyntaxKind.LabeledStatement:
+                return lookInLabeledStatements && IsIterationStatement((Node)((LabeledStatement)node).Statement!, lookInLabeledStatements);
+        }
+
+        return false;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:1300-1303 — <c>moduleExportNameTextUnescaped</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's parameter is the <c>ModuleExportName</c> union (<c>Identifier | StringLiteral</c>); the port
+    /// takes <c>Node?</c> because the landed callers pass <c>(Node?)specifier.PropertyName ?? specifier.Name</c>, and
+    /// reads the same two slots the reference does.
+    /// </remarks>
+    public static string ModuleExportNameTextUnescaped(Node? node)
+        => node!.Kind == SyntaxKind.StringLiteral
+            ? ((StringLiteral)node).Text!
+            : UnescapeLeadingUnderscores(((Identifier)node).EscapedText!);
+
+    /// <summary>The single-line writer <c>usingSingleLineStringWriter</c> and the checker's <c>*ToStringWorker</c> pair share.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS declares <c>const stringWriter = createSingleLineStringWriter()</c> (utilities.ts:668) as a
+    /// module-level singleton; the port states it as the static field the same closure would capture.
+    /// </remarks>
+    private static readonly IEmitTextWriter s_stringWriter = new SingleLineStringWriter();
+
+    /// <summary>ported from: src/compiler/utilities.ts:670-703 — <c>createSingleLineStringWriter</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's object literal is the port's <see cref="SingleLineStringWriter"/>. TS leaves
+    /// <c>nonEscapingWrite</c> undefined (it is optional in <c>EmitTextWriter</c>); the port's generated interface
+    /// declares it non-optional, so the implementation writes the text like the rest of the <c>write*</c> family.
+    /// </remarks>
+    private static IEmitTextWriter CreateSingleLineStringWriter() => new SingleLineStringWriter();
+
+    /// <summary>ported from: src/compiler/utilities.ts:785-795 — <c>usingSingleLineStringWriter</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>action: (writer: EmitTextWriter) =&gt; void</c> is the port's
+    /// <c>Func&lt;IEmitTextWriter, IEmitTextWriter&gt;</c>: every landed caller passes one of the checker's
+    /// <c>*ToStringWorker</c> local functions, whose return type is the writer they were handed (each of those is
+    /// <c>IEmitTextWriter Worker(IEmitTextWriter writer)</c>), and C# has no implicit conversion discarding a
+    /// non-void result in a method-group conversion.
+    /// </remarks>
+    public static string UsingSingleLineStringWriter(Func<IEmitTextWriter, IEmitTextWriter> action)
+    {
+        var oldString = s_stringWriter.GetText();
+        try
+        {
+            action(s_stringWriter);
+            return s_stringWriter.GetText();
+        }
+        finally
+        {
+            s_stringWriter.Clear();
+            s_stringWriter.WriteKeyword(oldString);
+        }
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:2129-2131 — <c>isExternalModuleAugmentation</c>.</summary>
+    public static bool IsExternalModuleAugmentation(Node node)
+        => IsAmbientModule(node) && IsModuleAugmentationExternal((ModuleDeclaration)node);
+
+    /// <summary>ported from: src/compiler/utilities.ts:3631-3701 — <c>isExpressionNode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>case SyntaxKind.Identifier:</c> falls through into the literal group; the port spells that out
+    /// as <c>goto case</c>, which is the same control flow. TS's two JSDoc member-name loops reassign their parameter;
+    /// the port does the same.
+    /// </remarks>
+    public static bool IsExpressionNode(Node node)
+    {
+        switch (node.Kind)
+        {
+            case SyntaxKind.SuperKeyword:
+            case SyntaxKind.NullKeyword:
+            case SyntaxKind.TrueKeyword:
+            case SyntaxKind.FalseKeyword:
+            case SyntaxKind.RegularExpressionLiteral:
+            case SyntaxKind.ArrayLiteralExpression:
+            case SyntaxKind.ObjectLiteralExpression:
+            case SyntaxKind.PropertyAccessExpression:
+            case SyntaxKind.ElementAccessExpression:
+            case SyntaxKind.CallExpression:
+            case SyntaxKind.NewExpression:
+            case SyntaxKind.TaggedTemplateExpression:
+            case SyntaxKind.AsExpression:
+            case SyntaxKind.TypeAssertionExpression:
+            case SyntaxKind.SatisfiesExpression:
+            case SyntaxKind.NonNullExpression:
+            case SyntaxKind.ParenthesizedExpression:
+            case SyntaxKind.FunctionExpression:
+            case SyntaxKind.ClassExpression:
+            case SyntaxKind.ArrowFunction:
+            case SyntaxKind.VoidExpression:
+            case SyntaxKind.DeleteExpression:
+            case SyntaxKind.TypeOfExpression:
+            case SyntaxKind.PrefixUnaryExpression:
+            case SyntaxKind.PostfixUnaryExpression:
+            case SyntaxKind.BinaryExpression:
+            case SyntaxKind.ConditionalExpression:
+            case SyntaxKind.SpreadElement:
+            case SyntaxKind.TemplateExpression:
+            case SyntaxKind.OmittedExpression:
+            case SyntaxKind.JsxElement:
+            case SyntaxKind.JsxSelfClosingElement:
+            case SyntaxKind.JsxFragment:
+            case SyntaxKind.YieldExpression:
+            case SyntaxKind.AwaitExpression:
+                return true;
+            case SyntaxKind.MetaProperty:
+                // `import.defer` in `import.defer(...)` is not an expression
+                return !IsImportCall(node.Parent!) || !ReferenceEquals(((CallExpression)node.Parent!).Expression, node);
+            case SyntaxKind.ExpressionWithTypeArguments:
+                return !NodeTests.IsHeritageClause(node.Parent!) && !NodeTests.IsJSDocAugmentsTag(node.Parent!);
+            case SyntaxKind.QualifiedName:
+                while (node.Parent!.Kind == SyntaxKind.QualifiedName)
+                {
+                    node = node.Parent!;
+                }
+                return node.Parent!.Kind == SyntaxKind.TypeQuery
+                    || IsJSDocLinkLike(node.Parent!)
+                    || NodeTests.IsJSDocNameReference(node.Parent!)
+                    || NodeTests.IsJSDocMemberName(node.Parent!)
+                    || IsJSXTagName(node);
+            case SyntaxKind.JSDocMemberName:
+                while (NodeTests.IsJSDocMemberName(node.Parent!))
+                {
+                    node = node.Parent!;
+                }
+                return node.Parent!.Kind == SyntaxKind.TypeQuery
+                    || IsJSDocLinkLike(node.Parent!)
+                    || NodeTests.IsJSDocNameReference(node.Parent!)
+                    || NodeTests.IsJSDocMemberName(node.Parent!)
+                    || IsJSXTagName(node);
+            case SyntaxKind.PrivateIdentifier:
+                return NodeTests.IsBinaryExpression(node.Parent!)
+                    && ReferenceEquals(((BinaryExpression)node.Parent!).Left, node)
+                    && ((BinaryExpression)node.Parent!).OperatorToken!.Kind == SyntaxKind.InKeyword;
+            case SyntaxKind.Identifier:
+                if (node.Parent!.Kind == SyntaxKind.TypeQuery
+                    || IsJSDocLinkLike(node.Parent!)
+                    || NodeTests.IsJSDocNameReference(node.Parent!)
+                    || NodeTests.IsJSDocMemberName(node.Parent!)
+                    || IsJSXTagName(node))
+                {
+                    return true;
+                }
+                // falls through
+                goto case SyntaxKind.NumericLiteral;
+            case SyntaxKind.NumericLiteral:
+            case SyntaxKind.BigIntLiteral:
+            case SyntaxKind.StringLiteral:
+            case SyntaxKind.NoSubstitutionTemplateLiteral:
+            case SyntaxKind.ThisKeyword:
+                return IsInExpressionContext(node);
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:2653-2655 — <c>isDeclarationReadonly</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's parameter is the <c>Declaration</c> face; the port's is <see cref="IDeclaration"/> because two
+    /// landed callers cast to it explicitly, and the two helpers it reads take the <c>Node</c> face (the explicit
+    /// downcast is the same one the callers already write).
+    /// </remarks>
+    public static bool IsDeclarationReadonly(IDeclaration declaration)
+        => (GetCombinedModifierFlags((Node)declaration) & ModifierFlags.Readonly) != 0
+            && !IsParameterPropertyDeclaration((Node)declaration, ((Node)declaration).Parent!);
+
+    /// <summary>ported from: src/compiler/utilities.ts:2152-2154 — <c>isCommonJSContainingModuleKind</c>.</summary>
+    /// <remarks>PORT-NOTE: not an entry of the assignment, but <c>isEffectiveExternalModule</c> is defined in terms of it.</remarks>
+    private static bool IsCommonJSContainingModuleKind(ModuleKind kind)
+        => kind == ModuleKind.CommonJS || ModuleKind.Node16 <= kind && kind <= ModuleKind.NodeNext;
+
+    /// <summary>ported from: src/compiler/utilities.ts:2157-2159 — <c>isEffectiveExternalModule</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>isExternalModule</c> is <c>parser.ts:1386</c>, whose landed port is
+    /// <c>Parser.IsExternalModule</c> (the checker slices already call it that way); <c>getEmitModuleKind</c>'s
+    /// <c>CompilerOptions</c> face is the generated <see cref="ICompilerOptions"/>.
+    /// </remarks>
+    public static bool IsEffectiveExternalModule(SourceFile node, ICompilerOptions compilerOptions)
+        => Parser.IsExternalModule(node)
+            || (IsCommonJSContainingModuleKind(GetEmitModuleKind(compilerOptions)) && node.CommonJsModuleIndicator is not null);
+
+    /// <summary>ported from: src/compiler/utilities.ts:3152-3154 — <c>getContainingFunctionOrClassStaticBlock</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's result is the <c>SignatureDeclaration | ClassStaticBlockDeclaration</c> union, which has no common
+    /// port face that is not <c>Node</c> (the erased <c>SignatureDeclaration</c> name does not exist in the port); the
+    /// landed callers only test the result with <c>NodeTests.IsClassStaticBlockDeclaration</c> and compare it to null.
+    /// </remarks>
+    public static Node? GetContainingFunctionOrClassStaticBlock(Node node)
+        => FindAncestor(node.Parent, IsFunctionLikeOrClassStaticBlockDeclaration);
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:2538-2540 — <c>isSetAccessor</c>.</summary>
+    public static bool IsSetAccessor(Node node) => node.Kind == SyntaxKind.SetAccessor;
+
+    /// <summary>ported from: src/compiler/utilities.ts:5286-5288 — <c>isNonContextualKeyword</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: not an entry of the assignment, but <c>isStringANonContextualKeyword</c> is defined in terms of it and
+    /// no file declares the port of <c>isContextualKeyword</c> (types.ts); the reference's
+    /// <c>FirstContextualKeyword &lt;= token &amp;&amp; token &lt;= LastContextualKeyword</c> is the port's own pair of
+    /// <c>SyntaxKind</c> aliases (<c>Model/SyntaxKind.cs:411-412</c>).
+    /// </remarks>
+    private static bool IsNonContextualKeyword(SyntaxKind token)
+        => IsKeyword(token) && !(SyntaxKind.FirstContextualKeyword <= token && token <= SyntaxKind.LastContextualKeyword);
+
+    /// <summary>ported from: src/compiler/utilities.ts:5291-5294 — <c>isStringANonContextualKeyword</c>.</summary>
+    public static bool IsStringANonContextualKeyword(string name)
+    {
+        var token = ScannerUtilities.StringToToken(name);
+        return token is not null && IsNonContextualKeyword(token.Value);
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:3912-3914 — <c>isSingleOrDoubleQuote</c>.</summary>
+    public static bool IsSingleOrDoubleQuote(int charCode)
+        => charCode == CharacterCodes.SingleQuote || charCode == CharacterCodes.DoubleQuote;
+
+    /// <summary>ported from: src/compiler/utilities.ts:3525-3534 — <c>nodeIsDecorated</c> (the three overloads at 3525/3527/3529 and the implementation at 3531-3534).</summary>
+    /// <remarks>
+    /// PORT-NOTE: not an entry of the assignment. The reference declares three type-guard overloads plus the
+    /// implementation; the port keeps one member with TS's optional <c>parent</c>/<c>grandparent</c> (rule (d): the
+    /// guards only narrow) — the three-argument and four-argument landed calls bind to it directly, and the reference's
+    /// two-argument overload is the same call with the defaults.
+    /// </remarks>
+    public static bool NodeIsDecorated(bool useLegacyDecorators, Node node, Node? parent = null, Node? grandparent = null)
+        => HasDecorators(node) && NodeCanBeDecorated(useLegacyDecorators, node, parent!, grandparent!);
+
+    /// <summary>ported from: src/compiler/utilities.ts:3536-3545 — <c>nodeOrChildIsDecorated</c>.</summary>
+    /// <remarks>PORT-NOTE: not an entry of the assignment; <c>childIsDecorated</c> is defined in terms of it.</remarks>
+    public static bool NodeOrChildIsDecorated(bool useLegacyDecorators, Node node, Node? parent = null, Node? grandparent = null)
+        => NodeIsDecorated(useLegacyDecorators, node, parent!, grandparent!)
+            || ChildIsDecorated(useLegacyDecorators, node, parent!);
+
+    /// <summary>ported from: src/compiler/utilities.ts:3548-3565 — <c>childIsDecorated</c>.</summary>
+    /// <remarks>PORT-NOTE: not an entry of the assignment; <c>classOrConstructorParameterIsDecorated</c> is defined in terms of it.</remarks>
+    public static bool ChildIsDecorated(bool useLegacyDecorators, Node node, Node? parent = null)
+    {
+        switch (node.Kind)
+        {
+            case SyntaxKind.ClassDeclaration:
+                return Core.Some(((IClassLikeDeclarationBase)node).Members, m => NodeOrChildIsDecorated(useLegacyDecorators, (Node)m, node, parent!));
+            case SyntaxKind.ClassExpression:
+                return !useLegacyDecorators && Core.Some(((IClassLikeDeclarationBase)node).Members, m => NodeOrChildIsDecorated(useLegacyDecorators, (Node)m, node, parent!));
+            case SyntaxKind.MethodDeclaration:
+            case SyntaxKind.SetAccessor:
+            case SyntaxKind.Constructor:
+                return Core.Some(((ISignatureDeclarationBase)node).Parameters, p => NodeIsDecorated(useLegacyDecorators, p, node, parent!));
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:6759-6761 — <c>getFirstConstructorWithBody</c>.</summary>
+    /// <remarks>PORT-NOTE: not an entry of the assignment; <c>classOrConstructorParameterIsDecorated</c> is defined in terms of it.</remarks>
+    public static ConstructorDeclaration? GetFirstConstructorWithBody(Node node)
+        => (ConstructorDeclaration?)Core.Find(
+            ((IClassLikeDeclarationBase)node).Members,
+            (member, _) => NodeTests.IsConstructorDeclaration((Node)member) && NodeIsPresent(((IFunctionLikeDeclarationBase)member).Body));
+
+    /// <summary>ported from: src/compiler/utilities.ts:3569-3573 — <c>classOrConstructorParameterIsDecorated</c>.</summary>
+    public static bool ClassOrConstructorParameterIsDecorated(bool useLegacyDecorators, Node node)
+    {
+        if (NodeIsDecorated(useLegacyDecorators, node)) return true;
+        var constructor = GetFirstConstructorWithBody(node);
+        return constructor is not null && ChildIsDecorated(useLegacyDecorators, constructor, node);
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:6277-6280 — <c>isIntrinsicJsxName</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>__String | string</c> is the port's <c>string</c> (both landed callers pass a <c>string</c>,
+    /// and <c>__String</c> erases to it); <c>charCodeAt(0)</c> is <c>ScannerUtilities.CharCodeAt</c>, which answers
+    /// <c>-1</c> where JS answers <c>NaN</c> — both fail every comparison below.
+    /// </remarks>
+    public static bool IsIntrinsicJsxName(string name)
+    {
+        var ch = ScannerUtilities.CharCodeAt(name, 0);
+        return (ch >= CharacterCodes.a && ch <= CharacterCodes.z) || name.Contains('-');
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:3819-3821 — <c>isInJSDoc</c>.</summary>
+    public static bool IsInJSDoc(Node? node) => node is not null && (node.Flags & NodeFlags.JSDoc) != 0;
+
+    /// <summary>ported from: src/compiler/utilities.ts:5073-5076 — <c>isDeclarationName</c>.</summary>
+    public static bool IsDeclarationName(Node name)
+        => !NodeTests.IsSourceFile(name)
+            && !IsBindingPattern(name)
+            && IsDeclaration(name.Parent!)
+            && name.Parent is INamedDeclaration { Name: not null } declaration
+            && ReferenceEquals(declaration.Name, name);
+
+    /// <summary>ported from: src/compiler/utilities.ts:3471-3520 — <c>nodeCanBeDecorated</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's four type-guard overloads (the two-argument <c>ClassDeclaration</c> one answering
+    /// <c>true</c>, the <c>ClassExpression</c> one, the <c>ClassElement</c> one and the general one) collapse into this
+    /// member with TS's optional <c>parent</c>/<c>grandparent</c>: every landed caller passes all four arguments, and the
+    /// <c>NodeIsDecorated</c>/<c>ChildIsDecorated</c> helpers below pass what the reference's two- and three-argument
+    /// overloads pass. The function-like body test is <c>IFunctionLikeDeclarationBase.Body</c> (the port's face for the
+    /// erased <c>FunctionLikeDeclaration</c>).
+    /// </remarks>
+    public static bool NodeCanBeDecorated(bool useLegacyDecorators, Node node, Node? parent = null, Node? grandparent = null)
+    {
+        // private names cannot be used with decorators yet
+        if (useLegacyDecorators && IsNamedDeclaration(node) && node is INamedDeclaration { Name: not null } named && NodeTests.IsPrivateIdentifier(named.Name))
+        {
+            return false;
+        }
+
+        switch (node.Kind)
+        {
+            case SyntaxKind.ClassDeclaration:
+                // class declarations are valid targets
+                return true;
+
+            case SyntaxKind.ClassExpression:
+                // class expressions are valid targets for native decorators
+                return !useLegacyDecorators;
+
+            case SyntaxKind.PropertyDeclaration:
+                // property declarations are valid if their parent is a class declaration.
+                return parent is not null
+                    && (useLegacyDecorators
+                        ? NodeTests.IsClassDeclaration(parent)
+                        : IsClassLike(parent) && !HasAbstractModifier(node) && !HasAmbientModifier(node));
+
+            case SyntaxKind.GetAccessor:
+            case SyntaxKind.SetAccessor:
+            case SyntaxKind.MethodDeclaration:
+                // if this method has a body and its parent is a class declaration, this is a valid target.
+                return ((IFunctionLikeDeclarationBase)node).Body is not null
+                    && parent is not null
+                    && (useLegacyDecorators ? NodeTests.IsClassDeclaration(parent) : IsClassLike(parent));
+
+            case SyntaxKind.Parameter:
+                // TODO(rbuckton): Parameter decorator support for ES decorators must wait until it is standardized
+                if (!useLegacyDecorators) return false;
+                // if the parameter's parent has a body and its grandparent is a class declaration, this is a valid target.
+                return parent is not null
+                    && ((IFunctionLikeDeclarationBase)parent).Body is not null
+                    && (parent.Kind == SyntaxKind.Constructor
+                        || parent.Kind == SyntaxKind.MethodDeclaration
+                        || parent.Kind == SyntaxKind.SetAccessor)
+                    && !ReferenceEquals(GetThisParameter(parent), node)
+                    && grandparent is not null
+                    && grandparent.Kind == SyntaxKind.ClassDeclaration;
+        }
+
+        return false;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:7180-7182 — <c>hasEffectiveModifiers</c>.</summary>
+    public static bool HasEffectiveModifiers(Node node)
+        => GetEffectiveModifierFlags(node) != ModifierFlags.None;
+
+    /// <summary>ported from: src/compiler/utilities.ts:4349-4374 — <c>tryGetModuleSpecifierFromDeclaration</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's parameter is the <c>CanHaveModuleSpecifier | JSDocImportTag</c> union, whose port face is the
+    /// widened <c>Node</c> the caller (<c>Utilities.CanHaveModuleSpecifier</c>) narrows to; the result is the
+    /// <c>StringLiteralLike</c> union, which the port's model spells <see cref="LiteralExpression"/>
+    /// (<c>StringLiteral</c> and <c>NoSubstitutionTemplateLiteral</c> are its only members, both deriving from it), so
+    /// the landed <c>as LiteralExpression</c> is the identity and <c>?.Text</c> reads the reference's <c>.text</c>.
+    /// The <c>findAncestor(node.initializer, …)</c> arm answers <c>arguments[0]</c>, whose static face is
+    /// <c>Expression</c>.
+    /// </remarks>
+    public static LiteralExpression? TryGetModuleSpecifierFromDeclaration(Node node)
+    {
+        switch (node.Kind)
+        {
+            case SyntaxKind.VariableDeclaration:
+            case SyntaxKind.BindingElement:
+                var initializer = node.Kind == SyntaxKind.VariableDeclaration
+                    ? ((VariableDeclaration)node).Initializer
+                    : ((BindingElement)node).Initializer;
+                return FindAncestor(initializer, n => IsRequireCall(n, /*requireStringLiteralLikeArgument*/ true)) is CallExpression require
+                    ? (LiteralExpression?)Core.FirstOrUndefined(require.Arguments)
+                    : null;
+            case SyntaxKind.ImportDeclaration:
+            case SyntaxKind.ExportDeclaration:
+            case SyntaxKind.JSDocImportTag:
+                var moduleSpecifier = node.Kind == SyntaxKind.ImportDeclaration
+                    ? ((ImportDeclaration)node).ModuleSpecifier
+                    : node.Kind == SyntaxKind.ExportDeclaration
+                        ? ((ExportDeclaration)node).ModuleSpecifier
+                        : ((JSDocImportTag)node).ModuleSpecifier;
+                return Core.TryCast<LiteralExpression, Node>(moduleSpecifier, IsStringLiteralLike);
+            case SyntaxKind.ImportEqualsDeclaration:
+                return Core.TryCast<LiteralExpression, Node>(
+                    Core.TryCast<ExternalModuleReference, Node>(((ImportEqualsDeclaration)node).ModuleReference, NodeTests.IsExternalModuleReference)?.Expression,
+                    IsStringLiteralLike);
+            case SyntaxKind.ImportClause:
+            case SyntaxKind.NamespaceExport:
+                var parentWithSpecifier = node.Parent!;
+                return Core.TryCast<LiteralExpression, Node>(
+                    parentWithSpecifier.Kind == SyntaxKind.ImportDeclaration
+                        ? ((ImportDeclaration)parentWithSpecifier).ModuleSpecifier
+                        : ((ExportDeclaration)parentWithSpecifier).ModuleSpecifier,
+                    IsStringLiteralLike);
+            case SyntaxKind.NamespaceImport:
+            case SyntaxKind.ExportSpecifier:
+                var grandparentWithSpecifier = node.Parent!.Parent!;
+                return Core.TryCast<LiteralExpression, Node>(
+                    grandparentWithSpecifier.Kind == SyntaxKind.ImportDeclaration
+                        ? ((ImportDeclaration)grandparentWithSpecifier).ModuleSpecifier
+                        : ((ExportDeclaration)grandparentWithSpecifier).ModuleSpecifier,
+                    IsStringLiteralLike);
+            case SyntaxKind.ImportSpecifier:
+                return Core.TryCast<LiteralExpression, Node>(((ImportDeclaration)node.Parent!.Parent!.Parent!).ModuleSpecifier, IsStringLiteralLike);
+            case SyntaxKind.ImportType:
+                return IsLiteralImportTypeNode(node)
+                    ? (LiteralExpression?)((LiteralTypeNode)((ImportTypeNode)node).Argument!).Literal
+                    : null;
+            default:
+                Debug.AssertNever(node);
+                return null;
+        }
+    }
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:2629-2631 — <c>isJSDocLinkLike</c>.</summary>
+    public static bool IsJSDocLinkLike(Node node)
+        => node.Kind == SyntaxKind.JSDocLink || node.Kind == SyntaxKind.JSDocLinkCode || node.Kind == SyntaxKind.JSDocLinkPlain;
+
+    /// <summary>ported from: src/compiler/utilities.ts:7587-7589 — <c>isInstanceOfExpression</c>.</summary>
+    public static bool IsInstanceOfExpression(Node node)
+        => NodeTests.IsBinaryExpression(node) && ((BinaryExpression)node).OperatorToken!.Kind == SyntaxKind.InstanceOfKeyword;
+
+    /// <summary>ported from: src/compiler/utilities.ts:7403-7405 — <c>isBinaryLogicalOperator</c>.</summary>
+    public static bool IsBinaryLogicalOperator(SyntaxKind token)
+        => token == SyntaxKind.BarBarToken || token == SyntaxKind.AmpersandAmpersandToken;
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1503-1511 — <c>isLiteralExpressionOfObject</c>.</summary>
+    public static bool IsLiteralExpressionOfObject(Node node)
+    {
+        switch (node.Kind)
+        {
+            case SyntaxKind.ObjectLiteralExpression:
+            case SyntaxKind.ArrayLiteralExpression:
+            case SyntaxKind.RegularExpressionLiteral:
+            case SyntaxKind.FunctionExpression:
+            case SyntaxKind.ClassExpression:
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:5255-5264 — <c>getAncestor</c>.</summary>
+    public static Node? GetAncestor(Node? node, SyntaxKind kind)
+    {
+        while (node is not null)
+        {
+            if (node.Kind == kind)
+            {
+                return node;
+            }
+            node = node.Parent;
+        }
+        return null;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:3618-3628 — <c>isJSXTagName</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference reads <c>(parent as JsxOpeningLikeElement).tagName</c>; the three jsx element classes
+    /// share no port base that declares <c>TagName</c>, so the arm switches on the kind it already tested.
+    /// </remarks>
+    public static bool IsJSXTagName(Node node)
+    {
+        var parent = node.Parent!;
+        return parent.Kind switch
+        {
+            SyntaxKind.JsxOpeningElement => ReferenceEquals(((JsxOpeningElement)parent).TagName, node),
+            SyntaxKind.JsxSelfClosingElement => ReferenceEquals(((JsxSelfClosingElement)parent).TagName, node),
+            SyntaxKind.JsxClosingElement => ReferenceEquals(((JsxClosingElement)parent).TagName, node),
+            _ => false,
+        };
+    }
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:2542-2544 — <c>isGetAccessor</c>.</summary>
+    public static bool IsGetAccessor(Node node) => node.Kind == SyntaxKind.GetAccessor;
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1299-1307 — <c>formatJSDocLink</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: not an entry of the assignment, but <c>getTextOfJSDocComment</c> is defined in terms of it. TS reads
+    /// <c>link.name</c>/<c>link.text</c> off the <c>JSDocLink | JSDocLinkCode | JSDocLinkPlain</c> union; the port's
+    /// three classes share no base declaring those slots, so the read is a three-arm pattern.
+    /// </remarks>
+    private static string FormatJSDocLink(Node link)
+    {
+        var (nameNode, text) = link switch
+        {
+            JSDocLink jSDocLink => ((Node?)jSDocLink.Name, jSDocLink.Text),
+            JSDocLinkCode jSDocLinkCode => ((Node?)jSDocLinkCode.Name, jSDocLinkCode.Text),
+            JSDocLinkPlain jSDocLinkPlain => ((Node?)jSDocLinkPlain.Name, jSDocLinkPlain.Text),
+            _ => (null, null),
+        };
+        var kind = link.Kind == SyntaxKind.JSDocLink ? "link"
+            : link.Kind == SyntaxKind.JSDocLinkCode ? "linkcode"
+            : "linkplain";
+        var name = nameNode is not null ? EntityNameToString(nameNode) : "";
+        var space = nameNode is not null && (text == "" || Core.StartsWith(text!, "://")) ? "" : " ";
+        return $"{{@{kind} {name}{space}{text}}}";
+    }
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1294-1297 — <c>getTextOfJSDocComment</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's parameter is <c>string | NodeArray&lt;JSDocComment&gt;</c>, which the generated model widens to
+    /// <c>object?</c> on <c>JSDocTag.Comment</c>/<c>JSDoc.Comment</c> — which is what the landed callers hand over, so
+    /// the parameter is <c>object?</c> and the two arms are the reference's <c>typeof comment === "string"</c> and
+    /// <c>comment.map(…).join("")</c>
+    /// </remarks>
+    public static string? GetTextOfJSDocComment(object? comment)
+    {
+        if (comment is null) return null;
+        if (comment is string text) return text;
+        // PORT-NOTE: the array face is the model's `NodeArray<Node>` (NodeFactory's CreateJSDocComment overload takes
+        // it); List<T> is invariant, so the sequence view is what both array shapes share.
+        var builder = new System.Text.StringBuilder();
+        foreach (var c in (IEnumerable<Node>)comment)
+        {
+            builder.Append(c.Kind == SyntaxKind.JSDocText ? ((JSDocText)c).Text : FormatJSDocLink(c));
+        }
+        return builder.ToString();
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:6270-6274 — <c>isQuoteOrBacktick</c>.</summary>
+    /// <remarks>PORT-NOTE: not an entry of the assignment, but <c>stripQuotes</c> is defined in terms of it.</remarks>
+    private static bool IsQuoteOrBacktick(int charCode)
+        => charCode == CharacterCodes.SingleQuote
+            || charCode == CharacterCodes.DoubleQuote
+            || charCode == CharacterCodes.Backtick;
+
+    /// <summary>ported from: src/compiler/utilities.ts:6262-6268 — <c>stripQuotes</c>.</summary>
+    public static string StripQuotes(string name)
+    {
+        var length = name.Length;
+        if (length >= 2 && name[0] == name[length - 1] && IsQuoteOrBacktick(ScannerUtilities.CharCodeAt(name, 0)))
+        {
+            return name.Substring(1, length - 2);
+        }
+        return name;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:2315-2317 — <c>hasPossibleExternalModuleReference</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's result is the <c>AnyImportOrReExport | ModuleDeclaration | ImportTypeNode | ImportCall</c> union,
+    /// whose only port face is <c>Node</c>; the single landed caller passes this member to
+    /// <c>Utilities.GetParseTreeNode(node, test)</c>, whose test is <c>Func&lt;Node, bool&gt;</c>.
+    /// </remarks>
+    public static bool HasPossibleExternalModuleReference(Node node)
+        => IsAnyImportOrReExport(node) || NodeTests.IsModuleDeclaration(node) || NodeTests.IsImportTypeNode(node) || IsImportCall(node);
+
+    /// <summary>ported from: src/compiler/utilities.ts:7592-7594 — <c>isRightSideOfInstanceofExpression</c>.</summary>
+    public static bool IsRightSideOfInstanceofExpression(Node node)
+        => IsInstanceOfExpression(node.Parent!) && ReferenceEquals(node, ((BinaryExpression)node.Parent!).Right);
+
+    /// <summary>ported from: src/compiler/utilities.ts:664-666 — <c>isExternalModuleSymbol</c>.</summary>
+    public static bool IsExternalModuleSymbol(ISymbol moduleSymbol)
+        => (moduleSymbol.Flags & SymbolFlags.Module) != 0
+            && ScannerUtilities.CharCodeAt(moduleSymbol.EscapedName ?? "", 0) == CharacterCodes.DoubleQuote;
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:2495-2501 — <c>isJsxCallLike</c>.</summary>
+    public static bool IsJsxCallLike(Node node)
+    {
+        var kind = node.Kind;
+        return kind == SyntaxKind.JsxOpeningElement
+            || kind == SyntaxKind.JsxSelfClosingElement
+            || kind == SyntaxKind.JsxOpeningFragment;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:3454-3468 — <c>getInvokedExpression</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's parameter is the <c>CallLikeExpression</c> union and the result the
+    /// <c>Expression | JsxTagNameExpression</c> union; both are the port's <c>Node</c>, and the caller casts the result
+    /// to <c>Expression</c>. The reference's <c>default: return node.expression</c> covers the remaining union members,
+    /// which share no port base declaring <c>Expression</c>.
+    /// </remarks>
+    public static Node GetInvokedExpression(Node node)
+    {
+        switch (node.Kind)
+        {
+            case SyntaxKind.TaggedTemplateExpression:
+                return ((TaggedTemplateExpression)node).Tag!;
+            case SyntaxKind.JsxOpeningElement:
+                return ((JsxOpeningElement)node).TagName!;
+            case SyntaxKind.JsxSelfClosingElement:
+                return ((JsxSelfClosingElement)node).TagName!;
+            case SyntaxKind.BinaryExpression:
+                return ((BinaryExpression)node).Right!;
+            case SyntaxKind.JsxOpeningFragment:
+                return node;
+            default:
+                return node switch
+                {
+                    CallExpression callExpression => callExpression.Expression!,
+                    NewExpression newExpression => newExpression.Expression!,
+                    PropertyAccessExpression propertyAccess => propertyAccess.Expression!,
+                    ElementAccessExpression elementAccess => elementAccess.Expression!,
+                    Decorator decorator => decorator.Expression!,
+                    _ => throw new InvalidOperationException("unreachable: the node is not a call-like expression"),
+                };
+        }
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:7540-7564 — <c>tryGetPropertyAccessOrIdentifierToString</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's parameter is the <c>Expression | JsxTagNameExpression</c> union, whose port face is <c>Node</c>
+    /// (the single landed caller casts its argument to <c>Expression</c> first). The recursion is over that same
+    /// widened parameter, so the recursive calls need no casts.
+    /// </remarks>
+    public static string? TryGetPropertyAccessOrIdentifierToString(Node expr)
+    {
+        if (NodeTests.IsPropertyAccessExpression(expr))
+        {
+            var baseStr = TryGetPropertyAccessOrIdentifierToString(((PropertyAccessExpression)expr).Expression!);
+            if (baseStr is not null)
+            {
+                return baseStr + "." + EntityNameToString(((PropertyAccessExpression)expr).Name!);
+            }
+        }
+        else if (NodeTests.IsElementAccessExpression(expr))
+        {
+            var baseStr = TryGetPropertyAccessOrIdentifierToString(((ElementAccessExpression)expr).Expression!);
+            if (baseStr is not null && IsPropertyName(((ElementAccessExpression)expr).ArgumentExpression!))
+            {
+                return baseStr + "." + GetPropertyNameForPropertyNameNode(((ElementAccessExpression)expr).ArgumentExpression!);
+            }
+        }
+        else if (NodeTests.IsIdentifier(expr))
+        {
+            return UnescapeLeadingUnderscores(((Identifier)expr).EscapedText!);
+        }
+        else if (NodeTests.IsJsxNamespacedName(expr))
+        {
+            return GetTextOfJsxNamespacedName((JsxNamespacedName)expr);
+        }
+        return null;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:3293-3304 — <c>getNewTargetContainer</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's result is the <c>FunctionDeclaration | ConstructorDeclaration | FunctionExpression</c> union,
+    /// whose only port face is <c>Node</c>; the single landed caller compares it to null and switches on <c>Kind</c>.
+    /// </remarks>
+    public static Node? GetNewTargetContainer(Node node)
+    {
+        var container = GetThisContainer(node, /*includeArrowFunctions*/ false, /*includeClassComputedPropertyName*/ false);
+        if (container is not null)
+        {
+            switch (container.Kind)
+            {
+                case SyntaxKind.Constructor:
+                case SyntaxKind.FunctionDeclaration:
+                case SyntaxKind.FunctionExpression:
+                    return container;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:2923-2964 — <c>forEachYieldExpression</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's nested <c>traverse</c> is the local function below and its truthiness test
+    /// (<c>if (value) return value;</c>) is <c>Js.IsTruthy</c>, the same one <c>ForEachChildTable.ForEachChild</c> uses
+    /// for its own early exit. <c>forEachChild</c> is <c>ForEachChildTable.ForEachChild</c> (the port keeps TS's name
+    /// for the table, CS0542), and <c>node.name</c> is read off the <c>INamedDeclaration</c> face the port's
+    /// function-like classes implement.
+    /// </remarks>
+    public static T? ForEachYieldExpression<T>(Block body, Func<YieldExpression, T?> visitor)
+    {
+        return Traverse(body);
+
+        T? Traverse(Node node)
+        {
+            switch (node.Kind)
+            {
+                case SyntaxKind.YieldExpression:
+                    var value = visitor((YieldExpression)node);
+                    if (Js.IsTruthy(value))
+                    {
+                        return value;
+                    }
+                    var operand = ((YieldExpression)node).Expression;
+                    if (operand is null)
+                    {
+                        return default;
+                    }
+                    return Traverse(operand);
+                case SyntaxKind.EnumDeclaration:
+                case SyntaxKind.InterfaceDeclaration:
+                case SyntaxKind.ModuleDeclaration:
+                case SyntaxKind.TypeAliasDeclaration:
+                    // These are not allowed inside a generator now, but eventually they may be allowed
+                    // as local types. Regardless, skip them to avoid the work.
+                    return default;
+                default:
+                    if (IsFunctionLike(node))
+                    {
+                        if (node is INamedDeclaration { Name: { } name } && name.Kind == SyntaxKind.ComputedPropertyName)
+                        {
+                            // Note that we will not include methods/accessors of a class because they would require
+                            // first descending into the class. This is by design.
+                            return Traverse(((ComputedPropertyName)name).Expression!);
+                        }
+                    }
+                    else if (!IsPartOfTypeNode(node))
+                    {
+                        // This is the general case, which should include mostly expressions and statements.
+                        // Also includes NodeArrays.
+                        return ForEachChildTable.ForEachChild(node, Traverse);
+                    }
+                    return default;
+            }
+        }
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:3576-3601 — <c>classElementOrClassElementParameterIsDecorated</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>parent.members</c> is read through <c>IClassLikeDeclarationBase</c> and the element face is
+    /// <c>IClassElement</c> (the model's <c>ClassElement</c> union), so the shared helpers below receive
+    /// <c>Node</c>-cast members. <c>getAllAccessorDeclarations</c> is a local function here because the port's own
+    /// <c>GetAllAccessorDeclarations</c> name is the <c>ITypeChecker</c> surface the checker class owns
+    /// (<c>Checker.GetAllAccessorDeclarationsForDeclaration</c>), and §15.15 forbids <c>Utilities</c> and
+    /// <c>Checker</c> from declaring same-named members; the local copy is the reference's <c>utilities.ts:6832-6885</c>
+    /// body unchanged.
+    /// </remarks>
+    public static bool ClassElementOrClassElementParameterIsDecorated(bool useLegacyDecorators, Node node, Node parent)
+    {
+        NodeArray<ParameterDeclaration>? parameters = null;
+        if (IsAccessor(node))
+        {
+            var (firstAccessor, secondAccessor, _, setAccessor) = GetAllAccessorDeclarations(((IClassLikeDeclarationBase)parent).Members, node);
+            var firstAccessorWithDecorators = firstAccessor is not null && HasDecorators(firstAccessor) ? firstAccessor
+                : secondAccessor is not null && HasDecorators(secondAccessor) ? secondAccessor
+                : null;
+            if (firstAccessorWithDecorators is null || !ReferenceEquals(node, firstAccessorWithDecorators))
+            {
+                return false;
+            }
+            parameters = setAccessor?.Parameters;
+        }
+        else if (NodeTests.IsMethodDeclaration(node))
+        {
+            parameters = ((MethodDeclaration)node).Parameters;
+        }
+        if (NodeIsDecorated(useLegacyDecorators, node, parent))
+        {
+            return true;
+        }
+        if (parameters is not null)
+        {
+            foreach (var parameter in parameters)
+            {
+                if (ParameterIsThisKeyword(parameter)) continue;
+                if (NodeIsDecorated(useLegacyDecorators, parameter, node, parent)) return true;
+            }
+        }
+        return false;
+
+        // ported from: src/compiler/utilities.ts:6832-6885 — <c>getAllAccessorDeclarations</c>.
+        static (Node? FirstAccessor, Node? SecondAccessor, GetAccessorDeclaration? GetAccessor, SetAccessorDeclaration? SetAccessor)
+            GetAllAccessorDeclarations(IEnumerable<IClassElement>? declarations, Node accessor)
+        {
+            Node? firstAccessor = null;
+            Node? secondAccessor = null;
+            GetAccessorDeclaration? getAccessor = null;
+            SetAccessorDeclaration? setAccessor = null;
+            if (HasDynamicName(accessor))
+            {
+                firstAccessor = accessor;
+                if (accessor.Kind == SyntaxKind.GetAccessor)
+                {
+                    getAccessor = (GetAccessorDeclaration)accessor;
+                }
+                else if (accessor.Kind == SyntaxKind.SetAccessor)
+                {
+                    setAccessor = (SetAccessorDeclaration)accessor;
+                }
+                else
+                {
+                    Debug.Fail("Accessor has wrong kind");
+                }
+            }
+            else
+            {
+                foreach (var member in declarations ?? [])
+                {
+                    var m = (Node)member;
+                    if (!IsAccessor(m) || IsStatic(m) != IsStatic(accessor))
+                    {
+                        continue;
+                    }
+                    var memberName = GetPropertyNameForPropertyNameNode(((INamedDeclaration)member).Name!);
+                    var accessorName = GetPropertyNameForPropertyNameNode(((INamedDeclaration)accessor).Name!);
+                    if (memberName == accessorName)
+                    {
+                        if (firstAccessor is null)
+                        {
+                            firstAccessor = m;
+                        }
+                        else if (secondAccessor is null)
+                        {
+                            secondAccessor = m;
+                        }
+
+                        if (m.Kind == SyntaxKind.GetAccessor && getAccessor is null)
+                        {
+                            getAccessor = (GetAccessorDeclaration)m;
+                        }
+
+                        if (m.Kind == SyntaxKind.SetAccessor && setAccessor is null)
+                        {
+                            setAccessor = (SetAccessorDeclaration)m;
+                        }
+                    }
+                }
+            }
+            return (firstAccessor, secondAccessor, getAccessor, setAccessor);
+        }
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:5469-5472 — <c>isProtoSetter</c>.</summary>
+    /// <remarks>PORT-NOTE: not an entry of the assignment, but <c>isNamedEvaluationSource</c> is defined in terms of it.</remarks>
+    private static bool IsProtoSetter(Node node)
+        => NodeTests.IsIdentifier(node) ? IdText(node) == "__proto__"
+            : NodeTests.IsStringLiteral(node) && ((StringLiteral)node).Text == "__proto__";
+
+    /// <summary>ported from: src/compiler/utilities.ts:5522-5554 — <c>isNamedEvaluationSource</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's result is the <c>NamedEvaluationSource</c> union (a type guard over property assignments, variable
+    /// declarations, parameters, binding elements, property declarations, assignment expressions and export
+    /// assignments), which the port answers as <c>bool</c> (rule (d)); the caller only tests it.
+    /// </remarks>
+    public static bool IsNamedEvaluationSource(Node node)
+    {
+        switch (node.Kind)
+        {
+            case SyntaxKind.PropertyAssignment:
+                return !IsProtoSetter(((PropertyAssignment)node).Name!);
+            case SyntaxKind.ShorthandPropertyAssignment:
+                return ((ShorthandPropertyAssignment)node).ObjectAssignmentInitializer is not null;
+            case SyntaxKind.VariableDeclaration:
+                return NodeTests.IsIdentifier(((VariableDeclaration)node).Name!) && ((VariableDeclaration)node).Initializer is not null;
+            case SyntaxKind.Parameter:
+                return NodeTests.IsIdentifier(((ParameterDeclaration)node).Name!)
+                    && ((ParameterDeclaration)node).Initializer is not null
+                    && ((ParameterDeclaration)node).DotDotDotToken is null;
+            case SyntaxKind.BindingElement:
+                return NodeTests.IsIdentifier(((BindingElement)node).Name!)
+                    && ((BindingElement)node).Initializer is not null
+                    && ((BindingElement)node).DotDotDotToken is null;
+            case SyntaxKind.PropertyDeclaration:
+                return ((PropertyDeclaration)node).Initializer is not null;
+            case SyntaxKind.BinaryExpression:
+                switch (((BinaryExpression)node).OperatorToken!.Kind)
+                {
+                    case SyntaxKind.EqualsToken:
+                    case SyntaxKind.AmpersandAmpersandEqualsToken:
+                    case SyntaxKind.BarBarEqualsToken:
+                    case SyntaxKind.QuestionQuestionEqualsToken:
+                        return NodeTests.IsIdentifier(((BinaryExpression)node).Left!);
+                }
+                break;
+            case SyntaxKind.ExportAssignment:
+                return true;
+        }
+        return false;
+    }
+
+/// <summary>ported from: src/compiler/utilities.ts:670-703 — <c>createSingleLineStringWriter</c>'s object literal.</summary>
+/// <remarks>
+/// PORT-NOTE: TS's <c>createSingleLineStringWriter</c> returns an object literal typed by
+/// <c>EmitTextWriter</c>; the port's face is <see cref="IEmitTextWriter"/> (plus <c>ISymbolWriter</c>, which that
+/// extends), so the literal becomes this class and the closure variable <c>str</c> becomes the field. The
+/// indentation and position members answer the reference's own constants (<c>getLine</c>/<c>getColumn</c>/<c>getIndent</c>
+/// are <c>0</c>, <c>isAtStartOfLine</c>/<c>hasTrailingComment</c> are <c>false</c>) and <c>writeLine</c> appends a single
+/// space, which is what the reference's "Completely ignore indentation for string writers. And map newlines to a
+/// single space." comment describes. TS leaves <c>nonEscapingWrite</c> undefined (optional in its interface); the
+/// generated interface declares it, so it writes the text like the rest of the family.
+/// </remarks>
+internal sealed class SingleLineStringWriter : IEmitTextWriter
+{
+    private string _str = "";
+
+    private void WriteText(string? text) => _str += text ?? "";
+
+    public void Write(string? s) => WriteText(s);
+
+    public void WriteTrailingSemicolon(string? text) => WriteText(text);
+
+    public void WriteComment(string? text) => WriteText(text);
+
+    public void RawWrite(string? s) => WriteText(s);
+
+    public void WriteLiteral(string? s) => WriteText(s);
+
+    public void NonEscapingWrite(string? text) => WriteText(text);
+
+    public void WriteKeyword(string? text) => WriteText(text);
+
+    public void WriteOperator(string? text) => WriteText(text);
+
+    public void WritePunctuation(string? text) => WriteText(text);
+
+    public void WriteSpace(string? text) => WriteText(text);
+
+    public void WriteStringLiteral(string? text) => WriteText(text);
+
+    public void WriteParameter(string? text) => WriteText(text);
+
+    public void WriteProperty(string? text) => WriteText(text);
+
+    public void WriteSymbol(string? text, ISymbol? symbol) => WriteText(text);
+
+    public void WriteLine(bool? force) => _str += " ";
+
+    public string GetText() => _str;
+
+    public int GetTextPos() => _str.Length;
+
+    public int GetLine() => 0;
+
+    public int GetColumn() => 0;
+
+    public int GetIndent() => 0;
+
+    public bool IsAtStartOfLine() => false;
+
+    public bool HasTrailingComment() => false;
+
+    public bool HasTrailingWhitespace() => _str.Length != 0 && ScannerUtilities.IsWhiteSpaceLike(_str[^1]);
+
+    public void IncreaseIndent()
+    {
+    }
+
+    public void DecreaseIndent()
+    {
+    }
+
+    public void Clear() => _str = "";
+
+    public override string ToString() => _str;
+}
+
+/// <summary>ported from: src/compiler/utilities.ts:7450-7453 — <c>ClassImplementingOrExtendingExpressionWithTypeArguments</c>.</summary>
+/// <remarks>
+/// PORT-NOTE: TS declares this record type in <c>utilities.ts</c>; the port's generated model houses types.ts records
+/// as <c>I&lt;Name&gt;</c> interfaces (<c>Model/NodeInterfaces.cs</c>), and this one has no generator entry (it is not a
+/// types.ts interface), so it is declared here with the two readonly members its one landed caller reads — the
+/// <c>Class</c> face is <see cref="IDeclaration"/> because that caller passes it straight to
+/// <c>Checker.GetSymbolOfDeclaration(IDeclaration)</c>.
+/// </remarks>
+internal sealed record ClassImplementingOrExtendingExpressionWithTypeArguments(IDeclaration Class, bool IsImplements);
+
+    // ---------------------------------------------------------------------------------------------
+    // The A1 low band, continued (artifacts/order/A1-util-low.txt).
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>ported from: src/compiler/utilities.ts:3809-3811 — <c>isInJsonFile</c>.</summary>
+    public static bool IsInJsonFile(Node? node) => node is not null && (node.Flags & NodeFlags.JsonFile) != 0;
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1180-1182 — <c>getJSDocEnumTag</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: <c>getFirstJSDocTag</c> is the port's <c>Utilities.GetFirstJSDocTag(Node, Func&lt;JSDocTag, bool&gt;)</c>
+    /// (<c>Utilities/Utilities.JSDoc.cs</c>, private in this same class), which is how the landed
+    /// <c>GetJSDocDeprecatedTag</c> pair reads it; the tag's narrow face is the cast at the end.
+    /// </remarks>
+    public static JSDocEnumTag? GetJSDocEnumTag(Node node)
+        => GetFirstJSDocTag(node, static tag => NodeTests.IsJSDocEnumTag(tag)) as JSDocEnumTag;
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1757-1763 — <c>isClassInstanceProperty</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's parameter is the <c>Declaration</c> face, which the port's model spells
+    /// <see cref="IDeclaration"/> (the caller passes elements of <c>ISymbol.Declarations</c>); the two shared helpers
+    /// below take that same face, and <c>node.expression</c> is read through the port's
+    /// <c>Utilities.GetAccessExpressionExpression</c> — the reference's read off the
+    /// <c>BindableStaticAccessExpression</c> union, which the guard above it establishes.
+    /// </remarks>
+    public static bool IsClassInstanceProperty(IDeclaration node)
+    {
+        var n = (Node)node;
+        if (IsInJSFile(n) && IsExpandoPropertyDeclaration(node))
+        {
+            return (!IsBindableStaticAccessExpression(n) || !IsPrototypeAccess(GetAccessExpressionExpression(n)))
+                && !IsBindableStaticNameExpression(n, /*excludeThisKeyword*/ true);
+        }
+        return n.Parent is not null && IsClassLike(n.Parent) && NodeTests.IsPropertyDeclaration(n) && !HasAccessorModifier(n);
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:3413-3419 — <c>isThisProperty</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS reads <c>(node as PropertyAccessExpression | ElementAccessExpression).expression</c>; both are
+    /// <c>MemberExpression</c> in the port, so the cast is to that base and the kind test is the reference's.
+    /// </remarks>
+    public static bool IsThisProperty(Node node)
+    {
+        var kind = node.Kind;
+        return kind == SyntaxKind.PropertyAccessExpression ? ((PropertyAccessExpression)node).Expression!.Kind == SyntaxKind.ThisKeyword
+            : kind == SyntaxKind.ElementAccessExpression && ((ElementAccessExpression)node).Expression!.Kind == SyntaxKind.ThisKeyword;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:3425-3432 — <c>isThisInitializedObjectBindingExpression</c>.</summary>
+    public static bool IsThisInitializedObjectBindingExpression(Node? node)
+    {
+        if (node is null || !(NodeTests.IsShorthandPropertyAssignment(node) || NodeTests.IsPropertyAssignment(node)))
+        {
+            return false;
+        }
+        var assignment = node.Parent!.Parent!;
+        return NodeTests.IsBinaryExpression(assignment)
+            && ((BinaryExpression)assignment).OperatorToken!.Kind == SyntaxKind.EqualsToken
+            && ((BinaryExpression)assignment).Right!.Kind == SyntaxKind.ThisKeyword;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:3257-3284 — <c>isThisContainerOrFunctionBlock</c>.</summary>
+    public static bool IsThisContainerOrFunctionBlock(Node node)
+    {
+        switch (node.Kind)
+        {
+            // Arrow functions use the same scope, but may do so in a "delayed" manner
+            // For example, `const getThis = () => this` may be before a super() call in a derived constructor
+            case SyntaxKind.ArrowFunction:
+            case SyntaxKind.FunctionDeclaration:
+            case SyntaxKind.FunctionExpression:
+            case SyntaxKind.PropertyDeclaration:
+                return true;
+            case SyntaxKind.Block:
+                switch (node.Parent!.Kind)
+                {
+                    case SyntaxKind.Constructor:
+                    case SyntaxKind.MethodDeclaration:
+                    case SyntaxKind.GetAccessor:
+                    case SyntaxKind.SetAccessor:
+                        // Object properties can have computed names; only method-like bodies start a new scope
+                        return true;
+                    default:
+                        return false;
+                }
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:2519-2523 — <c>scanTokenAtPosition</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>createScanner(languageVersion, skipTrivia, languageVariant, text, onError, start)</c> is
+    /// <c>Scanner.Create</c>, whose trailing <c>length</c> parameter TS leaves unset; TS's <c>/*onError*/ undefined</c>
+    /// is the null callback. The shape is the one the landed <c>GetSpanOfTokenAtPosition</c> already uses.
+    /// </remarks>
+    public static SyntaxKind ScanTokenAtPosition(SourceFile sourceFile, int pos)
+    {
+        var scanner = Scanner.Create(sourceFile.LanguageVersion, /*skipTrivia*/ true, sourceFile.LanguageVariant, sourceFile.Text ?? "", /*onError*/ null, pos);
+        scanner.Scan();
+        return scanner.GetToken();
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:4837-4839 — <c>hasTypeArguments</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's parameter is the <c>HasTypeArguments</c> union, whose port face is the generated
+    /// <c>INodeWithTypeArguments</c>; the reference's <c>!!node.typeArguments</c> is the pattern below, and the
+    /// landed caller reads the same slot off that interface.
+    /// </remarks>
+    public static bool HasTypeArguments(Node node) => node is INodeWithTypeArguments { TypeArguments: not null };
+
+    /// <summary>ported from: src/compiler/utilities.ts:639-641 — <c>getDeclarationsOfKind</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>T extends Declaration</c> constraint and <c>as T[]</c> cast become
+    /// <c>where T : class</c> plus the element cast below, which is the shape the landed generic sibling
+    /// <c>Utilities.GetDeclarationOfKind&lt;T&gt;</c> (<c>Checker/Checker.Support.cs:2533</c>) uses; TS's
+    /// <c>filter(… )</c> is <c>Core.Filter</c> over the ordered declaration list.
+    /// </remarks>
+    public static List<T> GetDeclarationsOfKind<T>(ISymbol symbol, SyntaxKind kind)
+        where T : class
+    {
+        var result = new List<T>();
+        var declarations = Core.Filter(symbol.Declarations, d => d.Kind == kind);
+        if (declarations is not null)
+        {
+            foreach (var declaration in declarations)
+            {
+                result.Add((T)declaration);
+            }
+        }
+        return result;
+    }
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1364-1366 — <c>isGetOrSetAccessorDeclaration</c>.</summary>
+    public static bool IsGetOrSetAccessorDeclaration(Node node)
+        => node.Kind == SyntaxKind.SetAccessor || node.Kind == SyntaxKind.GetAccessor;
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:2504-2510 — <c>isCaseOrDefaultClause</c>.</summary>
+    public static bool IsCaseOrDefaultClause(Node node)
+    {
+        var kind = node.Kind;
+        return kind == SyntaxKind.CaseClause
+            || kind == SyntaxKind.DefaultClause;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:1305-1307 — <c>moduleExportNameTextEscaped</c>.</summary>
+    public static string ModuleExportNameTextEscaped(Node node)
+        => node.Kind == SyntaxKind.StringLiteral
+            ? EscapeLeadingUnderscores(((StringLiteral)node).Text!)
+            : ((Identifier)node).EscapedText!;
+
+    /// <summary>ported from: src/compiler/utilities.ts:1238-1279 — <c>getTokenPosOfNode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>sourceFile?: SourceFileLike</c> is <c>SourceFile?</c> in the port: the model's
+    /// <c>ISourceFileLike</c> interface is implemented by no ported type (the same note the landed scanner helpers
+    /// carry), and the one landed caller passes a <c>SourceFile</c>. <c>node.jsDoc![0]</c> reads the port's
+    /// <c>JSDocArray</c> (a <c>NodeArray&lt;JSDoc&gt;</c>) through the <c>IJSDocContainer</c> face; <c>skipTrivia</c> is
+    /// <c>ScannerUtilities.SkipTrivia</c>, <c>getNodeChildren</c> is <c>NodeChildren.GetNodeChildren</c> and
+    /// <c>firstOrUndefined</c> is <c>Core.FirstOrUndefined</c>.
+    /// </remarks>
+    public static int GetTokenPosOfNode(Node node, SourceFile? sourceFile = null, bool includeJsDoc = false)
+    {
+        // With nodes that have no width (i.e. 'Missing' nodes), we actually *don't*
+        // want to skip trivia because this will launch us forward to the next token.
+        if (NodeIsMissing(node))
+        {
+            return node.Pos;
+        }
+
+        if (IsJSDocNode(node) || node.Kind == SyntaxKind.JsxText)
+        {
+            // JsxText cannot actually contain comments, even though the scanner will think it sees comments
+            return ScannerUtilities.SkipTrivia((sourceFile ?? GetSourceFileOfNode(node))!.Text!, node.Pos, /*stopAfterLineBreak*/ false, /*stopAtComments*/ true);
+        }
+
+        if (includeJsDoc && HasJSDocNodes(node))
+        {
+            return GetTokenPosOfNode(((JSDocArray)((IJSDocContainer)node).JsDoc!)[0], sourceFile, includeJsDoc);
+        }
+
+        // For a syntax list, it is possible that one of its children has JSDocComment nodes, while
+        // the syntax list itself considers them as normal trivia. Therefore if we simply skip
+        // trivia for the list, we may have skipped the JSDocComment as well. So we should process its
+        // first child to determine the actual position of its first token.
+        if (node.Kind == SyntaxKind.SyntaxList)
+        {
+            sourceFile ??= GetSourceFileOfNode(node);
+            var first = Core.FirstOrUndefined(NodeChildren.GetNodeChildren(node, sourceFile!));
+            if (first is not null)
+            {
+                return GetTokenPosOfNode(first, sourceFile, includeJsDoc);
+            }
+        }
+
+        return ScannerUtilities.SkipTrivia(
+            (sourceFile ?? GetSourceFileOfNode(node))!.Text!,
+            node.Pos,
+            /*stopAfterLineBreak*/ false,
+            /*stopAtComments*/ false,
+            IsInJSDoc(node));
+    }
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1605-1607 — <c>isPrivateIdentifierPropertyAccessExpression</c>.</summary>
+    public static bool IsPrivateIdentifierPropertyAccessExpression(Node node)
+        => NodeTests.IsPropertyAccessExpression(node) && NodeTests.IsPrivateIdentifier(((PropertyAccessExpression)node).Name!);
+
+    /// <summary>ported from: src/compiler/utilities.ts:3020-3025 — <c>isCommonJsExportedExpression</c>.</summary>
+    public static bool IsCommonJsExportedExpression(Node node)
+    {
+        if (!IsInJSFile(node)) return false;
+        return (NodeTests.IsObjectLiteralExpression(node.Parent!) && NodeTests.IsBinaryExpression(node.Parent!.Parent!) && GetAssignmentDeclarationKind(node.Parent!.Parent!) == AssignmentDeclarationKind.ModuleExports)
+            || IsCommonJsExportPropertyAssignment(node.Parent!);
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:3040-3052 — <c>introducesArgumentsExoticObject</c>.</summary>
+    public static bool IntroducesArgumentsExoticObject(Node node)
+    {
+        switch (node.Kind)
+        {
+            case SyntaxKind.MethodDeclaration:
+            case SyntaxKind.MethodSignature:
+            case SyntaxKind.Constructor:
+            case SyntaxKind.GetAccessor:
+            case SyntaxKind.SetAccessor:
+            case SyntaxKind.FunctionDeclaration:
+            case SyntaxKind.FunctionExpression:
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:7575-7578 — <c>isRightSideOfAccessExpression</c>.</summary>
+    public static bool IsRightSideOfAccessExpression(Node node)
+        => node.Parent is not null && (NodeTests.IsPropertyAccessExpression(node.Parent) && ReferenceEquals(((PropertyAccessExpression)node.Parent).Name, node)
+            || NodeTests.IsElementAccessExpression(node.Parent) && ReferenceEquals(((ElementAccessExpression)node.Parent).ArgumentExpression, node));
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1957-1961 — <c>isPropertyAccessOrQualifiedName</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's guard narrows to <c>PropertyAccessExpression | QualifiedName</c>; the port answers <c>bool</c>
+    /// (mapping rule (d)), and its caller re-tests with the two kind tests where it needs the narrowing.
+    /// </remarks>
+    public static bool IsPropertyAccessOrQualifiedName(Node node)
+        => NodeTests.IsPropertyAccessExpression(node) || NodeTests.IsQualifiedName(node);
+
+    /// <summary>ported from: src/compiler/utilities.ts:7581-7585 — <c>isRightSideOfQualifiedNameOrPropertyAccessOrJSDocMemberName</c>.</summary>
+    public static bool IsRightSideOfQualifiedNameOrPropertyAccessOrJSDocMemberName(Node node)
+        => NodeTests.IsQualifiedName(node.Parent!) && ReferenceEquals(((QualifiedName)node.Parent!).Right, node)
+            || NodeTests.IsPropertyAccessExpression(node.Parent!) && ReferenceEquals(((PropertyAccessExpression)node.Parent!).Name, node)
+            || NodeTests.IsJSDocMemberName(node.Parent!) && ReferenceEquals(((JSDocMemberName)node.Parent!).Right, node);
+
+    /// <summary>ported from: src/compiler/utilities.ts:4830-4835 — <c>getTypeParameterFromJsDoc</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's parameter type is the intersection <c>TypeParameterDeclaration &amp; { parent: JSDocTemplateTag }</c>
+    /// and its body destructures <c>typeParameters</c> from the <c>SignatureDeclaration | InterfaceDeclaration |
+    /// ClassDeclaration</c> union; the port reads that slot through the same <c>TypeParametersOf</c> helper
+    /// <c>GetEffectiveTypeParameterDeclarations</c> uses (the model splits it over three faces).
+    /// </remarks>
+    public static TypeParameterDeclaration? GetTypeParameterFromJsDoc(TypeParameterDeclaration node)
+    {
+        var name = node.Name!.EscapedText;
+        var typeParameters = TypeParametersOf(node.Parent!.Parent!.Parent!);
+        return typeParameters is not null ? Core.Find(typeParameters, (p, _) => p.Name!.EscapedText == name) : null;
+    }
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1532-1534 — <c>isImportOrExportSpecifier</c>.</summary>
+    public static bool IsImportOrExportSpecifier(Node node)
+        => NodeTests.IsImportSpecifier(node) || NodeTests.IsExportSpecifier(node);
+
+    /// <summary>ported from: src/compiler/utilities.ts:5112-5117 — <c>isLiteralComputedPropertyDeclarationName</c>.</summary>
+    public static bool IsLiteralComputedPropertyDeclarationName(Node node)
+        => IsStringOrNumericLiteralLike(node)
+            && node.Parent!.Kind == SyntaxKind.ComputedPropertyName
+            && IsDeclaration(node.Parent!.Parent!);
+
+    /// <summary>ported from: src/compiler/utilities.ts:6814-6824 — <c>isThisInTypeQuery</c>.</summary>
+    public static bool IsThisInTypeQuery(Node node)
+    {
+        if (!IsThisIdentifier(node))
+        {
+            return false;
+        }
+
+        while (NodeTests.IsQualifiedName(node.Parent!) && ReferenceEquals(((QualifiedName)node.Parent!).Left, node))
+        {
+            node = node.Parent!;
+        }
+
+        return node.Parent!.Kind == SyntaxKind.TypeQuery;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:3704-3757 — <c>isInExpressionContext</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS reads the <c>HasInitializer</c> arm as <c>(parent as HasInitializer).initializer</c> and the
+    /// expression-statement arm as <c>(parent as ExpressionStatement).expression</c> — two union faces whose members
+    /// share no port base declaring those slots, so the port names the slot per kind in the two local readers below
+    /// (every kind listed is one whose class declares it, which is what the single cast asserts in the reference). The
+    /// <c>ForInStatement | ForOfStatement</c> arm is likewise split by kind, and <c>AssertionExpression</c> (TS's
+    /// <c>TypeAssertion | AsExpression</c> union) is the port's two classes <c>TypeAssertion</c> and
+    /// <c>AsExpression</c>.
+    /// </remarks>
+    public static bool IsInExpressionContext(Node node)
+    {
+        var parent = node.Parent!;
+        switch (parent.Kind)
+        {
+            case SyntaxKind.VariableDeclaration:
+            case SyntaxKind.Parameter:
+            case SyntaxKind.PropertyDeclaration:
+            case SyntaxKind.PropertySignature:
+            case SyntaxKind.EnumMember:
+            case SyntaxKind.PropertyAssignment:
+            case SyntaxKind.BindingElement:
+                return ReferenceEquals(InitializerOf(parent), node);
+            case SyntaxKind.ExpressionStatement:
+            case SyntaxKind.IfStatement:
+            case SyntaxKind.DoStatement:
+            case SyntaxKind.WhileStatement:
+            case SyntaxKind.ReturnStatement:
+            case SyntaxKind.WithStatement:
+            case SyntaxKind.SwitchStatement:
+            case SyntaxKind.CaseClause:
+            case SyntaxKind.ThrowStatement:
+                return ReferenceEquals(StatementExpressionOf(parent), node);
+            case SyntaxKind.ForStatement:
+                var forStatement = (ForStatement)parent;
+                return (ReferenceEquals(forStatement.Initializer, node) && forStatement.Initializer!.Kind != SyntaxKind.VariableDeclarationList)
+                    || ReferenceEquals(forStatement.Condition, node)
+                    || ReferenceEquals(forStatement.Incrementor, node);
+            case SyntaxKind.ForInStatement:
+            case SyntaxKind.ForOfStatement:
+                var initializer = parent.Kind == SyntaxKind.ForInStatement ? ((ForInStatement)parent).Initializer : ((ForOfStatement)parent).Initializer;
+                var expression = parent.Kind == SyntaxKind.ForInStatement ? ((ForInStatement)parent).Expression : ((ForOfStatement)parent).Expression;
+                return (ReferenceEquals(initializer, node) && initializer!.Kind != SyntaxKind.VariableDeclarationList)
+                    || ReferenceEquals(expression, node);
+            case SyntaxKind.TypeAssertionExpression:
+            case SyntaxKind.AsExpression:
+                return parent.Kind == SyntaxKind.AsExpression
+                    ? ReferenceEquals(((AsExpression)parent).Expression, node)
+                    : ReferenceEquals(((TypeAssertion)parent).Expression, node);
+            case SyntaxKind.TemplateSpan:
+                return ReferenceEquals(((TemplateSpan)parent).Expression, node);
+            case SyntaxKind.ComputedPropertyName:
+                return ReferenceEquals(((ComputedPropertyName)parent).Expression, node);
+            case SyntaxKind.Decorator:
+            case SyntaxKind.JsxExpression:
+            case SyntaxKind.JsxSpreadAttribute:
+            case SyntaxKind.SpreadAssignment:
+                return true;
+            case SyntaxKind.ExpressionWithTypeArguments:
+                return ReferenceEquals(((ExpressionWithTypeArguments)parent).Expression, node) && !IsPartOfTypeNode(parent);
+            case SyntaxKind.ShorthandPropertyAssignment:
+                // TODO(jakebailey): it's possible that node could be the name, too
+                return ReferenceEquals(((ShorthandPropertyAssignment)parent).ObjectAssignmentInitializer, node);
+            case SyntaxKind.SatisfiesExpression:
+                return ReferenceEquals(((SatisfiesExpression)parent).Expression, node);
+            default:
+                return IsExpressionNode(parent);
+        }
+
+        // PORT-NOTE: TS's `(parent as HasInitializer).initializer` — the seven kinds the arm lists all declare the slot.
+        static Node? InitializerOf(Node parent) => parent switch
+        {
+            VariableDeclaration declaration => declaration.Initializer,
+            ParameterDeclaration declaration => declaration.Initializer,
+            PropertyDeclaration declaration => declaration.Initializer,
+            PropertySignature declaration => declaration.Initializer,
+            EnumMember declaration => declaration.Initializer,
+            PropertyAssignment declaration => declaration.Initializer,
+            BindingElement declaration => declaration.Initializer,
+            _ => null,
+        };
+
+        // PORT-NOTE: TS's `(parent as ExpressionStatement).expression` — the nine kinds the arm lists all declare it.
+        static Node? StatementExpressionOf(Node parent) => parent switch
+        {
+            ExpressionStatement statement => statement.Expression,
+            IfStatement statement => statement.Expression,
+            DoStatement statement => statement.Expression,
+            WhileStatement statement => statement.Expression,
+            ReturnStatement statement => statement.Expression,
+            WithStatement statement => statement.Expression,
+            SwitchStatement statement => statement.Expression,
+            CaseClause statement => statement.Expression,
+            ThrowStatement statement => statement.Expression,
+            _ => null,
+        };
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:3773-3775 — <c>isExternalModuleImportEqualsDeclaration</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's result is the intersection <c>ImportEqualsDeclaration &amp; { moduleReference: ExternalModuleReference }</c>;
+    /// the port answers <c>bool</c> (rule (d)) and the single landed caller casts at its own use site.
+    /// </remarks>
+    public static bool IsExternalModuleImportEqualsDeclaration(Node node)
+        => node.Kind == SyntaxKind.ImportEqualsDeclaration
+            && ((ImportEqualsDeclaration)node).ModuleReference!.Kind == SyntaxKind.ExternalModuleReference;
+
+    /// <summary>ported from: src/compiler/utilities.ts:3778-3781 — <c>getExternalModuleImportEqualsDeclarationExpression</c>.</summary>
+    public static Expression GetExternalModuleImportEqualsDeclarationExpression(Node node)
+    {
+        Debug.Assert(IsExternalModuleImportEqualsDeclaration(node));
+        return ((ExternalModuleReference)((ImportEqualsDeclaration)node).ModuleReference!).Expression!;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:7455-7468 — <c>tryGetClassImplementingOrExtendingExpressionWithTypeArguments</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the record's <c>class</c> slot is <see cref="IDeclaration"/> because the landed caller
+    /// (<c>Checker.Check.Source.cs</c>) passes it to <c>GetSymbolOfDeclaration(IDeclaration)</c>.
+    /// </remarks>
+    public static ClassImplementingOrExtendingExpressionWithTypeArguments? TryGetClassImplementingOrExtendingExpressionWithTypeArguments(Node node)
+    {
+        if (NodeTests.IsExpressionWithTypeArguments(node))
+        {
+            if (NodeTests.IsHeritageClause(node.Parent!) && IsClassLike(node.Parent!.Parent!))
+            {
+                return new ClassImplementingOrExtendingExpressionWithTypeArguments(
+                    (IDeclaration)node.Parent!.Parent!,
+                    ((HeritageClause)node.Parent!).Token == SyntaxKind.ImplementsKeyword);
+            }
+            if (NodeTests.IsJSDocAugmentsTag(node.Parent!))
+            {
+                var host = GetEffectiveJSDocHost(node.Parent!);
+                if (host is not null && IsClassLike(host))
+                {
+                    return new ClassImplementingOrExtendingExpressionWithTypeArguments((IDeclaration)host, false);
+                }
+            }
+        }
+        return null;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:7444-7447 — <c>tryGetClassExtendingExpressionWithTypeArguments</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's result is the <c>ClassLikeDeclaration</c> face, which the port widens to
+    /// <see cref="IDeclaration"/> (the record's slot it returns). The reference's one caller,
+    /// <c>isExpressionWithTypeArgumentsInClassExtendsClause</c>, is already landed as the folded predicate
+    /// <c>Utilities.IsExpressionWithTypeArgumentsInClassExtendsClause</c> (<c>Checker/Checker.Support.cs</c>), so this
+    /// member is declared for the reference's own completeness and has no port caller yet.
+    /// </remarks>
+    public static IDeclaration? TryGetClassExtendingExpressionWithTypeArguments(Node node)
+    {
+        var cls = TryGetClassImplementingOrExtendingExpressionWithTypeArguments(node);
+        return cls is not null && !cls.IsImplements ? cls.Class : null;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:1351-1353 — <c>indexOfNode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>binarySearch(nodeArray, node, getPos, compareValues)</c> is <c>Core.BinarySearch</c> with the
+    /// file-local <c>getPos</c> (utilities.ts:1341) inlined as the position selector and the port's
+    /// <c>Core.CompareValues</c> as the comparer (<c>Core.BinarySearch</c> takes the port's own
+    /// <c>Comparer&lt;T&gt;</c> delegate); <c>getPos</c> itself is therefore not declared as a member.
+    /// </remarks>
+    public static int IndexOfNode(IList<Node> nodeArray, Node node)
+        => Core.BinarySearch(nodeArray, node, static range => range.Pos, static (a, b) => Core.CompareValues(a, b));
+
+    /// <summary>ported from: src/compiler/utilities.ts:7568-7573 — <c>isRightSideOfQualifiedNameOrPropertyAccess</c>.</summary>
+    public static bool IsRightSideOfQualifiedNameOrPropertyAccess(Node node)
+        => (node.Parent!.Kind == SyntaxKind.QualifiedName && ReferenceEquals(((QualifiedName)node.Parent!).Right, node))
+            || (node.Parent!.Kind == SyntaxKind.PropertyAccessExpression && ReferenceEquals(((PropertyAccessExpression)node.Parent!).Name, node))
+            || (node.Parent!.Kind == SyntaxKind.MetaProperty && ReferenceEquals(((MetaProperty)node.Parent!).Name, node));
+
+    /// <summary>ported from: src/compiler/utilities.ts:1002-1012 — <c>isStatementWithLocals</c>.</summary>
+    public static bool IsStatementWithLocals(Node node)
+    {
+        switch (node.Kind)
+        {
+            case SyntaxKind.Block:
+            case SyntaxKind.CaseBlock:
+            case SyntaxKind.ForStatement:
+            case SyntaxKind.ForInStatement:
+            case SyntaxKind.ForOfStatement:
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:2117-2121 — <c>isBlockScopedContainerTopLevel</c>.</summary>
+    public static bool IsBlockScopedContainerTopLevel(Node node)
+        => node.Kind == SyntaxKind.SourceFile
+            || node.Kind == SyntaxKind.ModuleDeclaration
+            || IsFunctionLikeOrClassStaticBlockDeclaration(node);
+
+    /// <summary>ported from: src/compiler/utilities.ts:3880-3882 — <c>isBindingElementOfBareOrAccessedRequire</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's result is the <c>BindingElementOfBareOrAccessedRequire</c> union (a type guard), which the port
+    /// answers as <c>bool</c> (rule (d)); the caller only tests it.
+    /// </remarks>
+    public static bool IsBindingElementOfBareOrAccessedRequire(Node node)
+        => NodeTests.IsBindingElement(node) && IsVariableDeclarationInitializedToBareOrAccessedRequire(node.Parent!.Parent!);
+
+    /// <summary>ported from: src/compiler/utilities.ts:3434-3452 — <c>getEntityNameFromTypeNode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>TypeNode</c> parameter is the port's <see cref="ITypeNode"/> and the
+    /// <c>EntityNameOrEntityNameExpression</c> result is <c>Node?</c> (that union has no port face; the landed caller
+    /// passes the result to <c>ResolveEntityName(Node, …)</c> and <c>Utilities.EntityNameToString(Node)</c>). TS's
+    /// <c>case SyntaxKind.Identifier as TypeNodeSyntaxKind: case SyntaxKind.QualifiedName as TypeNodeSyntaxKind:</c> arm
+    /// answers the node itself, which is the <c>(Node)node</c> below.
+    /// </remarks>
+    public static Node? GetEntityNameFromTypeNode(ITypeNode node)
+    {
+        switch (node.Kind)
+        {
+            case SyntaxKind.TypeReference:
+                return ((TypeReferenceNode)node).TypeName;
+
+            case SyntaxKind.ExpressionWithTypeArguments:
+                return IsEntityNameExpression(((ExpressionWithTypeArguments)node).Expression!)
+                    ? ((ExpressionWithTypeArguments)node).Expression
+                    : null;
+
+            // TODO(rbuckton): These aren't valid TypeNodes, but we treat them as such because of `isPartOfTypeNode`, which returns `true` for things that aren't `TypeNode`s.
+            case SyntaxKind.Identifier:
+            case SyntaxKind.QualifiedName:
+                return (Node)node;
+        }
+
+        return null;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:2970-2981 — <c>getRestParameterElementType</c>.</summary>
+    public static ITypeNode? GetRestParameterElementType(ITypeNode? node)
+    {
+        if (node is not null && node.Kind == SyntaxKind.ArrayType)
+        {
+            return ((ArrayTypeNode)node).ElementType;
+        }
+        else if (node is not null && node.Kind == SyntaxKind.TypeReference)
+        {
+            return Core.SingleOrUndefined(((TypeReferenceNode)node).TypeArguments);
+        }
+        else
+        {
+            return null;
+        }
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:4029-4034 — <c>isDefaultedExpandoInitializer</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's result is <c>boolean | undefined</c> because the <c>name</c> it computes can be undefined; the
+    /// port keeps <c>bool?</c> and the same three conjuncts, with <c>getExpandoInitializer</c>'s non-null result as the
+    /// truthiness test (it answers <c>Expression | undefined</c>). <c>isSameEntityName</c>'s two parameters are
+    /// <c>Expression</c>, which TS's preceding <c>isEntityNameExpression(name)</c> guard establishes — the port keeps
+    /// that order and casts there.
+    /// </remarks>
+    public static bool? IsDefaultedExpandoInitializer(BinaryExpression node)
+    {
+        var name = NodeTests.IsVariableDeclaration(node.Parent!) ? ((VariableDeclaration)node.Parent!).Name
+            : NodeTests.IsBinaryExpression(node.Parent!) && ((BinaryExpression)node.Parent!).OperatorToken!.Kind == SyntaxKind.EqualsToken ? ((BinaryExpression)node.Parent!).Left
+            : null;
+        return name is not null
+            && GetExpandoInitializer(node.Right!, IsPrototypeAccess(name)) is not null
+            && IsEntityNameExpression(name)
+            && IsSameEntityName((Expression)name, node.Left!);
+    }
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:2477-2483 — <c>isJsxAttributeLike</c>.</summary>
+    public static bool IsJsxAttributeLike(Node node)
+    {
+        var kind = node.Kind;
+        return kind == SyntaxKind.JsxAttribute
+            || kind == SyntaxKind.JsxSpreadAttribute;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:620 — <c>noTruncationMaximumTruncationLength</c>.</summary>
+    public const int NoTruncationMaximumTruncationLength = 1_000_000;
+
+    /// <summary>ported from: src/compiler/utilities.ts:618 — <c>defaultMaximumTruncationLength</c>.</summary>
+    public const int DefaultMaximumTruncationLength = 160;
+
+    /// <summary>ported from: src/compiler/utilities.ts:2083-2085 — <c>isModuleWithStringLiteralName</c>.</summary>
+    public static bool IsModuleWithStringLiteralName(Node node)
+        => NodeTests.IsModuleDeclaration(node) && ((ModuleDeclaration)node).Name!.Kind == SyntaxKind.StringLiteral;
+
+    /// <summary>ported from: src/compiler/utilities.ts:2297-2312 — <c>isLateVisibilityPaintedStatement</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's result is the <c>LateVisibilityPaintedStatement</c> union (a type guard); the port answers
+    /// <c>bool</c> (rule (d)) — the landed caller only tests it. <c>LateVisibilityPaintedStatement</c> is one of the
+    /// generated union names that does not exist in the port.
+    /// </remarks>
+    public static bool IsLateVisibilityPaintedStatement(Node node)
+    {
+        switch (node.Kind)
+        {
+            case SyntaxKind.ImportDeclaration:
+            case SyntaxKind.ImportEqualsDeclaration:
+            case SyntaxKind.VariableStatement:
+            case SyntaxKind.ClassDeclaration:
+            case SyntaxKind.FunctionDeclaration:
+            case SyntaxKind.ModuleDeclaration:
+            case SyntaxKind.TypeAliasDeclaration:
+            case SyntaxKind.InterfaceDeclaration:
+            case SyntaxKind.EnumDeclaration:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:2133-2135 — <c>isScopeMarker</c>.</summary>
+    /// <remarks>PORT-NOTE: not an entry of the assignment, but <c>hasScopeMarker</c> is defined in terms of it.</remarks>
+    private static bool IsScopeMarker(IStatement result)
+        => NodeTests.IsExportAssignment((Node)result) || NodeTests.IsExportDeclaration((Node)result);
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:2138-2140 — <c>hasScopeMarker</c>.</summary>
+    public static bool HasScopeMarker(IList<IStatement> statements) => Core.Some(statements, IsScopeMarker);
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:2143-2145 — <c>needsScopeMarker</c>.</summary>
+    public static bool NeedsScopeMarker(IStatement result)
+        => !IsAnyImportOrReExport((Node)result)
+            && !NodeTests.IsExportAssignment((Node)result)
+            && !HasSyntacticModifier((Node)result, ModifierFlags.Export)
+            && !IsAmbientModule((Node)result);
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:2148-2151 — <c>isExternalModuleIndicator</c>.</summary>
+    public static bool IsExternalModuleIndicator(IStatement result)
+    {
+        // Exported top-level member indicates moduleness
+        return IsAnyImportOrReExport((Node)result) || NodeTests.IsExportAssignment((Node)result) || HasSyntacticModifier((Node)result, ModifierFlags.Export);
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:5459-5461 — <c>isPrivateIdentifierSymbol</c>.</summary>
+    public static bool IsPrivateIdentifierSymbol(ISymbol symbol) => Core.StartsWith(symbol.EscapedName ?? "", "__#");
+
+    /// <summary>ported from: src/compiler/utilities.ts:2148-2150 — <c>getNonAugmentationDeclaration</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's result is the <c>Declaration</c> face; the port answers <c>Node?</c> because its one landed caller
+    /// hands the result straight to <c>Utilities.GetSourceFileOfNode(Node?)</c>, and the port's <c>IDeclaration</c> face
+    /// (which <c>ISymbol.Declarations</c> carries) is not implicitly convertible to that parameter. TS's
+    /// <c>declarations?.find(…)</c> is <c>Core.Find</c> over the ordered list, whose predicate answers the same
+    /// <c>isExternalModuleAugmentation</c>/<c>isGlobalScopeAugmentation</c> pair.
+    /// </remarks>
+    public static Node? GetNonAugmentationDeclaration(ISymbol symbol)
+        => (Node?)Core.Find(
+            symbol.Declarations,
+            (d, _) => !IsExternalModuleAugmentation((Node)d)
+                && !(NodeTests.IsModuleDeclaration((Node)d) && IsGlobalScopeAugmentation((ModuleDeclaration)(Node)d)));
+
+    /// <summary>ported from: src/compiler/utilities.ts:4330-4347 — <c>canHaveModuleSpecifier</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's result is the <c>CanHaveModuleSpecifier</c> union, which the port answers as <c>bool</c> (rule
+    /// (d)) — its caller only tests it before reading the specifier through <c>TryGetModuleSpecifierFromDeclaration</c>.
+    /// </remarks>
+    public static bool CanHaveModuleSpecifier(Node? node)
+    {
+        switch (node?.Kind)
+        {
+            case SyntaxKind.VariableDeclaration:
+            case SyntaxKind.BindingElement:
+            case SyntaxKind.ImportDeclaration:
+            case SyntaxKind.ExportDeclaration:
+            case SyntaxKind.ImportEqualsDeclaration:
+            case SyntaxKind.ImportClause:
+            case SyntaxKind.NamespaceExport:
+            case SyntaxKind.NamespaceImport:
+            case SyntaxKind.ExportSpecifier:
+            case SyntaxKind.ImportSpecifier:
+            case SyntaxKind.ImportType:
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:992-994 — <c>getSourceFileOfModule</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>module.valueDeclaration || getNonAugmentationDeclaration(module)</c> is the <c>??</c> below;
+    /// the <c>valueDeclaration</c> slot is the port's <c>IDeclaration?</c>, so it is cast to the <c>Node?</c> face
+    /// <c>GetSourceFileOfNode</c> takes before the <c>??</c> (TS has one structural type there).
+    /// </remarks>
+    public static SourceFile? GetSourceFileOfModule(ISymbol module)
+        => GetSourceFileOfNode((Node?)module.ValueDeclaration ?? GetNonAugmentationDeclaration(module));
+
+    /// <summary>ported from: src/compiler/utilities.ts:5189-5192 — <c>getPropertyAssignmentAliasLikeExpression</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's parameter is the <c>PropertyAssignment | ShorthandPropertyAssignment | PropertyAccessExpression</c>
+    /// union, whose port face is the widened <c>Node</c> the landed caller produces with its own cast; the last arm reads
+    /// <c>(node.parent as BinaryExpression).right</c>, and the first two the slots the reference names.
+    /// </remarks>
+    public static Expression GetPropertyAssignmentAliasLikeExpression(Node node)
+        => node.Kind == SyntaxKind.ShorthandPropertyAssignment ? ((ShorthandPropertyAssignment)node).Name!
+            : node.Kind == SyntaxKind.PropertyAssignment ? ((PropertyAssignment)node).Initializer!
+            : ((BinaryExpression)node.Parent!).Right!;
 }

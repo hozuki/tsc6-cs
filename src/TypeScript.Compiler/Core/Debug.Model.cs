@@ -279,7 +279,6 @@ internal static partial class Debug
     /// </para>
     /// </remarks>
     public static FlowNode AttachFlowNodeDebugInfo(FlowNode flowNode) => flowNode;
-}
 
 // ported from: src/compiler/debug.ts:460-468 — `formatNodeCheckFlags`.
 /// <summary>
@@ -300,4 +299,5 @@ public static string FormatNodeCheckFlags(NodeCheckFlags flags)
     }
 
     return names.Count != 0 ? string.Join("|", names) : "None";
+}
 }

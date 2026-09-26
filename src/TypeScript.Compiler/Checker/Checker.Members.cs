@@ -112,13 +112,13 @@ internal sealed partial class Checker
             var target = reference.Target!;
             var typeArguments = GetTypeArguments(reference);
             return Core.Length(target.TypeParameters) == Core.Length(typeArguments)
-                ? CreateTypeReference(target, Core.Concatenate(typeArguments, [thisArgument ?? target.ThisType!])!)
+                ? CreateTypeReference(target, TypeList(Core.Concatenate(typeArguments, [thisArgument ?? target.ThisType!])))
                 : type;
         }
         else if ((type.Flags & TypeFlags.Intersection) != 0)
         {
             var types = Core.SameMap(((IIntersectionType)type).Types, (t, _) => GetTypeWithThisArgument(t, thisArgument, needApparentType));
-            return !ReferenceEquals(types, ((IIntersectionType)type).Types) ? GetIntersectionType(types!) : type;
+            return !ReferenceEquals(types, ((IIntersectionType)type).Types) ? GetIntersectionType(TypeList(types)) : type;
         }
 
         return needApparentType == true ? GetApparentType(type) : type;
@@ -154,11 +154,11 @@ internal sealed partial class Checker
         }
         else
         {
-            mapper = CreateTypeMapper(typeParameters, typeArguments);
+            mapper = CreateTypeMapper(TypeParameterList(typeParameters), TypeList(typeArguments));
             members = CreateInstantiatedSymbolTable(source.DeclaredProperties!, mapper, /*mappingThisOnly*/ typeParameters.Count == 1);
-            callSignatures = InstantiateSignatures(source.DeclaredCallSignatures!, mapper);
-            constructSignatures = InstantiateSignatures(source.DeclaredConstructSignatures!, mapper);
-            indexInfos = InstantiateIndexInfos(source.DeclaredIndexInfos!, mapper);
+            callSignatures = InstantiateSignatures(source.DeclaredCallSignatures!, mapper)!;
+            constructSignatures = InstantiateSignatures(source.DeclaredConstructSignatures!, mapper)!;
+            indexInfos = InstantiateIndexInfos(IndexInfoList(source.DeclaredIndexInfos!), mapper)!;
         }
 
         var baseTypes = GetBaseTypes(source);
@@ -182,11 +182,11 @@ internal sealed partial class Checker
                 members = symbolTable;
             }
 
-            SetStructuredTypeMembers(type, members, callSignatures, constructSignatures, indexInfos);
+            SetStructuredTypeMembers(type, members, callSignatures!, constructSignatures!, indexInfos!);
             var thisArgument = Core.LastOrUndefined(typeArguments);
             foreach (var baseType in baseTypes)
             {
-                var instantiatedBaseType = thisArgument is not null ? GetTypeWithThisArgument(InstantiateType(baseType, mapper), thisArgument) : baseType;
+                var instantiatedBaseType = thisArgument is not null ? GetTypeWithThisArgument(InstantiateType(baseType, mapper)!, thisArgument) : baseType;
                 AddInheritedMembers(members, GetPropertiesOfType(instantiatedBaseType));
                 callSignatures = Core.Concatenate(callSignatures, GetSignaturesOfType(instantiatedBaseType, SignatureKind.Call))!;
                 constructSignatures = Core.Concatenate(constructSignatures, GetSignaturesOfType(instantiatedBaseType, SignatureKind.Construct))!;
@@ -195,7 +195,7 @@ internal sealed partial class Checker
             }
         }
 
-        SetStructuredTypeMembers(type, members, callSignatures, constructSignatures, indexInfos);
+        SetStructuredTypeMembers(type, members, callSignatures!, constructSignatures!, indexInfos!);
     }
 
     /// <summary>ported from: src/compiler/checker.ts:14112-14114 — <c>resolveClassOrInterfaceMembers</c>.</summary>
@@ -332,7 +332,7 @@ internal sealed partial class Checker
                 var flags = ((ITupleType)restType.Target!).ElementFlags![i];
                 var checkFlags = (flags & ElementFlags.Variable) != 0 ? CheckFlags.RestParameter
                     : (flags & ElementFlags.Optional) != 0 ? CheckFlags.OptionalParameter : CheckFlags.None;
-                var symbol = CreateSymbol(SymbolFlags.FunctionScopedVariable, name, checkFlags);
+                var symbol = CreateSymbol(SymbolFlags.FunctionScopedVariable, name!, checkFlags);
                 GetSymbolLinks(symbol).Type = (flags & ElementFlags.Rest) != 0 ? CreateArrayType(t) : t;
                 return symbol;
             })!;
@@ -379,7 +379,7 @@ internal sealed partial class Checker
     {
         var baseConstructorType = GetBaseConstructorTypeOfClass(classType);
         var baseSignatures = GetSignaturesOfType(baseConstructorType, SignatureKind.Construct);
-        var declaration = GetClassLikeDeclarationOfSymbol(classType.Symbol!);
+        var declaration = Utilities.GetClassLikeDeclarationOfSymbol(classType.Symbol!);
         var isAbstract = declaration is not null && Utilities.HasSyntacticModifier(declaration, ModifierFlags.Abstract);
         if (baseSignatures.Count == 0)
         {
@@ -398,7 +398,7 @@ internal sealed partial class Checker
             if (isJavaScript || (typeArgCount >= minTypeArgumentCount && typeArgCount <= typeParamCount))
             {
                 var sig = typeParamCount != 0
-                    ? CreateSignatureInstantiation(baseSig, FillMissingTypeArguments(typeArguments!, baseSig.TypeParameters, minTypeArgumentCount, isJavaScript))
+                    ? (Signature)CreateSignatureInstantiation(baseSig, FillMissingTypeArguments(typeArguments!, baseSig.TypeParameters, minTypeArgumentCount, isJavaScript))
                     : CloneSignature(baseSig);
                 sig.TypeParameters = classType.LocalTypeParameters;
                 sig.ResolvedReturnType = classType;
@@ -415,7 +415,9 @@ internal sealed partial class Checker
     {
         foreach (var s in signatureList)
         {
-            if (CompareSignaturesIdentical(s, signature, partialMatch, ignoreThisTypes, ignoreReturnTypes, partialMatch ? CompareTypesSubtypeOf : CompareTypesIdentical))
+            // PORT-NOTE: TS tests the Ternary for truthiness (Ternary.False is 0, True is 1 and Maybe is -1), so the
+            // port compares against False rather than converting to bool.
+            if (CompareSignaturesIdentical(s, signature, partialMatch, ignoreThisTypes, ignoreReturnTypes, partialMatch ? CompareTypesSubtypeOf : CompareTypesIdentical) != Ternary.False)
             {
                 return s;
             }
@@ -561,7 +563,7 @@ internal sealed partial class Checker
             return true;
         }
 
-        var mapper = CreateTypeMapper(targetParams, sourceParams);
+        var mapper = CreateTypeMapper(TypeParameterList(targetParams), TypeListOfParameters(sourceParams));
         for (var i = 0; i < sourceParams.Count; i++)
         {
             var source = sourceParams[i];
@@ -569,7 +571,7 @@ internal sealed partial class Checker
             if (ReferenceEquals(source, target)) continue;
             // We instantiate the target type parameter constraints into the source types so we can recognize
             // `<T, U extends T>` as the same as `<A, B extends A>`
-            if (!IsTypeIdenticalTo(GetConstraintFromTypeParameter(source) ?? _unknownType, InstantiateType(GetConstraintFromTypeParameter(target) ?? _unknownType, mapper))) return false;
+            if (!IsTypeIdenticalTo(GetConstraintFromTypeParameter(source) ?? _unknownType, InstantiateType(GetConstraintFromTypeParameter(target) ?? _unknownType, mapper)!)) return false;
             // We don't compare defaults - we just use the type parameter defaults from the first signature that seems to
             // match.
         }
@@ -589,7 +591,7 @@ internal sealed partial class Checker
         // and we should refuse to merge signatures if there are `this` types and they do not match. However, so as to be
         // permissive when calling, for now, we'll intersect the `this` types just like we do for param types in union
         // signatures.
-        var thisType = GetIntersectionType([GetTypeOfSymbol(left), InstantiateType(GetTypeOfSymbol(right), mapper)]);
+        var thisType = GetIntersectionType([GetTypeOfSymbol(left), InstantiateType(GetTypeOfSymbol(right), mapper)!]);
         return CreateSymbolWithType(left, thisType);
     }
 
@@ -609,13 +611,13 @@ internal sealed partial class Checker
             var longestParamType = TryGetTypeAtPosition(longest, i)!;
             if (ReferenceEquals(longest, right))
             {
-                longestParamType = InstantiateType(longestParamType, mapper);
+                longestParamType = InstantiateType(longestParamType, mapper)!;
             }
 
             var shorterParamType = TryGetTypeAtPosition(shorter, i) ?? _unknownType;
             if (ReferenceEquals(shorter, right))
             {
-                shorterParamType = InstantiateType(shorterParamType, mapper);
+                shorterParamType = InstantiateType(shorterParamType, mapper)!;
             }
 
             var unionParamType = GetIntersectionType([longestParamType, shorterParamType]);
@@ -658,7 +660,7 @@ internal sealed partial class Checker
         TypeMapper? paramMapper = null;
         if (left.TypeParameters is not null && right.TypeParameters is not null)
         {
-            paramMapper = CreateTypeMapper(right.TypeParameters, left.TypeParameters);
+            paramMapper = CreateTypeMapper(TypeParameterList(right.TypeParameters), TypeListOfParameters(left.TypeParameters));
             // We just use the type parameter defaults from the first signature
         }
 
@@ -686,7 +688,7 @@ internal sealed partial class Checker
         result.CompositeSignatures = Core.Concatenate(left.CompositeKind != TypeFlags.Intersection && left.CompositeSignatures is not null ? left.CompositeSignatures : [left], [right]) is List<ISignature> list ? list : [.. left.CompositeSignatures ?? [], right];
         if (paramMapper is not null)
         {
-            result.Mapper = left.CompositeKind != TypeFlags.Intersection && left.Mapper is not null && left.CompositeSignatures is not null ? CombineTypeMappers(left.Mapper, paramMapper) : paramMapper;
+            result.Mapper = left.CompositeKind != TypeFlags.Intersection && left.Mapper is not null && left.CompositeSignatures is not null ? CombineTypeMappers((TypeMapper?)left.Mapper, paramMapper) : paramMapper;
         }
         else if (left.CompositeKind != TypeFlags.Intersection && left.Mapper is not null && left.CompositeSignatures is not null)
         {
@@ -813,7 +815,9 @@ internal sealed partial class Checker
     {
         foreach (var sig in newSignatures)
         {
-            if (signatures is null || Core.Every(signatures, (ISignature s, int _) => !CompareSignaturesIdentical(s, sig, /*partialMatch*/ false, /*ignoreThisTypes*/ false, /*ignoreReturnTypes*/ false, CompareTypesIdentical)))
+            // PORT-NOTE: as in FindMatchingSignature, TS's `!compareSignaturesIdentical(...)` is a truthiness test on the
+            // Ternary; False is the only falsy value.
+            if (signatures is null || Core.Every(signatures, (ISignature s, int _) => CompareSignaturesIdentical(s, sig, /*partialMatch*/ false, /*ignoreThisTypes*/ false, /*ignoreReturnTypes*/ false, CompareTypesIdentical) == Ternary.False))
             {
                 signatures = (List<ISignature>?)Core.Append(signatures, sig);
             }
@@ -917,5 +921,79 @@ internal sealed partial class Checker
         var property = GetUnionOrIntersectionProperty(type, name, skipObjectFunctionPropertyAugment);
         // We need to filter out partial properties in union types
         return property is not null && (GetCheckFlags(property) & CheckFlags.ReadPartial) == 0 ? property : null;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:16091-16122 — <c>isOptionalParameter</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's parameter is the three-way union
+    /// <c>ParameterDeclaration | JSDocParameterTag | JSDocPropertyTag</c>, which has no C# face (the three classes are
+    /// siblings under <see cref="Node"/>), so it is <c>Node?</c>; the body's two narrowings are a
+    /// <see cref="ParameterDeclaration"/> pattern where the reference uses <c>isParameter</c>, and the two
+    /// <c>parent.parameters.indexOf(node)</c> reads are the port's <c>NodeArray.IndexOf</c> (reference equality, as
+    /// <c>Node</c> does not override <c>Equals</c>).
+    /// </remarks>
+    internal bool IsOptionalParameter(Node? node)
+    {
+        // PORT-NOTE: `hasEffectiveQuestionToken` is a checker.ts member (16087-16089) declared on this class by the
+        // parameters slice (Checker.TypeSupport.cs:1453), so the call is unqualified.
+        if (HasEffectiveQuestionToken(node!))
+        {
+            return true;
+        }
+
+        if (node is not ParameterDeclaration parameter)
+        {
+            return false;
+        }
+
+        if (parameter.Initializer is not null)
+        {
+            var signature = GetSignatureFromDeclaration(parameter.Parent!);
+            var parameters = ((ISignatureDeclarationBase)parameter.Parent!).Parameters!;
+            var parameterIndex = parameters.IndexOf(parameter);
+            Debug.Assert(parameterIndex >= 0);
+            // Only consider syntactic or instantiated parameters as optional, not `void` parameters as this function is used
+            // in grammar checks and checking for `void` too early results in parameter types widening too early
+            // and causes some noImplicitAny errors to be lost.
+            return parameterIndex >= GetMinArgumentCount(signature, MinArgumentCountFlags.StrongArityForUntypedJS | MinArgumentCountFlags.VoidIsNonOptional);
+        }
+
+        var iife = Utilities.GetImmediatelyInvokedFunctionExpression(parameter.Parent!);
+        if (iife is not null)
+        {
+            return parameter.Type is null
+                && parameter.DotDotDotToken is null
+                && ((ISignatureDeclarationBase)parameter.Parent!).Parameters!.IndexOf(parameter) >= GetEffectiveCallArguments(iife).Count;
+        }
+
+        return false;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:15871-15890 — <c>elaborateNeverIntersection</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: this is the tail of the 15799-15871 block that Main routed to this slice (Main's routing note: the
+    /// band past <c>resolveReverseMappedTypeMembers</c> belonged to nobody). The two predicates it selects properties
+    /// with (<c>isDiscriminantWithNeverType</c>, <c>isConflictingPrivateProperty</c>, checker.ts:15841/15849) are
+    /// M6Generics' <c>Checker.Support.cs</c> members and the two stringifiers (<c>typeToString</c>/<c>symbolToString</c>)
+    /// are M6-6's, so they are referenced, not declared.
+    /// </remarks>
+    internal IDiagnosticMessageChain? ElaborateNeverIntersection(IDiagnosticMessageChain? errorInfo, IType type)
+    {
+        if ((type.Flags & TypeFlags.Intersection) != 0 && (GetObjectFlags(type) & ObjectFlags.IsNeverIntersection) != 0)
+        {
+            var neverProp = Core.Find(GetPropertiesOfUnionOrIntersectionType((UnionOrIntersectionType)type), (ISymbol p, int _) => IsDiscriminantWithNeverType(p));
+            if (neverProp is not null)
+            {
+                return Utilities.ChainDiagnosticMessages(errorInfo, Diagnostics.The_intersection_0_was_reduced_to_never_because_property_1_has_conflicting_types_in_some_constituents, TypeToString(type, /*enclosingDeclaration*/ null, TypeFormatFlags.NoTypeReduction), SymbolToString(neverProp));
+            }
+
+            var privateProp = Core.Find(GetPropertiesOfUnionOrIntersectionType((UnionOrIntersectionType)type), (ISymbol p, int _) => IsConflictingPrivateProperty(p));
+            if (privateProp is not null)
+            {
+                return Utilities.ChainDiagnosticMessages(errorInfo, Diagnostics.The_intersection_0_was_reduced_to_never_because_property_1_exists_in_multiple_constituents_and_is_private_in_some, TypeToString(type, /*enclosingDeclaration*/ null, TypeFormatFlags.NoTypeReduction), SymbolToString(privateProp));
+            }
+        }
+
+        return errorInfo;
     }
 }

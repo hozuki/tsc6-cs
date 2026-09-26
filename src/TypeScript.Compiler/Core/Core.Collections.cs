@@ -227,6 +227,24 @@ internal static partial class Core
         };
     }
 
+    /// <summary><c>memoize</c>'s void face: a callback whose result no caller reads.</summary>
+    /// <remarks>PORT-NOTE: TS's one <c>memoize</c> is generic over any function; C# needs a second overload for the
+    /// statement-bodied callbacks, because a void lambda converts only to a <c>void</c>-returning delegate — the same
+    /// two-face arrangement <c>Utilities.ForEachProjectReference</c> records. The evaluation order matches
+    /// <see cref="Memoize{T}"/>: the callback runs, then the memo is set.</remarks>
+    public static Action Memoize(Action callback)
+    {
+        var evaluated = false;
+        return () =>
+        {
+            if (!evaluated)
+            {
+                callback();
+                evaluated = true;
+            }
+        };
+    }
+
     /// <summary>
     /// A version of <see cref="Memoize"/> that supports a single primitive argument.
     /// </summary>

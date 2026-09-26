@@ -980,8 +980,16 @@ internal static partial class Utilities
     /// the port's node classes share no interface for the slot, so each kind is named. The result widens to
     /// <c>IEnumerable&lt;Node&gt;</c> because the slot's element type differs by kind (<c>ModifierToken</c> for a type
     /// parameter, <c>Node</c> elsewhere) and <see cref="ModifiersToFlags"/> only needs the kind of each modifier.
+    /// <para>
+    /// PORT-NOTE: Main's ruling (M6 integration) makes this the single home for <c>modifiersOf</c>: the reference
+    /// declares it in <c>utilities.ts</c>, so it belongs to <see cref="Utilities"/>, and the two M6 checker partials
+    /// that had each declared a private copy (<c>Checker.Check.Grammar.cs</c>, <c>Checker.Check.Symbols.cs</c>) delete
+    /// them and call this member qualified. Visibility widened from <c>private</c> to <c>internal</c> for that reason;
+    /// the caller in this file is unaffected. The fleet's <c>CrossSliceOwnershipTests</c> guard is what forced the
+    /// choice: any surviving checker copy would make the two classes' member-name intersection non-empty.
+    /// </para>
     /// </remarks>
-    private static IEnumerable<Node>? ModifiersOf(Node node) => node switch
+    internal static IEnumerable<Node>? ModifiersOf(Node node) => node switch
     {
         TypeParameterDeclaration declaration => declaration.Modifiers,
         ParameterDeclaration declaration => declaration.Modifiers,

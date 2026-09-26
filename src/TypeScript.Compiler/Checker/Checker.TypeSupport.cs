@@ -1,4 +1,4 @@
-namespace TypeScript.Compiler;
+﻿namespace TypeScript.Compiler;
 
 // ported from: src/compiler/checker.ts:13438-13460 (isThislessInterface)
 // ported from: src/compiler/checker.ts:13641-13717 (isThislessType … isThisless)
@@ -198,13 +198,16 @@ internal sealed partial class Checker
     /// of nodes; and the type of its expression is a string or numeric literal type, or is a <c>unique symbol</c> type.
     /// </remarks>
     internal bool IsLateBindableName(Node node)
+        // PORT-NOTE: TS's `isComputedPropertyName(node)` guard narrows `node` to `ComputedPropertyName` for the true
+        // arm; the port states that narrowing as the cast.
         => IsLateBindableAST(node)
-            && Utilities.IsTypeUsableAsPropertyName(NodeTests.IsComputedPropertyName(node) ? CheckComputedPropertyName(node) : CheckExpressionCached(((ElementAccessExpression)node).ArgumentExpression!));
+            && Utilities.IsTypeUsableAsPropertyName(NodeTests.IsComputedPropertyName(node) ? CheckComputedPropertyName((ComputedPropertyName)node) : CheckExpressionCached(((ElementAccessExpression)node).ArgumentExpression!));
 
     /// <summary>ported from: src/compiler/checker.ts:13783-13786 — <c>isLateBindableIndexSignature</c>.</summary>
     internal bool IsLateBindableIndexSignature(Node node)
+        // PORT-NOTE: as `IsLateBindableName` — the `isComputedPropertyName` guard's narrowing is the cast.
         => IsLateBindableAST(node)
-            && IsTypeUsableAsIndexSignature(NodeTests.IsComputedPropertyName(node) ? CheckComputedPropertyName(node) : CheckExpressionCached(((ElementAccessExpression)node).ArgumentExpression!));
+            && IsTypeUsableAsIndexSignature(NodeTests.IsComputedPropertyName(node) ? CheckComputedPropertyName((ComputedPropertyName)node) : CheckExpressionCached(((ElementAccessExpression)node).ArgumentExpression!));
 
     /// <summary>ported from: src/compiler/checker.ts:13788-13794 — <c>isLateBindableAST</c>.</summary>
     internal bool IsLateBindableAST(Node node)
@@ -307,9 +310,11 @@ internal sealed partial class Checker
             // early-bound name of this member.
             links.ResolvedSymbol = decl.Symbol;
             var declName = NodeTests.IsBinaryExpression((Node)decl) ? ((BinaryExpression)decl).Left! : ((INamedDeclaration)decl).Name!;
+            // PORT-NOTE: as `IsLateBindableName` — the `isElementAccessExpression` guard's else-arm narrows `declName`
+            // to `ComputedPropertyName`.
             var type = NodeTests.IsElementAccessExpression(declName)
                 ? CheckExpressionCached(((ElementAccessExpression)declName).ArgumentExpression!)
-                : CheckComputedPropertyName(declName);
+                : CheckComputedPropertyName((ComputedPropertyName)declName);
             if (Utilities.IsTypeUsableAsPropertyName(type))
             {
                 var memberName = Utilities.GetPropertyNameFromType(type);
@@ -338,7 +343,7 @@ internal sealed partial class Checker
                     // same two cases as a conditional over the truthiness of the unescaped name.
                     var name = (type.Flags & TypeFlags.UniqueESSymbol) == 0 && Js.IsTruthy(unescapedMemberName)
                         ? unescapedMemberName
-                        : DeclarationNameToString(declName);
+                        : Utilities.DeclarationNameToString(declName);
                     foreach (var declaration in declarations ?? [])
                     {
                         var declarationName = Utilities.GetNameOfDeclaration((Node)declaration) as Node ?? (Node)declaration;
@@ -387,7 +392,10 @@ internal sealed partial class Checker
             else
             {
                 indexSymbol = CloneSymbol(early);
-                GetSymbolLinks(indexSymbol).CheckFlags |= CheckFlags.Late;
+                // PORT-NOTE: TS reads `indexSymbol.links.checkFlags`; `TransientSymbol.links` is typed
+                // `TransientSymbolLinks`, so the reference's slot is the port's `ITransientSymbolLinks` face
+                // (Model/NodeInterfaces.cs:3455).
+                ((ITransientSymbolLinks)GetSymbolLinks(indexSymbol)).CheckFlags |= CheckFlags.Late;
             }
 
             lateSymbols[InternalSymbolName.Index.Value] = indexSymbol;
@@ -540,11 +548,11 @@ internal sealed partial class Checker
         if ((symbol.Flags & SymbolFlags.ClassMember) != 0 && symbol.EscapedName == InternalSymbolName.Computed.Value)
         {
             var links = GetSymbolLinks(symbol);
-            if (links.LateSymbol is null && Core.Some(symbol.Declarations, (d, _) => HasLateBindableName(d)))
+            if (links.LateSymbol is null && Core.Some(symbol.Declarations, d => HasLateBindableName(d)))
             {
                 // force late binding of members/exports. This will set the late-bound symbol
                 var parent = GetMergedSymbol(symbol.Parent)!;
-                if (Core.Some(symbol.Declarations, (d, _) => Utilities.HasStaticModifier((Node)d)))
+                if (Core.Some(symbol.Declarations, d => Utilities.HasStaticModifier((Node)d)))
                 {
                     GetExportsOfSymbol(parent);
                 }
@@ -593,7 +601,9 @@ internal sealed partial class Checker
 
         // Combinations of function, class, enum and module
         var combinedMembers = GetExportsOfSymbol(symbol);
-        IList<IIndexInfo>? combinedIndexInfos = null;
+        // PORT-NOTE: TS's `combinedIndexInfos: IndexInfo[]`; the port's `AppendIndexInfo` (Checker.Members.cs:833)
+        // takes the concrete `List<IndexInfo>` face, which is what `GetIndexInfosOfIndexSymbol` also answers.
+        List<IIndexInfo>? combinedIndexInfos = null;
         if (ReferenceEquals(symbol, _globalThisSymbol))
         {
             var varsOnly = Utilities.CreateSymbolTable();
@@ -691,7 +701,8 @@ internal sealed partial class Checker
         }
     }
 
-    /// <summary>ported from: src/compiler/checker.ts:14739-14745 — <c>replaceIndexedAccess</c>.</summary>
+    /// <summary>ported from: src/compiler/checker.ts:14687-14693 — <c>replaceIndexedAccess</c> (with the
+    /// <c>ReplaceableIndexedAccessType</c> alias it takes).</summary>
     /// <remarks>
     /// PORT-NOTE: TS's <c>ReplaceableIndexedAccessType</c> is a type alias over <see cref="IIndexedAccessType"/> that
     /// narrows the two members to <c>TypeParameter</c>; the port takes the same face and casts the two members at the
@@ -707,7 +718,7 @@ internal sealed partial class Checker
             CreateTypeMapper([(ITypeParameter)type.IndexType!, (ITypeParameter)type.ObjectType!], [GetNumberLiteralType(0), CreateTupleType([replacement])]))!;
     }
 
-    /// <summary>ported from: src/compiler/checker.ts:14747-14758 — <c>getLimitedConstraint</c>.</summary>
+    /// <summary>ported from: src/compiler/checker.ts:14695-14710 — <c>getLimitedConstraint</c>.</summary>
     /// <remarks>
     /// If the original mapped type had an intersection constraint we extract its components, and we make an attempt to
     /// do so even if the intersection has been reduced to a union. This entire process allows us to possibly retrieve
@@ -731,7 +742,7 @@ internal sealed partial class Checker
         return !ReferenceEquals(limitedConstraint, _neverType) ? limitedConstraint : null;
     }
 
-    /// <summary>ported from: src/compiler/checker.ts:14712-14787 — <c>resolveReverseMappedTypeMembers</c>.</summary>
+    /// <summary>ported from: src/compiler/checker.ts:14712-14755 — <c>resolveReverseMappedTypeMembers</c>.</summary>
     internal void ResolveReverseMappedTypeMembers(ReverseMappedType type)
     {
         var indexInfo = GetIndexInfoOfType(type.Source!, _stringType);
@@ -760,7 +771,9 @@ internal sealed partial class Checker
             var checkFlags = CheckFlags.ReverseMapped | (readonlyMask && IsReadonlySymbol(prop) ? CheckFlags.Readonly : CheckFlags.None);
             var inferredProp = (IReverseMappedSymbol)CreateSymbol(SymbolFlags.Property | (prop.Flags & optionalMask), prop.EscapedName!, checkFlags);
             inferredProp.Declarations = prop.Declarations;
-            var inferredLinks = GetSymbolLinks(inferredProp);
+            // PORT-NOTE: TS reads `inferredProp.links`, typed `ReverseMappedSymbolLinks` by the symbol's class, so the
+            // port names that face (PropertyType/MappedType/ConstraintType, Model/NodeInterfaces.cs:2958-2960).
+            var inferredLinks = (IReverseMappedSymbolLinks)GetSymbolLinks(inferredProp);
             inferredLinks.NameType = GetSymbolLinks(prop).NameType;
             inferredLinks.PropertyType = GetTypeOfSymbol(prop);
             var constraintType = type.ConstraintType!.Type!;
@@ -826,7 +839,9 @@ internal sealed partial class Checker
 
         if ((type.Flags & TypeFlags.Union) != 0)
         {
-            return MapType(type, t => GetLowerBoundOfKeyType(t), /*noReductions*/ true);
+            // PORT-NOTE: TS's `mapType` answers a non-null `Type`; the port's `MapType` states the collapsed nullable,
+            // so the invariant the reference's signature carries is the `!`.
+            return MapType(type, t => GetLowerBoundOfKeyType(t), /*noReductions*/ true)!;
         }
 
         if ((type.Flags & TypeFlags.Intersection) != 0)
@@ -847,7 +862,7 @@ internal sealed partial class Checker
         return type;
     }
 
-    /// <summary>ported from: src/compiler/checker.ts:14790-14796 — <c>getIsLateCheckFlag</c>.</summary>
+    /// <summary>ported from: src/compiler/checker.ts:14790-14792 — <c>getIsLateCheckFlag</c>.</summary>
     internal CheckFlags GetIsLateCheckFlag(ISymbol s) => GetCheckFlags(s) & CheckFlags.Late;
 
     /// <summary>ported from: src/compiler/checker.ts:14794-14802 — <c>forEachMappedTypePropertyKeyTypeAndIndexSignatureKeyType</c>.</summary>
@@ -930,7 +945,8 @@ internal sealed partial class Checker
                 var existingProp = members.GetValueOrDefault(propName) as IMappedSymbol;
                 if (existingProp is not null)
                 {
-                    var existingLinks = GetSymbolLinks(existingProp);
+                    // PORT-NOTE: TS reads `existingProp.links.keyType`, typed `MappedSymbolLinks` by the symbol's class.
+                    var existingLinks = (IMappedSymbolLinks)GetSymbolLinks(existingProp);
                     existingLinks.NameType = GetUnionType([existingLinks.NameType!, propNameType]);
                     existingLinks.KeyType = GetUnionType([existingLinks.KeyType!, keyType]);
                 }
@@ -956,7 +972,8 @@ internal sealed partial class Checker
                             | CheckFlags.Mapped
                             | (isReadonly ? CheckFlags.Readonly : CheckFlags.None)
                             | (stripOptional ? CheckFlags.StripOptional : CheckFlags.None));
-                    var propLinks = GetSymbolLinks(prop);
+                    // PORT-NOTE: TS reads `prop.links.mappedType`/`.keyType`, typed `MappedSymbolLinks` by the symbol's class.
+                    var propLinks = (IMappedSymbolLinks)GetSymbolLinks(prop);
                     propLinks.MappedType = type;
                     propLinks.NameType = propNameType;
                     propLinks.KeyType = keyType;
@@ -984,7 +1001,7 @@ internal sealed partial class Checker
         }
     }
 
-    /// <summary>ported from: src/compiler/checker.ts:14887-14912 — <c>getTypeOfMappedSymbol</c>.</summary>
+    /// <summary>ported from: src/compiler/checker.ts:14887-14910 — <c>getTypeOfMappedSymbol</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: TS's <c>symbol.links</c> is the <c>MappedSymbolLinks</c> face of the one links object
     /// (<c>Model/SymbolLinks.cs</c>); the port reads it through <see cref="GetSymbolLinks"/> for the same reason every
@@ -992,7 +1009,9 @@ internal sealed partial class Checker
     /// </remarks>
     internal IType GetTypeOfMappedSymbol(IMappedSymbol symbol)
     {
-        var links = GetSymbolLinks(symbol);
+        // PORT-NOTE: TS reads `symbol.links.mappedType`/`.keyType`/`.checkFlags`, typed `MappedSymbolLinks` by the
+        // symbol's class.
+        var links = (IMappedSymbolLinks)GetSymbolLinks(symbol);
         if (links.Type is null)
         {
             var mappedType = links.MappedType!;
@@ -1122,7 +1141,9 @@ internal sealed partial class Checker
                         // equivalent and just use the first one, which thus allows us to avoid eliding private
                         // members when intersecting a (this-)instantiations of a class with its raw base or another
                         // instance.
-                        if (isInstantiation && CompareProperties(singleProp, prop, (IType a, IType b) => ReferenceEquals(a, b) ? Ternary.True : Ternary.False) == Ternary.True)
+                        // PORT-NOTE: TS's `TypeComparer` has an optional third `reportErrors` parameter, so a two-argument
+                        // function converts to it; C# needs the third parameter spelled out.
+                        if (isInstantiation && CompareProperties(singleProp, prop, (IType a, IType b, bool _) => ReferenceEquals(a, b) ? Ternary.True : Ternary.False) == Ternary.True)
                         {
                             // If we merged instantiations of a generic type, we replicate the symbol parent resetting
                             // behavior we used to do when we recorded multiple distinct symbols so that we still get,
@@ -1180,7 +1201,9 @@ internal sealed partial class Checker
                     {
                         propFlags = (propFlags & ~SymbolFlags.Accessor) | SymbolFlags.Property;
                         checkFlags |= CheckFlags.WritePartial | (indexInfo.IsReadonly ? CheckFlags.Readonly : CheckFlags.None);
-                        indexTypes = (List<IType>?)Core.Append(indexTypes, IsTupleType(type) ? GetRestTypeOfTupleType(type) ?? _undefinedType : indexInfo.Type!);
+                        // PORT-NOTE: `isTupleType(type)` narrows `type` to `TupleTypeReference` for
+                        // `getRestTypeOfTupleType`; the port's `GetRestTypeOfTupleType` takes the `ITypeReference` face.
+                        indexTypes = (List<IType>?)Core.Append(indexTypes, IsTupleType(type) ? GetRestTypeOfTupleType((ITypeReference)type) ?? _undefinedType : indexInfo.Type!);
                     }
                     else if (IsObjectLiteralType(type) && (GetObjectFlags(type) & ObjectFlags.ContainsSpread) == 0)
                     {
@@ -1216,7 +1239,7 @@ internal sealed partial class Checker
                 // `.containingType` set, which affects some services endpoints behavior, like `getRootSymbol`.
                 var links = (singleProp as ITransientSymbol)?.Links;
                 var clone = CreateSymbolWithType(singleProp, links?.Type);
-                clone.Parent = ((Node?)singleProp.ValueDeclaration)?.Symbol?.Parent;
+                clone.Parent = singleProp.ValueDeclaration?.Symbol?.Parent;
                 var cloneLinks = GetSymbolLinks(clone);
                 cloneLinks.ContainingType = containingType;
                 cloneLinks.Mapper = links?.Mapper;
@@ -1282,7 +1305,8 @@ internal sealed partial class Checker
 
         Core.AddRange(propTypes, indexTypes);
         var result = CreateSymbol(propFlags | (optionalFlag ?? SymbolFlags.None), name, syntheticFlag | checkFlags);
-        var resultLinks = GetSymbolLinks(result);
+        // PORT-NOTE: TS reads `result.links.checkFlags`/`.containingType`, typed `TransientSymbolLinks` by the symbol's class.
+        var resultLinks = (ITransientSymbolLinks)GetSymbolLinks(result);
         resultLinks.ContainingType = containingType;
         if (!hasNonUniformValueDeclaration && firstValueDeclaration is not null)
         {
@@ -1474,20 +1498,23 @@ internal sealed partial class Checker
     internal Signature GetSignatureFromDeclaration(Node declaration)
     {
         var links = GetNodeLinks(declaration);
+        // PORT-NOTE: the reference reads both of these inside the `if` below, but the local functions declared after the
+        // early `return` also read them (`parameterAt`, `anyParameterHasJSDocType`); C# scopes a block local to that
+        // block, so both are hoisted to the method body — same values, same reads.
+        var declarationIsJSDocSignature = NodeTests.IsJSDocSignature(declaration);
+        var parameterCount = declarationIsJSDocSignature
+            ? ((JSDocSignature)declaration).Parameters?.Count ?? 0
+            : ((ISignatureDeclarationBase)declaration).Parameters?.Count ?? 0;
         if (links.ResolvedSignature is null)
         {
             var parameters = new List<ISymbol>();
             var flags = SignatureFlags.None;
             var minArgumentCount = 0;
             ISymbol? thisParameter = null;
-            var declarationIsJSDocSignature = NodeTests.IsJSDocSignature(declaration);
             JSDocThisTag? thisTag = Utilities.IsInJSFile(declaration) ? Utilities.GetJSDocThisTag(declaration) : null;
             var hasThisParameter = false;
             var iife = Utilities.GetImmediatelyInvokedFunctionExpression(declaration);
             var isJSConstructSignature = Utilities.IsJSDocConstructSignature(declaration);
-            var parameterCount = declarationIsJSDocSignature
-                ? ((JSDocSignature)declaration).Parameters?.Count ?? 0
-                : ((ISignatureDeclarationBase)declaration).Parameters?.Count ?? 0;
             var isUntypedSignatureInJSFile = iife is null
                 && Utilities.IsInJSFile(declaration)
                 && Utilities.IsValueSignatureDeclaration(declaration)
@@ -1505,7 +1532,7 @@ internal sealed partial class Checker
             for (var i = isJSConstructSignature ? 1 : 0; i < parameterCount; i++)
             {
                 var param = ParameterAt(i);
-                if (Utilities.IsInJSFile(param) && Utilities.IsJSDocThisTag(param))
+                if (Utilities.IsInJSFile(param) && NodeTests.IsJSDocThisTag(param))
                 {
                     thisTag = (JSDocThisTag)param;
                     continue;
@@ -1654,13 +1681,14 @@ internal sealed partial class Checker
             }
         }
 
-        var lastParamVariadicType = Core.FirstDefined(lastParamTags, (JSDocParameterTag p, int _) =>
+        var lastParamVariadicType = Core.FirstDefined<JSDocParameterTag, JSDocVariadicType>(lastParamTags, (JSDocParameterTag p, int _) =>
             p.TypeExpression?.Type is { } variadicTypeNode && NodeTests.IsJSDocVariadicType((Node)variadicTypeNode)
                 ? (JSDocVariadicType)variadicTypeNode
                 : null);
 
         var syntheticArgsSymbol = CreateSymbol(SymbolFlags.Variable, "args", CheckFlags.RestParameter);
-        var syntheticArgsLinks = GetSymbolLinks(syntheticArgsSymbol);
+        // PORT-NOTE: TS reads `syntheticArgsSymbol.links.checkFlags`, typed `TransientSymbolLinks` by the symbol's class.
+        var syntheticArgsLinks = (ITransientSymbolLinks)GetSymbolLinks(syntheticArgsSymbol);
         if (lastParamVariadicType is not null)
         {
             // Parameter has effective annotation, lock in type
@@ -1774,7 +1802,7 @@ internal sealed partial class Checker
 
                 default:
                     return !Utilities.NodeStartsNewLexicalEnvironment(node)
-                        && !IsPartOfTypeNode(node)
+                        && !Utilities.IsPartOfTypeNode(node)
                         && ForEachChildTable.ForEachChild<bool>(node, child => Traverse(child)) == true;
             }
         }
@@ -1822,9 +1850,189 @@ internal sealed partial class Checker
                 type);
     }
 
+    /// <summary>ported from: src/compiler/checker.ts:16561-16576 — <c>getSignatureInstantiation</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's next member, <c>getSignatureInstantiationWithoutFillingInTypeArguments</c>
+    /// (checker.ts:16578-16586), is declared by no slice and is referenced here by name (see the slice report); it sits
+    /// in the unclaimed 16577-16674 stretch of <c>checker.ts</c>.
+    /// <para>
+    /// PORT-NOTE: TS's fourth parameter is optional (<c>inferredTypeParameters</c>); the port defaults it to
+    /// <c>null</c>, so the three-argument call shape the landed <c>Checker.BaseTypes.cs:190</c> writes binds unchanged.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: the reference's declared return is the <c>Signature</c> class, but the port's
+    /// <c>instantiateSignature</c>/<c>createSignatureInstantiation</c> chain answers <see cref="ISignature"/> (the slot
+    /// type of <c>Signature.instantiations</c>, Model/Signature.cs:116), so this member returns the same face its own
+    /// callee will — the two branches then agree without a cast, exactly as <see cref="CreateSignatureInstantiation"/>
+    /// already does.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: TS's <c>getOrCreateTypeFromSignature(...) as AnonymousType</c> is a downcast within the object
+    /// family; the port states the same cast, which the family's leaf makes a runtime no-op.
+    /// </para>
+    /// </remarks>
+    internal ISignature GetSignatureInstantiation(ISignature signature, List<IType>? typeArguments, bool isJavascript, List<ITypeParameter>? inferredTypeParameters = null)
+    {
+        var instantiatedSignature = GetSignatureInstantiationWithoutFillingInTypeArguments(
+            signature,
+            FillMissingTypeArguments(typeArguments, signature.TypeParameters, GetMinTypeArgumentCount(signature.TypeParameters), isJavascript));
+        if (inferredTypeParameters is not null)
+        {
+            var returnSignature = GetSingleCallOrConstructSignature(GetReturnTypeOfSignature(instantiatedSignature));
+            if (returnSignature is not null)
+            {
+                var newReturnSignature = CloneSignature(returnSignature);
+                newReturnSignature.TypeParameters = inferredTypeParameters;
+                var newReturnType = (AnonymousType)GetOrCreateTypeFromSignature(newReturnSignature);
+                newReturnType.Mapper = instantiatedSignature.Mapper;
+                var newInstantiatedSignature = CloneSignature(instantiatedSignature);
+                newInstantiatedSignature.ResolvedReturnType = newReturnType;
+                return newInstantiatedSignature;
+            }
+        }
+
+        return instantiatedSignature;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:16578-16586 — <c>getSignatureInstantiationWithoutFillingInTypeArguments</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>signature.instantiations</c> is <c>Map&lt;string, Signature&gt;</c>; the port's slot is
+    /// <c>Dictionary&lt;string, ISignature&gt;</c> (Model/Signature.cs:116), so the cache is keyed by
+    /// <c>getTypeListId</c> and the value is the <see cref="ISignature"/> face — the same shape
+    /// <c>Checker.BaseTypes.cs</c> and the other landed callers already use.
+    /// </remarks>
+    internal ISignature GetSignatureInstantiationWithoutFillingInTypeArguments(ISignature signature, List<IType>? typeArguments)
+    {
+        var instantiations = signature.Instantiations ??= new Dictionary<string, ISignature>(StringComparer.Ordinal);
+        var id = GetTypeListId(typeArguments);
+        var instantiation = instantiations.GetValueOrDefault(id);
+        if (instantiation is null)
+        {
+            instantiation = CreateSignatureInstantiation(signature, typeArguments);
+            instantiations[id] = instantiation;
+        }
+
+        return instantiation;
+    }
+
     /// <summary>ported from: src/compiler/checker.ts:16588-16590 — <c>createSignatureInstantiation</c>.</summary>
     internal ISignature CreateSignatureInstantiation(ISignature signature, List<IType>? typeArguments)
         => InstantiateSignature(signature, CreateSignatureTypeMapper(signature, typeArguments), /*eraseTypeParameters*/ true);
+
+    /// <summary>ported from: src/compiler/checker.ts:16592-16594 — <c>getTypeParametersForMapper</c>.</summary>
+    internal List<ITypeParameter>? GetTypeParametersForMapper(ISignature signature)
+        => (List<ITypeParameter>?)Core.SameMap(signature.TypeParameters, (tp, _) => tp.Mapper is null ? tp : (ITypeParameter)InstantiateType(tp, (TypeMapper)tp.Mapper)!);
+
+    /// <summary>ported from: src/compiler/checker.ts:16596-16598 — <c>createSignatureTypeMapper</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS passes <c>getTypeParametersForMapper(signature)!, typeArguments</c> straight to
+    /// <c>createTypeMapper</c>; the port's <c>CreateTypeMapper</c> takes the same two lists, so the nullable result is
+    /// asserted where the reference asserts it.
+    /// </remarks>
+    internal TypeMapper CreateSignatureTypeMapper(ISignature signature, List<IType>? typeArguments)
+        => CreateTypeMapper(GetTypeParametersForMapper(signature)!, typeArguments);
+
+    /// <summary>ported from: src/compiler/checker.ts:16600-16604 — <c>getErasedSignature</c>.</summary>
+    internal ISignature GetErasedSignature(ISignature signature)
+        => signature.TypeParameters is not null
+            ? signature.ErasedSignatureCache ??= CreateErasedSignature(signature)
+            : signature;
+
+    /// <summary>ported from: src/compiler/checker.ts:16606-16609 — <c>createErasedSignature</c>.</summary>
+    /// <remarks>Create an instantiation of the signature where all type arguments are the any type.</remarks>
+    internal ISignature CreateErasedSignature(ISignature signature)
+        => InstantiateSignature(signature, CreateTypeEraser(signature.TypeParameters!), /*eraseTypeParameters*/ true);
+
+    /// <summary>ported from: src/compiler/checker.ts:16611-16615 — <c>getCanonicalSignature</c>.</summary>
+    internal ISignature GetCanonicalSignature(ISignature signature)
+        => signature.TypeParameters is not null
+            ? signature.CanonicalSignatureCache ??= CreateCanonicalSignature(signature)
+            : signature;
+
+    /// <summary>ported from: src/compiler/checker.ts:16617-16629 — <c>createCanonicalSignature</c>.</summary>
+    /// <remarks>
+    /// Create an instantiation of the signature where each unconstrained type parameter is replaced with its original.
+    /// When a generic class or interface is instantiated, each generic method in the class or interface is instantiated
+    /// with a fresh set of cloned type parameters (which we need to handle scenarios where different generations of the
+    /// same type parameter are in scope). This leads to a lot of new type identities, and potentially a lot of work
+    /// comparing those identities, so here we create an instantiation that uses the original type identities for all
+    /// unconstrained type parameters.
+    /// <para>
+    /// PORT-NOTE: TS's <c>map(signature.typeParameters, …)</c> is passed to a <c>readonly Type[]</c> parameter (arrays
+    /// are covariant there); the port's parameter is <c>List&lt;IType&gt;?</c>, so the projection names
+    /// <see cref="IType"/> as its element type and widens each type parameter through the reference's own cast.
+    /// </para>
+    /// </remarks>
+    internal ISignature CreateCanonicalSignature(ISignature signature)
+        => GetSignatureInstantiation(
+            signature,
+            Core.Map<ITypeParameter, IType>(signature.TypeParameters, (tp, _) =>
+                tp.Target is not null && GetConstraintOfTypeParameter(tp.Target) is null ? tp.Target : tp),
+            Utilities.IsInJSFile(signature.Declaration));
+
+    /// <summary>ported from: src/compiler/checker.ts:16631-16650 — <c>getBaseSignature</c>.</summary>
+    internal ISignature GetBaseSignature(ISignature signature)
+    {
+        var typeParameters = signature.TypeParameters;
+        if (typeParameters is not null)
+        {
+            if (signature.BaseSignatureCache is not null)
+            {
+                return signature.BaseSignatureCache;
+            }
+
+            var typeEraser = CreateTypeEraser(typeParameters);
+            var baseConstraintMapper = CreateTypeMapper(typeParameters, Core.Map<ITypeParameter, IType>(typeParameters, (tp, _) => GetConstraintOfTypeParameter(tp) ?? _unknownType)!);
+            List<IType> baseConstraints = Core.Map<ITypeParameter, IType>(typeParameters, (tp, _) => InstantiateType(tp, baseConstraintMapper) ?? _unknownType)!;
+            // Run N type params thru the immediate constraint mapper up to N times. This way any noncircular
+            // interdependent type parameters are definitely resolved to their external dependencies.
+            for (var i = 0; i < typeParameters.Count - 1; i++)
+            {
+                baseConstraints = InstantiateTypes(baseConstraints, baseConstraintMapper)!;
+            }
+
+            // and then apply a type eraser to remove any remaining circularly dependent type parameters
+            baseConstraints = InstantiateTypes(baseConstraints, typeEraser)!;
+            return signature.BaseSignatureCache = InstantiateSignature(signature, CreateTypeMapper(typeParameters, baseConstraints), /*eraseTypeParameters*/ true);
+        }
+
+        return signature;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:16652-16674 — <c>getOrCreateTypeFromSignature</c>.</summary>
+    /// <remarks>
+    /// There are two ways to declare a construct signature, one is by declaring a class constructor using the
+    /// constructor keyword, and the other is declaring a bare construct signature in an object type literal or interface
+    /// (using the new keyword). Each way of declaring a constructor will result in a different declaration kind.
+    /// <para>
+    /// PORT-NOTE: TS reaches <c>signature.declaration?.symbol</c>; the port's <c>Signature.Declaration</c> is the
+    /// <see cref="Node"/> face, which carries no symbol slot, so the reference's optional read is stated as an
+    /// <see cref="IDeclaration"/> pattern over the same slot.
+    /// </para>
+    /// </remarks>
+    internal IObjectType GetOrCreateTypeFromSignature(ISignature signature)
+    {
+        if (signature.IsolatedSignatureType is null)
+        {
+            var declaration = signature.Declaration as IDeclaration;
+            var kind = declaration?.Kind;
+            // If declaration is undefined, it is likely to be the signature of the default constructor.
+            var isConstructor = kind is null
+                || kind == SyntaxKind.Constructor
+                || kind == SyntaxKind.ConstructSignature
+                || kind == SyntaxKind.ConstructorType;
+            var type = CreateObjectType(ObjectFlags.Anonymous | ObjectFlags.SingleSignatureType, declaration?.Symbol);
+            var resolved = (ResolvedType)type;
+            resolved.Members = _emptySymbols;
+            resolved.Properties = [];
+            resolved.CallSignatures = !isConstructor ? [(ISignature)signature] : [];
+            resolved.ConstructSignatures = isConstructor ? [(ISignature)signature] : [];
+            resolved.IndexInfos = [];
+            signature.IsolatedSignatureType = type;
+        }
+
+        return signature.IsolatedSignatureType;
+    }
 
     // ---------------------------------------------------------------------------------------------
     // Index symbols and their index infos (checker.ts:16675-16759)
@@ -1908,9 +2116,11 @@ internal sealed partial class Checker
                     var declName = NodeTests.IsBinaryExpression((Node)declaration)
                         ? ((BinaryExpression)declaration).Left!
                         : ((INamedDeclaration)declaration).Name!;
+                    // PORT-NOTE: as `IsLateBindableName` — the `isElementAccessExpression` guard's else-arm narrows
+                    // `declName` to `ComputedPropertyName`.
                     var keyType = NodeTests.IsElementAccessExpression(declName)
                         ? CheckExpressionCached(((ElementAccessExpression)declName).ArgumentExpression!)
-                        : CheckComputedPropertyName(declName);
+                        : CheckComputedPropertyName((ComputedPropertyName)declName);
                     if (FindIndexInfo(indexInfos, keyType) is not null)
                     {
                         continue; // Explicit index for key type takes priority
@@ -1964,4 +2174,928 @@ internal sealed partial class Checker
         => (type.Flags & (TypeFlags.String | TypeFlags.Number | TypeFlags.ESSymbol)) != 0
             || IsPatternLiteralType(type)
             || (type.Flags & TypeFlags.Intersection) != 0 && !IsGenericType(type) && Core.Some(((IIntersectionType)type).Types, IsValidIndexKeyType);
+
+    // ---------------------------------------------------------------------------------------------
+    // The module-export band (checker.ts:5188-5310)
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>ported from: src/compiler/checker.ts:5191-5194 — <c>ExportCollisionTracker</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS declares this interface inside <c>createTypeChecker</c> and builds it as an object literal
+    /// (<c>{ specifierText: getTextOfNode(…) }</c>); the port needs a constructible class, the same treatment
+    /// <c>DuplicateInfoForSymbol</c> (the declaration-merging slice) got. TS's
+    /// <c>ExportCollisionTrackerTable = Map&lt;__String, ExportCollisionTracker&gt;</c> has no C# counterpart, so it is
+    /// spelled <c>Dictionary&lt;string, ExportCollisionTracker&gt;</c> wherever the reference names it — the port's
+    /// <c>Map</c>→<c>Dictionary</c> mapping (§12.3).
+    /// </remarks>
+    internal sealed class ExportCollisionTracker
+    {
+        public required string SpecifierText { get; init; }
+        public List<ExportDeclaration>? ExportsWithDuplicate { get; set; }
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:5195-5228 — <c>extendExportSymbols</c>.</summary>
+    /// <remarks>
+    /// Extends one symbol table with another while collecting information on name collisions for error message
+    /// generation into the <c>lookupTable</c> argument. Not passing <c>lookupTable</c> and <c>exportNode</c> disables
+    /// this collection, and just extends the tables.
+    /// <para>
+    /// PORT-NOTE: TS's <c>targetSymbol &amp;&amp; resolveSymbol(…) !== resolveSymbol(…)</c> has a truthiness guard whose
+    /// only false arm is the branch above; the port's <c>else if</c> carries the remaining conjuncts and the symbol
+    /// identity test is <see cref="ReferenceEquals"/>.
+    /// </para>
+    /// </remarks>
+    internal void ExtendExportSymbols(SymbolTable target, SymbolTable? source, Dictionary<string, ExportCollisionTracker>? lookupTable = null, ExportDeclaration? exportNode = null)
+    {
+        if (source is null) return;
+        foreach (var entry in source)
+        {
+            var id = entry.Key;
+            var sourceSymbol = entry.Value;
+            if (id == InternalSymbolName.Default.Value) continue;
+
+            if (!target.TryGetValue(id, out var targetSymbol))
+            {
+                target[id] = sourceSymbol;
+                if (lookupTable is not null && exportNode is not null)
+                {
+                    lookupTable[id] = new ExportCollisionTracker { SpecifierText = Utilities.GetTextOfNode(exportNode.ModuleSpecifier!) };
+                }
+            }
+            else if (lookupTable is not null
+                && exportNode is not null
+                && !ReferenceEquals(ResolveSymbol(targetSymbol), ResolveSymbol(sourceSymbol)))
+            {
+                var collisionTracker = lookupTable[id];
+                if (collisionTracker.ExportsWithDuplicate is null)
+                {
+                    collisionTracker.ExportsWithDuplicate = [exportNode];
+                }
+                else
+                {
+                    collisionTracker.ExportsWithDuplicate.Add(exportNode);
+                }
+            }
+        }
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:5229-5306 — <c>getExportsOfModuleWorker</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference returns the object literal <c>{ exports, typeOnlyExportStarMap }</c>; its two landed
+    /// callers destructure it (<c>Checker/Checker.SymbolSupport.cs</c>'s <c>GetExportsOfModuleTable</c>) or read
+    /// <c>.Exports</c> off it (<c>getResolvedMembersOrExportsOfSymbol</c>), so the port states that same two-element
+    /// shape as a named tuple. The reference's
+    /// <c>ExportDeclaration &amp; { readonly isTypeOnly: true; readonly moduleSpecifier: Expression }</c> element type is
+    /// the port's <see cref="ExportDeclaration"/>.
+    /// <para>
+    /// PORT-NOTE: TS's <c>getTextOfNode</c>, <c>createDiagnosticForNode</c>, <c>unescapeLeadingUnderscores</c> and
+    /// <c>diagnostics.add</c> are <see cref="Utilities.GetTextOfNode"/>, <see cref="CreateDiagnosticForNode"/>,
+    /// <see cref="Utilities.UnescapeLeadingUnderscores"/> and <c>_diagnostics.Add</c>.
+    /// </para>
+    /// </remarks>
+    internal (SymbolTable Exports, Dictionary<string, ExportDeclaration>? TypeOnlyExportStarMap) GetExportsOfModuleWorker(ISymbol moduleSymbol)
+    {
+        var visitedSymbols = new List<ISymbol>();
+        // PORT-NOTE: TS's `typeOnlyExportStarMap` is captured and assigned by `visit`; C# local functions capture the
+        // same way, so the slot stays a method-body local as in the reference.
+        Dictionary<string, ExportDeclaration>? typeOnlyExportStarMap = null;
+        var nonTypeOnlyNames = new HashSet<string>();
+
+        // A module defined by an 'export=' consists of one export that needs to be resolved
+        moduleSymbol = ResolveExternalModuleSymbol(moduleSymbol)!;
+        var exports = Visit(moduleSymbol) ?? _emptySymbols;
+
+        if (typeOnlyExportStarMap is not null)
+        {
+            foreach (var name in nonTypeOnlyNames)
+            {
+                typeOnlyExportStarMap.Remove(name);
+            }
+        }
+
+        return (exports, typeOnlyExportStarMap);
+
+        SymbolTable? Visit(ISymbol? symbol, ExportDeclaration? exportStar = null, bool isTypeOnly = false)
+        {
+            if (!isTypeOnly && symbol?.Exports is not null)
+            {
+                // Add non-type-only names before checking if we've visited this module,
+                // because we might have visited it via an 'export type *', and visiting
+                // again with 'export *' will override the type-onlyness of its exports.
+                symbol.Exports.ForEach((_, name) => nonTypeOnlyNames.Add(name));
+            }
+            if (!(symbol is not null && symbol.Exports is not null && Core.PushIfUnique(visitedSymbols, symbol)))
+            {
+                return null;
+            }
+            var symbols = new SymbolTable(symbol.Exports);
+
+            // All export * declarations are collected in an __export symbol by the binder
+            symbol.Exports.TryGetValue(InternalSymbolName.ExportStar.Value, out var exportStars);
+            if (exportStars is not null)
+            {
+                var nestedSymbols = Utilities.CreateSymbolTable();
+                var lookupTable = new Dictionary<string, ExportCollisionTracker>(StringComparer.Ordinal);
+                if (exportStars.Declarations is not null)
+                {
+                    foreach (var node in exportStars.Declarations)
+                    {
+                        var resolvedModule = ResolveExternalModuleName((Node)node, ((ExportDeclaration)node).ModuleSpecifier);
+                        var exportedSymbols = Visit(resolvedModule, (ExportDeclaration)node, isTypeOnly || ((ExportDeclaration)node).IsTypeOnly);
+                        ExtendExportSymbols(nestedSymbols, exportedSymbols, lookupTable, (ExportDeclaration)node);
+                    }
+                }
+                foreach (var entry in lookupTable)
+                {
+                    var id = entry.Key;
+                    var exportsWithDuplicate = entry.Value.ExportsWithDuplicate;
+                    // It's not an error if the file with multiple `export *`s with duplicate names exports a member with that name itself
+                    if (id == InternalSymbolName.ExportEquals.Value
+                        || exportsWithDuplicate is null
+                        || exportsWithDuplicate.Count == 0
+                        || symbols.ContainsKey(id))
+                    {
+                        continue;
+                    }
+                    foreach (var node in exportsWithDuplicate)
+                    {
+                        _diagnostics.Add(Utilities.CreateDiagnosticForNode(
+                            node,
+                            Diagnostics.Module_0_has_already_exported_a_member_named_1_Consider_explicitly_re_exporting_to_resolve_the_ambiguity,
+                            entry.Value.SpecifierText,
+                            Utilities.UnescapeLeadingUnderscores(id)));
+                    }
+                }
+                ExtendExportSymbols(symbols, nestedSymbols);
+            }
+            if (exportStar is not null && exportStar.IsTypeOnly)
+            {
+                typeOnlyExportStarMap ??= new Dictionary<string, ExportDeclaration>(StringComparer.Ordinal);
+                foreach (var entry in symbols)
+                {
+                    typeOnlyExportStarMap[entry.Key] = exportStar;
+                }
+            }
+            return symbols;
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // The accessible-symbol machinery (checker.ts:5330-5979)
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>ported from: src/compiler/checker.ts:5330-5375 — <c>getAlternativeContainingModules</c>.</summary>
+    internal List<ISymbol> GetAlternativeContainingModules(ISymbol symbol, Node enclosingDeclaration)
+    {
+        var containingFile = Utilities.GetSourceFileOfNode(enclosingDeclaration);
+        var id = Utilities.GetNodeId(containingFile!);
+        var links = GetSymbolLinks(symbol);
+        List<ISymbol>? results = null;
+        if (links.ExtendedContainersByFile is not null && links.ExtendedContainersByFile.TryGetValue(id, out var byFile))
+        {
+            return byFile;
+        }
+        if (containingFile?.Imports is not null)
+        {
+            // Try to make an import using an import already in the enclosing file, if possible
+            foreach (var importRef in containingFile.Imports)
+            {
+                // Synthetic names can't be resolved by `resolveExternalModuleName` - they'll cause a debug assert if they error
+                if (Utilities.NodeIsSynthesized(importRef)) continue;
+                var resolvedModule = ResolveExternalModuleName(enclosingDeclaration, importRef, /*ignoreErrors*/ true);
+                if (resolvedModule is null) continue;
+                var reference = GetAliasForSymbolInContainer(resolvedModule, symbol);
+                if (reference is null) continue;
+                results = Core.Append(results, resolvedModule)!.ToList();
+            }
+            if (Core.Length(results) > 0)
+            {
+                (links.ExtendedContainersByFile ??= []).Add(id, results!);
+                return results!;
+            }
+        }
+        if (links.ExtendedContainers is not null)
+        {
+            return links.ExtendedContainers;
+        }
+        // No results from files already being imported by this file - expand search (expensive, but not location-specific, so cached)
+        var otherFiles = _host.GetSourceFiles();
+        foreach (var file in otherFiles)
+        {
+            if (!Parser.IsExternalModule(file)) continue;
+            var sym = GetSymbolOfDeclaration(file);
+            var reference = GetAliasForSymbolInContainer(sym, symbol);
+            if (reference is null) continue;
+            results = Core.Append(results, sym)!.ToList();
+        }
+        links.ExtendedContainers = results ?? [];
+        return links.ExtendedContainers;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:5378-5417 — <c>getContainersOfSymbol</c>.</summary>
+    /// <remarks>
+    /// Attempts to find the symbol corresponding to the container a symbol is in - usually this is just its
+    /// <c>.parent</c>, but for locals, this value is <c>undefined</c>.
+    /// <para>
+    /// PORT-NOTE: the reference's inner <c>fileSymbolIfFileSymbolExportEqualsContainer</c> closes over the
+    /// <em>outer</em> <c>container</c> (the one <c>getParentOfSymbol</c> answered), not the parameter of
+    /// <c>getWithAlternativeContainers</c>: the parameter shadows the outer name inside that function, but the adapter is
+    /// declared beside the outer one, so it captures the outer. C# forbids the shadowing redeclaration (CS0136), so the
+    /// loop variable is named <c>candidateContainer</c> and the adapter reads the outer <c>container</c> explicitly; the
+    /// reference's capture is therefore preserved.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: the reference's <c>append</c>/<c>addRange</c>/<c>concatenate</c> chains answer lists that skip
+    /// <c>undefined</c> elements; the port builds the same lists with the same verbs
+    /// (<see cref="Core.Append{T}"/> and <see cref="Core.AddRange{T}"/> both skip nulls), and <c>[bestMatch, ...rest]</c>
+    /// is <c>alternatives[0]</c> plus <c>alternatives.GetRange(1, …)</c>.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: <c>isAccessExpression(d.parent.left)</c> narrows to <c>PropertyAccessExpression |
+    /// ElementAccessExpression</c> in TS, both of which declare <c>expression</c>; both port classes declare
+    /// <c>Expression</c>, so the port reads it off the arm the kind selects (the pattern
+    /// <c>Checker/Checker.CallResolution.cs:1065</c> already established).
+    /// </para>
+    /// </remarks>
+    internal List<ISymbol>? GetContainersOfSymbol(ISymbol symbol, Node? enclosingDeclaration, SymbolFlags meaning)
+    {
+        var container = GetParentOfSymbol(symbol);
+        // Type parameters end up in the `members` lists but are not externally visible
+        if (container is not null && (symbol.Flags & SymbolFlags.TypeParameter) == 0)
+        {
+            return GetWithAlternativeContainers(container);
+        }
+        var candidates = Core.MapDefined(symbol.Declarations, (IDeclaration d, int _) =>
+        {
+            var node = (Node)d;
+            if (!Utilities.IsAmbientModule(node) && node.Parent is not null)
+            {
+                // direct children of a module
+                if (HasNonGlobalAugmentationExternalModuleSymbol(node.Parent))
+                {
+                    return GetSymbolOfDeclaration((IDeclaration)node.Parent);
+                }
+                // export ='d member of an ambient module
+                if (NodeTests.IsModuleBlock(node.Parent)
+                    && node.Parent.Parent is not null
+                    && ReferenceEquals(ResolveExternalModuleSymbol(GetSymbolOfDeclaration((IDeclaration)node.Parent.Parent)), symbol))
+                {
+                    return GetSymbolOfDeclaration((IDeclaration)node.Parent.Parent);
+                }
+            }
+            if (NodeTests.IsClassExpression(node)
+                && NodeTests.IsBinaryExpression(node.Parent!)
+                && ((BinaryExpression)node.Parent!).OperatorToken!.Kind == SyntaxKind.EqualsToken
+                && Utilities.IsAccessExpression(((BinaryExpression)node.Parent!).Left!)
+                && Utilities.IsEntityNameExpression(LeftOfAccess((BinaryExpression)node.Parent!)))
+            {
+                if (Utilities.IsModuleExportsAccessExpression(((BinaryExpression)node.Parent!).Left!)
+                    || Utilities.IsExportsIdentifier(LeftOfAccess((BinaryExpression)node.Parent!)))
+                {
+                    return GetSymbolOfDeclaration(Utilities.GetSourceFileOfNode(node)!);
+                }
+                CheckExpressionCached(LeftOfAccess((BinaryExpression)node.Parent!));
+                return GetNodeLinks(LeftOfAccess((BinaryExpression)node.Parent!)).ResolvedSymbol;
+            }
+            return (ISymbol?)null;
+        });
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+        var containers = Core.MapDefined(candidates, (ISymbol candidate, int _) => GetAliasForSymbolInContainer(candidate, symbol) is not null ? candidate : null);
+
+        var bestContainers = new List<ISymbol>();
+        var alternativeContainers = new List<ISymbol>();
+
+        foreach (var candidateContainer in containers)
+        {
+            var alternatives = GetWithAlternativeContainers(candidateContainer);
+            bestContainers = Core.Append(bestContainers, alternatives[0])!.ToList();
+            alternativeContainers = Core.AddRange(
+                alternativeContainers,
+                alternatives.Count > 1 ? alternatives.GetRange(1, alternatives.Count - 1) : null)!.ToList();
+        }
+
+        return Core.Concatenate<ISymbol>(bestContainers, alternativeContainers)!.ToList();
+
+        /// <summary>
+        /// The LHS of an access expression: TS's <c>isAccessExpression</c> narrowing, spelled as the two arms the port
+        /// classes split into.
+        /// </summary>
+        Node LeftOfAccess(BinaryExpression binaryExpression)
+            => binaryExpression.Left is PropertyAccessExpression propertyAccess
+                ? propertyAccess.Expression!
+                : ((ElementAccessExpression)binaryExpression.Left!).Expression!;
+
+        List<ISymbol> GetWithAlternativeContainers(ISymbol candidateContainer)
+        {
+            var additionalContainers = Core.MapDefined(
+                candidateContainer.Declarations,
+                (IDeclaration d, int _) => container is not null ? GetFileSymbolIfFileSymbolExportEqualsContainer(d, container) : null);
+            var reexportContainers = enclosingDeclaration is not null ? GetAlternativeContainingModules(symbol, enclosingDeclaration) : null;
+            var objectLiteralContainer = GetVariableDeclarationOfObjectLiteral(candidateContainer, meaning);
+            if (enclosingDeclaration is not null
+                && (candidateContainer.Flags & GetQualifiedLeftMeaning(meaning)) != 0
+                && GetAccessibleSymbolChain(candidateContainer, enclosingDeclaration, SymbolFlags.Namespace, /*useOnlyExternalAliasing*/ false) is not null)
+            {
+                // This order expresses a preference for the real container if it is in scope
+                var preferred = new List<ISymbol> { candidateContainer };
+                preferred.AddRange(additionalContainers);
+                if (reexportContainers is not null) preferred.AddRange(reexportContainers);
+                if (objectLiteralContainer is not null) preferred.Add(objectLiteralContainer);
+                return preferred;
+            }
+            // we potentially have a symbol which is a member of the instance side of something - look for a variable in scope with the container's type
+            // which may be acting like a namespace (eg, `Symbol` acts like a namespace when looking up `Symbol.toStringTag`)
+            var firstVariableMatch = (candidateContainer.Flags & GetQualifiedLeftMeaning(meaning)) == 0
+                    && (candidateContainer.Flags & SymbolFlags.Type) != 0
+                    && (GetDeclaredTypeOfSymbol(candidateContainer).Flags & TypeFlags.Object) != 0
+                    && meaning == SymbolFlags.Value
+                ? ForEachSymbolTableInScope<ISymbol>(enclosingDeclaration, (t, _, _, _) =>
+                {
+                    foreach (var entry in t)
+                    {
+                        var s = entry.Value;
+                        if ((s.Flags & GetQualifiedLeftMeaning(meaning)) != 0
+                            && ReferenceEquals(GetTypeOfSymbol(s), GetDeclaredTypeOfSymbol(candidateContainer)))
+                        {
+                            return s;
+                        }
+                    }
+                    return null;
+                })
+                : null;
+            var res = new List<ISymbol>();
+            if (firstVariableMatch is not null) res.Add(firstVariableMatch);
+            res.AddRange(additionalContainers);
+            res.Add(candidateContainer);
+            if (objectLiteralContainer is not null) res.Add(objectLiteralContainer);
+            if (reexportContainers is not null) res.AddRange(reexportContainers);
+            return res;
+        }
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:5419-5429 — <c>getVariableDeclarationOfObjectLiteral</c>.</summary>
+    /// <remarks>
+    /// If we're trying to reference some object literal in, eg <c>var a = { x: 1 }</c>, the symbol for the literal,
+    /// <c>__object</c>, is distinct from the symbol of the declaration it is being assigned to. Since we can use the
+    /// declaration to refer to the literal, however, we'd like to make that connection here - potentially causing us to
+    /// paint the declaration's visibility, and therefore the literal.
+    /// <para>
+    /// PORT-NOTE: TS's <c>Node | false</c> local (<c>!!length(symbol.declarations) &amp;&amp; first(…)</c>) is the port's
+    /// explicit empty-list guard, and TS's <c>===</c> comparisons on <c>initializer</c>/<c>type</c> are
+    /// <see cref="ReferenceEquals"/>.
+    /// </para>
+    /// </remarks>
+    internal ISymbol? GetVariableDeclarationOfObjectLiteral(ISymbol symbol, SymbolFlags meaning)
+    {
+        if (symbol.Declarations is null || symbol.Declarations.Count == 0)
+        {
+            return null;
+        }
+        var firstDecl = (Node)symbol.Declarations[0];
+        var parent = firstDecl.Parent;
+        if ((meaning & SymbolFlags.Value) != 0 && parent is not null && NodeTests.IsVariableDeclaration(parent))
+        {
+            var variableDeclaration = (VariableDeclaration)parent;
+            if ((NodeTests.IsObjectLiteralExpression(firstDecl) && ReferenceEquals(firstDecl, variableDeclaration.Initializer))
+                || (NodeTests.IsTypeLiteralNode(firstDecl) && ReferenceEquals(firstDecl, variableDeclaration.Type)))
+            {
+                return GetSymbolOfDeclaration(variableDeclaration);
+            }
+        }
+        return null;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:5466-5470 — <c>getFileSymbolIfFileSymbolExportEqualsContainer</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>fileSymbol &amp;&amp; fileSymbol.exports &amp;&amp; fileSymbol.exports.get(…)</c> chain is the
+    /// port's null test on <c>Exports</c> around the "maybe" lookup.
+    /// </remarks>
+    internal ISymbol? GetFileSymbolIfFileSymbolExportEqualsContainer(IDeclaration d, ISymbol container)
+    {
+        var fileSymbol = GetExternalModuleContainer((Node)d);
+        ISymbol? exported = null;
+        if (fileSymbol?.Exports is not null)
+        {
+            fileSymbol.Exports.TryGetValue(InternalSymbolName.ExportEquals.Value, out exported);
+        }
+        return exported is not null && GetSymbolIfSameReference(exported, container) is not null ? fileSymbol : null;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:5472-5496 — <c>getAliasForSymbolInContainer</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's final <c>forEachEntry(exports, …)</c> answers the first entry whose symbol is the same
+    /// reference; the port's <see cref="SymbolTable"/> is enumerable in insertion order, so the same walk is the
+    /// <c>foreach</c> below with the reference's early exit as a <c>return</c>.
+    /// </remarks>
+    internal ISymbol? GetAliasForSymbolInContainer(ISymbol container, ISymbol symbol)
+    {
+        if (ReferenceEquals(container, GetParentOfSymbol(symbol)))
+        {
+            // fast path, `symbol` is either already the alias or isn't aliased
+            return symbol;
+        }
+        // Check if container is a thing with an `export=` which points directly at `symbol`, and if so, return
+        // the container itself as the alias for the symbol
+        ISymbol? exportEquals = null;
+        if (container.Exports is not null)
+        {
+            container.Exports.TryGetValue(InternalSymbolName.ExportEquals.Value, out exportEquals);
+        }
+        if (exportEquals is not null && GetSymbolIfSameReference(exportEquals, symbol) is not null)
+        {
+            return container;
+        }
+        var exports = GetExportsOfSymbol(container);
+        if (exports.GetValueOrDefault(symbol.EscapedName!) is { } quick && GetSymbolIfSameReference(quick, symbol) is not null)
+        {
+            return quick;
+        }
+        foreach (var entry in exports)
+        {
+            if (GetSymbolIfSameReference(entry.Value, symbol) is not null)
+            {
+                return entry.Value;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:5498-5502 — <c>getSymbolIfSameReference</c>.</summary>
+    /// <remarks>Checks if two symbols, through aliasing and/or merging, refer to the same thing.</remarks>
+    internal ISymbol? GetSymbolIfSameReference(ISymbol? s1, ISymbol? s2)
+    {
+        if (ReferenceEquals(
+            GetMergedSymbol(ResolveSymbol(GetMergedSymbol(s1))),
+            GetMergedSymbol(ResolveSymbol(GetMergedSymbol(s2)))))
+        {
+            return s1;
+        }
+
+        return null;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:5504-5510 — <c>getExportSymbolOfValueSymbolIfExported</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS declares two overloads (checker.ts:5504 and :5505), a non-null one and a nullable one, over one
+    /// implementation. For a non-null input the implementation's <c>|| symbol</c> fallback always answers non-null, and
+    /// every landed port call site wants that face (<c>Checker/Checker.SymbolSupport.cs</c> reads
+    /// <c>target.EscapedName</c> straight off the result and <c>Checker/Checker.Check.Flags.cs</c> dereferences it), so
+    /// the single port member states the non-null result. The <c>!</c> covers the null input the nullable overload would
+    /// have answered <c>null</c> for — which is exactly the value <c>GetMergedSymbol(null)</c> produces.
+    /// </remarks>
+    internal ISymbol GetExportSymbolOfValueSymbolIfExported(ISymbol? symbol)
+    {
+        var exported = symbol is not null && (symbol.Flags & SymbolFlags.ExportValue) != 0 && symbol.ExportSymbol is not null
+            ? symbol.ExportSymbol
+            : symbol;
+        return GetMergedSymbol(exported)!;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:5332-5336 — <c>getFunctionExpressionParentSymbolOrSymbol</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>symbol.valueDeclaration.parent</c> reads the <c>Node</c> face of the declaration; the port's
+    /// <c>IDeclaration</c> carries no <c>Parent</c> slot, so the upcast is explicit.
+    /// </remarks>
+    internal ISymbol GetFunctionExpressionParentSymbolOrSymbol(ISymbol symbol)
+        => symbol.ValueDeclaration?.Kind == SyntaxKind.ArrowFunction || symbol.ValueDeclaration?.Kind == SyntaxKind.FunctionExpression
+            ? GetSymbolOfNode(((Node)symbol.ValueDeclaration).Parent!) ?? symbol
+            : symbol;
+
+    /// <summary>ported from: src/compiler/checker.ts:5681-5730 — <c>forEachSymbolTableInScope</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's generic helper answers <c>T | undefined</c> and stops at the first truthy callback result; the
+    /// port states that as <c>T?</c> with <c>null</c> meaning "continue", and the callback takes the reference's four
+    /// parameters in order (<c>symbolTable</c>, <c>ignoreQualification</c>, <c>isLocalNameLookup</c>, <c>scopeNode</c>).
+    /// The <c>class</c> constraint is what lets the null test stand for the reference's truthiness test; the one caller
+    /// whose answer is a boolean instantiates it at <c>object</c> (see <see cref="NeedsQualification"/>).
+    /// <para>
+    /// PORT-NOTE: <c>location.locals</c> is typed by TS's <c>Node</c>; the port's <c>Locals</c> slot lives on
+    /// <see cref="ILocalsContainer"/>, so the reference's <c>canHaveLocals</c> guard is
+    /// <see cref="Utilities.CanHaveLocals"/> followed by the cast. The class/interface arm reads the raw <c>Members</c>
+    /// slot, as the reference notes: <c>getMembersOfNode</c> must not be used here, because it would resolve late-bound
+    /// names while the walk may already be resolving one.
+    /// </para>
+    /// </remarks>
+    internal T? ForEachSymbolTableInScope<T>(Node? enclosingDeclaration, Func<SymbolTable, bool?, bool?, Node?, T?> callback)
+        where T : class
+    {
+        for (Node? location = enclosingDeclaration; location is not null; location = location.Parent)
+        {
+            // Locals of a source file are not in scope (because they get merged into the global symbol table)
+            if (Utilities.CanHaveLocals(location)
+                && ((ILocalsContainer)location).Locals is not null
+                && !Utilities.IsGlobalSourceFile(location))
+            {
+                var localsResult = callback(((ILocalsContainer)location).Locals!, /*ignoreQualification*/ null, /*isLocalNameLookup*/ true, location);
+                if (localsResult is not null)
+                {
+                    return localsResult;
+                }
+            }
+            switch (location.Kind)
+            {
+                case SyntaxKind.SourceFile:
+                    if (!Utilities.IsExternalOrCommonJsModule((SourceFile)location))
+                    {
+                        break;
+                    }
+                    goto case SyntaxKind.ModuleDeclaration;
+                case SyntaxKind.ModuleDeclaration:
+                    var sym = GetSymbolOfDeclaration((IDeclaration)location);
+                    // `sym` may not have exports if this module declaration is backed by the symbol for a `const` that's
+                    // being rewritten into a namespace - in such cases, it's best to just let the namespace appear empty
+                    // (the const members couldn't have referred to one another anyway)
+                    var moduleResult = callback(sym.Exports ?? _emptySymbols, /*ignoreQualification*/ null, /*isLocalNameLookup*/ true, location);
+                    if (moduleResult is not null)
+                    {
+                        return moduleResult;
+                    }
+                    break;
+                case SyntaxKind.ClassDeclaration:
+                case SyntaxKind.ClassExpression:
+                case SyntaxKind.InterfaceDeclaration:
+                    // Type parameters are bound into `members` lists so they can merge across declarations
+                    // This is troublesome, since in all other respects, they behave like locals :cries:
+                    // The below is used to lookup type parameters within a class or interface, as they are added to the
+                    // class/interface locals. These can never be latebound, so the symbol's raw members are sufficient.
+                    SymbolTable? table = null;
+                    (GetSymbolOfDeclaration((IDeclaration)location).Members ?? _emptySymbols).ForEach((memberSymbol, key) =>
+                    {
+                        if ((memberSymbol.Flags & (SymbolFlags.Type & ~SymbolFlags.Assignment)) != 0)
+                        {
+                            (table ??= Utilities.CreateSymbolTable())[key] = memberSymbol;
+                        }
+                    });
+                    if (table is not null)
+                    {
+                        var classResult = callback(table, /*ignoreQualification*/ null, /*isLocalNameLookup*/ false, location);
+                        if (classResult is not null)
+                        {
+                            return classResult;
+                        }
+                    }
+                    break;
+            }
+        }
+
+        return callback(_globals, /*ignoreQualification*/ null, /*isLocalNameLookup*/ true, null);
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:5732-5735 — <c>getQualifiedLeftMeaning</c>.</summary>
+    /// <remarks>If we are looking in value space, the parent meaning is value, other wise it is namespace.</remarks>
+    internal SymbolFlags GetQualifiedLeftMeaning(SymbolFlags rightMeaning)
+        => rightMeaning == SymbolFlags.Value ? SymbolFlags.Value : SymbolFlags.Namespace;
+
+    /// <summary>ported from: src/compiler/checker.ts:5737-5840 — <c>getAccessibleSymbolChain</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the fifth parameter is TS's <c>visitedSymbolTablesMap = new Map()</c> default; the port's default is
+    /// <c>null</c> plus the same <c>new Map()</c> on first use, and the map's value type is the reference's
+    /// <c>SymbolTable[]</c> as <c>List&lt;SymbolTable&gt;</c>. <c>SymbolId</c> is the port's <c>int</c>
+    /// (<see cref="Utilities.GetSymbolId"/>).
+    /// <para>
+    /// PORT-NOTE: TS's cache is an untyped <c>new Map()</c> (checker.ts:5741) whose values may be <c>undefined</c> (the
+    /// walk's "not accessible" answer) while <c>cache.has(key)</c> is the read test; the port's slot is typed
+    /// <c>Dictionary&lt;string, List&lt;ISymbol&gt;&gt;</c>, so the miss is stored and read through the same slot, the
+    /// <c>!</c> below saying what TS's untyped map did.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: the reference passes its three-parameter <c>getAccessibleSymbolChainFromSymbolTable</c> straight to
+    /// <c>forEachSymbolTableInScope</c>, whose callback takes a fourth argument; C# method groups cannot drop a
+    /// parameter, so the call wraps it in a lambda that discards the unused <c>scopeNode</c>.
+    /// </para>
+    /// </remarks>
+    internal List<ISymbol>? GetAccessibleSymbolChain(
+        ISymbol? symbol,
+        Node? enclosingDeclaration,
+        SymbolFlags meaning,
+        bool useOnlyExternalAliasing,
+        Dictionary<int, List<SymbolTable>>? visitedSymbolTablesMap = null)
+    {
+        if (!(symbol is not null && !IsPropertyOrMethodDeclarationSymbol(symbol)))
+        {
+            return null;
+        }
+        var links = GetSymbolLinks(symbol);
+        var cache = links.AccessibleChainCache ??= new Dictionary<string, List<ISymbol>>(StringComparer.Ordinal);
+        // Go from enclosingDeclaration to the first scope we check, so the cache is keyed off the scope and thus shared more
+        var firstRelevantLocation = ForEachSymbolTableInScope<Node>(enclosingDeclaration, (_, _, _, node) => node);
+        var key = $"{(useOnlyExternalAliasing ? 0 : 1)}|{(firstRelevantLocation is not null ? Utilities.GetNodeId(firstRelevantLocation) : 0)}|{(int)meaning}";
+        if (cache.TryGetValue(key, out var cached))
+        {
+            return cached;
+        }
+
+        var id = Utilities.GetSymbolId(symbol);
+        visitedSymbolTablesMap ??= [];
+        if (!visitedSymbolTablesMap.TryGetValue(id, out var visitedSymbolTables))
+        {
+            visitedSymbolTables = [];
+            visitedSymbolTablesMap[id] = visitedSymbolTables;
+        }
+        var result = ForEachSymbolTableInScope(
+            enclosingDeclaration,
+            (symbols, ignoreQualification, isLocalNameLookup, _) => GetAccessibleSymbolChainFromSymbolTable(symbols, ignoreQualification, isLocalNameLookup));
+        cache[key] = result!; // see the port note above: TS stored `undefined` here
+        return result;
+
+        /// <param name="ignoreQualification">Set when a symbol is being looked for through the exports of another symbol (meaning we have a route to qualify it already).</param>
+        List<ISymbol>? GetAccessibleSymbolChainFromSymbolTable(SymbolTable symbols, bool? ignoreQualification, bool? isLocalNameLookup)
+        {
+            if (!Core.PushIfUnique(visitedSymbolTables, symbols))
+            {
+                return null;
+            }
+
+            var result = TrySymbolTable(symbols, ignoreQualification, isLocalNameLookup);
+            visitedSymbolTables.RemoveAt(visitedSymbolTables.Count - 1);
+            return result;
+        }
+
+        bool CanQualifySymbol(ISymbol symbolFromSymbolTable, SymbolFlags meaning)
+        {
+            // If the symbol is equivalent and doesn't need further qualification, this symbol is accessible
+            return !NeedsQualification(symbolFromSymbolTable, enclosingDeclaration, meaning)
+                // If symbol needs qualification, make sure that parent is accessible, if it is then this symbol is accessible too
+                || GetAccessibleSymbolChain(symbolFromSymbolTable.Parent, enclosingDeclaration, GetQualifiedLeftMeaning(meaning), useOnlyExternalAliasing, visitedSymbolTablesMap) is not null;
+        }
+
+        bool IsAccessible(ISymbol? symbolFromSymbolTable, ISymbol? resolvedAliasSymbol, bool? ignoreQualification)
+        {
+            return (ReferenceEquals(symbol, resolvedAliasSymbol ?? symbolFromSymbolTable)
+                    || ReferenceEquals(GetMergedSymbol(symbol), GetMergedSymbol(resolvedAliasSymbol ?? symbolFromSymbolTable)))
+                // if the symbolFromSymbolTable is not external module (it could be if it was determined as ambient external module and would be in globals table)
+                // and if symbolFromSymbolTable or alias resolution matches the symbol,
+                // check the symbol can be qualified, it is only then this symbol is accessible
+                && !Core.Some(symbolFromSymbolTable!.Declarations, (IDeclaration d) => HasNonGlobalAugmentationExternalModuleSymbol((Node)d))
+                && (ignoreQualification == true || CanQualifySymbol(GetMergedSymbol(symbolFromSymbolTable)!, meaning));
+        }
+
+        List<ISymbol>? TrySymbolTable(SymbolTable symbols, bool? ignoreQualification, bool? isLocalNameLookup)
+        {
+            // If symbol is directly available by its name in the symbol table
+            if (IsAccessible(symbols.GetValueOrDefault(symbol.EscapedName!), /*resolvedAliasSymbol*/ null, ignoreQualification))
+            {
+                return [symbol];
+            }
+
+            // Check if symbol is any of the aliases in scope
+            // PORT-NOTE: the reference's `forEachEntry(symbols, …)` answers the callback's first non-undefined result;
+            // the port's table is enumerable in insertion order, so that walk is this loop with `break`.
+            List<ISymbol>? result = null;
+            foreach (var entry in symbols)
+            {
+                var symbolFromSymbolTable = entry.Value;
+                if ((symbolFromSymbolTable.Flags & SymbolFlags.Alias) != 0
+                    && symbolFromSymbolTable.EscapedName != InternalSymbolName.ExportEquals.Value
+                    && symbolFromSymbolTable.EscapedName != InternalSymbolName.Default.Value
+                    && !(Utilities.IsUMDExportSymbol(symbolFromSymbolTable) && enclosingDeclaration is not null && Parser.IsExternalModule(Utilities.GetSourceFileOfNode(enclosingDeclaration)!))
+                    // If `!useOnlyExternalAliasing`, we can use any type of alias to get the name
+                    && (!useOnlyExternalAliasing || Core.Some(symbolFromSymbolTable.Declarations, (IDeclaration d) => Utilities.IsExternalModuleImportEqualsDeclaration((Node)d)))
+                    // If we're looking up a local name to reference directly, omit namespace reexports, otherwise when we're trawling through an export list to make a dotted name, we can keep it
+                    && (isLocalNameLookup == true ? !Core.Some(symbolFromSymbolTable.Declarations, (IDeclaration d) => Utilities.IsNamespaceReexportDeclaration((Node)d)) : true)
+                    // While exports are generally considered to be in scope, export-specifier declared symbols are _not_
+                    && (ignoreQualification == true || Utilities.GetDeclarationOfKind(symbolFromSymbolTable, SyntaxKind.ExportSpecifier) is null))
+                {
+                    var resolvedImportedSymbol = ResolveAlias(symbolFromSymbolTable);
+                    var candidate = GetCandidateListForSymbol(symbolFromSymbolTable, resolvedImportedSymbol, ignoreQualification);
+                    if (candidate is not null)
+                    {
+                        result = candidate;
+                        break;
+                    }
+                }
+                if (symbolFromSymbolTable.EscapedName == symbol.EscapedName && symbolFromSymbolTable.ExportSymbol is not null)
+                {
+                    if (IsAccessible(GetMergedSymbol(symbolFromSymbolTable.ExportSymbol), /*resolvedAliasSymbol*/ null, ignoreQualification))
+                    {
+                        result = [symbol];
+                        break;
+                    }
+                }
+            }
+
+            // If there's no result and we're looking at the global symbol table, treat `globalThis` like an alias and try to lookup thru that
+            return result ?? (ReferenceEquals(symbols, _globals) ? GetCandidateListForSymbol(_globalThisSymbol!, _globalThisSymbol!, ignoreQualification) : null);
+        }
+
+        List<ISymbol>? GetCandidateListForSymbol(ISymbol symbolFromSymbolTable, ISymbol resolvedImportedSymbol, bool? ignoreQualification)
+        {
+            if (IsAccessible(symbolFromSymbolTable, resolvedImportedSymbol, ignoreQualification))
+            {
+                return [symbolFromSymbolTable];
+            }
+
+            // Look in the exported members, if we can find accessibleSymbolChain, symbol is accessible using this chain
+            // but only if the symbolFromSymbolTable can be qualified
+            var candidateTable = GetExportsOfSymbol(resolvedImportedSymbol);
+            var accessibleSymbolsFromExports = candidateTable is not null
+                ? GetAccessibleSymbolChainFromSymbolTable(candidateTable, /*ignoreQualification*/ true, /*isLocalNameLookup*/ null)
+                : null;
+            if (accessibleSymbolsFromExports is not null && CanQualifySymbol(symbolFromSymbolTable, GetQualifiedLeftMeaning(meaning)))
+            {
+                return [.. new List<ISymbol> { symbolFromSymbolTable }, .. accessibleSymbolsFromExports];
+            }
+            return null;
+        }
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:5841-5862 — <c>needsQualification</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's callback answers a boolean whose only role is truthiness (the walk stops at the first
+    /// <c>true</c>); <see cref="ForEachSymbolTableInScope{T}"/> needs a reference type for that answer, so the callback
+    /// is instantiated at <c>object</c> and answers <c>true</c>/<c>null</c>, exactly the two values the reference writes.
+    /// </remarks>
+    internal bool NeedsQualification(ISymbol symbol, Node? enclosingDeclaration, SymbolFlags meaning)
+    {
+        var qualify = false;
+        ForEachSymbolTableInScope<object>(enclosingDeclaration, (symbolTable, _, _, _) =>
+        {
+            // If symbol of this name is not available in the symbol table we are ok
+            var symbolFromSymbolTable = GetMergedSymbol(symbolTable.GetValueOrDefault(symbol.EscapedName!));
+            if (symbolFromSymbolTable is null)
+            {
+                // Continue to the next symbol table
+                return null;
+            }
+
+            // If the symbol with this name is present it should refer to the symbol
+            if (ReferenceEquals(symbolFromSymbolTable, symbol))
+            {
+                // No need to qualify
+                return true;
+            }
+
+            // Qualify if the symbol from symbol table has same meaning as expected
+            var shouldResolveAlias = (symbolFromSymbolTable.Flags & SymbolFlags.Alias) != 0
+                && Utilities.GetDeclarationOfKind(symbolFromSymbolTable, SyntaxKind.ExportSpecifier) is null;
+            symbolFromSymbolTable = shouldResolveAlias ? ResolveAlias(symbolFromSymbolTable) : symbolFromSymbolTable;
+            var flags = shouldResolveAlias ? GetSymbolFlags(symbolFromSymbolTable) : symbolFromSymbolTable.Flags;
+            if ((flags & meaning) != 0)
+            {
+                qualify = true;
+                return true;
+            }
+
+            // Continue to the next symbol table
+            return null;
+        });
+
+        return qualify;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:5864-5878 — <c>isPropertyOrMethodDeclarationSymbol</c>.</summary>
+    internal bool IsPropertyOrMethodDeclarationSymbol(ISymbol symbol)
+    {
+        if (symbol.Declarations is not null && symbol.Declarations.Count > 0)
+        {
+            foreach (var declaration in symbol.Declarations)
+            {
+                switch (declaration.Kind)
+                {
+                    case SyntaxKind.PropertyDeclaration:
+                    case SyntaxKind.MethodDeclaration:
+                    case SyntaxKind.GetAccessor:
+                    case SyntaxKind.SetAccessor:
+                        continue;
+                    default:
+                        return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:5890-5893 — <c>isTypeSymbolAccessible</c>.</summary>
+    internal bool IsTypeSymbolAccessible(ISymbol typeSymbol, Node? enclosingDeclaration)
+    {
+        var access = IsSymbolAccessibleWorker(typeSymbol, enclosingDeclaration, SymbolFlags.Type, /*shouldComputeAliasesToMakeVisible*/ false, /*allowModules*/ true);
+        return access.Accessibility == SymbolAccessibility.Accessible;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:11433-11472 — <c>collectLinkedAliases</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS declares the parameter as <c>ModuleExportName</c>; the port's generated face for that union is
+    /// <c>MemberExpression?</c> — the same signature the <c>IEmitResolver</c> member and the forwarder in
+    /// <c>Checker/EmitResolver.cs</c> state — so the body carries the reference's own <c>StringLiteral</c> guard.
+    /// <c>resolveName(node, node, …)</c> passes the node as the name; the port's <c>ResolveName</c> takes the escaped
+    /// text, which is what TS's own <c>getEscapedText</c> reads.
+    /// <para>
+    /// PORT-NOTE: TS's <c>Set&lt;number&gt;</c> is <c>HashSet&lt;int&gt;</c>, <c>tryAddToSet</c> is
+    /// <see cref="Core.TryAddToSet{T}"/>, <c>result = result || []</c> is <c>result ??= []</c> and <c>pushIfUnique</c> is
+    /// <see cref="Core.PushIfUnique{T}"/>.
+    /// </para>
+    /// </remarks>
+    internal List<Node>? CollectLinkedAliases(MemberExpression? node, bool? setVisibility = null)
+    {
+        ISymbol? exportSymbol = null;
+        if (node is not null && node.Kind != SyntaxKind.StringLiteral && node.Parent is not null && node.Parent.Kind == SyntaxKind.ExportAssignment)
+        {
+            exportSymbol = ResolveName(
+                node,
+                ((Identifier)node).EscapedText!,
+                SymbolFlags.Value | SymbolFlags.Type | SymbolFlags.Namespace | SymbolFlags.Alias,
+                /*nameNotFoundMessage*/ null,
+                /*isUse*/ false,
+                /*excludeGlobals*/ false);
+        }
+        else if (node?.Parent?.Kind == SyntaxKind.ExportSpecifier)
+        {
+            exportSymbol = GetTargetOfExportSpecifier(
+                (ExportSpecifier)node.Parent,
+                SymbolFlags.Value | SymbolFlags.Type | SymbolFlags.Namespace | SymbolFlags.Alias);
+        }
+        List<Node>? result = null;
+        HashSet<int>? visited = null;
+        if (exportSymbol is not null)
+        {
+            visited = [];
+            visited.Add(Utilities.GetSymbolId(exportSymbol));
+            BuildVisibleNodeList(exportSymbol.Declarations);
+        }
+        return result;
+
+        void BuildVisibleNodeList(List<IDeclaration>? declarations)
+        {
+            foreach (var declaration in declarations ?? [])
+            {
+                var declarationNode = (Node)declaration;
+                var resultNode = (Node?)GetAnyImportSyntax(declarationNode) ?? declarationNode;
+                if (setVisibility == true)
+                {
+                    GetNodeLinks(declarationNode).IsVisible = true;
+                }
+                else
+                {
+                    result ??= [];
+                    Core.PushIfUnique(result, resultNode);
+                }
+
+                if (Utilities.IsInternalModuleImportEqualsDeclaration(declarationNode))
+                {
+                    // Add the referenced top container visible
+                    var internalModuleReference = ((ImportEqualsDeclaration)declaration).ModuleReference!;
+                    var firstIdentifier = Utilities.GetFirstIdentifier(internalModuleReference);
+                    var importSymbol = ResolveName(
+                        declarationNode,
+                        firstIdentifier.EscapedText!,
+                        SymbolFlags.Value | SymbolFlags.Type | SymbolFlags.Namespace,
+                        /*nameNotFoundMessage*/ null,
+                        /*isUse*/ false,
+                        /*excludeGlobals*/ false);
+                    if (importSymbol is not null && visited is not null)
+                    {
+                        if (Core.TryAddToSet(visited, Utilities.GetSymbolId(importSymbol)))
+                        {
+                            BuildVisibleNodeList(importSymbol.Declarations);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:11549-11562 — <c>getDeclarationContainer</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>findAncestor(…, node =&gt; { switch … })!</c> walks up from <c>getRootDeclaration(node)</c> to
+    /// the first node outside the variable/import declarations and then takes its <c>parent</c>; the port spells the same
+    /// switch as a switch expression in the predicate and asserts the ancestor the reference asserts.
+    /// </remarks>
+    internal Node GetDeclarationContainer(Node node)
+    {
+        var declaration = Utilities.FindAncestor(Utilities.GetRootDeclaration(node), n => n.Kind switch
+        {
+            SyntaxKind.VariableDeclaration
+                or SyntaxKind.VariableDeclarationList
+                or SyntaxKind.ImportSpecifier
+                or SyntaxKind.NamedImports
+                or SyntaxKind.NamespaceImport
+                or SyntaxKind.ImportClause => false,
+            _ => true,
+        });
+        return declaration!.Parent!;
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:11565-11572 — <c>getTypeOfPrototypeProperty</c>.</summary>
+    /// <remarks>
+    /// TypeScript 1.0 spec (April 2014): 8.4 — Every class automatically contains a static property member named
+    /// 'prototype', the type of which is an instantiation of the class type with type Any supplied as a type argument for
+    /// each type parameter. It is an error to explicitly declare a static property member with the name 'prototype'.
+    /// <para>
+    /// PORT-NOTE: the reference's <c>classType as InterfaceType</c> is the port's <c>IInterfaceType</c> (the generated
+    /// face of TS's <c>InterfaceType</c>) and its <c>createTypeReference(classType as GenericType, …)</c> is
+    /// <c>CreateTypeReference((IGenericType)classType, …)</c> — the same downcast <c>Checker/Checker.Check.cs:1454</c>
+    /// already uses. TS's <c>anyType</c> is the checker's <c>_anyType</c>.
+    /// </para>
+    /// </remarks>
+    internal IType GetTypeOfPrototypeProperty(ISymbol prototype)
+    {
+        var classType = (IInterfaceType)GetDeclaredTypeOfSymbol(GetParentOfSymbol(prototype)!);
+        return classType.TypeParameters is not null
+            ? CreateTypeReference((IGenericType)classType, Core.Map(classType.TypeParameters, (ITypeParameter _, int _) => (IType)_anyType)!)
+            : classType;
+    }
 }

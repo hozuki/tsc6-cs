@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>TypeDiff</AssemblyName>
+    <RootNamespace>TypeScript.Compiler.Tools</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\TypeScript.Compiler\TypeScript.Compiler.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- node 侧的批处理 dumper；随生成物一起发布，Program.cs 默认就从 AppContext.BaseDirectory 找它。 -->
+    <None Include="ts-type-dump.cjs" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

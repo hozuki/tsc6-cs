@@ -353,7 +353,7 @@ internal sealed partial class Checker
         {
             instantiation = InstantiateTypeWithAlias(
                 type,
-                CreateTypeMapper(typeParameters, FillMissingTypeArguments(typeArguments, typeParameters, GetMinTypeArgumentCount(typeParameters), Utilities.IsInJSFile(symbol.ValueDeclaration))),
+                CreateTypeMapper(typeParameters, FillMissingTypeArguments(typeArguments, typeParameters, GetMinTypeArgumentCount(typeParameters), Utilities.IsInJSFile((Node?)symbol.ValueDeclaration))),
                 aliasSymbol,
                 aliasTypeArguments);
             links.Instantiations![id] = instantiation;
@@ -750,7 +750,8 @@ internal sealed partial class Checker
     /// <remarks>
     /// PORT-NOTE: <c>node as TypeReferenceNode</c> is applied twice upstream — once for the test and once for the
     /// argument; the port names the cast once. The <c>anon</c> fallback is the module-level constant of
-    /// checker.ts:1155, referenced here as <c>_anon</c> (declared by the slice that lands that line).
+    /// checker.ts:1155, referenced here as <c>_anon</c> — declared once on the checker itself
+    /// (<c>Checker/Checker.cs:173</c>), so this file must not declare a second copy.
     /// </remarks>
     internal bool CheckNoTypeArguments(Node node, ISymbol? symbol = null)
     {
@@ -1468,17 +1469,17 @@ internal sealed partial class Checker
     /// <see cref="ITypeNode"/> and reads the elements through the tuple class, as <c>isReadonlyTypeOperator</c> reads
     /// the parent (which the parser always sets, hence <see cref="Debug.CheckDefined{T}"/>).
     /// </remarks>
-    internal IGenericType GetArrayOrTupleTargetType(ITypeNode node)
+    internal IGenericType GetArrayOrTupleTargetType(Node node)
     {
         var @readonly = IsReadonlyTypeOperator(Debug.CheckDefined(node.Parent));
-        var elementType = GetArrayElementTypeNode(node);
+        var elementType = GetArrayElementTypeNode((ITypeNode)node);
         if (elementType is not null)
         {
             return @readonly ? _globalReadonlyArrayType : _globalArrayType;
         }
         var tuple = (TupleTypeNode)node;
         var elementFlags = Core.Map(tuple.Elements, (e, _) => GetTupleElementFlags((ITypeNode)e))!;
-        return GetTupleTargetType(elementFlags, @readonly, Core.Map(tuple.Elements, (e, _) => MemberIfLabeledElementDeclaration(e)!));
+        return GetTupleTargetType(elementFlags, @readonly, Core.Map(tuple.Elements, (e, _) => MemberIfLabeledElementDeclaration(e)!)!);
     }
 
     /// <summary>
@@ -1497,9 +1498,9 @@ internal sealed partial class Checker
         // because it is possibly contained in a circular chain of eagerly resolved types.
         => GetAliasSymbolForTypeNode(node) is not null
             || IsResolvedByTypeAlias(node) && (
-                node.Kind == SyntaxKind.ArrayType ? MayResolveTypeAlias(((ArrayTypeNode)node).ElementType!) :
-                    node.Kind == SyntaxKind.TupleType ? Core.Some(((TupleTypeNode)node).Elements, e => MayResolveTypeAlias(e)) :
-                    hasDefaultTypeArguments == true || Core.Some(((INodeWithTypeArguments)node).TypeArguments, t => MayResolveTypeAlias(t)));
+                node.Kind == SyntaxKind.ArrayType ? MayResolveTypeAlias((Node)((ArrayTypeNode)node).ElementType!) :
+                    node.Kind == SyntaxKind.TupleType ? Core.Some(((TupleTypeNode)node).Elements, e => MayResolveTypeAlias((Node)e)) :
+                    hasDefaultTypeArguments == true || Core.Some(((INodeWithTypeArguments)node).TypeArguments, t => MayResolveTypeAlias((Node)t)));
 
     /// <summary>ported from: src/compiler/checker.ts:17772-17792 — <c>isResolvedByTypeAlias</c>.</summary>
     /// <remarks>
@@ -1550,7 +1551,7 @@ internal sealed partial class Checker
             case SyntaxKind.TypeQuery:
                 return true;
             case SyntaxKind.TypeOperator:
-                return ((TypeOperatorNode)node).Operator != SyntaxKind.UniqueKeyword && MayResolveTypeAlias(((TypeOperatorNode)node).Type!);
+                return ((TypeOperatorNode)node).Operator != SyntaxKind.UniqueKeyword && MayResolveTypeAlias((Node)((TypeOperatorNode)node).Type!);
             case SyntaxKind.ParenthesizedType:
             case SyntaxKind.OptionalType:
             case SyntaxKind.NamedTupleMember:
@@ -1558,7 +1559,7 @@ internal sealed partial class Checker
             case SyntaxKind.JSDocNullableType:
             case SyntaxKind.JSDocNonNullableType:
             case SyntaxKind.JSDocTypeExpression:
-                return MayResolveTypeAlias(node switch
+                return MayResolveTypeAlias((Node)(node switch
                 {
                     ParenthesizedTypeNode parenthesized => parenthesized.Type!,
                     OptionalTypeNode optional => optional.Type!,
@@ -1567,21 +1568,21 @@ internal sealed partial class Checker
                     JSDocNullableType jsDocNullable => jsDocNullable.Type!,
                     JSDocTypeExpression jsDocExpression => jsDocExpression.Type!,
                     _ => ((JSDocNonNullableType)node).Type!,
-                });
+                }));
             case SyntaxKind.RestType:
-                return ((RestTypeNode)node).Type!.Kind != SyntaxKind.ArrayType || MayResolveTypeAlias(((ArrayTypeNode)((RestTypeNode)node).Type!).ElementType!);
+                return ((RestTypeNode)node).Type!.Kind != SyntaxKind.ArrayType || MayResolveTypeAlias((Node)((ArrayTypeNode)((RestTypeNode)node).Type!).ElementType!);
             case SyntaxKind.UnionType:
             case SyntaxKind.IntersectionType:
                 return Core.Some(node switch
                 {
                     UnionTypeNode union => union.Types,
                     _ => ((IntersectionTypeNode)node).Types,
-                }, t => MayResolveTypeAlias(t));
+                }, t => MayResolveTypeAlias((Node)t));
             case SyntaxKind.IndexedAccessType:
-                return MayResolveTypeAlias(((IndexedAccessTypeNode)node).ObjectType!) || MayResolveTypeAlias(((IndexedAccessTypeNode)node).IndexType!);
+                return MayResolveTypeAlias((Node)((IndexedAccessTypeNode)node).ObjectType!) || MayResolveTypeAlias((Node)((IndexedAccessTypeNode)node).IndexType!);
             case SyntaxKind.ConditionalType:
-                return MayResolveTypeAlias(((ConditionalTypeNode)node).CheckType!) || MayResolveTypeAlias(((ConditionalTypeNode)node).ExtendsType!) ||
-                    MayResolveTypeAlias(((ConditionalTypeNode)node).TrueType!) || MayResolveTypeAlias(((ConditionalTypeNode)node).FalseType!);
+                return MayResolveTypeAlias((Node)((ConditionalTypeNode)node).CheckType!) || MayResolveTypeAlias((Node)((ConditionalTypeNode)node).ExtendsType!) ||
+                    MayResolveTypeAlias((Node)((ConditionalTypeNode)node).TrueType!) || MayResolveTypeAlias((Node)((ConditionalTypeNode)node).FalseType!);
         }
         return false;
     }
@@ -1593,20 +1594,20 @@ internal sealed partial class Checker
     /// </remarks>
     internal IType GetTypeFromArrayOrTupleTypeNode(ITypeNode node)
     {
-        var links = GetNodeLinks(node);
+        var links = GetNodeLinks((Node)node);
         if (links.ResolvedType is null)
         {
-            var target = GetArrayOrTupleTargetType(node);
+            var target = GetArrayOrTupleTargetType((Node)node);
             if (ReferenceEquals(target, _emptyGenericType))
             {
                 links.ResolvedType = _emptyObjectType;
             }
             else if (!(node.Kind == SyntaxKind.TupleType && Core.Some(((TupleTypeNode)node).Elements, e => (GetTupleElementFlags((ITypeNode)e) & ElementFlags.Variadic) != 0))
-                && IsDeferredTypeReferenceNode(node))
+                && IsDeferredTypeReferenceNode((Node)node))
             {
                 links.ResolvedType = node.Kind == SyntaxKind.TupleType && Core.Length(((TupleTypeNode)node).Elements) == 0
                     ? (IType)target
-                    : CreateDeferredTypeReference(target, node, /*mapper*/ null);
+                    : CreateDeferredTypeReference(target, (Node)node, /*mapper*/ null);
             }
             else
             {
@@ -1652,10 +1653,10 @@ internal sealed partial class Checker
             return @readonly ? _globalReadonlyArrayType : _globalArrayType;
         }
         var key = string.Join(",", Core.Map(elementFlags, (f, _) =>
-                (f & ElementFlags.Required) != 0 ? "#" : (f & ElementFlags.Optional) != 0 ? "?" : (f & ElementFlags.Rest) != 0 ? "." : "*"))
+                (f & ElementFlags.Required) != 0 ? "#" : (f & ElementFlags.Optional) != 0 ? "?" : (f & ElementFlags.Rest) != 0 ? "." : "*")!)
             + (@readonly ? "R" : "")
             + (Core.Some(namedMemberDeclarations, node => Js.IsTruthy(node))
-                ? "," + string.Join(",", Core.Map(namedMemberDeclarations, (node, _) => Js.IsTruthy(node) ? Utilities.GetNodeId(node).ToString(CultureInfo.InvariantCulture) : "_"))
+                ? "," + string.Join(",", Core.Map(namedMemberDeclarations, (node, _) => Js.IsTruthy(node) ? Utilities.GetNodeId(node).ToString(CultureInfo.InvariantCulture) : "_")!)
                 : "");
         if (!_tupleTypes.TryGetValue(key, out var type) || type is null)
         {
@@ -1782,7 +1783,7 @@ internal sealed partial class Checker
             if (unionIndex >= 0)
             {
                 return CheckCrossProductUnion(Core.Map(elementTypes, (t, i) => (target.ElementFlags![i] & ElementFlags.Variadic) != 0 ? t : _unknownType)!)
-                    ? MapType(elementTypes[unionIndex], t => CreateNormalizedTupleType(target, Core.ReplaceElement(elementTypes, unionIndex, t) as List<IType>))
+                    ? MapType(elementTypes[unionIndex], t => CreateNormalizedTupleType(target, (List<IType>)Core.ReplaceElement(elementTypes, unionIndex, t)))!
                     : _errorType;
             }
         }
@@ -1820,7 +1821,7 @@ internal sealed partial class Checker
                     {
                         Error(
                             _currentNode,
-                            IsPartOfTypeNode(_currentNode!)
+                            Utilities.IsPartOfTypeNode(_currentNode!)
                                 ? Diagnostics.Type_produces_a_tuple_type_that_is_too_large_to_represent
                                 : Diagnostics.Expression_produces_a_tuple_type_that_is_too_large_to_represent);
                         return _errorType;
@@ -1855,9 +1856,9 @@ internal sealed partial class Checker
         if (firstRestIndex >= 0 && firstRestIndex < lastOptionalOrRestIndex)
         {
             // Turn elements between first rest and last optional/rest into a single rest element
-            expandedTypes[firstRestIndex] = GetUnionType(Core.SameMap(
+            expandedTypes[firstRestIndex] = GetUnionType((Core.SameMap(
                 Core.Slice(expandedTypes, firstRestIndex, lastOptionalOrRestIndex + 1),
-                (t, i) => (expandedFlags[firstRestIndex + i] & ElementFlags.Variadic) != 0 ? GetIndexedAccessType(t, _numberType) : t) as List<IType>);
+                (t, i) => (expandedFlags[firstRestIndex + i] & ElementFlags.Variadic) != 0 ? GetIndexedAccessType(t, _numberType) : t) as List<IType>)!);
             expandedTypes.RemoveRange(firstRestIndex + 1, lastOptionalOrRestIndex - firstRestIndex);
             expandedFlags.RemoveRange(firstRestIndex + 1, lastOptionalOrRestIndex - firstRestIndex);
             expandedDeclarations.RemoveRange(firstRestIndex + 1, lastOptionalOrRestIndex - firstRestIndex);
@@ -1901,7 +1902,7 @@ internal sealed partial class Checker
         return index > target.FixedLength
             ? GetRestArrayTypeOfTupleType(type) ?? CreateTupleType([])
             : CreateTupleType(
-                Core.Slice(GetTypeArguments(type), index, endIndex) as List<IType>,
+                (Core.Slice(GetTypeArguments(type), index, endIndex) as List<IType>)!,
                 Core.Slice(target.ElementFlags!, index, endIndex) as List<ElementFlags>,
                 /*readonly*/ false,
                 target.LabeledElementDeclarations is null ? null : Core.Slice(target.LabeledElementDeclarations, index, endIndex) as List<Node>);
@@ -1916,9 +1917,9 @@ internal sealed partial class Checker
     internal IType GetKnownKeysOfTupleType(ITupleTypeReference type)
     {
         var target = (ITupleType)type.Target!;
-        return GetUnionType(Core.Append(
+        return GetUnionType((Core.Append(
             Core.ArrayOf(target.FixedLength, i => (IType)GetStringLiteralType(i.ToString(CultureInfo.InvariantCulture))) as List<IType>,
-            GetIndexType(target.Readonly ? _globalReadonlyArrayType : _globalArrayType))! as List<IType>);
+            GetIndexType(target.Readonly ? _globalReadonlyArrayType : _globalArrayType))! as List<IType>)!);
     }
 
     /// <summary>ported from: src/compiler/checker.ts:18040-18043 — <c>getStartElementCount</c>.</summary>
@@ -1950,7 +1951,7 @@ internal sealed partial class Checker
     {
         var typeArguments = GetTypeArguments(type);
         var arity = GetTypeReferenceArity(type);
-        return typeArguments.Count == arity ? typeArguments : Core.Slice(typeArguments, 0, arity) as List<IType>;
+        return typeArguments.Count == arity ? typeArguments : (Core.Slice(typeArguments, 0, arity) as List<IType>)!;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:18060-18062 — <c>getTypeFromOptionalTypeNode</c>.</summary>

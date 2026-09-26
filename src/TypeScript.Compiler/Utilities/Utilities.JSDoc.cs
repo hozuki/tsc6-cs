@@ -11,6 +11,9 @@ namespace TypeScript.Compiler;
 // ported from: src/compiler/utilitiesPublic.ts:1036-1053 (getJSDocParameterTagsWorker)
 // ported from: src/compiler/utilitiesPublic.ts:1067-1074 (getJSDocParameterTags, getJSDocParameterTagsNoCache)
 // ported from: src/compiler/utilitiesPublic.ts:1076-1098 (getJSDocTypeParameterTagsWorker, getJSDocTypeParameterTags, getJSDocTypeParameterTagsNoCache)
+// ported from: src/compiler/utilitiesPublic.ts:1199-1201 (getJSDocSatisfiesTag)
+// ported from: src/compiler/utilities.ts:11111-11124 (isJSDocSatisfiesExpression, getJSDocSatisfiesExpressionType,
+//               tryGetJSDocSatisfiesTypeNode)
 // ported from: src/compiler/utilitiesPublic.ts:1204-1211 (getJSDocTypeTag)
 // ported from: src/compiler/utilitiesPublic.ts:1257-1281 (getJSDocTagsWorker, getJSDocTags, getFirstJSDocTag)
 // ported from: src/compiler/utilitiesPublic.ts:2573-2575 (hasInitializer)
@@ -387,4 +390,37 @@ internal static partial class Utilities
         }
         return null;
     }
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1199-1201 — <c>getJSDocSatisfiesTag</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: <c>getFirstJSDocTag</c> is this family's own private member (above) and <c>isJSDocSatisfiesTag</c> is
+    /// the port's <see cref="NodeTests.IsJSDocSatisfiesTag"/>, whose <c>bool</c> answer finds the tag without narrowing
+    /// it; the found tag is the matched class, which the cast states — the same shape <see cref="GetJSDocTypeTag"/> uses.
+    /// </remarks>
+    public static JSDocSatisfiesTag? GetJSDocSatisfiesTag(Node node)
+        => GetFirstJSDocTag(node, static tag => NodeTests.IsJSDocSatisfiesTag(tag)) as JSDocSatisfiesTag;
+
+    /// <summary>ported from: src/compiler/utilities.ts:11111-11113 — <c>isJSDocSatisfiesExpression</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's guard narrows to <c>JSDocSatisfiesExpression</c>, one of the widened-union names §15.15 lists
+    /// (the port's parenthesized <c>@satisfies</c> expression is an ordinary <c>ParenthesizedExpression</c> whose JSDoc
+    /// carries the tag); the member answers <c>bool</c> and the caller reads its type through
+    /// <see cref="GetJSDocSatisfiesExpressionType"/>. <c>isInJSFile</c>/<c>isParenthesizedExpression</c>/<c>hasJSDocNodes</c>
+    /// are <see cref="IsInJSFile"/>/<see cref="NodeTests.IsParenthesizedExpression"/>/<see cref="HasJSDocNodes"/>.
+    /// </remarks>
+    public static bool IsJSDocSatisfiesExpression(Node node)
+        => IsInJSFile(node) && NodeTests.IsParenthesizedExpression(node) && HasJSDocNodes(node) && GetJSDocSatisfiesTag(node) is not null;
+
+    /// <summary>ported from: src/compiler/utilities.ts:11116-11118 — <c>getJSDocSatisfiesExpressionType</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's parameter is the <c>JSDocSatisfiesExpression</c> face the port does not have; this member is
+    /// reached only from the guard above, which takes a <c>Node</c>, so the parameter takes that face.
+    /// <c>Debug.checkDefined</c> is <see cref="Debug.CheckDefined{T}(T?, string?)"/>.
+    /// </remarks>
+    public static ITypeNode GetJSDocSatisfiesExpressionType(Node node)
+        => Debug.CheckDefined(TryGetJSDocSatisfiesTypeNode(node));
+
+    /// <summary>ported from: src/compiler/utilities.ts:11121-11124 — <c>tryGetJSDocSatisfiesTypeNode</c>.</summary>
+    public static ITypeNode? TryGetJSDocSatisfiesTypeNode(Node node)
+        => GetJSDocSatisfiesTag(node)?.TypeExpression?.Type;
 }

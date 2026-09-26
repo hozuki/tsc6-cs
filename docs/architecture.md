@@ -1258,6 +1258,16 @@ SourceFile(0,131) symbol=ValueModule:"/p" locals=[C=Class:C:1,a=BlockScopedVaria
 
 **M6-3 起规则收紧**：参考声明在 `utilities.ts`/`utilitiesPublic.ts` 的成员一律落 `Utilities`（类），调用点带限定。
 
+**收口期补记（本轮）**：反射守卫 `CrossSliceOwnershipTests` 现在只允许**一个**同名例外，并逐个附参考行 —— 判据就是本节那句"看参考把它声明在哪个类"：
+
+| 允许的同名成员 | 参考的两个声明处 | 为什么两边都必须留 |
+|---|---|---|
+| `SetTextRange` | `factory/utilitiesPublic.ts:10-12`（`setTextRange`，纯 pos/end 写入）与 `checker.ts:6517-6538`（node builder 的局部函数：跨文件不复制范围，并顺带种下 `original` 指针） | 参考自己就是两处声明，甚至在 `checker.ts:1010` 把 utilities 那一条改名导入为 `setTextRangeWorker` 来分开它们；C# 不能给局部函数改名而保留参考名，所以 `Utilities.SetTextRange`（调用点带限定）与 `Checker.SetTextRange`（不带限定）并存就是该分歧的 C# 形态 |
+
+同一轮还消掉了该守卫**真正**抓到的两处漂移（不是加白名单）：`TypeParametersOf` 曾同时声明在 `Utilities`/`Checker`/`Program` 三处，现收敛为 `Utilities.TypeParametersOf`（`DeclarationWithTypeParameterChildren` 的唯一读法，见 types.ts:3536-3541）；`Checker` 那份私有 `GetNamedDeclarationName`（checker.ts:28353 的局部读）改名 `GetObjectLiteralMemberName`，让 `Utilities.GetNamedDeclarationName`（utilitiesPublic.ts:946-948 那条鸭子类型读）保持唯一主人。守卫本身也修了一处**测试缺陷**：`GetMembers` 不带 `DeclaredOnly` 会连 `object` 的六个成员一起收进来，于是交集永不为空、且失败消息前六个名字都是 `Equals, Finalize, …`，把真重叠藏在截断之后。
+
+**三个崩溃级收口（本轮，全部有参考行）**：`Utilities.TypeParametersOf` 漏掉 `InterfaceDeclaration` 面（release-6.0 的 `InterfaceDeclaration` 不再 `extends ClassLikeDeclarationBase`）使**每个泛型接口**被判为无类型参数，`getGlobalType` 的 arity 检查因此失败、`globalArrayType` 退化成 `emptyGenericType`；`Program.IsSourceFileDefaultLibrary` 的体是自造且**自递归**的（参考 program.ts:2680-2682 只有 `libFiles.has(file.path)` 一行）；`Checker.GetTypeOfExpression` 把 `flowTypeCache` 当稠密表索引，越界即抛（参考 checker.ts:41691/41701 是稀疏数组的洞与延长）。另修 `Program` 构造里缺的 `structureIsReused = tryReuseStructureFromOldProgram()`（program.ts:1741-1743/1954 同时暴露给 program 对象）。
+
 ### 快照验证的掩蔽效应（M6 的方法学发现）
 
 Roslyn 只要在任何一处遇到**声明级**错误，就跳过**整个编译**的方法体绑定。于是"排除掉某个含声明级错误的文件后，我的文件零诊断"是**不可信**的读数：你会只看到那一处错误，而所有 CS0103/CS1061 一律消失。
@@ -1322,6 +1332,50 @@ M6 期间报出的每一个"有调用者但无人声明"或"有意不移植"的�
 4. **checker 的交付形态是 `Checker : ITypeChecker`**，与 `NodeFactory : INodeFactory` 同形：TS 的 `const checker: TypeChecker = {…}` 是一个字面量，而端口的成员是 landed partial 的实例方法，所以要由类实现那个生成的接口（380+ 成员，M6-5 组装完成后才可能转换成功；中间的"无法转换"是预期状态）。若到 M6-5 仍有接口成员表达不了（M4d 的 `INodeFactory` 有 6 个这样的），走 §15.9 的"接口比类大"处理：逐条指名 + 反射测试钉住差集，而不是给出发不出正确结果的实现。
 
 ---
+
+## 15.16 M6：Layer 5（`Program` + `Checker`）交付记录
+
+**结论：M6 达标。** 编译器项目 **0 错误 / 0 警告**，测试从"从未执行"变为 **1,044/1,044 通过**，两条差分外环在**同一棵树**上仍然零分歧。计划、裁定、偏差表、残留账与 M7 边界清单见 §15.15，本节只记交付与实测数字。
+
+### 交付物（实测行数）
+
+| 区域 | 文件 | 行数 | 覆盖的参考范围 |
+|---|---|---|---|
+| checker（含身体、装配、node builder） | `Checker/*.cs` | **55 个文件 / 84,739 行** | `checker.ts` 1318-54434 的主体范围 |
+| 其中：检查身体 + 装配 | `Checker.Check*.cs`、`Checker.Initialize.cs`、`Checker.CreateTypeChecker.cs` | 14 个文件 / 26,487 行 | 33262-34739、37810-53668、53761-54200；`createTypeChecker` 180/180 抽象成员 |
+| 其中：node builder + 协调 | `NodeBuilder.{Types,Members,Signatures,Names,Declarations,Serialize}.cs` + `Checker.NodeBuilder.cs`、`Checker.Stringify.cs`、`SyntacticBuilderResolver.cs`、`EmitResolver.cs` | 10 个文件 / 9,736 行 | 5980-11323、51380-51554、54260-54434 |
+| Program | `Program/*.cs` | **21 个文件 / 18,735 行** | `program.ts` 主体、`programDiagnostics.ts`、moduleSpecifiers 宿主 |
+| M6 合计 | — | ≈103,500 行 | Layer 5 |
+
+### 五条验收（集成点独立复跑，非切片自述）
+
+| # | 命令 | 结果 |
+|---|---|---|
+| 1 | `dotnet build src/TypeScript.Compiler --nologo --no-incremental` | **0 错误 / 0 警告** |
+| 2 | `dotnet test --nologo` | **1,044 通过 / 0 失败** |
+| 3 | `dotnet run --project tools/Gen -- --check` | 无漂移（全部生成目标 up to date） |
+| 4 | `tools/AstDiff`（全语料） | **files=19585 same=19585 diverged=0** |
+| 5 | `tools/BindDiff`（全语料） | **files=19233 same=19230 diverged=0 port-crash=0**（余 3 为参考自身栈溢出） |
+
+错误趋势（唯一计数，全程 0 警告）：794 → 725 → 672 → 656 → 639 → 619 → 555 → 521 → 505 → 472 → 469 → 474 → 434 → 360 → 272 → 268 → 246 → 232 → 176 → 156 → 134 → 132 → 100 → 79 → 70 → **0**。
+
+### 收口时 11 个测试失败的处理（7 端口缺陷 / 4 错误期望 / 5 测试或环境缺陷，无一条测试被削弱）
+
+| 类别 | 例 |
+|---|---|
+| **端口缺陷（真 bug，只有能跑的测试能发现）** | `Program.IsSourceFileDefaultLibrary` 此前是**自造的无限递归**（`libFiles → GetSourceFileFromReference → 自身`），参考只有一行 `libFiles.has(file.path)`（program.ts:2680-2682），且它还答错了问题；`Checker.GetTypeOfExpression` 用 node id 直接索引 `List<IType>` 越界抛出——参考是**稀疏数组**，越界读为 undefined、越界写会扩张；`Program.VerifyProjectReferences` **急切**求值 `getTsBuildInfoEmitOutputFilePath`（参考 program.ts:4588 只在 `forEachProjectReference` 的回调里读，而该回调无 project references 时不会执行），使 M6 路径的 `createProgram` 撞上 M7 响亮阻断 |
+| **错误期望** | 4 条，均给出参考行号后改测试语义（不是放宽） |
+| **测试/环境缺陷** | 5 条，含两个测试助手把 stub 库放在 `"/" + GetDefaultLibFileName(options)`，而宿主的名字是 `combinePaths(getDefaultLibLocation(), …)`（program.ts:467/475）→ 从未解析到 stub；以及 `CrossSliceOwnershipTests` 里 `Type` 被解析成 `TypeScript.Compiler.Type`（应 `System.Type`） |
+
+**方法教训（写入纪律）：** 测试**必须能跑**——M6 的实质缺陷几乎全部由"第一次运行的测试"和"注入式阳性对照快照"两类证据发现，而非靠读代码；只编译通过不算验证（§15.15 的两条掩蔽危害即为此）。
+
+### 响亮阻断与 M7/M8 边界（M6 只留阻断，不留占位）
+
+printer 门控的 `TypeToString`/`SymbolToString`/`SignatureToString`/`TypePredicateToString` 及其 `write*` 转发；`Program.Emit`/`EmitBuildInfo`/`GetDeclarationDiagnostics`/`GetEmitHost`/`GetTsBuildInfoEmitOutputFilePath`；`IProgram.GetBuildInfo`（M8）；`Program.GetModuleSpecifierCache`/`GetNearestAncestorDirectoryWithPackageJson`（M8）；`Checker.SyntacticNodeBuilder`（M4f 的 `expressionToTypeNode.ts`）；`moduleSpecifiers` 的两个调用点（M6-late/M8）；生成器缺陷 `Model/NodeInterfaces.cs:3526` 的 `GetIndexInfosOfIndexSymbol`（参考 types.ts:5083 是函数类型）。逐条清单与所有者见 §15.15 的残留账/M7 边界表。
+
+### `tools/TypeDiff`（最强验收）首次端口侧运行
+
+首次运行已打通 node 参考侧（`files=20 same=0 diverged=20 ts-error=0 typescript=6.0.3`），端口侧却在 `Program.VerifyCompilerOptions`（`Program.Verify.cs:464`）撞上 `getEmitHost` 的 M7 阻断——与上面 `getTsBuildInfoEmitOutputFilePath` 同一类**可达性**缺陷（参考仅在 `!noEmit && !suppressOutputPathCheck` 时走 emit 路径检查，program.ts:4392-4395）；`TypeDiff` 还在报告 20 个 port-crash 的同时返回 **exit 0**，与本工具自己声明的语义（0 = 全部匹配）相悖。两项均已交回同一个修复者，修好后按其格式补记首轮 `same/diverged` 清单与首个分歧的定性。
 
 ## 16. `const enum` 成员作类型：typed enum
 

@@ -33,7 +33,12 @@ internal sealed class FakeSystem : ISystem
 
     public void Write(string s) => Written.Add(s);
 
-    public string? ReadFile(string path, string? encoding = null) => null;
+    /// <summary>In-memory file contents. A path that is absent reads as a missing file.</summary>
+    /// <remarks>PORT-NOTE: the fake answered <c>null</c> for every read until the M6-1 slice needed a host that can
+    /// actually serve a program's root file; the dictionary is additive and every existing test keeps the empty one.</remarks>
+    public Dictionary<string, string> Files { get; } = new(StringComparer.Ordinal);
+
+    public string? ReadFile(string path, string? encoding = null) => Files.GetValueOrDefault(path);
 
     public void WriteFile(string path, string data, bool writeByteOrderMark = false)
     {
@@ -47,9 +52,9 @@ internal sealed class FakeSystem : ISystem
 
     public string ResolvePath(string path) => path;
 
-    public bool FileExists(string path) => false;
+    public bool FileExists(string path) => Files.ContainsKey(path);
 
-    public bool DirectoryExists(string path) => _directories.Contains(path);
+    public bool DirectoryExists(string path) => _directories.Contains(path) || Files.Keys.Any(file => file.StartsWith(path, StringComparison.Ordinal));
 
     public void CreateDirectory(string path)
     {
@@ -61,7 +66,12 @@ internal sealed class FakeSystem : ISystem
 
     public string GetCurrentDirectory() => string.Empty;
 
-    public IList<string> GetDirectories(string path) => [];
+    public IList<string> GetDirectories(string path)
+        => Files.Keys
+            .Where(file => file.StartsWith(path, StringComparison.Ordinal))
+            .Select(file => Paths.GetDirectoryPath(file))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
 
     public IList<string> ReadDirectory(
         string path,

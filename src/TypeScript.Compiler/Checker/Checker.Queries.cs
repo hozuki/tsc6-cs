@@ -227,12 +227,25 @@ internal sealed partial class Checker
             }
 
             // If the union is all different instantiations of a member of the global array type...
+            // PORT-NOTE: TS writes this as `(memberName ? memberName === t.symbol.escapedName : (memberName = …, true))`
+            // inside the `some`-style predicate; C# has no common type between `(string, bool)` and `bool`, so the same
+            // control flow is a block-bodied lambda.
             string? memberName = null;
-            if (EveryType(type, t => t.Symbol?.Parent is not null && IsArrayOrTupleSymbol(t.Symbol.Parent) && (memberName is null ? (memberName = t.Symbol.EscapedName, true) : memberName == t.Symbol.EscapedName)))
+            if (EveryType(type, t =>
+            {
+                if (t.Symbol?.Parent is null || !IsArrayOrTupleSymbol(t.Symbol.Parent)) return false;
+                if (memberName is null)
+                {
+                    memberName = t.Symbol.EscapedName;
+                    return true;
+                }
+
+                return memberName == t.Symbol.EscapedName;
+            }))
             {
                 // Transform the type from `(A[] | B[])["member"]` to `(A | B)[]["member"]` (since we pretend array is covariant anyway)
                 var arrayArg = MapType(type, t => GetMappedType(_globalArrayType.TypeParameters![0], (TypeMapper?)((AnonymousType)t).Mapper!));
-                var arrayType = CreateArrayType(arrayArg, SomeType(type, t => IsReadonlyArraySymbol(t.Symbol?.Parent)));
+                var arrayType = CreateArrayType(arrayArg!, SomeType(type, (IType t) => IsReadonlyArraySymbol(t.Symbol?.Parent)));
                 unionType.ArrayFallbackSignatures = GetSignaturesOfType(GetTypeOfPropertyOfType(arrayType, memberName!)!, kind);
                 return unionType.ArrayFallbackSignatures;
             }
@@ -289,7 +302,7 @@ internal sealed partial class Checker
 
             if (Utilities.IsInJSFile((Node)decl) && ((IJSDocContainer)decl).JsDoc is not null)
             {
-                var tags = GetJSDocOverloadTags((Node)decl);
+                var tags = Utilities.GetJSDocOverloadTags((Node)decl);
                 if (Core.Length(tags) != 0)
                 {
                     foreach (var tag in tags)
@@ -333,27 +346,31 @@ internal sealed partial class Checker
                 return _errorType;
             }
 
-            var type = sig.Target is not null ? InstantiateType(GetReturnTypeOfSignature(sig.Target), sig.Mapper)
-                : sig.CompositeSignatures is not null ? InstantiateType(GetUnionOrIntersectionType(Core.Map(sig.CompositeSignatures, (ISignature s, int _) => GetReturnTypeOfSignature(s))!, sig.CompositeKind!.Value, UnionReduction.Subtype), sig.Mapper)
+            // PORT-NOTE: TS passes `signature.mapper` (a `TypeMapper`) straight through; the generated `Signature.mapper`
+            // slot is `object?` because `TypeMapper` is a function-union alias, so the cast is written here.
+            var type = sig.Target is not null ? InstantiateType(GetReturnTypeOfSignature(sig.Target), (TypeMapper?)sig.Mapper)
+                : sig.CompositeSignatures is not null ? InstantiateType(GetUnionOrIntersectionType(Core.Map(sig.CompositeSignatures, (ISignature s, int _) => GetReturnTypeOfSignature(s))!, sig.CompositeKind!.Value, UnionReduction.Subtype), (TypeMapper?)sig.Mapper)
                 : GetReturnTypeFromAnnotation(sig.Declaration!)
                 ?? (Utilities.NodeIsMissing(((IFunctionLikeDeclarationBase)sig.Declaration!).Body) ? _anyType : GetReturnTypeFromBody((IFunctionLikeDeclarationBase)sig.Declaration!));
             if ((sig.Flags & SignatureFlags.IsInnerCallChain) != 0)
             {
-                type = AddOptionalTypeMarker(type);
+                type = AddOptionalTypeMarker(type!);
             }
             else if ((sig.Flags & SignatureFlags.IsOuterCallChain) != 0)
             {
-                type = GetOptionalType(type);
+                type = GetOptionalType(type!);
             }
 
             if (!PopTypeResolution())
             {
                 if (sig.Declaration is not null)
                 {
-                    var typeNode = GetEffectiveReturnTypeNode(sig.Declaration);
+                    var typeNode = Utilities.GetEffectiveReturnTypeNode(sig.Declaration);
                     if (typeNode is not null)
                     {
-                        Error(typeNode, Diagnostics.Return_type_annotation_circularly_references_itself);
+                        // PORT-NOTE: `typeNode` is the `ITypeNode` face and `Error` takes `Node?`; TS's structural typing
+                        // performs this upcast silently (Main's interface→Node finding), C# needs the cast.
+                        Error((Node)typeNode, Diagnostics.Return_type_annotation_circularly_references_itself);
                     }
                     else if (_noImplicitAny)
                     {
@@ -390,7 +407,7 @@ internal sealed partial class Checker
             return GetDeclaredTypeOfClassOrInterface(GetMergedSymbol(((ClassDeclaration)declaration.Parent!).Symbol)!);
         }
 
-        var typeNode = GetEffectiveReturnTypeNode(declaration);
+        var typeNode = Utilities.GetEffectiveReturnTypeNode(declaration);
         if (NodeTests.IsJSDocSignature(declaration))
         {
             var root = Utilities.GetJSDocRoot(declaration);
@@ -418,7 +435,9 @@ internal sealed partial class Checker
                 return jsDocType;
             }
 
-            var setter = GetDeclarationOfKind<Node>(GetSymbolOfDeclaration((IDeclaration)declaration), SyntaxKind.SetAccessor);
+            // PORT-NOTE: `getDeclarationOfKind` is a utilities.ts member (utilities.ts:10694-10702); its one declaration sits
+            // in a `Utilities` partial (Checker/Checker.Support.cs:1858), so the call is qualified.
+            var setter = Utilities.GetDeclarationOfKind<Node>(GetSymbolOfDeclaration((IDeclaration)declaration), SyntaxKind.SetAccessor);
             var setterType = GetAnnotatedAccessorType(setter);
             if (setterType is not null)
             {
@@ -426,7 +445,7 @@ internal sealed partial class Checker
             }
         }
 
-        return GetReturnTypeOfTypeTag(declaration);
+        return GetReturnTypeOfTypeTag(declaration)!;
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -476,14 +495,14 @@ internal sealed partial class Checker
     internal IType GetTypeOfInstantiatedSymbol(ISymbol symbol)
     {
         var links = GetSymbolLinks(symbol);
-        return links.Type ??= InstantiateType(GetTypeOfSymbol(links.Target!), links.Mapper);
+        return links.Type = links.Type ?? InstantiateType(GetTypeOfSymbol(links.Target!), (TypeMapper?)links.Mapper)!;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:12878-12881 — <c>getWriteTypeOfInstantiatedSymbol</c>.</summary>
     internal IType GetWriteTypeOfInstantiatedSymbol(ISymbol symbol)
     {
         var links = GetSymbolLinks(symbol);
-        return links.WriteType ??= InstantiateType(GetWriteTypeOfSymbol(links.Target!), links.Mapper);
+        return links.WriteType = links.WriteType ?? InstantiateType(GetWriteTypeOfSymbol(links.Target!), (TypeMapper?)links.Mapper)!;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:12908-12916 — <c>getTypeOfSymbolWithDeferredType</c>.</summary>
@@ -614,12 +633,12 @@ internal sealed partial class Checker
         if (links.DeclaredType is null)
         {
             var kind = (symbol.Flags & SymbolFlags.Class) != 0 ? ObjectFlags.Class : ObjectFlags.Interface;
-            var merged = MergeJSSymbols(symbol, symbol.ValueDeclaration is not null ? GetAssignedClassSymbol((Node)symbol.ValueDeclaration) : null);
+            var merged = MergeJSSymbols(symbol, symbol.ValueDeclaration is not null ? GetAssignedClassSymbol((IDeclaration)symbol.ValueDeclaration) : null);
             if (merged is not null)
             {
                 // note:we overwrite links because we just cloned the symbol
                 symbol = merged;
-                links = merged.Links!;
+                links = GetSymbolLinks(merged);
             }
 
             var type = (InterfaceType)CreateObjectType(kind, symbol);
@@ -639,7 +658,7 @@ internal sealed partial class Checker
                 type.OuterTypeParameters = outerTypeParameters is null ? null : [.. outerTypeParameters];
                 type.LocalTypeParameters = localTypeParameters is null ? null : [.. localTypeParameters];
                 ((IGenericType)type).Instantiations = new Dictionary<string, ITypeReference>(StringComparer.Ordinal);
-                ((IGenericType)type).Instantiations![GetTypeListId(type.TypeParameters)] = type;
+                ((IGenericType)type).Instantiations![GetTypeListId(TypeListOfParameters(type.TypeParameters))] = type;
                 ((IGenericType)type).Target = (IGenericType)type;
                 ((IGenericType)type).ResolvedTypeArguments = [.. type.TypeParameters!.Select(parameter => (IType)parameter)];
                 type.ThisType = CreateTypeParameter(symbol);
@@ -688,7 +707,7 @@ internal sealed partial class Checker
                     links.TypeParameters = typeParameters;
                     GetSymbolLinks(symbol).TypeParameters = typeParameters;
                     links.Instantiations = new Dictionary<string, IType>(StringComparer.Ordinal);
-                    links.Instantiations[GetTypeListId(typeParameters)] = type;
+                    links.Instantiations[GetTypeListId(TypeListOfParameters(typeParameters))] = type;
                 }
 
                 if (ReferenceEquals(type, _intrinsicMarkerType) && symbol.EscapedName == "BuiltinIteratorReturn")
@@ -701,7 +720,7 @@ internal sealed partial class Checker
                 type = _errorType;
                 if (((Node)declaration!).Kind == SyntaxKind.JSDocEnumTag)
                 {
-                    Error(((JSDocEnumTag)declaration!).TypeExpression!.Type, Diagnostics.Type_alias_0_circularly_references_itself, SymbolToString(symbol));
+                    Error((Node?)((JSDocEnumTag)declaration!).TypeExpression!.Type, Diagnostics.Type_alias_0_circularly_references_itself, SymbolToString(symbol));
                 }
                 else
                 {

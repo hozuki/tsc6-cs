@@ -39,6 +39,17 @@ internal partial class NodeFactory
     /// <summary>How this factory was configured (see <see cref="NodeFactoryFlags"/>).</summary>
     public NodeFactoryFlags Flags => _flags;
 
+    /// <summary>ported from: factory/nodeFactory.ts:7407 — <c>factory</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS declares this singleton at the bottom of <c>nodeFactory.ts</c> as
+    /// <c>createNodeFactory(NodeFactoryFlags.NoIndentationOnFreshPropertyAccess, syntheticFactory)</c>. The port has no
+    /// <c>baseNodeFactory.ts</c> at all (§15.2) and every node already starts synthesized (<c>Node.Pos</c>/<c>End</c>
+    /// default to <c>-1</c>), so only the flags carry over. The checker (M6-6) and the emitter (M7) reach this one
+    /// instance instead of each building their own — <see cref="FactoryUtilities.ParseNodeFactory"/>'s remark makes the
+    /// same argument for the parse-tree factory.
+    /// </remarks>
+    public static NodeFactory Factory { get; } = new(NodeFactoryFlags.NoIndentationOnFreshPropertyAccess);
+
     /// <summary>ported from: factory/nodeFactory.ts:496-522 — the <c>parenthesizerRules()</c> the factory keeps lazily.</summary>
     /// <remarks>
     /// PORT-NOTE: TS memoizes the rules in a closure per factory and switches them off with

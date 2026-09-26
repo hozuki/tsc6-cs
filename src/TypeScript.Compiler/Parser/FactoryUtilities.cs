@@ -511,6 +511,18 @@ internal static partial class FactoryUtilities
             && Utilities.IsInJSFile(node)
             && Utilities.GetJSDocTypeTag(node) is not null;
 
+    /// <summary>ported from: src/compiler/factory/utilities.ts:624-628 — <c>getJSDocTypeAssertionType</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's parameter is the <c>JSDocTypeAssertion</c> intersection type
+    /// (<c>ParenthesizedExpression &amp; InJSFile</c>), which the port's generator widened to <c>Node</c> — the same
+    /// widening §15.15 lists for the node unions that have no common class here; <see cref="IsJSDocTypeAssertion"/> is
+    /// the test that proves the shape at each call site. TS's <c>Debug.assertIsDefined(type)</c> is
+    /// <c>Debug.CheckDefined</c> — the port's assert-and-return, which also discharges <c>getJSDocType</c>'s
+    /// <c>ITypeNode?</c> for the caller.
+    /// </remarks>
+    public static ITypeNode GetJSDocTypeAssertionType(Node node)
+        => Debug.CheckDefined(Utilities.GetJSDocType(node));
+
     /// <summary>ported from: src/compiler/factory/utilities.ts:631-651 — <c>isOuterExpression</c>.</summary>
     public static bool IsOuterExpression(Node node, OuterExpressionKinds kinds = OuterExpressionKinds.All) => node.Kind switch
     {

@@ -3,6 +3,7 @@ namespace TypeScript.Compiler;
 // ported from: src/compiler/utilities.ts:9048-9054 (the `target` computed option), 9291 (getEmitScriptTarget)
 // ported from: src/compiler/utilities.ts:9271-9276 (the `alwaysStrict` computed option), 9323 (getAlwaysStrict)
 // ported from: src/compiler/utilities.ts:9358-9366 (StrictOptionName), 9369-9371 (getStrictOptionValue)
+// ported from: src/compiler/utilities.ts:9406-9409 (getJSXTransformEnabled)
 /// <summary>
 /// The option readers Layer 4 needs, plus the strict-flag reader the checker and the later layers share.
 /// </summary>
@@ -145,5 +146,19 @@ internal static partial class Utilities
             "useUnknownInCatchVariables" => compilerOptions.UseUnknownInCatchVariables ?? (compilerOptions.Strict != false),
             _ => compilerOptions.Strict != false,
         };
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:9406-9409 — <c>getJSXTransformEnabled</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's parameter is a non-null <c>CompilerOptions</c>; every reader in this file takes the nullable
+    /// <see cref="ICompilerOptions"/> the port's model stores (see this file's remarks on <c>getEmitScriptTarget</c>).
+    /// The <c>jsx</c> slot is a <c>JsxEmit?</c>, so an unset option matches none of the three arms — the same answer as
+    /// the reference's <c>undefined</c>.
+    /// </remarks>
+    public static bool GetJSXTransformEnabled(ICompilerOptions? options)
+    {
+        var compilerOptions = options!;
+        var jsx = compilerOptions.Jsx;
+        return jsx == JsxEmit.React || jsx == JsxEmit.ReactJSX || jsx == JsxEmit.ReactJSXDev;
     }
 }

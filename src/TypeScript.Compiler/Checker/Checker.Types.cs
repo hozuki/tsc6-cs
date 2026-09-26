@@ -86,7 +86,15 @@ internal sealed partial class Checker
     internal Dictionary<string, IType> _errorTypes = null!;
 
     /// <summary>ported from: src/compiler/checker.ts:2076 — <c>seenIntrinsicNames</c>.</summary>
-    internal HashSet<string> _seenIntrinsicNames = null!;
+    /// <remarks>
+    /// PORT-NOTE: checker.ts:2076 creates the set three lines *before* the first <c>createIntrinsicType</c>
+    /// (:2078), so the reference's slot always exists by the time <c>checkIntrinsicName</c> (:5544-5550) reads it. The
+    /// port's mirror of that block is <see cref="InitializeBuiltinTypes"/> (which reassigns this slot at its reference
+    /// position), but the M6-0 arrangement lets the type constructors be exercised before that member runs
+    /// (<c>FakeTypeCheckerHost</c> and <c>CheckerTypeConstructionTests</c> do exactly that), so the field starts with
+    /// the empty set instead of <c>null</c> — the reference's own state at any point where an intrinsic can be built.
+    /// </remarks>
+    internal HashSet<string> _seenIntrinsicNames = new(StringComparer.Ordinal);
 
     // ---------------------------------------------------------------------------------------------
     // The built-in types (checker.ts:2078-2199)
@@ -270,6 +278,15 @@ internal sealed partial class Checker
     internal ObjectType _globalNumberType = null!;
     internal ObjectType _globalBooleanType = null!;
     internal Type _autoArrayType = null!;
+
+    // ported from: src/compiler/checker.ts:2334 — `var contextualBindingPatterns: BindingPattern[] = []`.
+    // PORT-NOTE: a checker-level stack the binding-pattern path pushes/pops (checker.ts:12434/:12438 pushes and pops,
+    // :31111 reads); the port declares it here with the rest of the state block rather than leaving it to the slice
+    // that first calls `GetTypeFromBindingPattern`.
+    // PORT-NOTE: TS's `BindingPattern` is the union `ObjectBindingPattern | ArrayBindingPattern` and the generated model
+    // has no such alias (the two classes are siblings under `Node`), so the element face is `Node` — the same upper
+    // bound the generator uses for every union of node classes.
+    internal List<Node> _contextualBindingPatterns = [];
 
     /// <summary>ported from: src/compiler/checker.ts:2171 — <c>noConstraintType</c>.</summary>
     internal ResolvedType _noConstraintType = null!;
@@ -522,9 +539,9 @@ internal sealed partial class Checker
     private static List<IType> TypeListOfParameters(IList<ITypeParameter>? typeParameters)
         => [.. (typeParameters ?? []).Select(parameter => (IType)parameter)];
 
-    /// <summary>PORT-NOTE: as <see cref="TypeListOfParameters"/>, for index-infos: the generated slot is the `IIndexInfo` face, the port's `CreateIndexInfo`/`InstantiateIndexInfos` use the class.</summary>
-    private static List<IndexInfo> IndexInfoList(IList<IIndexInfo>? indexInfos)
-        => [.. (indexInfos ?? []).Select(info => (IndexInfo)info)];
+    /// <summary>PORT-NOTE: as <see cref="TypeList"/>, for index-infos — the model's slots and the checker's <c>InstantiateIndexInfos</c> both use the generated `IIndexInfo` face, so this only narrows an `IList` to the `List` those take (no copy in the common case).</summary>
+    private static List<IIndexInfo> IndexInfoList(IList<IIndexInfo>? indexInfos)
+        => indexInfos as List<IIndexInfo> ?? [.. (indexInfos ?? [])];
 
     /// <summary>ported from: src/compiler/checker.ts:5510-5515 — <c>symbolIsValue</c>.</summary>
     /// <remarks>

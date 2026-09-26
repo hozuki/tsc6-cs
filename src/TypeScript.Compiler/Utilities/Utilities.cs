@@ -1153,4 +1153,712 @@ internal static partial class Utilities
         var parameter = GetSetAccessorValueParameter(node);
         return parameter is not null ? GetEffectiveTypeAnnotationNode(parameter) : null;
     }
+
+    // ---------------------------------------------------------------------------------------------
+    // The M6 checker/node-builder batch — §15.15's convergence wave, group A2-util-high: the
+    // utilities.ts helpers the checker, the node builder and the resolver call. Each member carries
+    // its own reference range.
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>ported from: src/compiler/utilities.ts:8077-8079 — <c>getCombinedLocalAndExportSymbolFlags</c>.</summary>
+    /// <remarks>See comment on <c>declareModuleMember</c> in <c>binder.ts</c>.</remarks>
+    public static SymbolFlags GetCombinedLocalAndExportSymbolFlags(ISymbol symbol)
+        => symbol.ExportSymbol is not null ? symbol.ExportSymbol.Flags | symbol.Flags : symbol.Flags;
+
+    /// <summary>ported from: src/compiler/utilities.ts:8082-8084 — <c>isWriteOnlyAccess</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the private walk that is this member's whole body lands beside it — the <c>AccessKind</c> enum
+    /// (utilities.ts:8091-8098), <c>accessKind</c> (8099-8132) and <c>reverseAccessKind</c> (8133-8144) have no other
+    /// reader in <c>utilities.ts</c>. The walk cannot carry the reference's name (<c>AccessKind</c> is taken by the
+    /// nested enum in this class), so the port spells it <c>AccessKindOf</c>. TS's <c>isWriteAccess</c>
+    /// (utilities.ts:8087-8089) is the other reader of that walk.
+    /// </remarks>
+    public static bool IsWriteOnlyAccess(Node node) => AccessKindOf(node) == AccessKind.Write;
+
+    /// <summary>ported from: src/compiler/utilities.ts:8087-8089 — <c>isWriteAccess</c>.</summary>
+    public static bool IsWriteAccess(Node node) => AccessKindOf(node) != AccessKind.Read;
+
+    /// <summary>ported from: src/compiler/utilities.ts:8091-8098 — <c>AccessKind</c>.</summary>
+    private enum AccessKind
+    {
+        /// <summary>Only reads from a variable.</summary>
+        Read,
+
+        /// <summary>Only writes to a variable without ever reading it. E.g.: <c>x=1;</c>.</summary>
+        Write,
+
+        /// <summary>Reads from and writes to a variable. E.g.: <c>f(x++);</c>, <c>x/=1</c>.</summary>
+        ReadWrite,
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:8099-8132 — <c>accessKind</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS switches on <c>parent?.kind</c>, whose no-match default covers a missing parent; the port states
+    /// that as the early return the switch's own <c>default</c> arm would give, so every cast below is licensed.
+    /// <para>
+    /// PORT-NOTE: TS destructures <c>operator</c> out of the <c>PrefixUnaryExpression | PostfixUnaryExpression</c> pair
+    /// and <c>initializer</c> out of the <c>ForInStatement | ForOfStatement</c> pair; the port reads the class that owns
+    /// the slot, since the two slots have the same shape in both members of each pair.
+    /// </para>
+    /// </remarks>
+    private static AccessKind AccessKindOf(Node node)
+    {
+        var parent = node.Parent;
+        if (parent is null) return AccessKind.Read;
+
+        switch (parent.Kind)
+        {
+            case SyntaxKind.ParenthesizedExpression:
+                return AccessKindOf(parent);
+
+            case SyntaxKind.PostfixUnaryExpression:
+            case SyntaxKind.PrefixUnaryExpression:
+            {
+                var op = parent is PrefixUnaryExpression prefix ? prefix.Operator : ((PostfixUnaryExpression)parent).Operator;
+                return op is SyntaxKind.PlusPlusToken or SyntaxKind.MinusMinusToken ? AccessKind.ReadWrite : AccessKind.Read;
+            }
+
+            case SyntaxKind.BinaryExpression:
+            {
+                var binary = (BinaryExpression)parent;
+                return binary.Left == node && IsAssignmentOperator(binary.OperatorToken!.Kind)
+                    ? binary.OperatorToken!.Kind == SyntaxKind.EqualsToken ? AccessKind.Write : AccessKind.ReadWrite
+                    : AccessKind.Read;
+            }
+
+            case SyntaxKind.PropertyAccessExpression:
+                return ((PropertyAccessExpression)parent).Name != node ? AccessKind.Read : AccessKindOf(parent);
+
+            case SyntaxKind.PropertyAssignment:
+            {
+                var parentAccess = AccessKindOf(parent.Parent!);
+                // In `({ x: varname }) = { x: 1 }`, the left `x` is a read, the right `x` is a write.
+                return node == ((PropertyAssignment)parent).Name ? ReverseAccessKind(parentAccess) : parentAccess;
+            }
+
+            case SyntaxKind.ShorthandPropertyAssignment:
+                // Assume it's the local variable being accessed, since we don't check public properties for --noUnusedLocals.
+                return node == ((ShorthandPropertyAssignment)parent).ObjectAssignmentInitializer
+                    ? AccessKind.Read
+                    : AccessKindOf(parent.Parent!);
+
+            case SyntaxKind.ArrayLiteralExpression:
+                return AccessKindOf(parent);
+
+            case SyntaxKind.ForInStatement:
+            case SyntaxKind.ForOfStatement:
+            {
+                var initializer = parent is ForInStatement forIn ? forIn.Initializer : ((ForOfStatement)parent).Initializer;
+                return node == initializer ? AccessKind.Write : AccessKind.Read;
+            }
+
+            default:
+                return AccessKind.Read;
+        }
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:8133-8144 — <c>reverseAccessKind</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's default arm is <c>Debug.assertNever(a)</c> — a debug-only throw whose release answer is
+    /// <c>undefined</c>; the port's <see cref="Debug.Fail{T}"/> is the same loud answer for an arm the three enum
+    /// members cannot reach.
+    /// </remarks>
+    private static AccessKind ReverseAccessKind(AccessKind a) => a switch
+    {
+        AccessKind.Read => AccessKind.Write,
+        AccessKind.Write => AccessKind.Read,
+        AccessKind.ReadWrite => AccessKind.ReadWrite,
+        _ => Debug.Fail<AccessKind>(),
+    };
+
+    // `getJSXTransformEnabled` (utilities.ts:9406-9409) is declared in this class's `Utilities.Options.cs` part — see it
+    // there; it is the one member of this batch whose home is the option readers' slice.
+
+    /// <summary>ported from: src/compiler/utilities.ts:10379-10381 — <c>rangeOfNode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>getTokenPosOfNode(node)</c> is <c>Utilities.GetTokenPosOfNode</c>, landed by the sibling
+    /// utilities batch (its reference range is utilities.ts:1238-1290). TS builds a <c>TextRange</c> object literal; the
+    /// port's <see cref="TextRange"/> is a constructible class with the same two required slots.
+    /// </remarks>
+    public static TextRange RangeOfNode(Node node)
+        => new() { Pos = GetTokenPosOfNode(node), End = node.End };
+
+    /// <summary>ported from: src/compiler/utilities.ts:10384-10389 — <c>rangeOfTypeParameters</c>.</summary>
+    /// <remarks>
+    /// Include the <c>&lt;&gt;</c>.
+    /// <para>
+    /// PORT-NOTE: TS's <c>sourceFile.text.length</c> is the port's nullable <c>SourceFile.Text</c>, and
+    /// <c>skipTrivia</c> is <see cref="ScannerUtilities.SkipTrivia(string, int, bool, bool, bool)"/>.
+    /// </para>
+    /// </remarks>
+    public static TextRange RangeOfTypeParameters(SourceFile sourceFile, NodeArray<TypeParameterDeclaration> typeParameters)
+    {
+        var text = sourceFile.Text!;
+        var pos = typeParameters.Pos - 1;
+        var end = Math.Min(text.Length, ScannerUtilities.SkipTrivia(text, typeParameters.End) + 1);
+        return new TextRange { Pos = pos, End = end };
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:10579-10586 — <c>isValidTypeOnlyAliasUseSite</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the three private helpers its body reads land beside it — <c>isShorthandPropertyNameUseSite</c>
+    /// (10588-10590), <c>isPartOfPossiblyValidTypeOrAbstractComputedPropertyName</c> (10592-10604) and
+    /// <c>isIdentifierInNonEmittingHeritageClause</c> (10607-10621) — because nothing else reads them. <c>isInJSDoc</c>
+    /// and <c>isExpressionNode</c> are the sibling utilities batch's members (same class, other file).
+    /// </remarks>
+    public static bool IsValidTypeOnlyAliasUseSite(Node useSite)
+        => (useSite.Flags & NodeFlags.Ambient) != 0
+            || IsInJSDoc(useSite)
+            || IsPartOfTypeQuery(useSite)
+            || IsIdentifierInNonEmittingHeritageClause(useSite)
+            || IsPartOfPossiblyValidTypeOrAbstractComputedPropertyName(useSite)
+            || !(IsExpressionNode(useSite) || IsShorthandPropertyNameUseSite(useSite));
+
+    /// <summary>ported from: src/compiler/utilities.ts:10588-10590 — <c>isShorthandPropertyNameUseSite</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>isShorthandPropertyAssignment(useSite.parent) &amp;&amp; useSite.parent.name === useSite</c> is
+    /// the pattern below, which is also what keeps a missing parent from being read (the reference's
+    /// <c>isShorthandPropertyAssignment(undefined)</c> answers <c>false</c> for the same reason).
+    /// </remarks>
+    private static bool IsShorthandPropertyNameUseSite(Node useSite)
+        => NodeTests.IsIdentifier(useSite)
+            && useSite.Parent is ShorthandPropertyAssignment parent
+            && parent.Name == useSite;
+
+    /// <summary>ported from: src/compiler/utilities.ts:10592-10604 —
+    /// <c>isPartOfPossiblyValidTypeOrAbstractComputedPropertyName</c>.</summary>
+    private static bool IsPartOfPossiblyValidTypeOrAbstractComputedPropertyName(Node node)
+    {
+        while (node.Kind == SyntaxKind.Identifier || node.Kind == SyntaxKind.PropertyAccessExpression)
+        {
+            node = node.Parent!;
+        }
+        if (node.Kind != SyntaxKind.ComputedPropertyName)
+        {
+            return false;
+        }
+        if (HasSyntacticModifier(node.Parent!, ModifierFlags.Abstract))
+        {
+            return true;
+        }
+        var containerKind = node.Parent!.Parent!.Kind;
+        return containerKind is SyntaxKind.InterfaceDeclaration or SyntaxKind.TypeLiteral;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:10607-10621 — <c>isIdentifierInNonEmittingHeritageClause</c>.</summary>
+    /// <remarks>
+    /// Returns true for an identifier in 1) an <c>implements</c> clause, and 2) an <c>extends</c> clause of an interface.
+    /// <para>
+    /// PORT-NOTE: TS's <c>findAncestor</c> callback answers the <c>"quit"</c> sentinel in its default arm; the port's
+    /// quit-capable overload expresses that as <c>null</c>.
+    /// </para>
+    /// </remarks>
+    private static bool IsIdentifierInNonEmittingHeritageClause(Node node)
+    {
+        if (node.Kind != SyntaxKind.Identifier) return false;
+
+        var heritageClause = FindAncestor(node.Parent, parent => parent.Kind switch
+        {
+            SyntaxKind.HeritageClause => true,
+            SyntaxKind.PropertyAccessExpression or SyntaxKind.ExpressionWithTypeArguments => false,
+            _ => (bool?)null,
+        });
+        return heritageClause is HeritageClause clause
+            && (clause.Token == SyntaxKind.ImplementsKeyword || clause.Parent!.Kind == SyntaxKind.InterfaceDeclaration);
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:10624-10626 — <c>isIdentifierTypeReference</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's guard narrows to <c>TypeReferenceNode &amp; { typeName: Identifier }</c>; C# cannot narrow through
+    /// a predicate, so the member answers <c>bool</c> and its caller reads <c>((TypeReferenceNode)node).TypeName</c>.
+    /// </remarks>
+    public static bool IsIdentifierTypeReference(Node node)
+        => NodeTests.IsTypeReferenceNode(node) && NodeTests.IsIdentifier(((TypeReferenceNode)node).TypeName!);
+
+    /// <summary>ported from: src/compiler/utilities.ts:10629-10637 — <c>arrayIsHomogeneous</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>comparer</c> defaults to <c>equateValues</c>; a C# parameter cannot default to a generic method
+    /// group, so the port's default is <c>null</c> and the identity comparer is substituted — the same shape
+    /// <c>Core.Contains</c> uses. TS's <c>readonly T[]</c> is the port's <c>IList&lt;T&gt;</c>.
+    /// </remarks>
+    public static bool ArrayIsHomogeneous<T>(IList<T> array, EqualityComparer<T>? comparer = null)
+    {
+        comparer ??= Core.EquateValues;
+        if (array.Count < 2) return true;
+
+        var first = array[0];
+        for (var i = 1; i < array.Count; i++)
+        {
+            if (!comparer(first, array[i])) return false;
+        }
+        return true;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:10683-10692 — <c>setNodeFlags</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS declares two overloads (a non-null <c>T</c> and a <c>T | undefined</c>); C#'s nullable annotations
+    /// do not overload, so the port keeps the single member whose <c>T?</c> covers both. TS's
+    /// <c>(node as Mutable&lt;T&gt;).flags</c> bypasses the readonly slot; the port's <c>Node.Flags</c> is settable, so the
+    /// cast has no counterpart.
+    /// </remarks>
+    public static T? SetNodeFlags<T>(T? node, NodeFlags newFlags) where T : Node
+    {
+        if (node is not null) node.Flags = newFlags;
+        return node;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:10768-10801 — <c>expressionResultIsUnused</c>.</summary>
+    /// <remarks>
+    /// Indicates whether the result of an <c>Expression</c> will be unused.
+    /// <para>
+    /// NOTE: This requires a node with a valid <c>parent</c> pointer.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: TS's parameter is <c>Expression</c>; the port's one caller holds a <c>Node</c> (the checker's binary
+    /// expression walk), so the parameter takes that face — the same treatment
+    /// <see cref="Utilities.GetEffectiveReturnTypeNode"/> records. TS's <c>last(parent.elements)</c> answers
+    /// <c>undefined</c> for a missing or empty array, which is the same "not the last element" answer, so both tests are
+    /// the one branch below. <c>Debug.assertIsDefined</c> is <see cref="Debug.AssertIsDefined{T}"/>.
+    /// </para>
+    /// </remarks>
+    public static bool ExpressionResultIsUnused(Node node)
+    {
+        Debug.AssertIsDefined(node.Parent);
+
+        while (true)
+        {
+            var parent = node.Parent!;
+            // walk up parenthesized expressions, but keep a pointer to the top-most parenthesized expression
+            if (NodeTests.IsParenthesizedExpression(parent))
+            {
+                node = parent;
+                continue;
+            }
+            // result is unused in an expression statement, `void` expression, or the initializer or incrementer of a `for` loop
+            if (NodeTests.IsExpressionStatement(parent)
+                || NodeTests.IsVoidExpression(parent)
+                || (NodeTests.IsForStatement(parent) && (((ForStatement)parent).Initializer == node || ((ForStatement)parent).Incrementor == node)))
+            {
+                return true;
+            }
+            if (NodeTests.IsCommaListExpression(parent))
+            {
+                // left side of comma is always unused
+                var elements = ((CommaListExpression)parent).Elements;
+                if (elements is null || elements.Count == 0 || node != elements[^1]) return true;
+                // right side of comma is unused if parent is unused
+                node = parent;
+                continue;
+            }
+            if (NodeTests.IsBinaryExpression(parent) && ((BinaryExpression)parent).OperatorToken!.Kind == SyntaxKind.CommaToken)
+            {
+                // left side of comma is always unused
+                if (node == ((BinaryExpression)parent).Left) return true;
+                // right side of comma is unused if parent is unused
+                node = parent;
+                continue;
+            }
+            return false;
+        }
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:10880-10897 — <c>hasContextSensitiveParameters</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's parameter is <c>FunctionLikeDeclaration</c>, which has no C# member (§15.15's widened-union list);
+    /// the port takes the <c>Node</c> its caller holds and narrows to <see cref="ISignatureDeclarationBase"/>, the face
+    /// that carries the two slots the reference reads (<c>typeParameters</c>/<c>parameters</c>) — the same pattern
+    /// <see cref="Utilities.GetEffectiveReturnTypeNode"/> uses. A node outside that face is not a function-like
+    /// declaration at all, so <c>false</c> is the reference's answer for it.
+    /// </remarks>
+    public static bool HasContextSensitiveParameters(Node node)
+    {
+        if (node is not ISignatureDeclarationBase signature) return false;
+
+        // Functions with type parameters are not context sensitive.
+        if (signature.TypeParameters is null)
+        {
+            // Functions with any parameters that lack type annotations are context sensitive.
+            if (Core.Some(signature.Parameters, p => GetEffectiveTypeAnnotationNode(p) is null))
+            {
+                return true;
+            }
+            if (node.Kind != SyntaxKind.ArrowFunction)
+            {
+                // If the first parameter is not an explicit 'this' parameter, then the function has
+                // an implicit 'this' parameter which is subject to contextual typing.
+                var parameter = Core.FirstOrUndefined(signature.Parameters);
+                if (!(parameter is not null && ParameterIsThisKeyword(parameter)))
+                {
+                    return (node.Flags & NodeFlags.ContainsThis) != 0;
+                }
+            }
+        }
+        return false;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:10946-10950 — <c>createPropertyNameNodeForIdentifierOrLiteral</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>isIdentifierText(name, target)</c> is <see cref="ScannerUtilities.IsIdentifierText"/> and its
+    /// <c>+name</c> is <see cref="Js.ToNumber"/>. TS's <c>factory</c> is the module-level singleton the port keeps at
+    /// <see cref="NodeFactory.Factory"/>, because <c>Utilities</c> is static and owns no factory. TS's result
+    /// <c>Identifier | StringLiteral | NumericLiteral</c> is stated as their common base <see cref="Node"/>.
+    /// </remarks>
+    public static Node CreatePropertyNameNodeForIdentifierOrLiteral(string name, ScriptTarget target, bool singleQuote, bool stringNamed, bool isMethod)
+    {
+        var factory = NodeFactory.Factory;
+        var isMethodNamedNew = isMethod && name == "new";
+        return !isMethodNamedNew && ScannerUtilities.IsIdentifierText(name, target) ? factory.CreateIdentifier(name)
+            : !stringNamed && !isMethodNamedNew && IsNumericLiteralName(name) && Js.ToNumber(name) >= 0 ? factory.CreateNumericLiteral(Js.ToNumber(name))
+            : factory.CreateStringLiteral(name, singleQuote);
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:10954-10956 — <c>isThisTypeParameter</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's parameter is the <c>Type</c> class and its narrowed read is <c>(type as TypeParameter).isThisType</c>;
+    /// the port's caller holds an <see cref="IType"/> (the node builder's <c>typeToTypeNodeWorker</c>), so the parameter
+    /// takes that face and the class cast follows the flag test exactly as the reference does. The slot is a
+    /// <c>bool?</c> in the port, so "truthy" is <c>== true</c>.
+    /// </remarks>
+    public static bool IsThisTypeParameter(IType type)
+        => (type.Flags & TypeFlags.TypeParameter) != 0 && ((TypeParameter)type).IsThisType == true;
+
+    /// <summary>ported from: src/compiler/utilities.ts:11048-11051 — <c>canHaveExportModifier</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's guard narrows to <c>Extract&lt;HasModifiers, Statement&gt;</c>, one of the widened-union names
+    /// §15.15 lists; the member answers <c>bool</c> and its two callers read the modifiers through
+    /// <see cref="Utilities.ModifiersOf"/>. <c>isTypeDeclaration</c> and <c>isGlobalScopeAugmentation</c> are this class's
+    /// members (other files); <c>isExternalModuleAugmentation</c> is the sibling utilities batch's.
+    /// </remarks>
+    public static bool CanHaveExportModifier(Node node)
+        => NodeTests.IsEnumDeclaration(node) || NodeTests.IsVariableStatement(node) || NodeTests.IsFunctionDeclaration(node) || NodeTests.IsClassDeclaration(node)
+            || NodeTests.IsInterfaceDeclaration(node) || IsTypeDeclaration(node)
+            || (NodeTests.IsModuleDeclaration(node) && !IsExternalModuleAugmentation(node) && !IsGlobalScopeAugmentation((ModuleDeclaration)node));
+
+    /// <summary>ported from: src/compiler/utilities.ts:11063-11071 — <c>canUsePropertyAccess</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>charCodeAt</c> reads are the port's <c>string</c> indexer (a <c>char</c>, which converts to the
+    /// <c>int</c> <see cref="ScannerUtilities.IsIdentifierStart"/> takes) and <c>CharacterCodes.hash</c> is
+    /// <see cref="CharacterCodes.Hash"/>.
+    /// </remarks>
+    public static bool CanUsePropertyAccess(string name, ScriptTarget languageVersion)
+    {
+        if (name.Length == 0)
+        {
+            return false;
+        }
+        var firstChar = name[0];
+        return firstChar == CharacterCodes.Hash
+            ? name.Length > 1 && ScannerUtilities.IsIdentifierStart(name[1], languageVersion)
+            : ScannerUtilities.IsIdentifierStart(firstChar, languageVersion);
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:11127-11129 — <c>getEscapedTextOfJsxAttributeName</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>JsxAttributeName</c> is the union <c>Identifier | JsxNamespacedName</c>, which the port has no
+    /// member for (§15.15's widened-union list); the parameter takes the <c>Node</c> both callers hold, tests the
+    /// identifier case and casts to the namespaced class in the other arm — the pattern the reference's guard licenses.
+    /// </remarks>
+    public static string GetEscapedTextOfJsxAttributeName(Node node)
+        => NodeTests.IsIdentifier(node) ? ((Identifier)node).EscapedText! : GetEscapedTextOfJsxNamespacedName((JsxNamespacedName)node);
+
+    /// <summary>ported from: src/compiler/utilities.ts:11154-11156 — <c>intrinsicTagNameToString</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: as with <see cref="GetEscapedTextOfJsxAttributeName"/>, TS's <c>Identifier | JsxNamespacedName</c>
+    /// union has no C# member; the parameter takes the <c>Node</c> the caller holds.
+    /// </remarks>
+    public static string IntrinsicTagNameToString(Node node)
+        => NodeTests.IsIdentifier(node) ? IdText(node) : GetTextOfJsxNamespacedName((JsxNamespacedName)node);
+
+    /// <summary>ported from: src/compiler/utilities.ts:11181-11183 — <c>isExpandoPropertyDeclaration</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's guard takes <c>Declaration | undefined</c> and narrows to the three expression kinds; the port's
+    /// <c>Declaration</c> face is <see cref="IDeclaration"/> (the union the generator widened), the test runs on the node
+    /// classes because a predicate cannot narrow, and the answer is <c>bool</c>. The callers pass <c>IDeclaration?</c>.
+    /// </remarks>
+    public static bool IsExpandoPropertyDeclaration(IDeclaration? declaration)
+        => declaration is Node node
+            && (node is PropertyAccessExpression || node is ElementAccessExpression || node is BinaryExpression);
+
+    /// <summary>ported from: src/compiler/utilities.ts:12064-12085 — <c>hasInferredType</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's guard narrows to <c>HasInferredType</c>, which does not exist in the port (§15.15's widened-union
+    /// list); the member answers <c>bool</c>, which is also the shape its caller needs (a <c>Func&lt;Node, bool&gt;</c> node
+    /// test passed to <c>Utilities.GetParseTreeNode</c>). <c>Debug.type</c>/<c>assertType</c> are compile-time
+    /// annotations with no runtime counterpart, and the switch's default arm is TS's <c>false</c>.
+    /// </remarks>
+    public static bool HasInferredType(Node node)
+        => node.Kind is SyntaxKind.Parameter
+            or SyntaxKind.PropertySignature
+            or SyntaxKind.PropertyDeclaration
+            or SyntaxKind.BindingElement
+            or SyntaxKind.PropertyAccessExpression
+            or SyntaxKind.ElementAccessExpression
+            or SyntaxKind.BinaryExpression
+            or SyntaxKind.VariableDeclaration
+            or SyntaxKind.ExportAssignment
+            or SyntaxKind.PropertyAssignment
+            or SyntaxKind.ShorthandPropertyAssignment
+            or SyntaxKind.JSDocParameterTag
+            or SyntaxKind.JSDocPropertyTag;
+
+    /// <summary>ported from: src/compiler/utilities.ts:12165-12169 — <c>nodeCoreModules</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS builds this set at module load from two other module-level consts. The port's two halves —
+    /// <c>UnprefixedNodeCoreModules</c> (its <c>unprefixedNodeCoreModules</c>) and
+    /// <c>ExclusivelyPrefixedNodeCoreModules</c> (<c>exclusivelyPrefixedNodeCoreModules</c>) — are <c>static readonly</c>
+    /// fields of this same partial class, declared in <c>Program/Utilities.Program.Nodes.cs</c>, and C# gives no ordering
+    /// guarantee for the static initializers of a partial type's parts: an eager field here could observe them as null.
+    /// The union is therefore built once, on first read, by <see cref="CreateNodeCoreModules"/>, which is the reference's
+    /// own expression (the unprefixed list, that list prefixed with <c>node:</c>, and the exclusively-prefixed list).
+    /// </remarks>
+    public static HashSet<string> NodeCoreModules => s_nodeCoreModules ??= CreateNodeCoreModules();
+
+    private static HashSet<string>? s_nodeCoreModules;
+
+    private static HashSet<string> CreateNodeCoreModules()
+    {
+        var result = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var name in UnprefixedNodeCoreModules)
+        {
+            result.Add(name);
+            result.Add("node:" + name);
+        }
+        result.UnionWith(ExclusivelyPrefixedNodeCoreModules);
+        return result;
+    }
+
+    /// <summary>ported from: src/compiler/visitorPublic.ts's <c>visitEachChild</c> family — the alias the checker reads at
+    /// src/compiler/checker.ts:1134 — <c>visitEachChildWorker</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: loud, named blocker (M6NodeBuilder's note, moved with the member). <c>visitorPublic.ts</c> (1,808 lines,
+    /// Layer 6) is not ported, and <c>checker.ts:1134</c> merely aliases its <c>visitEachChild</c>. The node builder's
+    /// callers (checker.ts:7345, 8420, 9271) are all reuse/elision paths — they clone a subtree with initializers elided,
+    /// or attach a symbol to the leftmost identifier — and returning a partially visited node would silently corrupt
+    /// declaration emit, so the port throws a <see cref="NotSupportedException"/> naming <c>visitorPublic.ts</c> and
+    /// Layer 6/M7 instead of guessing. Pinned by
+    /// <c>CheckerNodeBuilderTests.VisitEachChildWorker_IsALoudNamedBlocker</c>.
+    /// <para>
+    /// PORT-NOTE: the member is non-generic, where TS's <c>visitEachChild</c>/<c>visitEachChildWorker</c> is generic in the
+    /// node type: every caller passes a <c>Node</c>, and the one member that needs its input's type back
+    /// (<see cref="GetSynthesizedDeepCloneWorker"/>) states the cast TS's inference supplied. The reference's
+    /// <c>context</c>/<c>nodesVisitor</c>/<c>nodeVisitor</c> slots keep their shapes and their defaults.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: its home is <c>Utilities</c> — §15.15 rules that a <c>visitorPublic.ts</c> member lands on the class named
+    /// after its module and is called qualified, so the earlier <c>Checker</c> copy was deleted when its four call sites
+    /// were requalified. M6's reflection guard (the two classes must not declare the same name) depends on that.
+    /// </para>
+    /// </remarks>
+    public static Node VisitEachChildWorker(
+        Node node,
+        Func<Node, Node?> cbNode,
+        object? context,
+        Func<NodeArray<Node>?, Func<Node, object?>, Func<Node, bool>?, int?, int?, NodeArray<Node>?>? nodesVisitor = null,
+        Func<Node, Node?>? nodeVisitor = null)
+        => throw new NotSupportedException(
+            "visitEachChildWorker (checker.ts:1134 → visitorPublic.ts visitEachChild) is not ported — Layer 6/M7. "
+            + "The node builder's reuse/elision paths (checker.ts:7345, 8420, 9271) cannot run until it lands.");
+
+    /// <summary>ported from: src/compiler/utilities.ts:12321-12326 — <c>getSynthesizedDeepClone</c>.</summary>
+    /// <remarks>
+    /// Creates a deep, memberwise clone of a node with no source map location.
+    /// <para>
+    /// WARNING: This is an expensive operation and is only intended to be used in refactorings and code fixes (because
+    /// those are triggered by explicit user actions).
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: the reference body is ported whole; its traversal bottoms out in
+    /// <see cref="VisitEachChildWorker"/> (checker.ts:1134 → <c>visitorPublic.ts</c>'s <c>visitEachChild</c>, Layer 6/M7 —
+    /// that member is §15.15's named loud blocker for the unported visitor). Everything above the traversal is the
+    /// reference's own code, so the visitor landing makes this member work with no rewrite.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: TS's signature is <c>&lt;T extends Node | undefined&gt;(node: T, includeTrivia = true): T</c>; the port's
+    /// one caller holds a non-null <c>Expression</c>, so the member takes the non-nullable <c>T</c> — the same narrowing
+    /// <see cref="Utilities.SetParentRecursive"/> records — and the reference's <c>node &amp;&amp; …</c> guard has nothing
+    /// left to guard.
+    /// </para>
+    /// </remarks>
+    public static T GetSynthesizedDeepClone<T>(T node, bool includeTrivia = true) where T : Node
+    {
+        var clone = GetSynthesizedDeepCloneWorker(node);
+        if (!includeTrivia) SuppressLeadingAndTrailingTrivia(clone);
+        return SetParentRecursive(clone, /*incremental*/ false);
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:12328-12343 — <c>getSynthesizedDeepCloneWithReplacements</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>clone: Node | undefined</c> local is the port's <c>Node?</c> and the closing <c>clone as T</c>
+    /// is the downcast its <c>node as NonNullable&lt;T&gt;</c> argument licenses; <c>replaceNode</c> is a
+    /// <c>Func&lt;Node, Node?&gt;</c> because TS's <c>Node | undefined</c> return has no other C# face. TS's
+    /// <c>setOriginalNode</c> is <see cref="NodeFactory.SetOriginalNode{T}"/>.
+    /// </remarks>
+    public static T GetSynthesizedDeepCloneWithReplacements<T>(T node, bool includeTrivia, Func<Node, Node?> replaceNode) where T : Node
+    {
+        var clone = replaceNode(node);
+        if (clone is not null)
+        {
+            NodeFactory.SetOriginalNode(clone, node);
+        }
+        else
+        {
+            clone = GetSynthesizedDeepCloneWorker(node, replaceNode);
+        }
+
+        if (!includeTrivia) SuppressLeadingAndTrailingTrivia(clone);
+        return (T)clone;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:12345-12368 — <c>getSynthesizedDeepCloneWorker</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS declares <c>nodeClone</c>/<c>nodesClone</c> as locally inferred generic function types; the port
+    /// states the faces the visitor call takes — <c>Func&lt;Node, Node?&gt;</c> and
+    /// <c>Func&lt;INodeArray&lt;INode&gt;, INodeArray&lt;INode&gt;&gt;</c>. The port's <c>visitNodes</c> hands a
+    /// <c>NodeArray&lt;Node&gt;</c> over as <c>INodeArray&lt;INode&gt;</c> (§12.9), so the array arm downcasts — the same
+    /// shape <see cref="Utilities.SetParentRecursive"/>'s PORT-NOTE records. TS's module-level <c>factory</c> is
+    /// <see cref="NodeFactory.Factory"/> and its <c>(visited as Mutable&lt;T&gt;).parent = undefined</c> write is the
+    /// port's settable <c>Node.Parent</c>.
+    /// <para>
+    /// PORT-NOTE: TS's <c>visitEachChild</c> is generic and hands the node's own type back; the port's
+    /// <see cref="VisitEachChildWorker"/> is the non-generic blocker, so the non-leaf arm states the <c>(T)</c> cast TS's
+    /// inference supplied.
+    /// </para>
+    /// </remarks>
+    private static T GetSynthesizedDeepCloneWorker<T>(T node, Func<Node, Node?>? replaceNode = null) where T : Node
+    {
+        Func<Node, Node?> nodeClone = replaceNode is not null
+            ? n => GetSynthesizedDeepCloneWithReplacements(n, /*includeTrivia*/ true, replaceNode)
+            : n => GetSynthesizedDeepClone(n);
+        Func<INodeArray<INode>, INodeArray<INode>> nodesClone = replaceNode is not null
+            ? ns => GetSynthesizedDeepClonesWithReplacements((NodeArray<Node>)ns, /*includeTrivia*/ true, replaceNode)
+            : ns => GetSynthesizedDeepClones((NodeArray<Node>)ns)!;
+        // PORT-NOTE: TS passes `nodesClone` (a one-parameter function) where `visitEachChild`'s `nodesVisitor` declares
+        // the six-parameter `NodesVisitor`; a JS function with fewer parameters is assignable to one with more, while a
+        // C# delegate is not, so the port states the adapter that drops the four parameters the reference never reads
+        // here (`token`, `nodesVisitor`, `start`, `count`). `VisitEachChildWorker` is the §15.15 named loud blocker, so
+        // this call cannot run yet; the adapter keeps the call's shape exactly as the reference has it.
+        var visited = VisitEachChildWorker(node, nodeClone, /*context*/ null,
+            (NodeArray<Node>? nodes, Func<Node, object?> _, Func<Node, bool>? _, int? _, int? _) => (NodeArray<Node>?)nodesClone(nodes!), nodeClone);
+
+        if (ReferenceEquals(visited, node))
+        {
+            // This only happens for leaf nodes - internal nodes always see their children change.
+            Node clone = NodeTests.IsStringLiteral(node)
+                ? NodeFactory.SetOriginalNode(NodeFactory.Factory.CreateStringLiteralFromNode(node, /*isSingleQuote*/ null), node)
+                : NodeTests.IsNumericLiteral(node)
+                    ? NodeFactory.SetOriginalNode(NodeFactory.Factory.CreateNumericLiteral(((NumericLiteral)(Node)node).Text!, ((NumericLiteral)(Node)node).NumericLiteralFlags), node)
+                    : NodeFactory.Factory.CloneNode(node);
+            return SetTextRange((T)clone, node);
+        }
+
+        // PERF: As an optimization, rather than calling factory.cloneNode, we'll update
+        // the new node created by visitEachChild with the extra changes factory.cloneNode
+        // would have made.
+        visited.Parent = null;
+        return (T)visited;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:12370-12380 — <c>getSynthesizedDeepClones</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS declares three overloads so that a non-null input keeps a non-null output; C#'s nullable annotations
+    /// do not overload, so the port keeps the widened <c>NodeArray&lt;T&gt;?</c> form of the implementation, which covers
+    /// both — the reference's <c>return nodes</c> is the null arm. TS's <c>factory.createNodeArray</c> is
+    /// <see cref="NodeFactory.CreateNodeArray{T}"/> over the mapped list and <c>nodes.hasTrailingComma</c>.
+    /// </remarks>
+    public static NodeArray<T>? GetSynthesizedDeepClones<T>(NodeArray<T>? nodes, bool includeTrivia = true) where T : Node
+    {
+        if (nodes is null) return null;
+
+        // Ensure we explicitly make a copy of an empty array; visitNodes will not do this unless the array has elements,
+        // so we may end up reusing the same node array if no elements were cloned.
+        var cloned = NodeFactory.Factory.CreateNodeArray(Core.Map(nodes, (n, _) => GetSynthesizedDeepClone(n, includeTrivia)), nodes.HasTrailingComma);
+        SetTextRange(cloned, nodes);
+        return cloned;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:12384-12390 — <c>getSynthesizedDeepClonesWithReplacements</c>.</summary>
+    public static NodeArray<T> GetSynthesizedDeepClonesWithReplacements<T>(NodeArray<T> nodes, bool includeTrivia, Func<Node, Node?> replaceNode) where T : Node
+        => NodeFactory.Factory.CreateNodeArray(
+            Core.Map(nodes, (n, _) => GetSynthesizedDeepCloneWithReplacements(n, includeTrivia, replaceNode)),
+            nodes.HasTrailingComma);
+
+    /// <summary>ported from: src/compiler/utilities.ts:12397-12400 — <c>suppressLeadingAndTrailingTrivia</c>.</summary>
+    /// <remarks>Sets EmitFlags to suppress leading and trailing trivia on the node.</remarks>
+    public static void SuppressLeadingAndTrailingTrivia(Node node)
+    {
+        SuppressLeadingTrivia(node);
+        SuppressTrailingTrivia(node);
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:12407-12409 — <c>suppressLeadingTrivia</c>.</summary>
+    /// <remarks>Sets EmitFlags to suppress leading trivia on the node.</remarks>
+    public static void SuppressLeadingTrivia(Node node) => AddEmitFlagsRecursively(node, EmitFlags.NoLeadingComments, GetFirstChild);
+
+    /// <summary>ported from: src/compiler/utilities.ts:12416-12418 — <c>suppressTrailingTrivia</c>.</summary>
+    /// <remarks>
+    /// Sets EmitFlags to suppress trailing trivia on the node.
+    /// <para>
+    /// PORT-NOTE: the reference's <c>getLastChild</c> is this class's existing <see cref="GetLastChild"/>
+    /// (utilities.ts:8295, <c>Utilities/Utilities.Parser.cs</c>) — the same function the reference hoists into its
+    /// tree-walking section, so no second copy is declared.
+    /// </para>
+    /// </remarks>
+    public static void SuppressTrailingTrivia(Node node) => AddEmitFlagsRecursively(node, EmitFlags.NoTrailingComments, GetLastChild);
+
+    /// <summary>ported from: src/compiler/utilities.ts:12420-12424 — <c>addEmitFlagsRecursively</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>addEmitFlags</c> is <see cref="EmitNodes.AddEmitFlags{T}"/> (that module's function, landed as a
+    /// static on the class named after it) and its <c>getChild</c> parameter is the <c>Func&lt;Node, Node?&gt;</c> the two
+    /// callers pass.
+    /// </remarks>
+    private static void AddEmitFlagsRecursively(Node node, EmitFlags flag, Func<Node, Node?> getChild)
+    {
+        EmitNodes.AddEmitFlags(node, flag);
+        var child = getChild(node);
+        if (child is not null) AddEmitFlagsRecursively(child, flag, getChild);
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:12426-12428 — <c>getFirstChild</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>forEachChild</c> is <see cref="ForEachChildTable.ForEachChild{T}"/>, whose callback result is the
+    /// truthiness short-circuit the reference relies on: returning the child stops the walk at the first one.
+    /// </remarks>
+    private static Node? GetFirstChild(Node node) => ForEachChildTable.ForEachChild<Node>(node, child => child);
+
+    /// <summary>ported from: src/compiler/factory/utilitiesPublic.ts:43-52 — <c>canHaveDecorators</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's guard narrows to <c>HasDecorators</c>, one of the widened-union names §15.15 lists; the member
+    /// answers <c>bool</c> and its one caller (<c>checkDecorators</c>) reads the modifiers through
+    /// <see cref="Utilities.ModifiersOf"/>. The reference file is <c>factory/utilitiesPublic.ts</c>, whose module-level
+    /// functions land on this class per §15.9.
+    /// </remarks>
+    public static bool CanHaveDecorators(Node node) => node.Kind is SyntaxKind.Parameter
+        or SyntaxKind.PropertyDeclaration
+        or SyntaxKind.MethodDeclaration
+        or SyntaxKind.GetAccessor
+        or SyntaxKind.SetAccessor
+        or SyntaxKind.ClassExpression
+        or SyntaxKind.ClassDeclaration;
+
+    /// <summary>ported from: src/compiler/transformers/utilities.ts:630-633 — <c>isInitializedProperty</c>.</summary>
+    /// <remarks>
+    /// Gets a value indicating whether a class element is a static or instance property declaration with an initializer.
+    /// <para>
+    /// PORT-NOTE: TS's guard takes <c>ClassElement</c> and narrows to
+    /// <c>PropertyDeclaration &amp; { initializer: Expression }</c>; the port takes the <c>Node</c> its caller holds and
+    /// answers <c>bool</c>. TS's <c>initializer !== undefined</c> is the port's <c>is not null</c> for the nullable slot.
+    /// </para>
+    /// </remarks>
+    public static bool IsInitializedProperty(Node member)
+        => member is PropertyDeclaration declaration && declaration.Initializer is not null;
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1727-1729 — <c>isFunctionOrModuleBlock</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>isFunctionLike(node.parent)</c> reads a possibly-missing parent; the port's
+    /// <see cref="Utilities.IsFunctionLike"/> takes <c>Node?</c> and answers <c>false</c> for it, so the two members agree
+    /// on the missing-parent case without a guard.
+    /// </remarks>
+    public static bool IsFunctionOrModuleBlock(Node node)
+        => NodeTests.IsSourceFile(node) || NodeTests.IsModuleBlock(node)
+            || (NodeTests.IsBlock(node) && IsFunctionLike(node.Parent));
 }

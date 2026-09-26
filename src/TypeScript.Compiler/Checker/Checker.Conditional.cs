@@ -226,7 +226,7 @@ internal sealed partial class Checker
                     // We don't want inferences from constraints as they may cause us to eagerly resolve the
                     // conditional type instead of deferring resolution. Also, we always want strict function
                     // types rules (i.e. proper contravariance) for inferences.
-                    InferTypes(context.Inferences, checkType, extendsType, InferencePriority.NoConstraints | InferencePriority.AlwaysStrict);
+                    InferTypes(context.Inferences!, checkType, extendsType, InferencePriority.NoConstraints | InferencePriority.AlwaysStrict);
                 }
 
                 // It's possible for 'infer T' type paramteters to be given uninstantiated constraints when the
@@ -515,7 +515,7 @@ internal sealed partial class Checker
             }
 
             var isExportEquals = innerModuleSymbol.Exports is not null && innerModuleSymbol.Exports.ContainsKey(InternalSymbolName.ExportEquals.Value);
-            var moduleSymbol = ResolveExternalModuleSymbol(innerModuleSymbol, /*dontResolveAlias*/ false);
+            var moduleSymbol = ResolveExternalModuleSymbol(innerModuleSymbol, /*dontResolveAlias*/ false)!;
             if (!Utilities.NodeIsMissing(node.Qualifier))
             {
                 var nameStack = GetIdentifierChain(node.Qualifier!);
@@ -764,7 +764,7 @@ internal sealed partial class Checker
         if ((left.Flags & TypeFlags.Union) != 0)
         {
             return CheckCrossProductUnion([left, right])
-                ? MapType(left, t => GetSpreadType(t, right, symbol, objectFlags, @readonly))
+                ? MapType(left, t => GetSpreadType(t, right, symbol, objectFlags, @readonly))!
                 : _errorType;
         }
 
@@ -772,7 +772,7 @@ internal sealed partial class Checker
         if ((right.Flags & TypeFlags.Union) != 0)
         {
             return CheckCrossProductUnion([left, right])
-                ? MapType(right, t => GetSpreadType(left, t, symbol, objectFlags, @readonly))
+                ? MapType(right, t => GetSpreadType(left, t, symbol, objectFlags, @readonly))!
                 : _errorType;
         }
 
@@ -976,7 +976,7 @@ internal sealed partial class Checker
         if ((type.Flags & TypeFlags.Union) != 0)
         {
             var union = (UnionType)type;
-            return union.RegularType ??= (IUnionType)MapType(union, t => GetRegularTypeOfLiteralType(t));
+            return union.RegularType ??= (IUnionType)MapType(union, t => GetRegularTypeOfLiteralType(t))!;
         }
 
         return type;

@@ -27,8 +27,36 @@ namespace TypeScript.Compiler;
 /// (checker.ts:21271-26773), M6-3.</item>
 /// <item><c>Checker/Checker.Inference.cs</c> — inference, contextual typing and call resolution
 /// (checker.ts:26774-32780, 34740-37809), M6-4.</item>
-/// <item><c>Checker/Checker.Check.cs</c> — <c>checkExpression</c> and the declaration checks, diagnostics and
-/// <c>checkSourceFile</c> (checker.ts:37810-51554), M6-5.</item>
+/// <item><c>Checker/Checker.Check.cs</c> — the object/array-literal and JSX checks (checker.ts:33262-34739), M6-5.</item>
+/// <item><c>Checker/Checker.Check.Calls.cs</c> — call expressions, the assertion/satisfies family, decorator
+/// contexts and the promise/generator/return-type aggregation (checker.ts:37810-39600), M6-5.</item>
+/// <item><c>Checker/Checker.Check.Operators.cs</c> — function-expression and object-literal-method checks,
+/// unary/binary/conditional/template expressions, assignments and destructuring, contextual typing
+/// (checker.ts:39601-41595), M6-5.</item>
+/// <item><c>Checker/Checker.Check.Expressions.cs</c> — <c>checkExpression</c>/<c>checkExpressionWorker</c>,
+/// the type-parameter/signature declarations and the type-node checks (checker.ts:41596-43056), M6-5.</item>
+/// <item><c>Checker/Checker.Check.Symbols.cs</c> — <c>checkFunctionOrConstructorSymbol</c>, the awaited-type family,
+/// decorators and the unused-identifier checks (checker.ts:43057-44780), M6-5.</item>
+/// <item><c>Checker/Checker.Check.Statements.cs</c> — the generated-code collision checks, variable-like
+/// declarations, the statement checks and the iteration types (checker.ts:44781-46750), M6-5.</item>
+/// <item><c>Checker/Checker.Check.Classes.cs</c> — index constraints, type parameters, the class/interface/type-alias
+/// and enum declarations (checker.ts:46751-48313), M6-5.</item>
+/// <item><c>Checker/Checker.Check.Modules.cs</c> — the module/import/export declarations,
+/// <c>checkSourceElement</c> and the deferred-node queue (checker.ts:48314-49546), M6-5.</item>
+/// <item><c>Checker/Checker.Check.Source.cs</c> — <c>checkSourceFile</c>, the diagnostics collections,
+/// <c>getSymbolsInScope</c>/<c>getSymbolAtLocation</c>/<c>getTypeOfNode</c> (checker.ts:49547-50863), M6-5.</item>
+/// <item><c>Checker/Checker.Check.Flags.cs</c> — <c>requiresAddingImplicitUndefined</c>, the node check flags,
+/// <c>getTypeReferenceSerializationKind</c>, <c>createTypeOfDeclaration</c> and
+/// <c>isLiteralConstDeclaration</c>/<c>createLiteralConstValue</c> (checker.ts:50864-51378), M6-5.</item>
+/// <item><c>Checker/Checker.Check.Grammar.cs</c> — the emit-helper checks and the whole grammar-check family
+/// (checker.ts:51685-53669), M6-5.</item>
+/// <item><c>Checker/Checker.Check.Sort.cs</c> — the property-name/type comparers the stable type ordering uses
+/// (checker.ts:53761-54200), M6-5.</item>
+/// <item><c>Checker/Checker.CreateTypeChecker.cs</c> — the assembly: <c>CreateTypeChecker</c> and the
+/// <c>TypeChecker</c> object literal's members as the class's <c>ITypeChecker</c> surface (checker.ts:1610-2412),
+/// M6-5.</item>
+/// <item><c>Checker/Checker.Initialize.cs</c> — the state block, its wrapper helpers and
+/// <c>initializeTypeChecker</c> (checker.ts:1999-2410, 51555-51684), M6-5.</item>
 /// <item><c>Checker/Checker.NodeBuilder.cs</c> — <c>createNodeBuilder</c>, <c>createResolver</c> and the string
 /// converters (checker.ts:5980-11323, 51380-54434), M6-6.</item>
 /// <item><c>Checker/CheckerEnums.cs</c> — the module-level enums (checker.ts:1157-1450).</item>
@@ -52,16 +80,10 @@ namespace TypeScript.Compiler;
 /// rather than declared with a placeholder value, so that nothing can read a silently wrong one. Each has its slot
 /// added by the slice that lands its factory, with the reference initializer:
 /// <list type="bullet">
-/// <item><c>moduleKind = getEmitModuleKind(compilerOptions)</c> (checker.ts:1530),
-/// <c>useDefineForClassFields</c> (:1532), <c>emitStandardClassFields</c> (:1533),
-/// <c>allowSyntheticDefaultImports</c> (:1534) — the four <c>utilities.ts</c> option helpers the M6 utilities slice
-/// ports.</item>
 /// <item><c>checkBinaryExpression = createCheckBinaryExpression()</c> (:1549) — M6-5.</item>
 /// <item><c>nodeBuilder = createNodeBuilder()</c> (:1551) and
 /// <c>syntacticNodeBuilder = createSyntacticTypeNodeBuilder(compilerOptions, nodeBuilder.syntacticBuilderResolver)</c>
 /// (:1552) — M6-6 (with <c>expressionToTypeNode.ts</c>).</item>
-/// <item><c>evaluate = createEvaluator({ … })</c> (:1553) — the M6 utilities slice
-/// (<c>utilities.ts:11316</c>).</item>
 /// <item><c>resolveName</c> (:1579) and <c>resolveNameForSymbolSuggestion</c> (:1594), both
 /// <c>createNameResolver({ … })</c> — the M6 utilities slice (<c>utilities.ts:11491</c>), whose C# shape that slice
 /// decides. The globals they close over (<see cref="_globals"/>, <see cref="_requireSymbol"/>,
@@ -95,9 +117,13 @@ internal sealed partial class Checker
         _host = host;
         _compilerOptions = host.GetCompilerOptions();
 
-        // checker.ts:1529, 1531, 1535-1547, 1569-1570
+        // checker.ts:1529-1534, 1535-1547, 1569-1570
         _languageVersion = Utilities.GetEmitScriptTarget(_compilerOptions);
+        _moduleKind = Utilities.GetEmitModuleKind(_compilerOptions);
         _legacyDecorators = Js.IsTruthy(_compilerOptions.ExperimentalDecorators);
+        _useDefineForClassFields = Utilities.GetUseDefineForClassFields(_compilerOptions);
+        _emitStandardClassFields = Utilities.GetEmitStandardClassFields(_compilerOptions);
+        _allowSyntheticDefaultImports = Utilities.GetAllowSyntheticDefaultImports(_compilerOptions);
         _strictNullChecks = Utilities.GetStrictOptionValue(_compilerOptions, "strictNullChecks");
         _strictFunctionTypes = Utilities.GetStrictOptionValue(_compilerOptions, "strictFunctionTypes");
         _strictBindCallApply = Utilities.GetStrictOptionValue(_compilerOptions, "strictBindCallApply");
@@ -109,6 +135,11 @@ internal sealed partial class Checker
         _exactOptionalPropertyTypes = _compilerOptions.ExactOptionalPropertyTypes;
         _noUncheckedSideEffectImports = _compilerOptions.NoUncheckedSideEffectImports != false;
         _stableTypeOrdering = Js.IsTruthy(_compilerOptions.StableTypeOrdering);
+
+        // checker.ts:1553-1556 — `evaluate = createEvaluator({ evaluateElementAccessExpression, evaluateEntityNameExpression })`.
+        _evaluate = Utilities.CreateEvaluator(
+            EvaluateElementAccessExpression,
+            EvaluateEntityNameExpression);
         _isolatedModulesLikeFlagName = Js.IsTruthy(_compilerOptions.VerbatimModuleSyntax) ? "verbatimModuleSyntax" : "isolatedModules";
         _canCollectSymbolAliasAccessabilityData = !Js.IsTruthy(_compilerOptions.VerbatimModuleSyntax);
 
@@ -242,8 +273,30 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:1529 — <c>languageVersion</c>.</summary>
     internal readonly ScriptTarget _languageVersion;
 
+    /// <summary>ported from: src/compiler/checker.ts:1553-1556 — <c>evaluate</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS builds this at :1553 as <c>createEvaluator({ evaluateElementAccessExpression,
+    /// evaluateEntityNameExpression })</c>; the two resolver methods are this class's
+    /// <see cref="EvaluateElementAccessExpression"/> / <see cref="EvaluateEntityNameExpression"/> (the same pair the
+    /// generated <c>ITypeChecker</c> surface exposes), so the ctor passes them as method groups — see
+    /// <see cref="Utilities.CreateEvaluator"/>.
+    /// </remarks>
+    internal readonly EvaluateDelegate _evaluate;
+
+    /// <summary>ported from: src/compiler/checker.ts:1530 — <c>moduleKind</c>.</summary>
+    internal readonly ModuleKind _moduleKind;
+
     /// <summary>ported from: src/compiler/checker.ts:1531 — <c>legacyDecorators</c>.</summary>
     internal readonly bool _legacyDecorators;
+
+    /// <summary>ported from: src/compiler/checker.ts:1532 — <c>useDefineForClassFields</c>.</summary>
+    internal readonly bool _useDefineForClassFields;
+
+    /// <summary>ported from: src/compiler/checker.ts:1533 — <c>emitStandardClassFields</c>.</summary>
+    internal readonly bool _emitStandardClassFields;
+
+    /// <summary>ported from: src/compiler/checker.ts:1534 — <c>allowSyntheticDefaultImports</c>.</summary>
+    internal readonly bool _allowSyntheticDefaultImports;
 
     /// <summary>ported from: src/compiler/checker.ts:1535 — <c>strictNullChecks</c>.</summary>
     internal readonly bool _strictNullChecks;
