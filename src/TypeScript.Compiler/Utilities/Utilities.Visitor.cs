@@ -95,6 +95,16 @@ internal static partial class Utilities
     // visitorPublic.ts:148-176 — visitNode
     // ---------------------------------------------------------------------------------------------
 
+    /// <summary>ported from: src/compiler/visitorPublic.ts:172 — the <c>isArray(visited)</c> test.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>isArray</c> answers for the JS array a visitor may return; in the visitor it is always either
+    /// a <c>Node</c> or a node array, and the port's node arrays are <c>List&lt;T&gt;</c>/<c>NodeArray&lt;T&gt;</c>. The
+    /// non-generic <c>IEnumerable</c> test is what covers the interface-typed element lists
+    /// (<c>NodeArray&lt;IStatement&gt;</c>), which <c>IEnumerable&lt;Node&gt;</c> does not (invariance); <c>Node</c> is
+    /// excluded because a node is never the array.
+    /// </remarks>
+    private static bool IsNodeArray(object? value) => value is not Node and System.Collections.IEnumerable;
+
     /// <summary>ported from: src/compiler/visitorPublic.ts:148-176 — <c>visitNode</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: TS declares three overloads whose only difference is the precision of the return type (the two
@@ -127,14 +137,15 @@ internal static partial class Utilities
             // potentially undefined.
             return null;
         }
-        else if (visited is IEnumerable<Node> visitedNodes)
+        else if (IsNodeArray(visited))
         {
-            // PORT-NOTE: TS's `isArray(visited)`; `Core.IsArray` answers for a CLR `Array` only, and the port's node
-            // arrays are `NodeArray<T>` (a `List<T>`), so the array arm is the `IEnumerable<Node>` test the factory's
-            // `copyCustomPrologue` uses for the same union. The list `lift`/`extractSingleNode` receive is the very
-            // array the visitor returned — no copy — because `IReadOnlyList<out T>` is covariant in the port.
-            var visitedList = (IReadOnlyList<Node>?)visitedNodes;
-            visitedNode = (lift ?? ExtractSingleNode)(visitedList ?? [.. visitedNodes]);
+            // PORT-NOTE: TS's `isArray(visited)` (visitorPublic.ts:172) is a runtime array test over `NodeArray<T>`
+            // (an array subclass), so every element type matches. The port's node arrays are `List<T>`/`NodeArray<T>`,
+            // and a `NodeArray<IStatement>` is *not* an `IEnumerable<Node>` (generics are invariant), which is what
+            // `IsNodeArray` exists for. The list is passed on directly when it already is a `List<Node>`, otherwise the
+            // elements are cast one by one — every one of them is a `Node` at run time.
+            var visitedList = visited as IReadOnlyList<Node> ?? [.. ((System.Collections.IEnumerable)visited).Cast<object?>().Select(item => (Node)item!)];
+            visitedNode = (lift ?? ExtractSingleNode)(visitedList);
         }
         else
         {
@@ -309,10 +320,11 @@ internal static partial class Utilities
                 }
                 if (visited is not null)
                 {
-                    if (visited is IEnumerable<Node> visitedNodes)
+                    if (IsNodeArray(visited))
                     {
-                        foreach (var visitedNode in visitedNodes)
+                        foreach (var item in (System.Collections.IEnumerable)visited)
                         {
+                            var visitedNode = (Node)item!;
                             Debug.AssertNode(visitedNode, test);
                             updated.Add((TNode)(object)visitedNode);
                         }

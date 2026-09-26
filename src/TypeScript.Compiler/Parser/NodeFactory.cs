@@ -34,7 +34,22 @@ internal partial class NodeFactory
 {
     private readonly NodeFactoryFlags _flags;
 
-    public NodeFactory(NodeFactoryFlags flags = NodeFactoryFlags.None) => _flags = flags;
+    /// <summary>Whether this factory marks what it creates as synthesized — see <see cref="Factory"/>.</summary>
+    private readonly bool _synthesizedNodes;
+
+    /// <param name="flags">how the factory is configured (see <see cref="NodeFactoryFlags"/>).</param>
+    /// <param name="synthesizedNodes">
+    /// ports the choice of <c>baseNodeFactory</c> the reference makes at its two call sites: whether every node this
+    /// factory builds goes through <c>makeSynthetic</c> (factory/nodeFactory.ts:7393-7405) or stays a plain parse-tree
+    /// node. <see cref="Factory"/> passes <c>true</c> (the reference passes <c>syntheticFactory</c>),
+    /// <see cref="FactoryUtilities.ParseNodeFactory"/> leaves it <c>false</c> (the reference passes
+    /// <c>parseBaseNodeFactory</c>).
+    /// </param>
+    public NodeFactory(NodeFactoryFlags flags = NodeFactoryFlags.None, bool synthesizedNodes = false)
+    {
+        _flags = flags;
+        _synthesizedNodes = synthesizedNodes;
+    }
 
     /// <summary>How this factory was configured (see <see cref="NodeFactoryFlags"/>).</summary>
     public NodeFactoryFlags Flags => _flags;
@@ -42,13 +57,16 @@ internal partial class NodeFactory
     /// <summary>ported from: factory/nodeFactory.ts:7407 — <c>factory</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: TS declares this singleton at the bottom of <c>nodeFactory.ts</c> as
-    /// <c>createNodeFactory(NodeFactoryFlags.NoIndentationOnFreshPropertyAccess, syntheticFactory)</c>. The port has no
-    /// <c>baseNodeFactory.ts</c> at all (§15.2) and every node already starts synthesized (<c>Node.Pos</c>/<c>End</c>
-    /// default to <c>-1</c>), so only the flags carry over. The checker (M6-6) and the emitter (M7) reach this one
-    /// instance instead of each building their own — <see cref="FactoryUtilities.ParseNodeFactory"/>'s remark makes the
-    /// same argument for the parse-tree factory.
+    /// <c>createNodeFactory(NodeFactoryFlags.NoIndentationOnFreshPropertyAccess, syntheticFactory)</c>, and
+    /// <c>syntheticFactory</c> (nodeFactory.ts:7393-7405) is what sets <c>NodeFlags.Synthesized</c> on every node the
+    /// factory builds. The port has no <c>baseNodeFactory.ts</c> (§15.2), so the factory states the same choice with
+    /// its <c>synthesizedNodes</c> argument: <c>true</c> here and at no other construction site. The checker (M6-6) and
+    /// the emitter (M7) reach this one instance instead of each building their own —
+    /// <see cref="FactoryUtilities.ParseNodeFactory"/>'s remark makes the same argument for the parse-tree factory, and
+    /// that one passes <c>false</c>, because the reference's <c>parseBaseNodeFactory</c> does not call
+    /// <c>makeSynthetic</c>.
     /// </remarks>
-    public static NodeFactory Factory { get; } = new(NodeFactoryFlags.NoIndentationOnFreshPropertyAccess);
+    public static NodeFactory Factory { get; } = new(NodeFactoryFlags.NoIndentationOnFreshPropertyAccess, synthesizedNodes: true);
 
     /// <summary>ported from: factory/nodeFactory.ts:496-522 — the <c>parenthesizerRules()</c> the factory keeps lazily.</summary>
     /// <remarks>
@@ -92,11 +110,18 @@ internal partial class NodeFactory
     /// parameter.
     /// </para>
     /// </remarks>
-    private static T CreateBaseNode<T>(SyntaxKind kind)
+    private T CreateBaseNode<T>(SyntaxKind kind)
         where T : Node, new()
     {
         var node = new T();
         Debug.Assert(node.Kind == kind, $"factory kind mismatch for {typeof(T).Name}: {node.Kind} instead of {kind}");
+        // factory/nodeFactory.ts:7393-7405 — `makeSynthetic` wraps every node `syntheticFactory` builds; the parser's
+        // factory does not go through it, which is what `IsParseTreeNode` (utilities.ts:293-296) then reports.
+        if (_synthesizedNodes)
+        {
+            node.Flags |= NodeFlags.Synthesized;
+        }
+
         return node;
     }
 
@@ -105,7 +130,7 @@ internal partial class NodeFactory
     /// The two fields are cleared because the binder fills them in later; TS spells the same thing with
     /// <c>undefined</c>.
     /// </remarks>
-    private static T CreateBaseDeclaration<T>(SyntaxKind kind)
+    private T CreateBaseDeclaration<T>(SyntaxKind kind)
         where T : Node, IDeclaration, new()
     {
         var node = CreateBaseNode<T>(kind);
@@ -115,7 +140,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: factory/nodeFactory.ts:1436 — <c>createBaseToken</c>.</summary>
-    private static T CreateBaseToken<T>(SyntaxKind kind)
+    private T CreateBaseToken<T>(SyntaxKind kind)
         where T : Node, new() => CreateBaseNode<T>(kind);
 
     //
@@ -180,7 +205,7 @@ internal partial class NodeFactory
     // Identifiers
     //
 
-    private static Identifier CreateBaseIdentifier(string escapedText)
+    private Identifier CreateBaseIdentifier(string escapedText)
     {
         var node = CreateBaseNode<Identifier>(SyntaxKind.Identifier);
         node.EscapedText = escapedText;
@@ -250,7 +275,7 @@ internal partial class NodeFactory
         return node;
     }
 
-    private static Node CreateTokenNode(SyntaxKind token) => token switch
+    private Node CreateTokenNode(SyntaxKind token) => token switch
     {
         SyntaxKind.SuperKeyword => CreateBaseNode<SuperExpression>(token),
         SyntaxKind.ThisKeyword => CreateBaseNode<ThisExpression>(token),
@@ -788,7 +813,7 @@ internal partial class NodeFactory
         return node;
     }
 
-    private static Node CreateTemplateLiteralTokenNode(SyntaxKind kind) => kind switch
+    private Node CreateTemplateLiteralTokenNode(SyntaxKind kind) => kind switch
     {
         SyntaxKind.TemplateHead => CreateBaseNode<TemplateHead>(kind),
         SyntaxKind.TemplateMiddle => CreateBaseNode<TemplateMiddle>(kind),
@@ -838,7 +863,7 @@ internal partial class NodeFactory
     //
 
     /// <summary>ported from: factory/nodeFactory.ts:1388 — <c>createBasePrivateIdentifier</c>.</summary>
-    private static PrivateIdentifier CreateBasePrivateIdentifier(string escapedText)
+    private PrivateIdentifier CreateBasePrivateIdentifier(string escapedText)
     {
         var node = CreateBaseNode<PrivateIdentifier>(SyntaxKind.PrivateIdentifier);
         node.EscapedText = escapedText;
@@ -3239,7 +3264,7 @@ internal partial class NodeFactory
     /// equivalent is to copy every writable public property — which is the explicit-assignment rewrite the TODO in the TS
     /// source asks for anyway, done by reflection rather than by hand.
     /// </remarks>
-    private static SourceFile CloneSourceFileWorker(SourceFile source)
+    private SourceFile CloneSourceFileWorker(SourceFile source)
     {
         var node = CreateBaseNode<SourceFile>(SyntaxKind.SourceFile);
         node.Flags |= source.Flags & ~NodeFlags.Synthesized;

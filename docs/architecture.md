@@ -1800,3 +1800,19 @@ printer 落地后，语料从"崩溃"变成"能跑"，此前被门控掩盖的�
 
 **验收（实测）**：build 0 错误 0 警告、测试 **1,097/1,097**、`Gen --check` 无漂移、**TypeDiff 全语料仍 `same=5905 diverged=3 port-crash=0`（checker 零回归）**；`tools/EmitDiff` 全语料冒烟：参考半对该文件成功发射（8,964 字节），端口半如实报
 `port-crash: NotSupportedException: getTransformers (transformer.ts:120) … transform batches M7-B`。
+
+### 17.10 M7-B 批次 2：`ts.ts` + `typeSerializer.ts` + `classThis.ts`（含两处基础缺陷修复）
+
+| 交付 | 内容 |
+|---|---|
+| `Transforms/TypeScriptTransform*.cs`（6 文件） | `transformers/ts.ts`（2,750 行）全量：类型擦除、声明合并/命名空间、参数属性、import-equals、`export =`、const enum 内联、替换钩子 |
+| `Transforms/TypeSerializer.cs` | `transformers/typeSerializer.ts`（633）：声明发射用的运行时类型序列化器 |
+| `Transforms/ClassThis.cs` | `transformers/classThis.ts`（148） |
+| 测试 | `TypeScriptTransformTests`（27）、`TypeSerializerTests`（62）、`ClassThisTests`（12） |
+
+**smoke 端到端暴露的两处基础缺陷（都已修，均影响面大于本批次）：**
+
+1. **`NodeFactory` 从不标 `NodeFlags.Synthesized`**（`Parser/NodeFactory.cs`）。参考的 `factory` 是 `createNodeFactory(NoIndentationOnFreshPropertyAccess, syntheticFactory)`，而 `syntheticFactory`（nodeFactory.ts:7393-7405）对每个工厂产物 `makeSynthetic`；端口的 PORT-NOTE 曾以为"pos/end 默认 -1 就等于已合成"，把这一层丢了。后果：`Utilities.IsParseTreeNode` 对所有工厂节点答真 ⇒ `GetParseTreeNode` 跳过 nodeTest ⇒ `EmitResolver` 把合成节点递给 checker ⇒ `Debug.Fail`。修法：构造参数 `synthesizedNodes`（`Factory` 传 true，`FactoryUtilities.ParseNodeFactory` 传 false，即参考的两个 base factory），`CreateBaseNode` 据此置位。
+2. **`Utilities.Visitor` 的 `isArray(visited)` 判定**（visitorPublic.ts:172）：端口写成 `visited is IEnumerable<Node>`，而接口化的节点数组（`NodeArray<IStatement>`）不是 `IEnumerable<Node>`（泛型不变），于是 visitor 返回"片段列表"时抛 `InvalidCastException`。新增 `IsNodeArray`（非泛型 `IEnumerable` 且非 `Node`）并在两处使用。
+
+**验收（实测）**：build 0 错误 0 警告、测试 **1,206/1,206**、**TypeDiff 全语料仍 `same=5905 diverged=3 port-crash=0`（零回归）**。批次 2 的期望值改为用参考真值测定：`ts.transpileModule(src, options)`（6.0.3）为 24/27 例的直接 oracle，另两例用 `node lib/tsc.js` 复核（`transpileModule` 隐含 `isolatedModules`，无法建模 const enum 保留与跨文件别名解析）；其中 1 例期望写错（点号命名空间的中间变量是 `var B;` 而非 `let B;`，`ts.ts:2026`）已按参考改正，另 2 处"本链比参考小"（ES 模块转换器未装、const enum 内联用 `tsc` 测）在测试处注明而非掩盖。
