@@ -71,6 +71,24 @@ internal static class Js
     }
 
     /// <summary>
+    /// JS's unary <c>+</c> (ToNumber) for the values the scanner hands it.
+    /// </summary>
+    /// <remarks>
+    /// PORT-NOTE: the scanner only passes plain decimal digit strings (possibly with leading zeros), and the part
+    /// of JS's ToNumber it relies on is that a failed conversion yields <c>NaN</c> rather than throwing. The rest
+    /// of ToNumber — hex/binary prefixes, whitespace trimming, the empty string being 0 — is not reachable from
+    /// there, so it is not implemented.
+    /// </remarks>
+    public static double ToNumber(string value)
+        => double.TryParse(
+            value,
+            NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent,
+            CultureInfo.InvariantCulture,
+            out var result)
+                ? result
+                : double.NaN;
+
+    /// <summary>
     /// Formats a number the way JavaScript's parameterless <c>Number.prototype.toString()</c> does.
     /// </summary>
     /// <remarks>
