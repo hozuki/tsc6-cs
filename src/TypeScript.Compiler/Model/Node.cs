@@ -2,6 +2,30 @@ namespace TypeScript.Compiler;
 
 // ported from: src/compiler/types.ts:942-955 (interface Node)
 /// <summary>
+/// The capability every node shares, for the places C# needs one type that both a node class and a
+/// categorisation interface can name.
+/// </summary>
+/// <remarks>
+/// PORT-NOTE: TS's <c>Node</c> is an interface, so <c>TypeNode</c> and <c>Statement</c> — interfaces too — are
+/// subtypes of it, and a signature can take <c>Node</c> where the caller holds a <c>TypeNode</c>. In the port
+/// <c>Node</c> is a class and only the chain a class belongs to becomes one (D1), so the two sides share no type at
+/// all: <c>CreateNodeArray&lt;T&gt;</c> could not take a <c>List&lt;ITypeNode&gt;</c>, and neither could
+/// <c>PropagateChildFlags</c>. The interfaces on a node chain therefore declare <c>INode</c> as a base (emitted by
+/// <c>tools/Gen</c>, see NodeEmitter), and this is the declaration they meet. See docs/architecture.md §12.9.
+/// </remarks>
+internal interface INode
+{
+    /// <summary>Which syntactic form this node is (TS: <c>readonly kind: SyntaxKind</c>).</summary>
+    SyntaxKind Kind { get; }
+
+    // ported from: types.ts:944 — `readonly flags: NodeFlags`
+    NodeFlags Flags { get; set; }
+
+    // ported from: types.ts:946 — `readonly transformFlags: TransformFlags`
+    TransformFlags TransformFlags { get; set; }
+}
+
+/// <summary>
 /// The base of every syntax node.
 /// </summary>
 /// <remarks>
@@ -22,7 +46,7 @@ namespace TypeScript.Compiler;
 /// carries. That costs a repeated field per implementing class, which the generator emits for free.
 /// </para>
 /// </remarks>
-internal abstract class Node : IReadonlyTextRange, ITextRange
+internal abstract class Node : INode, IReadonlyTextRange, ITextRange
 {
     /// <summary>Which syntactic form this node is. Pinned by every concrete node.</summary>
     public abstract SyntaxKind Kind { get; }

@@ -87,77 +87,6 @@ internal partial class NodeFactory
         where T : Node, new() => CreateBaseNode<T>(kind);
 
     //
-    // Signature elements
-    //
-
-    /// <summary>ported from: factory/nodeFactory.ts:1621 — <c>createTypeParameterDeclaration</c>.</summary>
-    public TypeParameterDeclaration CreateTypeParameterDeclaration(
-        List<ModifierToken>? modifiers,
-        object? name,
-        ITypeNode? constraint = null,
-        ITypeNode? defaultType = null)
-    {
-        var node = CreateBaseDeclaration<TypeParameterDeclaration>(SyntaxKind.TypeParameter);
-        node.Modifiers = AsNodeArray(modifiers);
-        node.Name = AsName(name);
-        node.Constraint = constraint;
-        node.Default = defaultType;
-        node.TransformFlags = TransformFlags.ContainsTypeScript;
-
-        node.Expression = null; // initialized by parser to report grammar errors
-        node.JsDoc = null;      // initialized by parser (JsDocContainer)
-        return node;
-    }
-
-    //
-    // Type elements
-    //
-
-    /// <summary>ported from: factory/nodeFactory.ts:1701 — <c>createPropertySignature</c>.</summary>
-    public PropertySignature CreatePropertySignature(
-        List<ModifierToken>? modifiers,
-        object? name,
-        PunctuationToken? questionToken = null,
-        ITypeNode? type = null)
-    {
-        var node = CreateBaseDeclaration<PropertySignature>(SyntaxKind.PropertySignature);
-        node.Modifiers = AsNodeArray(modifiers);
-        node.Name = AsName(name);
-        node.Type = type;
-        node.QuestionToken = questionToken;
-        node.TransformFlags = TransformFlags.ContainsTypeScript;
-
-        node.Initializer = null; // initialized by parser to report grammar errors
-        node.JsDoc = null;       // initialized by parser (JsDocContainer)
-        return node;
-    }
-
-    /// <summary>ported from: factory/nodeFactory.ts:1802 — <c>createMethodSignature</c>.</summary>
-    public MethodSignature CreateMethodSignature(
-        List<ModifierToken>? modifiers,
-        object? name,
-        PunctuationToken? questionToken,
-        List<TypeParameterDeclaration>? typeParameters,
-        List<ParameterDeclaration>? parameters,
-        ITypeNode? type)
-    {
-        var node = CreateBaseDeclaration<MethodSignature>(SyntaxKind.MethodSignature);
-        node.Modifiers = AsNodeArray(modifiers);
-        node.Name = AsName(name);
-        node.QuestionToken = questionToken;
-        node.TypeParameters = AsNodeArray(typeParameters);
-        node.Parameters = AsNodeArray(parameters);
-        node.Type = type;
-        node.TransformFlags = TransformFlags.ContainsTypeScript;
-
-        node.JsDoc = null;         // initialized by parser (JsDocContainer)
-        node.Locals = null;        // initialized by binder (LocalsContainer)
-        node.NextContainer = null; // initialized by binder (LocalsContainer)
-        node.TypeArguments = null; // used in quick info
-        return node;
-    }
-
-    //
     // Literals
     //
 
@@ -195,20 +124,6 @@ internal partial class NodeFactory
         var node = CreateBaseToken<BigIntLiteral>(SyntaxKind.BigIntLiteral);
         node.Text = value;
         node.TransformFlags |= TransformFlags.ContainsES2020;
-        return node;
-    }
-
-    /// <summary>ported from: factory/nodeFactory.ts:1251 — <c>createBaseStringLiteral</c>.</summary>
-    /// <remarks>
-    /// PORT-NOTE: 这一份是**临时**的。tools/Gen 也生成同名方法（它的 body 是定形），而生成物目前以
-    /// <c>&lt;Compile Remove&gt;</c> 排除在编译外，所以这里必须先有一份。生成物纳入编译时删掉这个方法 ——
-    /// 重复定义是 CS0111 硬错误，不会漏掉（docs/architecture.md §15.7）。
-    /// </remarks>
-    private StringLiteral CreateBaseStringLiteral(string? text, bool? isSingleQuote)
-    {
-        var node = CreateBaseDeclaration<StringLiteral>(SyntaxKind.StringLiteral);
-        node.Text = text;
-        node.SingleQuote = isSingleQuote;
         return node;
     }
 
@@ -431,8 +346,13 @@ internal partial class NodeFactory
     //
 
     /// <summary>ported from: factory/nodeFactory.ts:7305 — <c>propagateChildrenFlags</c>.</summary>
+    /// <remarks>
+    /// The element type is <see cref="INode"/> rather than <see cref="Node"/>: a categorisation step such as
+    /// <c>TypeNode</c> is an interface in the port, and a <c>NodeArray</c> of it is a real thing the factory builds
+    /// (docs/architecture.md §12.9).
+    /// </remarks>
     private static TransformFlags PropagateChildrenFlags<T>(NodeArray<T>? children)
-        where T : Node => children is null ? TransformFlags.None : children.TransformFlags;
+        where T : INode => children is null ? TransformFlags.None : children.TransformFlags;
 
     /// <summary>ported from: factory/nodeFactory.ts:7290 — <c>propagateIdentifierNameFlags</c>.</summary>
     /// <remarks>
@@ -440,13 +360,13 @@ internal partial class NodeFactory
     /// PORT-NOTE: TS declares the parameter non-null; a generated call site can pass a nullable member
     /// (<c>QualifiedName.right</c>), so an absent node answers "no flags" rather than throwing.
     /// </remarks>
-    private static TransformFlags PropagateIdentifierNameFlags(Node? node)
+    private static TransformFlags PropagateIdentifierNameFlags(INode? node)
         => node is null
             ? TransformFlags.None
             : CoreFlags.Clear(PropagateChildFlags(node), TransformFlags.ContainsPossibleTopLevelAwait);
 
     /// <summary>ported from: factory/nodeFactory.ts:7286 — <c>propagateNameFlags</c>.</summary>
-    private static TransformFlags PropagateNameFlags(Node? node)
+    private static TransformFlags PropagateNameFlags(INode? node)
         => node is Identifier identifier ? PropagateIdentifierNameFlags(identifier) : PropagateChildFlags(node);
 
     //
@@ -470,12 +390,12 @@ internal partial class NodeFactory
     /// no shared empty array to compare against, and the debug info only decorates the object for inspection.
     /// </para>
     /// </remarks>
-    public NodeArray<T> CreateNodeArray<T>(List<T>? elements, bool? hasTrailingComma)
-        where T : Node
+    public NodeArray<T> CreateNodeArray<T>(IList<T>? elements, bool? hasTrailingComma)
+        where T : INode
     {
         if (elements is null)
         {
-            elements = [];
+            elements = new List<T>();
         }
         else if (elements is NodeArray<T> existing)
         {
@@ -510,7 +430,7 @@ internal partial class NodeFactory
 
     /// <summary>ported from: factory/nodeFactory.ts:7137 — <c>asNodeArray</c>.</summary>
     private NodeArray<T>? AsNodeArray<T>(List<T>? array)
-        where T : Node => array is null ? null : CreateNodeArray(array, null);
+        where T : INode => array is null ? null : CreateNodeArray(array, null);
 
     //
     // Transform flags
@@ -518,7 +438,7 @@ internal partial class NodeFactory
 
     /// <summary>ported from: factory/nodeFactory.ts:7309 — <c>aggregateChildrenFlags</c>.</summary>
     private static void AggregateChildrenFlags<T>(NodeArray<T> children)
-        where T : Node
+        where T : INode
     {
         var subtreeFlags = TransformFlags.None;
         foreach (var child in children)
@@ -530,7 +450,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: factory/nodeFactory.ts:7299 — <c>propagateChildFlags</c>.</summary>
-    private static TransformFlags PropagateChildFlags(Node? child)
+    private static TransformFlags PropagateChildFlags(INode? child)
     {
         if (child is null) return TransformFlags.None;
 
@@ -544,7 +464,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: factory/nodeFactory.ts:7295 — <c>propagatePropertyNameFlagsOfChild</c>.</summary>
-    private static TransformFlags PropagatePropertyNameFlagsOfChild(Node node, TransformFlags transformFlags)
+    private static TransformFlags PropagatePropertyNameFlagsOfChild(INode node, TransformFlags transformFlags)
         => transformFlags | (node.TransformFlags & TransformFlags.PropertyNamePropagatingFlags);
 
     /// <summary>ported from: factory/nodeFactory.ts:7320 — <c>getTransformFlagsSubtreeExclusions</c>.</summary>
@@ -745,5 +665,548 @@ internal partial class NodeFactory
         }
 
         return dest;
+    }
+
+    //
+    // Literals (the hand-written half of the factory)
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:1281 — <c>createLiteralLikeNode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS types the first parameter as <c>LiteralToken["kind"] | SyntaxKind.JsxTextAllWhiteSpaces</c> and
+    /// returns <c>LiteralToken</c>. The port takes a <c>SyntaxKind</c> and answers the widest node type, because the
+    /// kinds it can be are exactly the switch arms below.
+    /// </remarks>
+    public Node CreateLiteralLikeNode(SyntaxKind kind, string text) => kind switch
+    {
+        SyntaxKind.NumericLiteral => CreateNumericLiteral(text, null),
+        SyntaxKind.BigIntLiteral => CreateBigIntLiteral(text),
+        SyntaxKind.StringLiteral => CreateStringLiteral(text, null, null),
+        SyntaxKind.JsxText => CreateJsxText(text, false),
+        SyntaxKind.JsxTextAllWhiteSpaces => CreateJsxText(text, true),
+        SyntaxKind.RegularExpressionLiteral => CreateRegularExpressionLiteral(text),
+        SyntaxKind.NoSubstitutionTemplateLiteral => CreateTemplateLiteralLikeNode(kind, text, null, null),
+        _ => throw new InvalidOperationException($"invalid kind: {kind}"),
+    };
+
+    /// <summary>ported from: factory/nodeFactory.ts:3550 — <c>getTransformFlagsOfTemplateLiteralLike</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS declares the parameter non-optional, while the generated call sites pass the node's
+    /// <c>TemplateFlags</c>, which is nullable — an absent value means the same as <c>None</c>.
+    /// </remarks>
+    private static TransformFlags GetTransformFlagsOfTemplateLiteralLike(TokenFlags? templateFlags)
+    {
+        var transformFlags = TransformFlags.ContainsES2015;
+        if (templateFlags is not null && templateFlags != TokenFlags.None)
+        {
+            transformFlags |= TransformFlags.ContainsES2018;
+        }
+
+        return transformFlags;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3561 — <c>createTemplateLiteralLikeToken</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS builds one <c>TemplateLiteralLikeNode</c> object and lets the static type say which of the three
+    /// template tokens it is; the port has a class per kind, so the kind picks the class (the same treatment
+    /// <see cref="CreateTokenNode"/> gives the token family).
+    /// </remarks>
+    private Node CreateTemplateLiteralLikeToken(SyntaxKind kind, string text, string? rawText, TokenFlags? templateFlags)
+    {
+        var node = CreateTemplateLiteralTokenNode(kind);
+        var literalLike = (ITemplateLiteralLikeNode)node;
+        literalLike.Text = text;
+        literalLike.RawText = rawText;
+        literalLike.TemplateFlags = (templateFlags ?? TokenFlags.None) & TokenFlags.TemplateLiteralLikeFlags;
+        node.TransformFlags = GetTransformFlagsOfTemplateLiteralLike(literalLike.TemplateFlags ?? TokenFlags.None);
+        return node;
+    }
+
+    private static Node CreateTemplateLiteralTokenNode(SyntaxKind kind) => kind switch
+    {
+        SyntaxKind.TemplateHead => CreateBaseNode<TemplateHead>(kind),
+        SyntaxKind.TemplateMiddle => CreateBaseNode<TemplateMiddle>(kind),
+        SyntaxKind.TemplateTail => CreateBaseNode<TemplateTail>(kind),
+        _ => throw new InvalidOperationException($"invalid template token kind: {kind}"),
+    };
+
+    /// <summary>ported from: factory/nodeFactory.ts:3580 — <c>createTemplateLiteralLikeNode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS picks between the two fixed bodies by kind and leaves the object's class to the caller's cast. The
+    /// port dispatches to the generated <c>CreateTemplateLiteralLikeDeclaration</c> — whose parameter is the
+    /// <c>TypedEnum</c> member the kind names (§16) — and to its own token path for the other three kinds.
+    /// </remarks>
+    public Node CreateTemplateLiteralLikeNode(SyntaxKind kind, string text, string? rawText, TokenFlags? templateFlags)
+        => kind == SyntaxKind.NoSubstitutionTemplateLiteral
+            ? CreateTemplateLiteralLikeDeclaration(
+                TypedEnum.NoSubstitutionTemplateLiteral.Instance,
+                text,
+                rawText,
+                templateFlags)
+            : CreateTemplateLiteralLikeToken(kind, text, rawText, templateFlags);
+
+    /// <summary>ported from: factory/nodeFactory.ts:3612 — <c>createYieldExpression</c>.</summary>
+    public YieldExpression CreateYieldExpression(PunctuationToken? asteriskToken, Expression? expression)
+    {
+        Debug.Assert(
+            asteriskToken is null || expression is not null,
+            "A `YieldExpression` with an asteriskToken must have an expression.");
+
+        var node = CreateBaseNode<YieldExpression>(SyntaxKind.YieldExpression);
+        node.Expression = AsInitializer(expression);
+        node.AsteriskToken = asteriskToken;
+        node.TransformFlags |= PropagateChildFlags(node.Expression)
+            | PropagateChildFlags(node.AsteriskToken)
+            | TransformFlags.ContainsES2015
+            | TransformFlags.ContainsES2018
+            | TransformFlags.ContainsYield;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3695 — <c>createOmittedExpression</c>.</summary>
+    public OmittedExpression CreateOmittedExpression()
+        => CreateBaseNode<OmittedExpression>(SyntaxKind.OmittedExpression);
+
+    //
+    // Identifiers (the generated-name half)
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:1388 — <c>createBasePrivateIdentifier</c>.</summary>
+    private static PrivateIdentifier CreateBasePrivateIdentifier(string escapedText)
+    {
+        var node = CreateBaseNode<PrivateIdentifier>(SyntaxKind.PrivateIdentifier);
+        node.EscapedText = escapedText;
+        node.TransformFlags |= TransformFlags.ContainsClassFields;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1396 — <c>createPrivateIdentifier</c>.</summary>
+    public PrivateIdentifier CreatePrivateIdentifier(string? text)
+    {
+        if (text is null || !text.StartsWith('#'))
+        {
+            Debug.Fail($"First character of private identifier must be #: {text}");
+        }
+
+        return CreateBasePrivateIdentifier(Utilities.EscapeLeadingUnderscores(text!));
+    }
+
+    //
+    // Punctuation and keywords (the hand-written half)
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:3794 — <c>createMetaProperty</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS types the parameter as <c>MetaProperty["keywordToken"]</c>, whose two members are the switch arms
+    /// and which maps to the enum itself.
+    /// </remarks>
+    public MetaProperty CreateMetaProperty(SyntaxKind keywordToken, Identifier? name)
+    {
+        var node = CreateBaseNode<MetaProperty>(SyntaxKind.MetaProperty);
+        node.KeywordToken = keywordToken;
+        node.Name = name;
+        node.TransformFlags |= PropagateChildFlags(node.Name);
+
+        switch (keywordToken)
+        {
+            case SyntaxKind.NewKeyword:
+                node.TransformFlags |= TransformFlags.ContainsES2015;
+                break;
+            case SyntaxKind.ImportKeyword:
+                node.TransformFlags |= TransformFlags.ContainsES2020;
+                break;
+            default:
+                Debug.AssertNever(keywordToken);
+                break;
+        }
+
+        node.FlowNode = null; // initialized by binder (FlowContainer)
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3747 — <c>updateNonNullExpression</c>.</summary>
+    public NonNullExpression UpdateNonNullExpression(NonNullExpression? node, Expression? expression)
+    {
+        // A `NonNullChain` is the same class with the `OptionalChain` flag, and it has an update of its own.
+        if ((node!.Flags & NodeFlags.OptionalChain) != 0) return UpdateNonNullChain(node, expression);
+
+        return node!.Expression != expression
+            ? Update(CreateNonNullExpression(expression), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3786 — <c>updateNonNullChain</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS declares the parameter as <c>NonNullChain</c>, a view of <c>NonNullExpression</c> that only exists
+    /// in its type system; the two are one class here (§12.9).
+    /// </remarks>
+    public NonNullExpression UpdateNonNullChain(NonNullExpression? node, Expression? expression)
+    {
+        Debug.Assert(
+            node is not null && (node.Flags & NodeFlags.OptionalChain) != 0,
+            "Cannot update a NonNullExpression using updateNonNullChain. Use updateNonNullExpression instead.");
+
+        return node.Expression != expression
+            ? Update(CreateNonNullChain(expression), node)
+            : node;
+    }
+
+    //
+    // Helpers TS keeps private to the factory (hand-written half)
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:7161 — <c>asEmbeddedStatement</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS is generic over the statement so the result is <c>T | EmptyStatement</c>. A statement is an
+    /// interface in the port rather than a class (§12.9), and every statement — the replacement included — satisfies it,
+    /// so the interface is what the signature names.
+    /// </remarks>
+    private IStatement? AsEmbeddedStatement(IStatement? statement)
+    {
+        if (statement is not Node node || !NodeTests.IsNotEmittedStatement(node)) return statement;
+
+        var empty = CreateEmptyStatement();
+        SetOriginal(empty, node);
+        return Utilities.SetTextRange(empty, statement as ITextRange);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:7167 — <c>asVariableDeclaration</c>.</summary>
+    private VariableDeclaration? AsVariableDeclaration(object? variableDeclaration)
+    {
+        if (variableDeclaration is string
+            || (variableDeclaration is Node node && !NodeTests.IsVariableDeclaration(node)))
+        {
+            return CreateVariableDeclaration(variableDeclaration, null, null, null);
+        }
+
+        return variableDeclaration as VariableDeclaration;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6281 — <c>flattenCommaElements</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS returns <c>Expression | readonly Expression[]</c>; the port answers <c>object</c>, which is what
+    /// <see cref="Core.SameFlatMap{T}"/> was given for exactly this caller.
+    /// </remarks>
+    private static object FlattenCommaElements(Expression node, int index) => FlattenCommaElements(node);
+
+    /// <remarks>
+    /// PORT-NOTE: the two-argument overload above exists because TS passes this helper to <c>sameFlatMap</c> as a
+    /// callback, and TS lets a callback take fewer parameters than the signature it satisfies — C# does not.
+    /// </remarks>
+    private static object FlattenCommaElements(Expression node)
+    {
+        if (Utilities.NodeIsSynthesized(node)
+            && !Utilities.IsParseTreeNode(node)
+            && node.Original is null
+            && node.EmitNode is null
+            && node.Id is null)
+        {
+            if (NodeTests.IsCommaListExpression(node)) return ((CommaListExpression)node).Elements!;
+
+            if (NodeTests.IsBinaryExpression(node)
+                && ((BinaryExpression)node).OperatorToken is { } operatorToken
+                && NodeTests.IsCommaToken(operatorToken))
+            {
+                var binary = (BinaryExpression)node;
+                return new List<Expression> { binary.Left!, binary.Right! };
+            }
+        }
+
+        return node;
+    }
+
+    //
+    // Emit helpers TS builds out of the factory
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:6277 — <c>createNotEmittedTypeElement</c>.</summary>
+    public NotEmittedTypeElement CreateNotEmittedTypeElement()
+        => CreateBaseNode<NotEmittedTypeElement>(SyntaxKind.NotEmittedTypeElement);
+
+    /// <summary>ported from: factory/nodeFactory.ts:6446 — <c>createVoidZero</c>.</summary>
+    public VoidExpression CreateVoidZero() => CreateVoidExpression(CreateNumericLiteral("0", null));
+
+    /// <summary>ported from: factory/nodeFactory.ts:6450 — <c>createExportDefault</c>.</summary>
+    public ExportAssignment CreateExportDefault(Expression? expression)
+        => CreateExportAssignment(null, false, expression);
+
+    /// <summary>ported from: factory/nodeFactory.ts:6458 — <c>createExternalModuleExport</c>.</summary>
+    public ExportDeclaration CreateExternalModuleExport(Identifier? exportName)
+        => CreateExportDeclaration(
+            null,
+            false,
+            CreateNamedExports([CreateExportSpecifier(false, null, exportName)]),
+            null,
+            null);
+
+    //
+    // Signature elements and type elements (the hand-written half)
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:1645 — <c>createParameterDeclaration</c>.</summary>
+    public ParameterDeclaration CreateParameterDeclaration(
+        List<Node>? modifiers,
+        PunctuationToken? dotDotDotToken,
+        object? name,
+        PunctuationToken? questionToken,
+        ITypeNode? type,
+        Expression? initializer)
+    {
+        var node = CreateBaseDeclaration<ParameterDeclaration>(SyntaxKind.Parameter);
+        node.Modifiers = AsNodeArray(modifiers);
+        node.DotDotDotToken = dotDotDotToken;
+        node.Name = AsName(name);
+        node.QuestionToken = questionToken;
+        node.Type = type;
+        node.Initializer = AsInitializer(initializer);
+
+        if (Utilities.IsThisIdentifier(node.Name))
+        {
+            node.TransformFlags = TransformFlags.ContainsTypeScript;
+        }
+        else
+        {
+            // PORT-NOTE: `x ?? y ? … : …` is a truthiness test on a node in TS; an absent node is the only falsy one,
+            // so the port asks whether either is present.
+            node.TransformFlags = PropagateChildrenFlags(node.Modifiers)
+                | PropagateChildFlags(node.DotDotDotToken)
+                | PropagateNameFlags(node.Name)
+                | PropagateChildFlags(node.QuestionToken)
+                | PropagateChildFlags(node.Initializer)
+                | (node.QuestionToken is not null || node.Type is not null
+                    ? TransformFlags.ContainsTypeScript
+                    : TransformFlags.None)
+                | (node.DotDotDotToken is not null || node.Initializer is not null
+                    ? TransformFlags.ContainsES2015
+                    : TransformFlags.None)
+                | ((Utilities.ModifiersToFlags(node.Modifiers) & ModifierFlags.ParameterPropertyModifier) != 0
+                    ? TransformFlags.ContainsTypeScriptClassSyntax
+                    : TransformFlags.None);
+        }
+
+        node.JsDoc = null; // initialized by parser (JsDocContainer)
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1741 — <c>updatePropertySignature</c>.</summary>
+    public PropertySignature UpdatePropertySignature(
+        PropertySignature? node,
+        List<ModifierToken>? modifiers,
+        Node? name,
+        PunctuationToken? questionToken,
+        ITypeNode? type)
+    {
+        return node!.Modifiers != modifiers
+            || node!.Name != name
+            || node!.QuestionToken != questionToken
+            || node!.Type != type
+            ? FinishUpdatePropertySignature(CreatePropertySignature(modifiers, name, questionToken, type), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1757 — <c>finishUpdatePropertySignature</c>.</summary>
+    private PropertySignature FinishUpdatePropertySignature(PropertySignature updated, PropertySignature original)
+    {
+        if (!ReferenceEquals(updated, original))
+        {
+            // Copy the child TS keeps only for error reporting.
+            updated.Initializer = original.Initializer;
+        }
+
+        return Update(updated, original);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1765 — <c>createPropertyDeclaration</c>.</summary>
+    public PropertyDeclaration CreatePropertyDeclaration(
+        List<Node>? modifiers,
+        object? name,
+        PunctuationToken? questionOrExclamationToken,
+        ITypeNode? type,
+        Expression? initializer)
+    {
+        var node = CreateBaseDeclaration<PropertyDeclaration>(SyntaxKind.PropertyDeclaration);
+        node.Modifiers = AsNodeArray(modifiers);
+        node.Name = AsName(name);
+        node.QuestionToken = questionOrExclamationToken is not null && NodeTests.IsQuestionToken(questionOrExclamationToken)
+            ? questionOrExclamationToken
+            : null;
+        node.ExclamationToken = questionOrExclamationToken is not null && NodeTests.IsExclamationToken(questionOrExclamationToken)
+            ? questionOrExclamationToken
+            : null;
+        node.Type = type;
+        node.Initializer = AsInitializer(initializer);
+
+        var isAmbient = (node.Flags & NodeFlags.Ambient) != 0
+            || (Utilities.ModifiersToFlags(node.Modifiers) & ModifierFlags.Ambient) != 0;
+
+        node.TransformFlags = PropagateChildrenFlags(node.Modifiers)
+            | PropagateNameFlags(node.Name)
+            | PropagateChildFlags(node.Initializer)
+            | (isAmbient || node.QuestionToken is not null || node.ExclamationToken is not null || node.Type is not null
+                ? TransformFlags.ContainsTypeScript
+                : TransformFlags.None)
+            | (NodeTests.IsComputedPropertyName(node.Name!)
+                || ((Utilities.ModifiersToFlags(node.Modifiers) & ModifierFlags.Static) != 0 && node.Initializer is not null)
+                    ? TransformFlags.ContainsTypeScriptClassSyntax
+                    : TransformFlags.None)
+            | TransformFlags.ContainsClassFields;
+
+        node.JsDoc = null; // initialized by parser (JsDocContainer)
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1822 — <c>updateMethodSignature</c>.</summary>
+    public MethodSignature UpdateMethodSignature(
+        MethodSignature? node,
+        List<ModifierToken>? modifiers,
+        Node? name,
+        PunctuationToken? questionToken,
+        NodeArray<TypeParameterDeclaration>? typeParameters,
+        NodeArray<ParameterDeclaration>? parameters,
+        ITypeNode? type)
+    {
+        return node!.Modifiers != modifiers
+            || node!.Name != name
+            || node!.QuestionToken != questionToken
+            || node!.TypeParameters != typeParameters
+            || node!.Parameters != parameters
+            || node!.Type != type
+            ? FinishUpdateBaseSignatureDeclaration(
+                CreateMethodSignature(modifiers, name, questionToken, typeParameters, parameters, type),
+                node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1852 — <c>finishUpdateBaseSignatureDeclaration</c>.</summary>
+    private T FinishUpdateBaseSignatureDeclaration<T>(T updated, T? original)
+        where T : Node, ISignatureDeclarationBase
+    {
+        if (!ReferenceEquals(updated, original))
+        {
+            // Copy the child TS keeps for quick info.
+            updated.TypeArguments = original!.TypeArguments;
+        }
+
+        return Update(updated, original);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1846 — <c>createMethodDeclaration</c>.</summary>
+    public MethodDeclaration CreateMethodDeclaration(
+        List<Node>? modifiers,
+        PunctuationToken? asteriskToken,
+        object? name,
+        PunctuationToken? questionToken,
+        List<TypeParameterDeclaration>? typeParameters,
+        List<ParameterDeclaration>? parameters,
+        ITypeNode? type,
+        Block? body)
+    {
+        var node = CreateBaseDeclaration<MethodDeclaration>(SyntaxKind.MethodDeclaration);
+        node.Modifiers = AsNodeArray(modifiers);
+        node.AsteriskToken = asteriskToken;
+        node.Name = AsName(name);
+        node.QuestionToken = questionToken;
+        node.ExclamationToken = null; // initialized by parser for grammar errors
+        node.TypeParameters = AsNodeArray(typeParameters);
+        node.Parameters = CreateNodeArray(parameters, null);
+        node.Type = type;
+        node.Body = body;
+
+        if (node.Body is null)
+        {
+            node.TransformFlags = TransformFlags.ContainsTypeScript;
+        }
+        else
+        {
+            var isAsync = (Utilities.ModifiersToFlags(node.Modifiers) & ModifierFlags.Async) != 0;
+            var isGenerator = node.AsteriskToken is not null;
+            var isAsyncGenerator = isAsync && isGenerator;
+
+            node.TransformFlags = PropagateChildrenFlags(node.Modifiers)
+                | PropagateChildFlags(node.AsteriskToken)
+                | PropagateNameFlags(node.Name)
+                | PropagateChildFlags(node.QuestionToken)
+                | PropagateChildrenFlags(node.TypeParameters)
+                | PropagateChildrenFlags(node.Parameters)
+                | PropagateChildFlags(node.Type)
+                | (PropagateChildFlags(node.Body) & ~TransformFlags.ContainsPossibleTopLevelAwait)
+                | (isAsyncGenerator ? TransformFlags.ContainsES2018
+                    : isAsync ? TransformFlags.ContainsES2017
+                    : isGenerator ? TransformFlags.ContainsGenerator
+                    : TransformFlags.None)
+                | (node.QuestionToken is not null || node.TypeParameters is not null || node.Type is not null
+                    ? TransformFlags.ContainsTypeScript
+                    : TransformFlags.None)
+                | TransformFlags.ContainsES2015;
+        }
+
+        node.TypeArguments = null; // used in quick info
+        node.JsDoc = null;        // initialized by parser (JsDocContainer)
+        node.Locals = null;       // initialized by binder (LocalsContainer)
+        node.NextContainer = null; // initialized by binder (LocalsContainer)
+        node.FlowNode = null;     // initialized by binder (FlowContainer)
+        node.EndFlowNode = null;
+        node.ReturnFlowNode = null;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1914 — <c>updateMethodDeclaration</c>.</summary>
+    public MethodDeclaration UpdateMethodDeclaration(
+        MethodDeclaration? node,
+        List<Node>? modifiers,
+        PunctuationToken? asteriskToken,
+        Node? name,
+        PunctuationToken? questionToken,
+        List<TypeParameterDeclaration>? typeParameters,
+        List<ParameterDeclaration>? parameters,
+        ITypeNode? type,
+        Block? body)
+    {
+        return !ReferenceEquals(node!.Modifiers, modifiers)
+            || node!.AsteriskToken != asteriskToken
+            || node!.Name != name
+            || node!.QuestionToken != questionToken
+            || !ReferenceEquals(node!.TypeParameters, typeParameters)
+            || !ReferenceEquals(node!.Parameters, parameters)
+            || node!.Type != type
+            || node!.Body != body
+            ? FinishUpdateMethodDeclaration(
+                CreateMethodDeclaration(modifiers, asteriskToken, name, questionToken, typeParameters, parameters, type, body),
+                node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1938 — <c>finishUpdateMethodDeclaration</c>.</summary>
+    private MethodDeclaration FinishUpdateMethodDeclaration(MethodDeclaration updated, MethodDeclaration original)
+    {
+        if (!ReferenceEquals(updated, original))
+        {
+            // Copy the child TS keeps only for error reporting.
+            updated.ExclamationToken = original.ExclamationToken;
+        }
+
+        return Update(updated, original);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1963 — <c>updateClassStaticBlockDeclaration</c>.</summary>
+    public ClassStaticBlockDeclaration UpdateClassStaticBlockDeclaration(ClassStaticBlockDeclaration? node, Block? body)
+    {
+        return node!.Body != body
+            ? FinishUpdateClassStaticBlockDeclaration(CreateClassStaticBlockDeclaration(body), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1972 — <c>finishUpdateClassStaticBlockDeclaration</c>.</summary>
+    private ClassStaticBlockDeclaration FinishUpdateClassStaticBlockDeclaration(
+        ClassStaticBlockDeclaration updated,
+        ClassStaticBlockDeclaration original)
+    {
+        if (!ReferenceEquals(updated, original))
+        {
+            // Copy the child TS keeps only for error reporting.
+            updated.Modifiers = original.Modifiers;
+        }
+
+        return Update(updated, original);
     }
 }

@@ -32,29 +32,10 @@
 //   createArrayConcatCall, createObjectDefinePropertyCall, createObjectGetOwnPropertyDescriptorCall, createReflectGetCall, createReflectSetCall, createPropertyDescriptor
 //   updateOuterExpression, createCallBinding, createAssignmentTargetWrapper, createUseStrictPrologue, update
 
-// 21 members have a fixed shape but an expression with no translation, so they are
+// 2 members have a fixed shape but an expression with no translation, so they are
 // hand-written as well:
-//   createBaseDeclaration: missing type argument
-//   createBigIntLiteral: no translation for `unsupported` (typeof value)
-//   createStringLiteral: unknown base `createBaseStringLiteral`
-//   createStringLiteralFromNode: unknown base `createBaseStringLiteral`
-//   createUnionOrIntersectionTypeNode: no translation for `unsupported` (factory.createNodeArray(parenthesize(types)))
-//   createImportDeclaration: no translation for the binary operator `=`
-//   createExportDeclaration: no translation for the binary operator `=`
-//   createJSDocTemplateTag: unknown base `createBaseJSDocTag`
-//   createJSDocTypedefTag: unknown base `createBaseJSDocTagDeclaration`
-//   createJSDocParameterTag: unknown base `createBaseJSDocTagDeclaration`
-//   createJSDocPropertyTag: unknown base `createBaseJSDocTagDeclaration`
-//   createJSDocCallbackTag: unknown base `createBaseJSDocTagDeclaration`
-//   createJSDocOverloadTag: unknown base `createBaseJSDocTag`
-//   createJSDocAugmentsTag: unknown base `createBaseJSDocTag`
-//   createJSDocImplementsTag: unknown base `createBaseJSDocTag`
-//   createJSDocSeeTag: unknown base `createBaseJSDocTag`
-//   createJSDocSimpleTagWorker: unknown base `createBaseJSDocTag`
-//   createJSDocTypeLikeTagWorker: unknown base `createBaseJSDocTag`
-//   createJSDocUnknownTag: unknown base `createBaseJSDocTag`
-//   createJSDocEnumTag: unknown base `createBaseJSDocTagDeclaration`
-//   createJSDocImportTag: unknown base `createBaseJSDocTag`
+//   createConstructorTypeNode: (stub) a `params` parameter of `object?`
+//   updateConstructorTypeNode: (stub) a `params` parameter of `object?`
 
 #nullable enable
 
@@ -192,8 +173,8 @@ internal partial class NodeFactory
     {
         return node!.Modifiers != modifiers
             || node!.Name != name
-            || node!.QuestionToken != ((((questionOrExclamationToken != null) && IsQuestionToken(questionOrExclamationToken)) ? questionOrExclamationToken : null))
-            || node!.ExclamationToken != ((((questionOrExclamationToken != null) && IsExclamationToken(questionOrExclamationToken)) ? questionOrExclamationToken : null))
+            || node!.QuestionToken != ((((questionOrExclamationToken != null) && Js.IsTruthy(NodeTests.IsQuestionToken(questionOrExclamationToken!))) ? questionOrExclamationToken : null))
+            || node!.ExclamationToken != ((((questionOrExclamationToken != null) && Js.IsTruthy(NodeTests.IsExclamationToken(questionOrExclamationToken!))) ? questionOrExclamationToken : null))
             || node!.Type != type
             || node!.Initializer != initializer
             ? Update(CreatePropertyDeclaration(modifiers, name, questionOrExclamationToken, type, initializer), node)
@@ -323,7 +304,7 @@ internal partial class NodeFactory
     {
         var node = CreateBaseNode<TypeReferenceNode>(SyntaxKind.TypeReference);
         node.TypeName = AsName(typeName);
-        node.TypeArguments = (typeArguments && Parenthesizer.ParenthesizeTypeArguments(CreateNodeArray(typeArguments, null)));
+        node.TypeArguments = (typeArguments is null ? null : Parenthesizer.ParenthesizeTypeArguments(CreateNodeArray(typeArguments, null)));
         node.TransformFlags = TransformFlags.ContainsTypeScript;
         return node;
     }
@@ -374,7 +355,7 @@ internal partial class NodeFactory
     {
         var node = CreateBaseNode<TypeQueryNode>(SyntaxKind.TypeQuery);
         node.ExprName = exprName;
-        node.TypeArguments = (typeArguments && Parenthesizer.ParenthesizeTypeArguments(typeArguments));
+        node.TypeArguments = (typeArguments is null ? null : Parenthesizer.ParenthesizeTypeArguments(typeArguments));
         node.TransformFlags = TransformFlags.ContainsTypeScript;
         return node;
     }
@@ -419,23 +400,6 @@ internal partial class NodeFactory
     {
         return node!.ElementType != elementType
             ? Update(CreateArrayTypeNode(elementType), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTupleTypeNode</c>.</summary>
-    public TupleTypeNode CreateTupleTypeNode(List<Node>? elements)
-    {
-        var node = CreateBaseNode<TupleTypeNode>(SyntaxKind.TupleType);
-        node.Elements = CreateNodeArray(Parenthesizer.ParenthesizeElementTypesOfTupleType(elements), null);
-        node.TransformFlags = TransformFlags.ContainsTypeScript;
-        return node;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateTupleTypeNode</c>.</summary>
-    public TupleTypeNode UpdateTupleTypeNode(TupleTypeNode? node, List<Node>? elements)
-    {
-        return node!.Elements != elements
-            ? Update(CreateTupleTypeNode(elements), node)
             : node!;
     }
 
@@ -558,18 +522,6 @@ internal partial class NodeFactory
             : node!;
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateImportTypeNode</c>.</summary>
-    public ImportTypeNode UpdateImportTypeNode(ImportTypeNode? node, ITypeNode? argument, ImportAttributes? attributes, Node? qualifier, List<ITypeNode>? typeArguments, bool isTypeOf)
-    {
-        return node!.Argument != argument
-            || node!.Attributes != attributes
-            || node!.Qualifier != qualifier
-            || node!.TypeArguments != typeArguments
-            || node!.IsTypeOf != isTypeOf
-            ? Update(CreateImportTypeNode(argument, attributes, qualifier, typeArguments, isTypeOf), node)
-            : node!;
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createParenthesizedType</c>.</summary>
     public ParenthesizedTypeNode CreateParenthesizedType(ITypeNode? type)
     {
@@ -596,7 +548,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTypeOperatorNode</c>.</summary>
-    public TypeOperatorNode CreateTypeOperatorNode(object? @operator, ITypeNode? type)
+    public TypeOperatorNode CreateTypeOperatorNode(SyntaxKind @operator, ITypeNode? type)
     {
         var node = CreateBaseNode<TypeOperatorNode>(SyntaxKind.TypeOperator);
         node.Operator = @operator;
@@ -641,7 +593,7 @@ internal partial class NodeFactory
         node.NameType = nameType;
         node.QuestionToken = questionToken;
         node.Type = type;
-        node.Members = (members && CreateNodeArray(members, null));
+        node.Members = (members is null ? null : CreateNodeArray(members, null));
         node.TransformFlags = TransformFlags.ContainsTypeScript;
         node.Locals = null;
         node.NextContainer = null;
@@ -662,7 +614,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createLiteralTypeNode</c>.</summary>
-    public LiteralTypeNode CreateLiteralTypeNode(object? literal)
+    public LiteralTypeNode CreateLiteralTypeNode(UpdateExpression? literal)
     {
         var node = CreateBaseNode<LiteralTypeNode>(SyntaxKind.LiteralType);
         node.Literal = literal;
@@ -671,18 +623,10 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateLiteralTypeNode</c>.</summary>
-    public LiteralTypeNode UpdateLiteralTypeNode(LiteralTypeNode? node, object? literal)
+    public LiteralTypeNode UpdateLiteralTypeNode(LiteralTypeNode? node, UpdateExpression? literal)
     {
         return node!.Literal != literal
             ? Update(CreateLiteralTypeNode(literal), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateObjectBindingPattern</c>.</summary>
-    public ObjectBindingPattern UpdateObjectBindingPattern(ObjectBindingPattern? node, List<BindingElement>? elements)
-    {
-        return node!.Elements != elements
-            ? Update(CreateObjectBindingPattern(elements), node)
             : node!;
     }
 
@@ -711,7 +655,7 @@ internal partial class NodeFactory
         node.PropertyName = AsName(propertyName);
         node.Name = AsName(name);
         node.Initializer = AsInitializer(initializer);
-        node.TransformFlags |= (((((PropagateChildFlags(node.DotDotDotToken) | PropagateNameFlags(node.PropertyName)) | PropagateNameFlags(node.Name)) | PropagateChildFlags(node.Initializer)) | ((node.DotDotDotToken ? TransformFlags.ContainsRestOrSpread : TransformFlags.None))) | TransformFlags.ContainsES2015);
+        node.TransformFlags |= (((((PropagateChildFlags(node.DotDotDotToken) | PropagateNameFlags(node.PropertyName)) | PropagateNameFlags(node.Name)) | PropagateChildFlags(node.Initializer)) | ((Js.IsTruthy(node.DotDotDotToken) ? TransformFlags.ContainsRestOrSpread : TransformFlags.None))) | TransformFlags.ContainsES2015);
         node.FlowNode = null;
         return node;
     }
@@ -724,14 +668,6 @@ internal partial class NodeFactory
             || node!.Name != name
             || node!.Initializer != initializer
             ? Update(CreateBindingElement(dotDotDotToken, propertyName, name, initializer), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateArrayLiteralExpression</c>.</summary>
-    public ArrayLiteralExpression UpdateArrayLiteralExpression(ArrayLiteralExpression? node, List<Expression>? elements)
-    {
-        return node!.Elements != elements
-            ? Update(CreateArrayLiteralExpression(elements, node.MultiLine), node)
             : node!;
     }
 
@@ -761,7 +697,7 @@ internal partial class NodeFactory
         node.Expression = expression;
         node.QuestionDotToken = questionDotToken;
         node.Name = name;
-        node.TransformFlags = ((PropagateChildFlags(node.Expression) | PropagateChildFlags(node.QuestionDotToken)) | ((IsIdentifier(node.Name) ? PropagateIdentifierNameFlags(node.Name) : (PropagateChildFlags(node.Name) | TransformFlags.ContainsPrivateIdentifierInExpression))));
+        node.TransformFlags = ((PropagateChildFlags(node.Expression) | PropagateChildFlags(node.QuestionDotToken)) | ((Js.IsTruthy(NodeTests.IsIdentifier(node.Name!)) ? PropagateIdentifierNameFlags(node.Name) : (PropagateChildFlags(node.Name) | TransformFlags.ContainsPrivateIdentifierInExpression))));
         node.JsDoc = null;
         node.FlowNode = null;
         return node;
@@ -778,26 +714,6 @@ internal partial class NodeFactory
         node.JsDoc = null;
         node.FlowNode = null;
         return node;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateNewExpression</c>.</summary>
-    public NewExpression UpdateNewExpression(NewExpression? node, Expression? expression, List<ITypeNode>? typeArguments, List<Expression>? argumentsArray)
-    {
-        return node!.Expression != expression
-            || node!.TypeArguments != typeArguments
-            || node!.Arguments != argumentsArray
-            ? Update(CreateNewExpression(expression, typeArguments, argumentsArray), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateTaggedTemplateExpression</c>.</summary>
-    public TaggedTemplateExpression UpdateTaggedTemplateExpression(TaggedTemplateExpression? node, Expression? tag, List<ITypeNode>? typeArguments, MemberExpression? template)
-    {
-        return node!.Tag != tag
-            || node!.TypeArguments != typeArguments
-            || node!.Template != template
-            ? Update(CreateTaggedTemplateExpression(tag, typeArguments, template), node)
-            : node!;
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTypeAssertion</c>.</summary>
@@ -905,59 +821,6 @@ internal partial class NodeFactory
             : node!;
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updatePrefixUnaryExpression</c>.</summary>
-    public PrefixUnaryExpression UpdatePrefixUnaryExpression(PrefixUnaryExpression? node, Expression? operand)
-    {
-        return node!.Operand != operand
-            ? Update(CreatePrefixUnaryExpression(node.Operator, operand), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updatePostfixUnaryExpression</c>.</summary>
-    public PostfixUnaryExpression UpdatePostfixUnaryExpression(PostfixUnaryExpression? node, Expression? operand)
-    {
-        return node!.Operand != operand
-            ? Update(CreatePostfixUnaryExpression(operand, node.Operator), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateBinaryExpression</c>.</summary>
-    public BinaryExpression UpdateBinaryExpression(BinaryExpression? node, Expression? left, Token? @operator, Expression? right)
-    {
-        return node!.Left != left
-            || node!.OperatorToken != @operator
-            || node!.Right != right
-            ? Update(CreateBinaryExpression(left, @operator, right), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createConditionalExpression</c>.</summary>
-    public ConditionalExpression CreateConditionalExpression(Expression? condition, PunctuationToken? questionToken, Expression? whenTrue, PunctuationToken? colonToken, Expression? whenFalse)
-    {
-        var node = CreateBaseNode<ConditionalExpression>(SyntaxKind.ConditionalExpression);
-        node.Condition = Parenthesizer.ParenthesizeConditionOfConditionalExpression(condition);
-        node.QuestionToken = (questionToken ?? CreateToken(SyntaxKind.QuestionToken));
-        node.WhenTrue = Parenthesizer.ParenthesizeBranchOfConditionalExpression(whenTrue);
-        node.ColonToken = (colonToken ?? CreateToken(SyntaxKind.ColonToken));
-        node.WhenFalse = Parenthesizer.ParenthesizeBranchOfConditionalExpression(whenFalse);
-        node.TransformFlags |= ((((PropagateChildFlags(node.Condition) | PropagateChildFlags(node.QuestionToken)) | PropagateChildFlags(node.WhenTrue)) | PropagateChildFlags(node.ColonToken)) | PropagateChildFlags(node.WhenFalse));
-        node.FlowNodeWhenFalse = null;
-        node.FlowNodeWhenTrue = null;
-        return node;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateConditionalExpression</c>.</summary>
-    public ConditionalExpression UpdateConditionalExpression(ConditionalExpression? node, Expression? condition, Token? questionToken, Expression? whenTrue, Token? colonToken, Expression? whenFalse)
-    {
-        return node!.Condition != condition
-            || node!.QuestionToken != questionToken
-            || node!.WhenTrue != whenTrue
-            || node!.ColonToken != colonToken
-            || node!.WhenFalse != whenFalse
-            ? Update(CreateConditionalExpression(condition, questionToken, whenTrue, colonToken, whenFalse), node)
-            : node!;
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTemplateExpression</c>.</summary>
     public TemplateExpression CreateTemplateExpression(TemplateHead? head, List<TemplateSpan>? templateSpans)
     {
@@ -977,21 +840,10 @@ internal partial class NodeFactory
             : node!;
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTemplateLiteralLikeToken</c>.</summary>
-    public ITemplateLiteralLikeNode CreateTemplateLiteralLikeToken(object? kind, string? text, string? rawText, TokenFlags templateFlags)
-    {
-        var node = CreateBaseToken<TemplateLiteralLikeNode>(kind);
-        node.Text = text;
-        node.RawText = rawText;
-        node.TemplateFlags = (templateFlags! & TokenFlags.TemplateLiteralLikeFlags);
-        node.TransformFlags = GetTransformFlagsOfTemplateLiteralLike(node.TemplateFlags);
-        return node;
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTemplateLiteralLikeDeclaration</c>.</summary>
-    public NoSubstitutionTemplateLiteral CreateTemplateLiteralLikeDeclaration(TypedEnum.NoSubstitutionTemplateLiteral? kind, string? text, string? rawText, TokenFlags templateFlags)
+    public NoSubstitutionTemplateLiteral CreateTemplateLiteralLikeDeclaration(TypedEnum.NoSubstitutionTemplateLiteral? kind, string? text, string? rawText, TokenFlags? templateFlags)
     {
-        var node = CreateBaseDeclaration<NoSubstitutionTemplateLiteral>(kind);
+        var node = CreateBaseDeclaration<NoSubstitutionTemplateLiteral>(kind!.SyntaxKind);
         node.Text = text;
         node.RawText = rawText;
         node.TemplateFlags = (templateFlags! & TokenFlags.TemplateLiteralLikeFlags);
@@ -1034,7 +886,7 @@ internal partial class NodeFactory
         node.TypeParameters = AsNodeArray(typeParameters);
         node.HeritageClauses = AsNodeArray(heritageClauses);
         node.Members = CreateNodeArray(members, null);
-        node.TransformFlags |= ((((((PropagateChildrenFlags(node.Modifiers) | PropagateNameFlags(node.Name)) | PropagateChildrenFlags(node.TypeParameters)) | PropagateChildrenFlags(node.HeritageClauses)) | PropagateChildrenFlags(node.Members)) | ((node.TypeParameters ? TransformFlags.ContainsTypeScript : TransformFlags.None))) | TransformFlags.ContainsES2015);
+        node.TransformFlags |= ((((((PropagateChildrenFlags(node.Modifiers) | PropagateNameFlags(node.Name)) | PropagateChildrenFlags(node.TypeParameters)) | PropagateChildrenFlags(node.HeritageClauses)) | PropagateChildrenFlags(node.Members)) | ((Js.IsTruthy(node.TypeParameters) ? TransformFlags.ContainsTypeScript : TransformFlags.None))) | TransformFlags.ContainsES2015);
         node.JsDoc = null;
         return node;
     }
@@ -1056,7 +908,7 @@ internal partial class NodeFactory
     {
         var node = CreateBaseNode<ExpressionWithTypeArguments>(SyntaxKind.ExpressionWithTypeArguments);
         node.Expression = Parenthesizer.ParenthesizeLeftSideOfAccess(expression, false);
-        node.TypeArguments = (typeArguments && Parenthesizer.ParenthesizeTypeArguments(typeArguments));
+        node.TypeArguments = (typeArguments is null ? null : Parenthesizer.ParenthesizeTypeArguments(typeArguments));
         node.TransformFlags |= ((PropagateChildFlags(node.Expression) | PropagateChildrenFlags(node.TypeArguments)) | TransformFlags.ContainsES2015);
         return node;
     }
@@ -1118,9 +970,9 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createNonNullChain</c>.</summary>
-    public INonNullChain CreateNonNullChain(Expression? expression)
+    public NonNullExpression CreateNonNullChain(Expression? expression)
     {
-        var node = CreateBaseNode<NonNullChain>(SyntaxKind.NonNullExpression);
+        var node = CreateBaseNode<NonNullExpression>(SyntaxKind.NonNullExpression);
         node.Flags |= NodeFlags.OptionalChain;
         node.Expression = Parenthesizer.ParenthesizeLeftSideOfAccess(expression, true);
         node.TransformFlags |= (PropagateChildFlags(node.Expression) | TransformFlags.ContainsTypeScript);
@@ -1180,15 +1032,6 @@ internal partial class NodeFactory
     {
         return node!.Statements != statements
             ? Update(CreateBlock(statements, node.MultiLine), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateVariableStatement</c>.</summary>
-    public VariableStatement UpdateVariableStatement(VariableStatement? node, List<Node>? modifiers, VariableDeclarationList? declarationList)
-    {
-        return node!.Modifiers != modifiers
-            || node!.DeclarationList != declarationList
-            ? Update(CreateVariableStatement(modifiers, declarationList), node)
             : node!;
     }
 
@@ -1345,7 +1188,7 @@ internal partial class NodeFactory
         node.Expression = Parenthesizer.ParenthesizeExpressionForDisallowedComma(expression);
         node.Statement = AsEmbeddedStatement(statement);
         node.TransformFlags |= ((((PropagateChildFlags(node.AwaitModifier) | PropagateChildFlags(node.Initializer)) | PropagateChildFlags(node.Expression)) | PropagateChildFlags(node.Statement)) | TransformFlags.ContainsES2015);
-        if (awaitModifier) node.TransformFlags |= TransformFlags.ContainsES2018;
+        if (Js.IsTruthy(awaitModifier)) node.TransformFlags |= TransformFlags.ContainsES2018;
         node.JsDoc = null;
         node.Locals = null;
         node.NextContainer = null;
@@ -1536,50 +1379,6 @@ internal partial class NodeFactory
         return node;
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createVariableDeclaration</c>.</summary>
-    public VariableDeclaration CreateVariableDeclaration(object? name, PunctuationToken? exclamationToken, ITypeNode? type, Expression? initializer)
-    {
-        var node = CreateBaseDeclaration<VariableDeclaration>(SyntaxKind.VariableDeclaration);
-        node.Name = AsName(name);
-        node.ExclamationToken = exclamationToken;
-        node.Type = type;
-        node.Initializer = AsInitializer(initializer);
-        node.TransformFlags |= ((PropagateNameFlags(node.Name) | PropagateChildFlags(node.Initializer)) | (((node.ExclamationToken ?? node.Type) ? TransformFlags.ContainsTypeScript : TransformFlags.None)));
-        node.JsDoc = null;
-        return node;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateVariableDeclaration</c>.</summary>
-    public VariableDeclaration UpdateVariableDeclaration(VariableDeclaration? node, Node? name, PunctuationToken? exclamationToken, ITypeNode? type, Expression? initializer)
-    {
-        return node!.Name != name
-            || node!.Type != type
-            || node!.ExclamationToken != exclamationToken
-            || node!.Initializer != initializer
-            ? Update(CreateVariableDeclaration(name, exclamationToken, type, initializer), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateVariableDeclarationList</c>.</summary>
-    public VariableDeclarationList UpdateVariableDeclarationList(VariableDeclarationList? node, List<VariableDeclaration>? declarations)
-    {
-        return node!.Declarations != declarations
-            ? Update(CreateVariableDeclarationList(declarations, node.Flags), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateClassDeclaration</c>.</summary>
-    public ClassDeclaration UpdateClassDeclaration(ClassDeclaration? node, List<Node>? modifiers, Identifier? name, List<TypeParameterDeclaration>? typeParameters, List<HeritageClause>? heritageClauses, List<IClassElement>? members)
-    {
-        return node!.Modifiers != modifiers
-            || node!.Name != name
-            || node!.TypeParameters != typeParameters
-            || node!.HeritageClauses != heritageClauses
-            || node!.Members != members
-            ? Update(CreateClassDeclaration(modifiers, name, typeParameters, heritageClauses, members), node)
-            : node!;
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createInterfaceDeclaration</c>.</summary>
     public InterfaceDeclaration CreateInterfaceDeclaration(List<Node>? modifiers, object? name, List<TypeParameterDeclaration>? typeParameters, List<HeritageClause>? heritageClauses, List<ITypeElement>? members)
     {
@@ -1655,16 +1454,6 @@ internal partial class NodeFactory
             : node!;
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateModuleDeclaration</c>.</summary>
-    public ModuleDeclaration UpdateModuleDeclaration(ModuleDeclaration? node, List<Node>? modifiers, MemberExpression? name, Node? body)
-    {
-        return node!.Modifiers != modifiers
-            || node!.Name != name
-            || node!.Body != body
-            ? Update(CreateModuleDeclaration(modifiers, name, body, node.Flags), node)
-            : node!;
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createModuleBlock</c>.</summary>
     public ModuleBlock CreateModuleBlock(List<IStatement>? statements)
     {
@@ -1713,32 +1502,10 @@ internal partial class NodeFactory
         return node;
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateImportEqualsDeclaration</c>.</summary>
-    public ImportEqualsDeclaration UpdateImportEqualsDeclaration(ImportEqualsDeclaration? node, List<Node>? modifiers, bool isTypeOnly, Identifier? name, Node? moduleReference)
-    {
-        return node!.Modifiers != modifiers
-            || node!.IsTypeOnly != isTypeOnly
-            || node!.Name != name
-            || node!.ModuleReference != moduleReference
-            ? Update(CreateImportEqualsDeclaration(modifiers, isTypeOnly, name, moduleReference), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateImportDeclaration</c>.</summary>
-    public ImportDeclaration UpdateImportDeclaration(ImportDeclaration? node, List<Node>? modifiers, ImportClause? importClause, Expression? moduleSpecifier, ImportAttributes? attributes)
-    {
-        return node!.Modifiers != modifiers
-            || node!.ImportClause != importClause
-            || node!.ModuleSpecifier != moduleSpecifier
-            || node!.Attributes != attributes
-            ? Update(CreateImportDeclaration(modifiers, importClause, moduleSpecifier, attributes), node)
-            : node!;
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createAssertClause</c>.</summary>
-    public IAssertClause CreateAssertClause(List<IAssertEntry>? elements, bool? multiLine)
+    public ImportAttributes CreateAssertClause(List<ImportAttribute>? elements, bool? multiLine)
     {
-        var node = CreateBaseNode<AssertClause>(SyntaxKind.AssertClause);
+        var node = CreateBaseNode<ImportAttributes>(SyntaxKind.AssertClause);
         node.Elements = CreateNodeArray(elements, null);
         node.MultiLine = multiLine;
         node.Token = SyntaxKind.AssertKeyword;
@@ -1747,7 +1514,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateAssertClause</c>.</summary>
-    public IAssertClause UpdateAssertClause(IAssertClause? node, List<IAssertEntry>? elements, bool? multiLine)
+    public ImportAttributes UpdateAssertClause(ImportAttributes? node, List<ImportAttribute>? elements, bool? multiLine)
     {
         return node!.Elements != elements
             || node!.MultiLine != multiLine
@@ -1756,9 +1523,9 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createAssertEntry</c>.</summary>
-    public IAssertEntry CreateAssertEntry(MemberExpression? name, Expression? value)
+    public ImportAttribute CreateAssertEntry(MemberExpression? name, Expression? value)
     {
-        var node = CreateBaseNode<AssertEntry>(SyntaxKind.AssertEntry);
+        var node = CreateBaseNode<ImportAttribute>(SyntaxKind.AssertEntry);
         node.Name = name;
         node.Value = value;
         node.TransformFlags |= TransformFlags.ContainsESNext;
@@ -1766,7 +1533,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateAssertEntry</c>.</summary>
-    public IAssertEntry UpdateAssertEntry(IAssertEntry? node, MemberExpression? name, Expression? value)
+    public ImportAttribute UpdateAssertEntry(ImportAttribute? node, MemberExpression? name, Expression? value)
     {
         return node!.Name != name
             || node!.Value != value
@@ -1775,7 +1542,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createImportTypeAssertionContainer</c>.</summary>
-    public ImportTypeAssertionContainer CreateImportTypeAssertionContainer(IAssertClause? clause, bool? multiLine)
+    public ImportTypeAssertionContainer CreateImportTypeAssertionContainer(ImportAttributes? clause, bool? multiLine)
     {
         var node = CreateBaseNode<ImportTypeAssertionContainer>(SyntaxKind.ImportTypeAssertionContainer);
         node.AssertClause = clause;
@@ -1784,7 +1551,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateImportTypeAssertionContainer</c>.</summary>
-    public ImportTypeAssertionContainer UpdateImportTypeAssertionContainer(ImportTypeAssertionContainer? node, IAssertClause? clause, bool? multiLine)
+    public ImportTypeAssertionContainer UpdateImportTypeAssertionContainer(ImportTypeAssertionContainer? node, ImportAttributes? clause, bool? multiLine)
     {
         return node!.AssertClause != clause
             || node!.MultiLine != multiLine
@@ -1793,7 +1560,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createImportAttributes</c>.</summary>
-    public ImportAttributes CreateImportAttributes(List<ImportAttribute>? elements, bool? multiLine, object? token)
+    public ImportAttributes CreateImportAttributes(List<ImportAttribute>? elements, bool? multiLine, SyntaxKind? token)
     {
         var node = CreateBaseNode<ImportAttributes>(SyntaxKind.ImportAttributes);
         node.Token = (token ?? SyntaxKind.WithKeyword);
@@ -1908,12 +1675,12 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createExportAssignment</c>.</summary>
-    public ExportAssignment CreateExportAssignment(List<Node>? modifiers, bool isExportEquals, Expression? expression)
+    public ExportAssignment CreateExportAssignment(List<Node>? modifiers, bool? isExportEquals, Expression? expression)
     {
         var node = CreateBaseDeclaration<ExportAssignment>(SyntaxKind.ExportAssignment);
         node.Modifiers = AsNodeArray(modifiers);
         node.IsExportEquals = isExportEquals;
-        node.Expression = (isExportEquals ? Parenthesizer.ParenthesizeRightSideOfBinary(SyntaxKind.EqualsToken, null, expression) : Parenthesizer.ParenthesizeExpressionOfExportDefault(expression));
+        node.Expression = (Js.IsTruthy(isExportEquals) ? Parenthesizer.ParenthesizeRightSideOfBinary(SyntaxKind.EqualsToken, null, expression) : Parenthesizer.ParenthesizeExpressionOfExportDefault(expression));
         node.TransformFlags |= (PropagateChildrenFlags(node.Modifiers) | PropagateChildFlags(node.Expression));
         node.TransformFlags &= CoreFlags.Not(TransformFlags.ContainsPossibleTopLevelAwait);
         node.JsDoc = null;
@@ -1996,37 +1763,13 @@ internal partial class NodeFactory
             : node!;
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocUnaryTypeWorker</c>.</summary>
-    public T CreateJSDocUnaryTypeWorker<T>(object? kind, object? type) where T : JSDocType
-    {
-        var node = CreateBaseNode<T>(kind);
-        node.Type = type;
-        return node;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocPrePostfixUnaryTypeWorker</c>.</summary>
-    public object? UpdateJSDocPrePostfixUnaryTypeWorker<T>(object? kind, T? node, object? type) where T : JSDocType
-    {
-        return node!.Type != type
-            ? Update(CreateJSDocPrePostfixUnaryTypeWorker(kind, type, node.Postfix), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocUnaryTypeWorker</c>.</summary>
-    public object? UpdateJSDocUnaryTypeWorker<T>(object? kind, T? node, object? type) where T : JSDocType
-    {
-        return node!.Type != type
-            ? Update(CreateJSDocUnaryTypeWorker(kind, type), node)
-            : node!;
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocFunctionType</c>.</summary>
     public JSDocFunctionType CreateJSDocFunctionType(List<ParameterDeclaration>? parameters, ITypeNode? type)
     {
         var node = CreateBaseDeclaration<JSDocFunctionType>(SyntaxKind.JSDocFunctionType);
         node.Parameters = AsNodeArray(parameters);
         node.Type = type;
-        node.TransformFlags = (PropagateChildrenFlags(node.Parameters) | ((node.Type ? TransformFlags.ContainsTypeScript : TransformFlags.None)));
+        node.TransformFlags = (PropagateChildrenFlags(node.Parameters) | ((Js.IsTruthy(node.Type) ? TransformFlags.ContainsTypeScript : TransformFlags.None)));
         node.JsDoc = null;
         node.Locals = null;
         node.NextContainer = null;
@@ -2040,24 +1783,6 @@ internal partial class NodeFactory
         return node!.Parameters != parameters
             || node!.Type != type
             ? Update(CreateJSDocFunctionType(parameters, type), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocTypeLiteral</c>.</summary>
-    public JSDocTypeLiteral CreateJSDocTypeLiteral(List<JSDocPropertyLikeTag>? propertyTags, object? isArrayType)
-    {
-        var node = CreateBaseDeclaration<JSDocTypeLiteral>(SyntaxKind.JSDocTypeLiteral);
-        node.JsDocPropertyTags = AsNodeArray(propertyTags);
-        node.IsArrayType = isArrayType;
-        return node;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocTypeLiteral</c>.</summary>
-    public JSDocTypeLiteral UpdateJSDocTypeLiteral(JSDocTypeLiteral? node, List<JSDocPropertyLikeTag>? propertyTags, bool isArrayType)
-    {
-        return node!.JsDocPropertyTags != propertyTags
-            || node!.IsArrayType != isArrayType
-            ? Update(CreateJSDocTypeLiteral(propertyTags, isArrayType), node)
             : node!;
     }
 
@@ -2097,113 +1822,6 @@ internal partial class NodeFactory
             || node!.Parameters != parameters
             || node!.Type != type
             ? Update(CreateJSDocSignature(typeParameters, parameters, type), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBaseJSDocTag</c>.</summary>
-    public T CreateBaseJSDocTag<T>(object? kind, Identifier? tagName, object? comment) where T : JSDocTag
-    {
-        var node = CreateBaseNode<T>(kind);
-        node.TagName = tagName;
-        node.Comment = comment;
-        return node;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBaseJSDocTagDeclaration</c>.</summary>
-    public T CreateBaseJSDocTagDeclaration<T>(object? kind, Identifier? tagName, object? comment) where T : JSDocTag
-    {
-        var node = CreateBaseDeclaration<T>(kind);
-        node.TagName = tagName;
-        node.Comment = comment;
-        return node;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocTemplateTag</c>.</summary>
-    public JSDocTemplateTag UpdateJSDocTemplateTag(JSDocTemplateTag? node, Identifier? tagName, JSDocTypeExpression? constraint, List<TypeParameterDeclaration>? typeParameters, object? comment)
-    {
-        return node!.TagName != tagName
-            || node!.Constraint != constraint
-            || node!.TypeParameters != typeParameters
-            || node!.Comment != comment
-            ? Update(CreateJSDocTemplateTag(tagName, constraint, typeParameters, comment), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocTypedefTag</c>.</summary>
-    public JSDocTypedefTag UpdateJSDocTypedefTag(JSDocTypedefTag? node, Identifier? tagName, JSDocTypeExpression? typeExpression, Node? fullName, object? comment)
-    {
-        return node!.TagName != tagName
-            || node!.TypeExpression != typeExpression
-            || node!.FullName != fullName
-            || node!.Comment != comment
-            ? Update(CreateJSDocTypedefTag(tagName, typeExpression, fullName, comment), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocParameterTag</c>.</summary>
-    public JSDocParameterTag UpdateJSDocParameterTag(JSDocParameterTag? node, Identifier? tagName, Node? name, bool isBracketed, JSDocTypeExpression? typeExpression, bool isNameFirst, object? comment)
-    {
-        return node!.TagName != tagName
-            || node!.Name != name
-            || node!.IsBracketed != isBracketed
-            || node!.TypeExpression != typeExpression
-            || node!.IsNameFirst != isNameFirst
-            || node!.Comment != comment
-            ? Update(CreateJSDocParameterTag(tagName, name, isBracketed, typeExpression, isNameFirst, comment), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocPropertyTag</c>.</summary>
-    public JSDocPropertyTag UpdateJSDocPropertyTag(JSDocPropertyTag? node, Identifier? tagName, Node? name, bool isBracketed, JSDocTypeExpression? typeExpression, bool isNameFirst, object? comment)
-    {
-        return node!.TagName != tagName
-            || node!.Name != name
-            || node!.IsBracketed != isBracketed
-            || node!.TypeExpression != typeExpression
-            || node!.IsNameFirst != isNameFirst
-            || node!.Comment != comment
-            ? Update(CreateJSDocPropertyTag(tagName, name, isBracketed, typeExpression, isNameFirst, comment), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocCallbackTag</c>.</summary>
-    public JSDocCallbackTag UpdateJSDocCallbackTag(JSDocCallbackTag? node, Identifier? tagName, JSDocSignature? typeExpression, Node? fullName, object? comment)
-    {
-        return node!.TagName != tagName
-            || node!.TypeExpression != typeExpression
-            || node!.FullName != fullName
-            || node!.Comment != comment
-            ? Update(CreateJSDocCallbackTag(tagName, typeExpression, fullName, comment), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocOverloadTag</c>.</summary>
-    public JSDocOverloadTag UpdateJSDocOverloadTag(JSDocOverloadTag? node, Identifier? tagName, JSDocSignature? typeExpression, object? comment)
-    {
-        return node!.TagName != tagName
-            || node!.TypeExpression != typeExpression
-            || node!.Comment != comment
-            ? Update(CreateJSDocOverloadTag(tagName, typeExpression, comment), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocAugmentsTag</c>.</summary>
-    public JSDocAugmentsTag UpdateJSDocAugmentsTag(JSDocAugmentsTag? node, Identifier? tagName, object? className, object? comment)
-    {
-        return node!.TagName != tagName
-            || node!.Class != className
-            || node!.Comment != comment
-            ? Update(CreateJSDocAugmentsTag(tagName, className, comment), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocSeeTag</c>.</summary>
-    public JSDocSeeTag UpdateJSDocSeeTag(JSDocSeeTag? node, Identifier? tagName, JSDocNameReference? name, object? comment)
-    {
-        return node!.TagName != tagName
-            || node!.Name != name
-            || node!.Comment != comment
-            ? Update(CreateJSDocSeeTag(tagName, name, comment), node)
             : node!;
     }
 
@@ -2293,66 +1911,6 @@ internal partial class NodeFactory
             : node!;
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocImplementsTag</c>.</summary>
-    public JSDocImplementsTag UpdateJSDocImplementsTag(JSDocImplementsTag? node, Identifier? tagName, object? className, object? comment)
-    {
-        return node!.TagName != tagName
-            || node!.Class != className
-            || node!.Comment != comment
-            ? Update(CreateJSDocImplementsTag(tagName, className, comment), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocSimpleTagWorker</c>.</summary>
-    public object? UpdateJSDocSimpleTagWorker<T>(object? kind, T? node, Identifier? tagName, object? comment) where T : JSDocTag
-    {
-        return node!.TagName != tagName
-            || node!.Comment != comment
-            ? Update(CreateJSDocSimpleTagWorker(kind, tagName, comment), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocTypeLikeTagWorker</c>.</summary>
-    public object? UpdateJSDocTypeLikeTagWorker<T>(object? kind, T? node, Identifier? tagName, JSDocTypeExpression? typeExpression, object? comment) where T : JSDocTag
-    {
-        return node!.TagName != tagName
-            || node!.TypeExpression != typeExpression
-            || node!.Comment != comment
-            ? Update(CreateJSDocTypeLikeTagWorker(kind, tagName, typeExpression, comment), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocUnknownTag</c>.</summary>
-    public JSDocUnknownTag UpdateJSDocUnknownTag(JSDocUnknownTag? node, Identifier? tagName, object? comment)
-    {
-        return node!.TagName != tagName
-            || node!.Comment != comment
-            ? Update(CreateJSDocUnknownTag(tagName, comment), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocEnumTag</c>.</summary>
-    public JSDocEnumTag UpdateJSDocEnumTag(JSDocEnumTag? node, Identifier? tagName, JSDocTypeExpression? typeExpression, object? comment)
-    {
-        return node!.TagName != tagName
-            || node!.TypeExpression != typeExpression
-            || node!.Comment != comment
-            ? Update(CreateJSDocEnumTag(tagName, typeExpression, comment), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocImportTag</c>.</summary>
-    public JSDocImportTag UpdateJSDocImportTag(JSDocImportTag? node, Identifier? tagName, ImportClause? importClause, Expression? moduleSpecifier, ImportAttributes? attributes, object? comment)
-    {
-        return node!.TagName != tagName
-            || node!.Comment != comment
-            || node!.ImportClause != importClause
-            || node!.ModuleSpecifier != moduleSpecifier
-            || node!.Attributes != attributes
-            ? Update(CreateJSDocImportTag(tagName, importClause, moduleSpecifier, attributes, comment), node)
-            : node!;
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocText</c>.</summary>
     public JSDocText CreateJSDocText(string? text)
     {
@@ -2408,26 +1966,6 @@ internal partial class NodeFactory
             : node!;
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJsxSelfClosingElement</c>.</summary>
-    public JsxSelfClosingElement UpdateJsxSelfClosingElement(JsxSelfClosingElement? node, Node? tagName, List<ITypeNode>? typeArguments, JsxAttributes? attributes)
-    {
-        return node!.TagName != tagName
-            || node!.TypeArguments != typeArguments
-            || node!.Attributes != attributes
-            ? Update(CreateJsxSelfClosingElement(tagName, typeArguments, attributes), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJsxOpeningElement</c>.</summary>
-    public JsxOpeningElement UpdateJsxOpeningElement(JsxOpeningElement? node, Node? tagName, List<ITypeNode>? typeArguments, JsxAttributes? attributes)
-    {
-        return node!.TagName != tagName
-            || node!.TypeArguments != typeArguments
-            || node!.Attributes != attributes
-            ? Update(CreateJsxOpeningElement(tagName, typeArguments, attributes), node)
-            : node!;
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJsxClosingElement</c>.</summary>
     public JsxClosingElement CreateJsxClosingElement(Node? tagName)
     {
@@ -2471,7 +2009,7 @@ internal partial class NodeFactory
     {
         var node = CreateBaseNode<JsxText>(SyntaxKind.JsxText);
         node.Text = text;
-        node.ContainsOnlyTriviaWhiteSpaces = !!containsOnlyTriviaWhiteSpaces;
+        node.ContainsOnlyTriviaWhiteSpaces = !!Js.IsTruthy(containsOnlyTriviaWhiteSpaces);
         node.TransformFlags |= TransformFlags.ContainsJsx;
         return node;
     }
@@ -2564,14 +2102,6 @@ internal partial class NodeFactory
         return node;
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJsxExpression</c>.</summary>
-    public JsxExpression UpdateJsxExpression(JsxExpression? node, Expression? expression)
-    {
-        return node!.Expression != expression
-            ? Update(CreateJsxExpression(node.DotDotDotToken, expression), node)
-            : node!;
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJsxNamespacedName</c>.</summary>
     public JsxNamespacedName CreateJsxNamespacedName(Identifier? @namespace, Identifier? name)
     {
@@ -2628,21 +2158,13 @@ internal partial class NodeFactory
             : node!;
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateHeritageClause</c>.</summary>
-    public HeritageClause UpdateHeritageClause(HeritageClause? node, List<ExpressionWithTypeArguments>? types)
-    {
-        return node!.Types != types
-            ? Update(CreateHeritageClause(node.Token, types), node)
-            : node!;
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createCatchClause</c>.</summary>
     public CatchClause CreateCatchClause(object? variableDeclaration, Block? block)
     {
         var node = CreateBaseNode<CatchClause>(SyntaxKind.CatchClause);
         node.VariableDeclaration = AsVariableDeclaration(variableDeclaration);
         node.Block = block;
-        node.TransformFlags |= ((PropagateChildFlags(node.VariableDeclaration) | PropagateChildFlags(node.Block)) | ((!variableDeclaration ? TransformFlags.ContainsES2019 : TransformFlags.None)));
+        node.TransformFlags |= ((PropagateChildFlags(node.VariableDeclaration) | PropagateChildFlags(node.Block)) | ((!Js.IsTruthy(variableDeclaration) ? TransformFlags.ContainsES2019 : TransformFlags.None)));
         node.Locals = null;
         node.NextContainer = null;
         return node;
@@ -2676,7 +2198,7 @@ internal partial class NodeFactory
     {
         var node = CreateBaseDeclaration<ShorthandPropertyAssignment>(SyntaxKind.ShorthandPropertyAssignment);
         node.Name = AsName(name);
-        node.ObjectAssignmentInitializer = (objectAssignmentInitializer && Parenthesizer.ParenthesizeExpressionForDisallowedComma(objectAssignmentInitializer));
+        node.ObjectAssignmentInitializer = (objectAssignmentInitializer is null ? null : Parenthesizer.ParenthesizeExpressionForDisallowedComma(objectAssignmentInitializer));
         node.TransformFlags |= ((PropagateIdentifierNameFlags(node.Name) | PropagateChildFlags(node.ObjectAssignmentInitializer)) | TransformFlags.ContainsES2015);
         node.EqualsToken = null;
         node.Modifiers = null;
@@ -2709,7 +2231,7 @@ internal partial class NodeFactory
     {
         var node = CreateBaseDeclaration<EnumMember>(SyntaxKind.EnumMember);
         node.Name = AsName(name);
-        node.Initializer = (initializer && Parenthesizer.ParenthesizeExpressionForDisallowedComma(initializer));
+        node.Initializer = (initializer is null ? null : Parenthesizer.ParenthesizeExpressionForDisallowedComma(initializer));
         node.TransformFlags |= ((PropagateChildFlags(node.Name) | PropagateChildFlags(node.Initializer)) | TransformFlags.ContainsTypeScript);
         node.JsDoc = null;
         return node;
@@ -2721,18 +2243,6 @@ internal partial class NodeFactory
         return node!.Name != name
             || node!.Initializer != initializer
             ? Update(CreateEnumMember(name, initializer), node)
-            : node!;
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateSourceFile</c>.</summary>
-    public SourceFile UpdateSourceFile(SourceFile? node, List<IStatement>? statements, object? isDeclarationFile, object? referencedFiles, object? typeReferenceDirectives, object? _hasNoDefaultLib, object? libReferenceDirectives)
-    {
-        return node!.Statements != statements
-            || node!.IsDeclarationFile != isDeclarationFile
-            || node!.ReferencedFiles != referencedFiles
-            || node!.TypeReferenceDirectives != typeReferenceDirectives
-            || node!.LibReferenceDirectives != libReferenceDirectives
-            ? Update(CloneSourceFileWithChanges(node, statements, isDeclarationFile, referencedFiles, typeReferenceDirectives, false, libReferenceDirectives), node)
             : node!;
     }
 
@@ -2755,16 +2265,6 @@ internal partial class NodeFactory
             : node!;
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createSyntheticExpression</c>.</summary>
-    public SyntheticExpression CreateSyntheticExpression(IType? type, object? isSpread, Node? tupleNameSource)
-    {
-        var node = CreateBaseNode<SyntheticExpression>(SyntaxKind.SyntheticExpression);
-        node.Type = type;
-        node.IsSpread = isSpread;
-        node.TupleNameSource = tupleNameSource;
-        return node;
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createSyntaxList</c>.</summary>
     public SyntaxList CreateSyntaxList(List<Node>? children)
     {
@@ -2778,7 +2278,7 @@ internal partial class NodeFactory
     {
         var node = CreateBaseNode<NotEmittedStatement>(SyntaxKind.NotEmittedStatement);
         node.Original = original;
-        SetTextRange(node, original);
+        Utilities.SetTextRange(node, original);
         return node;
     }
 
@@ -2789,7 +2289,7 @@ internal partial class NodeFactory
         node.Expression = expression;
         node.Original = original;
         node.TransformFlags |= (PropagateChildFlags(node.Expression) | TransformFlags.ContainsTypeScript);
-        SetTextRange(node, original);
+        Utilities.SetTextRange(node, original);
         return node;
     }
 
@@ -2805,7 +2305,7 @@ internal partial class NodeFactory
     public CommaListExpression CreateCommaListExpression(List<Expression>? elements)
     {
         var node = CreateBaseNode<CommaListExpression>(SyntaxKind.CommaListExpression);
-        node.Elements = CreateNodeArray(SameFlatMap(elements, flattenCommaElements), null);
+        node.Elements = CreateNodeArray(Core.SameFlatMap(elements, FlattenCommaElements), null);
         node.TransformFlags |= PropagateChildrenFlags(node.Elements);
         return node;
     }
@@ -2835,6 +2335,1275 @@ internal partial class NodeFactory
             || node!.ThisArg != thisArg
             ? Update(CreateSyntheticReferenceExpression(expression, thisArg), node)
             : node!;
+    }
+
+    //
+    // Stubs — the members the hand-written half does not provide yet (§15.7).
+    //
+    // Each throws, so a caller that reaches one fails loudly rather than seeing a half-built node.
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBaseGeneratedIdentifier</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateBaseGeneratedIdentifier(string? text, GeneratedIdentifierFlags autoGenerateFlags, object? prefix, string? suffix)
+    {
+        throw new NotImplementedException("the port has not reached `createBaseGeneratedIdentifier` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTempVariable</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public Identifier CreateTempVariable(Action<Identifier>? recordTempVariable, bool? reservedInNestedScopes, object? prefix, string? suffix)
+    {
+        throw new NotImplementedException("the port has not reached `createTempVariable` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createLoopVariable</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public Identifier CreateLoopVariable(bool? reservedInNestedScopes)
+    {
+        throw new NotImplementedException("the port has not reached `createLoopVariable` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createUniqueName</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public Identifier CreateUniqueName(string? text, GeneratedIdentifierFlags flags, object? prefix, string? suffix)
+    {
+        throw new NotImplementedException("the port has not reached `createUniqueName` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBaseGeneratedPrivateIdentifier</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateBaseGeneratedPrivateIdentifier(string? text, GeneratedIdentifierFlags autoGenerateFlags, object? prefix, string? suffix)
+    {
+        throw new NotImplementedException("the port has not reached `createBaseGeneratedPrivateIdentifier` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createUniquePrivateName</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public PrivateIdentifier CreateUniquePrivateName(string? text, object? prefix, string? suffix)
+    {
+        throw new NotImplementedException("the port has not reached `createUniquePrivateName` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createConstructorDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateConstructorDeclaration(List<Node>? modifiers, List<ParameterDeclaration>? parameters, Block? body)
+    {
+        throw new NotImplementedException("the port has not reached `createConstructorDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateConstructorDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateConstructorDeclaration(ConstructorDeclaration? node, List<Node>? modifiers, List<ParameterDeclaration>? parameters, Block? body)
+    {
+        throw new NotImplementedException("the port has not reached `updateConstructorDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createGetAccessorDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateGetAccessorDeclaration(List<Node>? modifiers, object? name, List<ParameterDeclaration>? parameters, ITypeNode? type, Block? body)
+    {
+        throw new NotImplementedException("the port has not reached `createGetAccessorDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateGetAccessorDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateGetAccessorDeclaration(GetAccessorDeclaration? node, List<Node>? modifiers, Node? name, List<ParameterDeclaration>? parameters, ITypeNode? type, Block? body)
+    {
+        throw new NotImplementedException("the port has not reached `updateGetAccessorDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createSetAccessorDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateSetAccessorDeclaration(List<Node>? modifiers, object? name, List<ParameterDeclaration>? parameters, Block? body)
+    {
+        throw new NotImplementedException("the port has not reached `createSetAccessorDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateSetAccessorDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateSetAccessorDeclaration(SetAccessorDeclaration? node, List<Node>? modifiers, Node? name, List<ParameterDeclaration>? parameters, Block? body)
+    {
+        throw new NotImplementedException("the port has not reached `updateSetAccessorDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateCallSignature</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateCallSignature(CallSignatureDeclaration? node, NodeArray<TypeParameterDeclaration>? typeParameters, NodeArray<ParameterDeclaration>? parameters, ITypeNode? type)
+    {
+        throw new NotImplementedException("the port has not reached `updateCallSignature` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateConstructSignature</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateConstructSignature(ConstructSignatureDeclaration? node, NodeArray<TypeParameterDeclaration>? typeParameters, NodeArray<ParameterDeclaration>? parameters, ITypeNode? type)
+    {
+        throw new NotImplementedException("the port has not reached `updateConstructSignature` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateIndexSignature</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateIndexSignature(IndexSignatureDeclaration? node, List<Node>? modifiers, List<ParameterDeclaration>? parameters, ITypeNode? type)
+    {
+        throw new NotImplementedException("the port has not reached `updateIndexSignature` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createKeywordTypeNode</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateKeywordTypeNode<TKind>(TKind? kind)
+    {
+        throw new NotImplementedException("the port has not reached `createKeywordTypeNode` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateFunctionTypeNode</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateFunctionTypeNode(FunctionTypeNode? node, NodeArray<TypeParameterDeclaration>? typeParameters, NodeArray<ParameterDeclaration>? parameters, ITypeNode? type)
+    {
+        throw new NotImplementedException("the port has not reached `updateFunctionTypeNode` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createConstructorTypeNode2</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public ConstructorTypeNode CreateConstructorTypeNode2(List<TypeParameterDeclaration>? typeParameters, List<ParameterDeclaration>? parameters, ITypeNode? type)
+    {
+        throw new NotImplementedException("the port has not reached `createConstructorTypeNode2` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateConstructorTypeNode1</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateConstructorTypeNode1(ConstructorTypeNode? node, List<ModifierToken>? modifiers, NodeArray<TypeParameterDeclaration>? typeParameters, NodeArray<ParameterDeclaration>? parameters, ITypeNode? type)
+    {
+        throw new NotImplementedException("the port has not reached `updateConstructorTypeNode1` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateConstructorTypeNode2</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateConstructorTypeNode2(ConstructorTypeNode? node, NodeArray<TypeParameterDeclaration>? typeParameters, NodeArray<ParameterDeclaration>? parameters, ITypeNode? type)
+    {
+        throw new NotImplementedException("the port has not reached `updateConstructorTypeNode2` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTupleTypeNode</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public TupleTypeNode CreateTupleTypeNode(List<Node>? elements)
+    {
+        throw new NotImplementedException("the port has not reached `createTupleTypeNode` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateTupleTypeNode</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public TupleTypeNode UpdateTupleTypeNode(TupleTypeNode? node, List<Node>? elements)
+    {
+        throw new NotImplementedException("the port has not reached `updateTupleTypeNode` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createUnionOrIntersectionTypeNode</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public Node CreateUnionOrIntersectionTypeNode(SyntaxKind kind, List<ITypeNode>? types, List<Func<List<ITypeNode>, ITypeNode>>? parenthesize)
+    {
+        throw new NotImplementedException("the port has not reached `createUnionOrIntersectionTypeNode` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateUnionOrIntersectionTypeNode</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public T UpdateUnionOrIntersectionTypeNode<T>(T? node, NodeArray<ITypeNode>? types, List<Func<List<ITypeNode>, ITypeNode>>? parenthesize) where T : Node
+    {
+        throw new NotImplementedException("the port has not reached `updateUnionOrIntersectionTypeNode` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createUnionTypeNode</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public UnionTypeNode CreateUnionTypeNode(List<ITypeNode>? types)
+    {
+        throw new NotImplementedException("the port has not reached `createUnionTypeNode` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateUnionTypeNode</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateUnionTypeNode(UnionTypeNode? node, NodeArray<ITypeNode>? types)
+    {
+        throw new NotImplementedException("the port has not reached `updateUnionTypeNode` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createIntersectionTypeNode</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public IntersectionTypeNode CreateIntersectionTypeNode(List<ITypeNode>? types)
+    {
+        throw new NotImplementedException("the port has not reached `createIntersectionTypeNode` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateIntersectionTypeNode</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateIntersectionTypeNode(IntersectionTypeNode? node, NodeArray<ITypeNode>? types)
+    {
+        throw new NotImplementedException("the port has not reached `updateIntersectionTypeNode` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createImportTypeNode</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public ImportTypeNode CreateImportTypeNode(ITypeNode? argument, ImportAttributes? attributes, Node? qualifier, List<ITypeNode>? typeArguments, object? isTypeOf)
+    {
+        throw new NotImplementedException("the port has not reached `createImportTypeNode` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateImportTypeNode</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public ImportTypeNode UpdateImportTypeNode(ImportTypeNode? node, ITypeNode? argument, ImportAttributes? attributes, Node? qualifier, List<ITypeNode>? typeArguments, bool isTypeOf)
+    {
+        throw new NotImplementedException("the port has not reached `updateImportTypeNode` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createObjectBindingPattern</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateObjectBindingPattern(List<BindingElement>? elements)
+    {
+        throw new NotImplementedException("the port has not reached `createObjectBindingPattern` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateObjectBindingPattern</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public ObjectBindingPattern UpdateObjectBindingPattern(ObjectBindingPattern? node, List<BindingElement>? elements)
+    {
+        throw new NotImplementedException("the port has not reached `updateObjectBindingPattern` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createArrayLiteralExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateArrayLiteralExpression(List<Expression>? elements, bool? multiLine)
+    {
+        throw new NotImplementedException("the port has not reached `createArrayLiteralExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateArrayLiteralExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public ArrayLiteralExpression UpdateArrayLiteralExpression(ArrayLiteralExpression? node, List<Expression>? elements)
+    {
+        throw new NotImplementedException("the port has not reached `updateArrayLiteralExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createPropertyAccessExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreatePropertyAccessExpression(Expression? expression, object? name)
+    {
+        throw new NotImplementedException("the port has not reached `createPropertyAccessExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updatePropertyAccessExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdatePropertyAccessExpression(PropertyAccessExpression? node, Expression? expression, MemberExpression? name)
+    {
+        throw new NotImplementedException("the port has not reached `updatePropertyAccessExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createPropertyAccessChain</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreatePropertyAccessChain(Expression? expression, PunctuationToken? questionDotToken, object? name)
+    {
+        throw new NotImplementedException("the port has not reached `createPropertyAccessChain` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updatePropertyAccessChain</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdatePropertyAccessChain(PropertyAccessExpression? node, Expression? expression, PunctuationToken? questionDotToken, MemberExpression? name)
+    {
+        throw new NotImplementedException("the port has not reached `updatePropertyAccessChain` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createElementAccessExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateElementAccessExpression(Expression? expression, object? index)
+    {
+        throw new NotImplementedException("the port has not reached `createElementAccessExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateElementAccessExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateElementAccessExpression(ElementAccessExpression? node, Expression? expression, Expression? argumentExpression)
+    {
+        throw new NotImplementedException("the port has not reached `updateElementAccessExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createElementAccessChain</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateElementAccessChain(Expression? expression, PunctuationToken? questionDotToken, object? index)
+    {
+        throw new NotImplementedException("the port has not reached `createElementAccessChain` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateElementAccessChain</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateElementAccessChain(ElementAccessExpression? node, Expression? expression, PunctuationToken? questionDotToken, Expression? argumentExpression)
+    {
+        throw new NotImplementedException("the port has not reached `updateElementAccessChain` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBaseCallExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateBaseCallExpression(LeftHandSideExpression? expression, PunctuationToken? questionDotToken, NodeArray<ITypeNode>? typeArguments, NodeArray<Expression>? argumentsArray)
+    {
+        throw new NotImplementedException("the port has not reached `createBaseCallExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createCallExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateCallExpression(Expression? expression, List<ITypeNode>? typeArguments, List<Expression>? argumentsArray)
+    {
+        throw new NotImplementedException("the port has not reached `createCallExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateCallExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateCallExpression(CallExpression? node, Expression? expression, List<ITypeNode>? typeArguments, List<Expression>? argumentsArray)
+    {
+        throw new NotImplementedException("the port has not reached `updateCallExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createCallChain</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateCallChain(Expression? expression, PunctuationToken? questionDotToken, List<ITypeNode>? typeArguments, List<Expression>? argumentsArray)
+    {
+        throw new NotImplementedException("the port has not reached `createCallChain` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateCallChain</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateCallChain(CallExpression? node, Expression? expression, PunctuationToken? questionDotToken, List<ITypeNode>? typeArguments, List<Expression>? argumentsArray)
+    {
+        throw new NotImplementedException("the port has not reached `updateCallChain` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createNewExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateNewExpression(Expression? expression, List<ITypeNode>? typeArguments, List<Expression>? argumentsArray)
+    {
+        throw new NotImplementedException("the port has not reached `createNewExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateNewExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public NewExpression UpdateNewExpression(NewExpression? node, Expression? expression, List<ITypeNode>? typeArguments, List<Expression>? argumentsArray)
+    {
+        throw new NotImplementedException("the port has not reached `updateNewExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTaggedTemplateExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateTaggedTemplateExpression(Expression? tag, List<ITypeNode>? typeArguments, MemberExpression? template)
+    {
+        throw new NotImplementedException("the port has not reached `createTaggedTemplateExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateTaggedTemplateExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public TaggedTemplateExpression UpdateTaggedTemplateExpression(TaggedTemplateExpression? node, Expression? tag, List<ITypeNode>? typeArguments, MemberExpression? template)
+    {
+        throw new NotImplementedException("the port has not reached `updateTaggedTemplateExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createFunctionExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateFunctionExpression(List<ModifierToken>? modifiers, PunctuationToken? asteriskToken, object? name, List<TypeParameterDeclaration>? typeParameters, List<ParameterDeclaration>? parameters, ITypeNode? type, Block? body)
+    {
+        throw new NotImplementedException("the port has not reached `createFunctionExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateFunctionExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateFunctionExpression(FunctionExpression? node, List<ModifierToken>? modifiers, PunctuationToken? asteriskToken, Identifier? name, List<TypeParameterDeclaration>? typeParameters, List<ParameterDeclaration>? parameters, ITypeNode? type, Block? body)
+    {
+        throw new NotImplementedException("the port has not reached `updateFunctionExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createArrowFunction</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateArrowFunction(List<ModifierToken>? modifiers, List<TypeParameterDeclaration>? typeParameters, List<ParameterDeclaration>? parameters, ITypeNode? type, PunctuationToken? equalsGreaterThanToken, Node? body)
+    {
+        throw new NotImplementedException("the port has not reached `createArrowFunction` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateArrowFunction</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public ArrowFunction UpdateArrowFunction(ArrowFunction? node, List<ModifierToken>? modifiers, List<TypeParameterDeclaration>? typeParameters, List<ParameterDeclaration>? parameters, ITypeNode? type, PunctuationToken? equalsGreaterThanToken, Node? body)
+    {
+        throw new NotImplementedException("the port has not reached `updateArrowFunction` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createPrefixUnaryExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreatePrefixUnaryExpression(SyntaxKind @operator, Expression? operand)
+    {
+        throw new NotImplementedException("the port has not reached `createPrefixUnaryExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updatePrefixUnaryExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public PrefixUnaryExpression UpdatePrefixUnaryExpression(PrefixUnaryExpression? node, Expression? operand)
+    {
+        throw new NotImplementedException("the port has not reached `updatePrefixUnaryExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createPostfixUnaryExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreatePostfixUnaryExpression(Expression? operand, SyntaxKind @operator)
+    {
+        throw new NotImplementedException("the port has not reached `createPostfixUnaryExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updatePostfixUnaryExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public PostfixUnaryExpression UpdatePostfixUnaryExpression(PostfixUnaryExpression? node, Expression? operand)
+    {
+        throw new NotImplementedException("the port has not reached `updatePostfixUnaryExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBinaryExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateBinaryExpression(Expression? left, object? @operator, Expression? right)
+    {
+        throw new NotImplementedException("the port has not reached `createBinaryExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateBinaryExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public BinaryExpression UpdateBinaryExpression(BinaryExpression? node, Expression? left, Token? @operator, Expression? right)
+    {
+        throw new NotImplementedException("the port has not reached `updateBinaryExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createConditionalExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public ConditionalExpression CreateConditionalExpression(Expression? condition, PunctuationToken? questionToken, Expression? whenTrue, PunctuationToken? colonToken, Expression? whenFalse)
+    {
+        throw new NotImplementedException("the port has not reached `createConditionalExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateConditionalExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public ConditionalExpression UpdateConditionalExpression(ConditionalExpression? node, Expression? condition, Token? questionToken, Expression? whenTrue, Token? colonToken, Expression? whenFalse)
+    {
+        throw new NotImplementedException("the port has not reached `updateConditionalExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTemplateHead</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateTemplateHead(string? text, string? rawText, TokenFlags? templateFlags)
+    {
+        throw new NotImplementedException("the port has not reached `createTemplateHead` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTemplateMiddle</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateTemplateMiddle(string? text, string? rawText, TokenFlags? templateFlags)
+    {
+        throw new NotImplementedException("the port has not reached `createTemplateMiddle` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTemplateTail</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateTemplateTail(string? text, string? rawText, TokenFlags? templateFlags)
+    {
+        throw new NotImplementedException("the port has not reached `createTemplateTail` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createNoSubstitutionTemplateLiteral</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateNoSubstitutionTemplateLiteral(string? text, string? rawText, TokenFlags? templateFlags)
+    {
+        throw new NotImplementedException("the port has not reached `createNoSubstitutionTemplateLiteral` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createVariableStatement</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateVariableStatement(List<Node>? modifiers, object? declarationList)
+    {
+        throw new NotImplementedException("the port has not reached `createVariableStatement` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateVariableStatement</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public VariableStatement UpdateVariableStatement(VariableStatement? node, List<Node>? modifiers, VariableDeclarationList? declarationList)
+    {
+        throw new NotImplementedException("the port has not reached `updateVariableStatement` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createVariableDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public VariableDeclaration CreateVariableDeclaration(object? name, PunctuationToken? exclamationToken, ITypeNode? type, Expression? initializer)
+    {
+        throw new NotImplementedException("the port has not reached `createVariableDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateVariableDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public VariableDeclaration UpdateVariableDeclaration(VariableDeclaration? node, Node? name, PunctuationToken? exclamationToken, ITypeNode? type, Expression? initializer)
+    {
+        throw new NotImplementedException("the port has not reached `updateVariableDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createVariableDeclarationList</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateVariableDeclarationList(List<VariableDeclaration>? declarations, object? flags)
+    {
+        throw new NotImplementedException("the port has not reached `createVariableDeclarationList` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateVariableDeclarationList</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public VariableDeclarationList UpdateVariableDeclarationList(VariableDeclarationList? node, List<VariableDeclaration>? declarations)
+    {
+        throw new NotImplementedException("the port has not reached `updateVariableDeclarationList` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createFunctionDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateFunctionDeclaration(List<ModifierToken>? modifiers, PunctuationToken? asteriskToken, object? name, List<TypeParameterDeclaration>? typeParameters, List<ParameterDeclaration>? parameters, ITypeNode? type, Block? body)
+    {
+        throw new NotImplementedException("the port has not reached `createFunctionDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateFunctionDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateFunctionDeclaration(FunctionDeclaration? node, List<ModifierToken>? modifiers, PunctuationToken? asteriskToken, Identifier? name, List<TypeParameterDeclaration>? typeParameters, List<ParameterDeclaration>? parameters, ITypeNode? type, Block? body)
+    {
+        throw new NotImplementedException("the port has not reached `updateFunctionDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createClassDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateClassDeclaration(List<Node>? modifiers, object? name, List<TypeParameterDeclaration>? typeParameters, List<HeritageClause>? heritageClauses, List<IClassElement>? members)
+    {
+        throw new NotImplementedException("the port has not reached `createClassDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateClassDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public ClassDeclaration UpdateClassDeclaration(ClassDeclaration? node, List<Node>? modifiers, Identifier? name, List<TypeParameterDeclaration>? typeParameters, List<HeritageClause>? heritageClauses, List<IClassElement>? members)
+    {
+        throw new NotImplementedException("the port has not reached `updateClassDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createModuleDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateModuleDeclaration(List<Node>? modifiers, MemberExpression? name, Node? body, object? flags)
+    {
+        throw new NotImplementedException("the port has not reached `createModuleDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateModuleDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public ModuleDeclaration UpdateModuleDeclaration(ModuleDeclaration? node, List<Node>? modifiers, MemberExpression? name, Node? body)
+    {
+        throw new NotImplementedException("the port has not reached `updateModuleDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateNamespaceExportDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateNamespaceExportDeclaration(NamespaceExportDeclaration? node, Identifier? name)
+    {
+        throw new NotImplementedException("the port has not reached `updateNamespaceExportDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createImportEqualsDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateImportEqualsDeclaration(List<Node>? modifiers, bool isTypeOnly, object? name, Node? moduleReference)
+    {
+        throw new NotImplementedException("the port has not reached `createImportEqualsDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateImportEqualsDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public ImportEqualsDeclaration UpdateImportEqualsDeclaration(ImportEqualsDeclaration? node, List<Node>? modifiers, bool isTypeOnly, Identifier? name, Node? moduleReference)
+    {
+        throw new NotImplementedException("the port has not reached `updateImportEqualsDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createImportDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public ImportDeclaration CreateImportDeclaration(List<Node>? modifiers, ImportClause? importClause, Expression? moduleSpecifier, ImportAttributes? attributes)
+    {
+        throw new NotImplementedException("the port has not reached `createImportDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateImportDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public ImportDeclaration UpdateImportDeclaration(ImportDeclaration? node, List<Node>? modifiers, ImportClause? importClause, Expression? moduleSpecifier, ImportAttributes? attributes)
+    {
+        throw new NotImplementedException("the port has not reached `updateImportDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createImportClause</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public ImportClause CreateImportClause(object? phaseModifier, Identifier? name, Node? namedBindings)
+    {
+        throw new NotImplementedException("the port has not reached `createImportClause` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateImportClause</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateImportClause(ImportClause? node, object? phaseModifier, Identifier? name, Node? namedBindings)
+    {
+        throw new NotImplementedException("the port has not reached `updateImportClause` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createExportDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public ExportDeclaration CreateExportDeclaration(List<ModifierToken>? modifiers, bool isTypeOnly, Node? exportClause, Expression? moduleSpecifier, ImportAttributes? attributes)
+    {
+        throw new NotImplementedException("the port has not reached `createExportDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateExportDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateExportDeclaration(ExportDeclaration? node, List<ModifierToken>? modifiers, bool isTypeOnly, Node? exportClause, Expression? moduleSpecifier, ImportAttributes? attributes)
+    {
+        throw new NotImplementedException("the port has not reached `updateExportDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocPrimaryTypeWorker</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateJSDocPrimaryTypeWorker<T>(object? kind) where T : JSDocType
+    {
+        throw new NotImplementedException("the port has not reached `createJSDocPrimaryTypeWorker` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocPrePostfixUnaryTypeWorker</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public T CreateJSDocPrePostfixUnaryTypeWorker<T>(object? kind, object? type, object? postfix) where T : JSDocType
+    {
+        throw new NotImplementedException("the port has not reached `createJSDocPrePostfixUnaryTypeWorker` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocUnaryTypeWorker</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public T CreateJSDocUnaryTypeWorker<T>(object? kind, object? type) where T : JSDocType
+    {
+        throw new NotImplementedException("the port has not reached `createJSDocUnaryTypeWorker` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocPrePostfixUnaryTypeWorker</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateJSDocPrePostfixUnaryTypeWorker<T>(object? kind, T? node, object? type) where T : JSDocType
+    {
+        throw new NotImplementedException("the port has not reached `updateJSDocPrePostfixUnaryTypeWorker` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocUnaryTypeWorker</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateJSDocUnaryTypeWorker<T>(object? kind, T? node, object? type) where T : JSDocType
+    {
+        throw new NotImplementedException("the port has not reached `updateJSDocUnaryTypeWorker` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocTypeLiteral</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocTypeLiteral CreateJSDocTypeLiteral(List<JSDocPropertyLikeTag>? propertyTags, object? isArrayType)
+    {
+        throw new NotImplementedException("the port has not reached `createJSDocTypeLiteral` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocTypeLiteral</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocTypeLiteral UpdateJSDocTypeLiteral(JSDocTypeLiteral? node, List<JSDocPropertyLikeTag>? propertyTags, bool isArrayType)
+    {
+        throw new NotImplementedException("the port has not reached `updateJSDocTypeLiteral` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBaseJSDocTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public T CreateBaseJSDocTag<T>(object? kind, Identifier? tagName, object? comment) where T : JSDocTag
+    {
+        throw new NotImplementedException("the port has not reached `createBaseJSDocTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBaseJSDocTagDeclaration</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public T CreateBaseJSDocTagDeclaration<T>(object? kind, Identifier? tagName, object? comment) where T : JSDocTag
+    {
+        throw new NotImplementedException("the port has not reached `createBaseJSDocTagDeclaration` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocTemplateTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocTemplateTag CreateJSDocTemplateTag(Identifier? tagName, JSDocTypeExpression? constraint, List<TypeParameterDeclaration>? typeParameters, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `createJSDocTemplateTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocTemplateTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocTemplateTag UpdateJSDocTemplateTag(JSDocTemplateTag? node, Identifier? tagName, JSDocTypeExpression? constraint, List<TypeParameterDeclaration>? typeParameters, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `updateJSDocTemplateTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocTypedefTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocTypedefTag CreateJSDocTypedefTag(Identifier? tagName, JSDocTypeExpression? typeExpression, Node? fullName, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `createJSDocTypedefTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocTypedefTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocTypedefTag UpdateJSDocTypedefTag(JSDocTypedefTag? node, Identifier? tagName, JSDocTypeExpression? typeExpression, Node? fullName, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `updateJSDocTypedefTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocParameterTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocParameterTag CreateJSDocParameterTag(Identifier? tagName, Node? name, bool isBracketed, JSDocTypeExpression? typeExpression, bool? isNameFirst, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `createJSDocParameterTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocParameterTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocParameterTag UpdateJSDocParameterTag(JSDocParameterTag? node, Identifier? tagName, Node? name, bool isBracketed, JSDocTypeExpression? typeExpression, bool isNameFirst, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `updateJSDocParameterTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocPropertyTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocPropertyTag CreateJSDocPropertyTag(Identifier? tagName, Node? name, bool isBracketed, JSDocTypeExpression? typeExpression, bool? isNameFirst, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `createJSDocPropertyTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocPropertyTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocPropertyTag UpdateJSDocPropertyTag(JSDocPropertyTag? node, Identifier? tagName, Node? name, bool isBracketed, JSDocTypeExpression? typeExpression, bool isNameFirst, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `updateJSDocPropertyTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocCallbackTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocCallbackTag CreateJSDocCallbackTag(Identifier? tagName, JSDocSignature? typeExpression, Node? fullName, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `createJSDocCallbackTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocCallbackTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocCallbackTag UpdateJSDocCallbackTag(JSDocCallbackTag? node, Identifier? tagName, JSDocSignature? typeExpression, Node? fullName, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `updateJSDocCallbackTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocOverloadTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocOverloadTag CreateJSDocOverloadTag(Identifier? tagName, JSDocSignature? typeExpression, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `createJSDocOverloadTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocOverloadTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocOverloadTag UpdateJSDocOverloadTag(JSDocOverloadTag? node, Identifier? tagName, JSDocSignature? typeExpression, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `updateJSDocOverloadTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocAugmentsTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocAugmentsTag CreateJSDocAugmentsTag(Identifier? tagName, ExpressionWithTypeArguments? className, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `createJSDocAugmentsTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocAugmentsTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocAugmentsTag UpdateJSDocAugmentsTag(JSDocAugmentsTag? node, Identifier? tagName, ExpressionWithTypeArguments? className, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `updateJSDocAugmentsTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocImplementsTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocImplementsTag CreateJSDocImplementsTag(Identifier? tagName, ExpressionWithTypeArguments? className, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `createJSDocImplementsTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocSeeTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocSeeTag CreateJSDocSeeTag(Identifier? tagName, JSDocNameReference? name, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `createJSDocSeeTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocSeeTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocSeeTag UpdateJSDocSeeTag(JSDocSeeTag? node, Identifier? tagName, JSDocNameReference? name, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `updateJSDocSeeTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocImplementsTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocImplementsTag UpdateJSDocImplementsTag(JSDocImplementsTag? node, Identifier? tagName, ExpressionWithTypeArguments? className, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `updateJSDocImplementsTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocSimpleTagWorker</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public T CreateJSDocSimpleTagWorker<T>(object? kind, Identifier? tagName, object? comment) where T : JSDocTag
+    {
+        throw new NotImplementedException("the port has not reached `createJSDocSimpleTagWorker` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocSimpleTagWorker</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateJSDocSimpleTagWorker<T>(object? kind, T? node, Identifier? tagName, object? comment) where T : JSDocTag
+    {
+        throw new NotImplementedException("the port has not reached `updateJSDocSimpleTagWorker` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocTypeLikeTagWorker</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public T CreateJSDocTypeLikeTagWorker<T>(object? kind, Identifier? tagName, JSDocTypeExpression? typeExpression, object? comment) where T : JSDocTag
+    {
+        throw new NotImplementedException("the port has not reached `createJSDocTypeLikeTagWorker` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocTypeLikeTagWorker</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateJSDocTypeLikeTagWorker<T>(object? kind, T? node, Identifier? tagName, JSDocTypeExpression? typeExpression, object? comment) where T : JSDocTag
+    {
+        throw new NotImplementedException("the port has not reached `updateJSDocTypeLikeTagWorker` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocUnknownTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocUnknownTag CreateJSDocUnknownTag(Identifier? tagName, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `createJSDocUnknownTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocUnknownTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocUnknownTag UpdateJSDocUnknownTag(JSDocUnknownTag? node, Identifier? tagName, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `updateJSDocUnknownTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocEnumTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocEnumTag CreateJSDocEnumTag(Identifier? tagName, JSDocTypeExpression? typeExpression, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `createJSDocEnumTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocEnumTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocEnumTag UpdateJSDocEnumTag(JSDocEnumTag? node, Identifier? tagName, JSDocTypeExpression? typeExpression, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `updateJSDocEnumTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocImportTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocImportTag CreateJSDocImportTag(Identifier? tagName, ImportClause? importClause, Expression? moduleSpecifier, ImportAttributes? attributes, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `createJSDocImportTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJSDocImportTag</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JSDocImportTag UpdateJSDocImportTag(JSDocImportTag? node, Identifier? tagName, ImportClause? importClause, Expression? moduleSpecifier, ImportAttributes? attributes, object? comment)
+    {
+        throw new NotImplementedException("the port has not reached `updateJSDocImportTag` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJsxSelfClosingElement</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateJsxSelfClosingElement(Node? tagName, List<ITypeNode>? typeArguments, JsxAttributes? attributes)
+    {
+        throw new NotImplementedException("the port has not reached `createJsxSelfClosingElement` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJsxSelfClosingElement</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JsxSelfClosingElement UpdateJsxSelfClosingElement(JsxSelfClosingElement? node, Node? tagName, List<ITypeNode>? typeArguments, JsxAttributes? attributes)
+    {
+        throw new NotImplementedException("the port has not reached `updateJsxSelfClosingElement` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJsxOpeningElement</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateJsxOpeningElement(Node? tagName, List<ITypeNode>? typeArguments, JsxAttributes? attributes)
+    {
+        throw new NotImplementedException("the port has not reached `createJsxOpeningElement` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJsxOpeningElement</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JsxOpeningElement UpdateJsxOpeningElement(JsxOpeningElement? node, Node? tagName, List<ITypeNode>? typeArguments, JsxAttributes? attributes)
+    {
+        throw new NotImplementedException("the port has not reached `updateJsxOpeningElement` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJsxExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public JsxExpression UpdateJsxExpression(JsxExpression? node, Expression? expression)
+    {
+        throw new NotImplementedException("the port has not reached `updateJsxExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createHeritageClause</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateHeritageClause(SyntaxKind token, List<ExpressionWithTypeArguments>? types)
+    {
+        throw new NotImplementedException("the port has not reached `createHeritageClause` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateHeritageClause</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public HeritageClause UpdateHeritageClause(HeritageClause? node, List<ExpressionWithTypeArguments>? types)
+    {
+        throw new NotImplementedException("the port has not reached `updateHeritageClause` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updatePropertyAssignment</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdatePropertyAssignment(PropertyAssignment? node, Node? name, Expression? initializer)
+    {
+        throw new NotImplementedException("the port has not reached `updatePropertyAssignment` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateShorthandPropertyAssignment</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateShorthandPropertyAssignment(ShorthandPropertyAssignment? node, Identifier? name, Expression? objectAssignmentInitializer)
+    {
+        throw new NotImplementedException("the port has not reached `updateShorthandPropertyAssignment` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createSourceFile</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateSourceFile(List<IStatement>? statements, Token? endOfFileToken, NodeFlags flags)
+    {
+        throw new NotImplementedException("the port has not reached `createSourceFile` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createRedirectedSourceFile</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateRedirectedSourceFile(IRedirectInfo? redirectInfo)
+    {
+        throw new NotImplementedException("the port has not reached `createRedirectedSourceFile` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateSourceFile</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public SourceFile UpdateSourceFile(SourceFile? node, List<IStatement>? statements, object? isDeclarationFile, object? referencedFiles, object? typeReferenceDirectives, object? _hasNoDefaultLib, object? libReferenceDirectives)
+    {
+        throw new NotImplementedException("the port has not reached `updateSourceFile` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createSyntheticExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public SyntheticExpression CreateSyntheticExpression(IType? type, object? isSpread, Node? tupleNameSource)
+    {
+        throw new NotImplementedException("the port has not reached `createSyntheticExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createImmediatelyInvokedFunctionExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateImmediatelyInvokedFunctionExpression(List<IStatement>? statements, ParameterDeclaration? param, Expression? paramValue)
+    {
+        throw new NotImplementedException("the port has not reached `createImmediatelyInvokedFunctionExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createImmediatelyInvokedArrowFunction</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateImmediatelyInvokedArrowFunction(List<IStatement>? statements, ParameterDeclaration? param, Expression? paramValue)
+    {
+        throw new NotImplementedException("the port has not reached `createImmediatelyInvokedArrowFunction` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTypeCheck</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateTypeCheck(Expression? value, string? tag)
+    {
+        throw new NotImplementedException("the port has not reached `createTypeCheck` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createIsNotTypeCheck</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateIsNotTypeCheck(Expression? value, string? tag)
+    {
+        throw new NotImplementedException("the port has not reached `createIsNotTypeCheck` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createMethodCall</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateMethodCall(Expression? @object, object? methodName, List<Expression>? argumentsList)
+    {
+        throw new NotImplementedException("the port has not reached `createMethodCall` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createFunctionBindCall</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateFunctionBindCall(Expression? target, Expression? thisArg, List<Expression>? argumentsList)
+    {
+        throw new NotImplementedException("the port has not reached `createFunctionBindCall` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createFunctionCallCall</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateFunctionCallCall(Expression? target, Expression? thisArg, List<Expression>? argumentsList)
+    {
+        throw new NotImplementedException("the port has not reached `createFunctionCallCall` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createFunctionApplyCall</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateFunctionApplyCall(Expression? target, Expression? thisArg, Expression? argumentsExpression)
+    {
+        throw new NotImplementedException("the port has not reached `createFunctionApplyCall` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createGlobalMethodCall</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateGlobalMethodCall(string? globalObjectName, string? methodName, List<Expression>? argumentsList)
+    {
+        throw new NotImplementedException("the port has not reached `createGlobalMethodCall` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createArraySliceCall</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateArraySliceCall(Expression? array, object? start)
+    {
+        throw new NotImplementedException("the port has not reached `createArraySliceCall` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createArrayConcatCall</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateArrayConcatCall(Expression? array, List<Expression>? argumentsList)
+    {
+        throw new NotImplementedException("the port has not reached `createArrayConcatCall` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createObjectDefinePropertyCall</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateObjectDefinePropertyCall(Expression? target, object? propertyName, Expression? attributes)
+    {
+        throw new NotImplementedException("the port has not reached `createObjectDefinePropertyCall` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createObjectGetOwnPropertyDescriptorCall</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateObjectGetOwnPropertyDescriptorCall(Expression? target, object? propertyName)
+    {
+        throw new NotImplementedException("the port has not reached `createObjectGetOwnPropertyDescriptorCall` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createReflectGetCall</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public CallExpression CreateReflectGetCall(Expression? target, Expression? propertyKey, Expression? receiver)
+    {
+        throw new NotImplementedException("the port has not reached `createReflectGetCall` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createReflectSetCall</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public CallExpression CreateReflectSetCall(Expression? target, Expression? propertyKey, Expression? value, Expression? receiver)
+    {
+        throw new NotImplementedException("the port has not reached `createReflectSetCall` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createPropertyDescriptor</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreatePropertyDescriptor(IPropertyDescriptorAttributes? attributes, bool? singleLine)
+    {
+        throw new NotImplementedException("the port has not reached `createPropertyDescriptor` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateOuterExpression</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? UpdateOuterExpression(Expression? outerExpression, Expression? expression)
+    {
+        throw new NotImplementedException("the port has not reached `updateOuterExpression` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createCallBinding</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public ICallBinding CreateCallBinding(Expression? expression, Action<Identifier>? recordTempVariable, ScriptTarget? languageVersion, object? cacheIdentifiers)
+    {
+        throw new NotImplementedException("the port has not reached `createCallBinding` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createAssignmentTargetWrapper</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public PropertyAccessExpression CreateAssignmentTargetWrapper(Identifier? paramName, Expression? expression)
+    {
+        throw new NotImplementedException("the port has not reached `createAssignmentTargetWrapper` yet");
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createUseStrictPrologue</c>.</summary>
+    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
+    /// it yet (docs/architecture.md §15.7).</remarks>
+    public object? CreateUseStrictPrologue()
+    {
+        throw new NotImplementedException("the port has not reached `createUseStrictPrologue` yet");
     }
 
 }

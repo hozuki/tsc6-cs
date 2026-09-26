@@ -39,6 +39,13 @@ internal static class Js
     /// </remarks>
     public static bool IsTruthy([NotNullWhen(true)] string? value) => !string.IsNullOrEmpty(value);
 
+    /// <summary>Evaluates JavaScript truthiness for a boolean, which is already the answer.</summary>
+    /// <remarks>
+    /// This overload exists so a condition that <em>is</em> a comparison does not box — and so the generator can
+    /// wrap every condition uniformly with <c>Js.IsTruthy(…)</c> without having to know what the operand's type is.
+    /// </remarks>
+    public static bool IsTruthy(bool value) => value;
+
     /// <summary>Evaluates JavaScript truthiness for a reference value that is expected to be non-null.</summary>
     /// <remarks>
     /// PORT-NOTE: this overload answers "is not null", which is <em>not</em> JS truthiness for every type it can

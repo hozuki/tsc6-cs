@@ -477,8 +477,14 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:458-478
-    public static IList<T> SameFlatMap<T>(IList<T> array, Func<T, int, object> mapfn)
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>array !== undefined</c> guard is the whole body's precondition, and it hands the caller back
+    /// either <c>undefined</c> or the same array — so the parameter and the result are both nullable here.
+    /// </remarks>
+    public static IList<T>? SameFlatMap<T>(IList<T>? array, Func<T, int, object> mapfn)
     {
+        if (array is null) return null;
+
         IList<T>? result = null;
         for (var i = 0; i < array.Count; i++)
         {

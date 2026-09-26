@@ -531,7 +531,7 @@ internal partial class ExportDeclaration : Node, IDeclaration, IDeclarationState
     public bool IsTypeOnly { get; set; }
     public Node? ExportClause { get; set; }
     public Expression? ModuleSpecifier { get; set; }
-    public IAssertClause? AssertClause { get; set; }
+    public ImportAttributes? AssertClause { get; set; }
     public ImportAttributes? Attributes { get; set; }
     public MemberExpression? Name { get; set; }
     public ISymbol? Symbol { get; set; }
@@ -825,7 +825,7 @@ internal partial class ImportDeclaration : Node, IJSDocContainer, IReadonlyTextR
     public NodeArray<Node>? Modifiers { get; set; }
     public ImportClause? ImportClause { get; set; }
     public Expression? ModuleSpecifier { get; set; }
-    public IAssertClause? AssertClause { get; set; }
+    public ImportAttributes? AssertClause { get; set; }
     public ImportAttributes? Attributes { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
@@ -874,7 +874,7 @@ internal partial class ImportTypeAssertionContainer : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ImportTypeAssertionContainer;
 
-    public IAssertClause? AssertClause { get; set; }
+    public ImportAttributes? AssertClause { get; set; }
     public bool? MultiLine { get; set; }
 }
 
@@ -1818,7 +1818,7 @@ internal partial class ObjectLiteralExpression : ObjectLiteralExpressionBase<Nod
 /// <summary>ported from types.ts: <c>ObjectLiteralExpressionBase</c>.</summary>
 internal abstract partial class ObjectLiteralExpressionBase<T> : MemberExpression, IDeclaration, IPrimaryExpression, IReadonlyTextRange
 {
-    public NodeArray<object?>? Properties { get; set; }
+    public NodeArray<T>? Properties { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
 }

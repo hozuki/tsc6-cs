@@ -36,7 +36,7 @@ internal partial interface IAlternateModeDiagnostics
 }
 
 /// <summary>ported from types.ts: <c>AmbientModuleDeclaration</c>.</summary>
-internal partial interface IAmbientModuleDeclaration
+internal partial interface IAmbientModuleDeclaration : INode
 {
 }
 
@@ -56,17 +56,17 @@ internal partial interface IAnonymousType : IObjectType
 }
 
 /// <summary>ported from types.ts: <c>ArrayDestructuringAssignment</c>.</summary>
-internal partial interface IArrayDestructuringAssignment
+internal partial interface IArrayDestructuringAssignment : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>AssertClause</c>.</summary>
-internal partial interface IAssertClause
+internal partial interface IAssertClause : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>AssertEntry</c>.</summary>
-internal partial interface IAssertEntry
+internal partial interface IAssertEntry : INode
 {
 }
 
@@ -107,12 +107,12 @@ internal partial interface IBigIntLiteralType : ILiteralType
 }
 
 /// <summary>ported from types.ts: <c>BindablePropertyAssignmentExpression</c>.</summary>
-internal partial interface IBindablePropertyAssignmentExpression
+internal partial interface IBindablePropertyAssignmentExpression : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>BindableStaticPropertyAssignmentExpression</c>.</summary>
-internal partial interface IBindableStaticPropertyAssignmentExpression
+internal partial interface IBindableStaticPropertyAssignmentExpression : INode
 {
 }
 
@@ -137,7 +137,7 @@ internal partial interface ICallBinding
 }
 
 /// <summary>ported from types.ts: <c>CallChainRoot</c>.</summary>
-internal partial interface ICallChainRoot
+internal partial interface ICallChainRoot : INode
 {
 }
 
@@ -162,7 +162,7 @@ internal partial interface ICheckJsDirective : ITextRange
 }
 
 /// <summary>ported from types.ts: <c>ClassElement</c>.</summary>
-internal partial interface IClassElement : INamedDeclaration
+internal partial interface IClassElement : INode, INamedDeclaration
 {
 }
 
@@ -250,9 +250,9 @@ internal partial interface ICommentRange : ITextRange
 internal partial interface ICompilerHost : IModuleResolutionHost
 {
     /// <remarks>PORT-NOTE: <c>CreateSourceFileOptions</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
-    SourceFile GetSourceFile(string? fileName, object? languageVersionOrOptions, Action<string>? onError, bool? shouldCreateNewSourceFile);
+    SourceFile? GetSourceFile(string? fileName, object? languageVersionOrOptions, Action<string>? onError, bool? shouldCreateNewSourceFile);
     /// <remarks>PORT-NOTE: <c>CreateSourceFileOptions</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
-    SourceFile GetSourceFileByPath(string? fileName, string? path, object? languageVersionOrOptions, Action<string>? onError, bool? shouldCreateNewSourceFile);
+    SourceFile? GetSourceFileByPath(string? fileName, string? path, object? languageVersionOrOptions, Action<string>? onError, bool? shouldCreateNewSourceFile);
     ICancellationToken GetCancellationToken();
     string GetDefaultLibFileName(ICompilerOptions? options);
     string GetDefaultLibLocation();
@@ -270,19 +270,19 @@ internal partial interface ICompilerHost : IModuleResolutionHost
     List<IResolvedTypeReferenceDirectiveWithFailedLookupLocations> ResolveTypeReferenceDirectiveReferences<T>(List<T>? typeDirectiveReferences, string? containingFile, IResolvedProjectReference? redirectedReference, ICompilerOptions? options, SourceFile? containingSourceFile, List<T>? reusedNames);
     IResolvedModuleWithFailedLookupLocations ResolveLibrary(string? libraryName, string? resolveFrom, ICompilerOptions? options, string? libFileName);
     bool HasInvalidatedLibResolutions(string? libFileName);
-    string GetEnvironmentVariable(string? name);
+    string? GetEnvironmentVariable(string? name);
     void OnReleaseOldSourceFile(SourceFile? oldSourceFile, ICompilerOptions? oldOptions, bool hasSourceFileByPath, SourceFile? newSourceFileByResolvedPath);
     void OnReleaseParsedCommandLine(string? configFileName, IResolvedProjectReference? oldResolvedRef, ICompilerOptions? optionOptions);
     bool HasInvalidatedResolutions(string? filePath);
     Func<bool>? HasChangedAutomaticTypeDirectiveNames { get; set; }
     string CreateHash(string? data);
-    IParsedCommandLine GetParsedCommandLine(string? fileName);
+    IParsedCommandLine? GetParsedCommandLine(string? fileName);
     bool UseSourceOfProjectReferenceRedirect();
     void CreateDirectory(string? directory);
     /// <remarks>PORT-NOTE: <c>SymlinkCache</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
     object? GetSymlinkCache();
     bool? StoreSignatureInfo { get; set; }
-    IBuildInfo GetBuildInfo(string? fileName, string? configFilePath);
+    IBuildInfo? GetBuildInfo(string? fileName, string? configFilePath);
     JSDocParsingMode? JsDocParsingMode { get; set; }
 }
 
@@ -290,7 +290,7 @@ internal partial interface ICompilerHost : IModuleResolutionHost
 internal partial interface ICompilerHostLikeForCache
 {
     bool FileExists(string? fileName);
-    string ReadFile(string? fileName, string? encoding);
+    string? ReadFile(string? fileName, string? encoding);
     bool DirectoryExists(string? directory);
     void CreateDirectory(string? directory);
     Action<string, string, bool, Action<string>, List<SourceFile>, IWriteFileCallbackData, object?>? WriteFile { get; set; }
@@ -519,11 +519,11 @@ internal partial interface ICoreTransformationContext
     LexicalEnvironmentFlags GetLexicalEnvironmentFlags();
     void SuspendLexicalEnvironment();
     void ResumeLexicalEnvironment();
-    List<IStatement> EndLexicalEnvironment();
+    List<IStatement>? EndLexicalEnvironment();
     void HoistFunctionDeclaration(FunctionDeclaration? node);
     void HoistVariableDeclaration(Identifier? node);
     void StartBlockScope();
-    List<IStatement> EndBlockScope();
+    List<IStatement>? EndBlockScope();
     void AddBlockScopedVariable(Identifier? node);
     void AddInitializationStatement(IStatement? node);
 }
@@ -556,14 +556,14 @@ internal partial interface ICustomTransformers
 }
 
 /// <summary>ported from types.ts: <c>Declaration</c>.</summary>
-internal partial interface IDeclaration
+internal partial interface IDeclaration : INode
 {
     ISymbol? Symbol { get; set; }
     ISymbol? LocalSymbol { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>DeclarationStatement</c>.</summary>
-internal partial interface IDeclarationStatement : INamedDeclaration, IStatement
+internal partial interface IDeclarationStatement : INode, INamedDeclaration, IStatement
 {
 }
 
@@ -591,7 +591,7 @@ internal partial interface IDiagnostic : IDiagnosticRelatedInformation
 internal partial interface IDiagnosticCollection
 {
     void Add(IDiagnostic? diagnostic);
-    IDiagnostic Lookup(IDiagnostic? diagnostic);
+    IDiagnostic? Lookup(IDiagnostic? diagnostic);
     List<IDiagnostic> GetGlobalDiagnostics();
     List<IDiagnostic> GetDiagnostics();
     List<IDiagnosticWithLocation> GetDiagnostics(string? fileName);
@@ -628,8 +628,8 @@ internal partial interface IDiagnosticRelatedInformation
     DiagnosticCategory Category { get; set; }
     int Code { get; set; }
     SourceFile? File { get; set; }
-    int Start { get; set; }
-    int Length { get; set; }
+    int? Start { get; set; }
+    int? Length { get; set; }
     object? MessageText { get; set; }
 }
 
@@ -670,7 +670,7 @@ internal partial interface IDocumentPositionMapper
 /// <summary>ported from types.ts: <c>DocumentPositionMapperHost</c>.</summary>
 internal partial interface IDocumentPositionMapperHost
 {
-    ISourceFileLike GetSourceFileLike(string? fileName);
+    ISourceFileLike? GetSourceFileLike(string? fileName);
     string GetCanonicalFileName(string? path);
     void Log(string? text);
 }
@@ -702,7 +702,7 @@ internal partial interface IESDecorateClassElementContext
 }
 
 /// <summary>ported from types.ts: <c>ElementAccessChainRoot</c>.</summary>
-internal partial interface IElementAccessChainRoot
+internal partial interface IElementAccessChainRoot : INode
 {
 }
 
@@ -738,7 +738,7 @@ internal partial interface IEmitHelperFactory
     Expression CreatePropKeyHelper(Expression? expr);
     Expression CreateSetFunctionNameHelper(Expression? f, Expression? name, string? prefix);
     Expression CreateValuesHelper(Expression? expression);
-    Expression CreateReadHelper(Expression? iteratorRecord, int count);
+    Expression CreateReadHelper(Expression? iteratorRecord, int? count);
     Expression CreateGeneratorHelper(FunctionExpression? body);
     Expression CreateImportStarHelper(Expression? expression);
     Expression CreateImportStarCallbackHelper();
@@ -760,7 +760,7 @@ internal partial interface IEmitHost : IScriptReferenceHost, IModuleSpecifierRes
     bool ShouldTransformImportCall(SourceFile? sourceFile);
     ModuleKind GetEmitModuleFormatOfFile(SourceFile? sourceFile);
     Action<string, string, bool, Action<string>, List<SourceFile>, IWriteFileCallbackData, object?>? WriteFile { get; set; }
-    IBuildInfo GetBuildInfo();
+    IBuildInfo? GetBuildInfo();
     Func<SourceFile, IFileReference, SourceFile>? GetSourceFileFromReference { get; set; }
     string CreateHash(string? data);
 }
@@ -794,9 +794,9 @@ internal partial interface IEmitNode
 internal partial interface IEmitResolver
 {
     bool HasGlobalName(string? name);
-    Node GetReferencedExportContainer(Identifier? node, bool? prefixLocals);
-    IDeclaration GetReferencedImportDeclaration(Identifier? node);
-    IDeclaration GetReferencedDeclarationWithCollidingName(Identifier? node);
+    Node? GetReferencedExportContainer(Identifier? node, bool? prefixLocals);
+    IDeclaration? GetReferencedImportDeclaration(Identifier? node);
+    IDeclaration? GetReferencedDeclarationWithCollidingName(Identifier? node);
     bool IsDeclarationWithCollidingName(IDeclaration? node);
     bool IsValueAliasDeclaration(Node? node);
     bool IsReferencedAliasDeclaration(Node? node, bool? checkChildren);
@@ -805,34 +805,34 @@ internal partial interface IEmitResolver
     bool IsDeclarationVisible(Node? node);
     /// <remarks>PORT-NOTE: <c>node</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
     object? IsLateBound(IDeclaration? node);
-    List<Node> CollectLinkedAliases(MemberExpression? node, bool? setVisibility);
+    List<Node>? CollectLinkedAliases(MemberExpression? node, bool? setVisibility);
     void MarkLinkedReferences(Node? node);
-    bool IsImplementationOfOverload(Node? node);
+    bool? IsImplementationOfOverload(Node? node);
     bool RequiresAddingImplicitUndefined(ParameterDeclaration? node, Node? enclosingDeclaration);
     bool IsExpandoFunctionDeclaration(Node? node);
     List<ISymbol> GetPropertiesOfContainerFunction(IDeclaration? node);
-    ITypeNode CreateTypeOfDeclaration(object? declaration, Node? enclosingDeclaration, NodeBuilderFlags flags, InternalNodeBuilderFlags internalFlags, ISymbolTracker? tracker);
-    ITypeNode CreateReturnTypeOfSignatureDeclaration(Node? signatureDeclaration, Node? enclosingDeclaration, NodeBuilderFlags flags, InternalNodeBuilderFlags internalFlags, ISymbolTracker? tracker);
-    ITypeNode CreateTypeOfExpression(Expression? expr, Node? enclosingDeclaration, NodeBuilderFlags flags, InternalNodeBuilderFlags internalFlags, ISymbolTracker? tracker);
+    ITypeNode? CreateTypeOfDeclaration(object? declaration, Node? enclosingDeclaration, NodeBuilderFlags flags, InternalNodeBuilderFlags internalFlags, ISymbolTracker? tracker);
+    ITypeNode? CreateReturnTypeOfSignatureDeclaration(Node? signatureDeclaration, Node? enclosingDeclaration, NodeBuilderFlags flags, InternalNodeBuilderFlags internalFlags, ISymbolTracker? tracker);
+    ITypeNode? CreateTypeOfExpression(Expression? expr, Node? enclosingDeclaration, NodeBuilderFlags flags, InternalNodeBuilderFlags internalFlags, ISymbolTracker? tracker);
     Expression CreateLiteralConstValue(Node? node, ISymbolTracker? tracker);
-    ISymbolAccessibilityResult IsSymbolAccessible(ISymbol? symbol, Node? enclosingDeclaration, SymbolFlags meaning, bool shouldComputeAliasToMarkVisible);
+    ISymbolAccessibilityResult IsSymbolAccessible(ISymbol? symbol, Node? enclosingDeclaration, SymbolFlags? meaning, bool shouldComputeAliasToMarkVisible);
     ISymbolVisibilityResult IsEntityNameVisible(Node? entityName, Node? enclosingDeclaration);
     object? GetConstantValue(Node? node);
-    IEvaluatorResult<object?> GetEnumMemberValue(EnumMember? node);
-    IDeclaration GetReferencedValueDeclaration(Identifier? reference);
-    List<IDeclaration> GetReferencedValueDeclarations(Identifier? reference);
+    IEvaluatorResult<object?>? GetEnumMemberValue(EnumMember? node);
+    IDeclaration? GetReferencedValueDeclaration(Identifier? reference);
+    List<IDeclaration>? GetReferencedValueDeclarations(Identifier? reference);
     TypeReferenceSerializationKind GetTypeReferenceSerializationKind(Node? typeName, Node? location);
     bool IsOptionalParameter(ParameterDeclaration? node);
     bool IsArgumentsLocalBinding(Identifier? node);
-    SourceFile GetExternalModuleFileFromDeclaration(Node? declaration);
+    SourceFile? GetExternalModuleFileFromDeclaration(Node? declaration);
     bool IsLiteralConstDeclaration(Node? node);
-    Node GetJsxFactoryEntity(Node? location);
-    Node GetJsxFragmentFactoryEntity(Node? location);
+    Node? GetJsxFactoryEntity(Node? location);
+    Node? GetJsxFragmentFactoryEntity(Node? location);
     bool IsBindingCapturedByNode(Node? node, Node? decl);
-    List<IStatement> GetDeclarationStatementsForSourceFile(SourceFile? node, NodeBuilderFlags flags, InternalNodeBuilderFlags internalFlags, ISymbolTracker? tracker);
+    List<IStatement>? GetDeclarationStatementsForSourceFile(SourceFile? node, NodeBuilderFlags flags, InternalNodeBuilderFlags internalFlags, ISymbolTracker? tracker);
     bool IsImportRequiredByAugmentation(ImportDeclaration? decl);
     bool IsDefinitelyReferenceToGlobalSymbolObject(Node? node);
-    List<Node> CreateLateBoundIndexSignatures(ClassLikeDeclarationBase? cls, Node? enclosingDeclaration, NodeBuilderFlags flags, InternalNodeBuilderFlags internalFlags, ISymbolTracker? tracker);
+    List<Node>? CreateLateBoundIndexSignatures(ClassLikeDeclarationBase? cls, Node? enclosingDeclaration, NodeBuilderFlags flags, InternalNodeBuilderFlags internalFlags, ISymbolTracker? tracker);
     List<IDeclaration> SymbolToDeclarations(ISymbol? symbol, SymbolFlags meaning, NodeBuilderFlags flags, int? maximumLength, int? verbosityLevel, IWriterContextOut? @out);
 }
 
@@ -886,15 +886,14 @@ internal partial interface IErrorOutputContainer
 /// <summary>ported from types.ts: <c>EvaluationResolver</c>.</summary>
 internal partial interface IEvaluationResolver
 {
-    IEvaluatorResult<object?> EvaluateEntityNameExpression(Node? expr, IDeclaration? location);
+    IEvaluatorResult<object?> EvaluateEntityNameExpression(MemberExpression? expr, IDeclaration? location);
     IEvaluatorResult<object?> EvaluateElementAccessExpression(ElementAccessExpression? expr, IDeclaration? location);
 }
 
 /// <summary>ported from types.ts: <c>EvaluatorResult</c>.</summary>
 internal partial interface IEvaluatorResult<T>
 {
-    /// <remarks>PORT-NOTE: <c>T</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
-    object? Value { get; set; }
+    T? Value { get; set; }
     bool IsSyntacticallyString { get; set; }
     bool ResolvedOtherFiles { get; set; }
     bool HasExternalReferences { get; set; }
@@ -961,7 +960,7 @@ internal partial interface IFlowCondition : IFlowNodeBase
 }
 
 /// <summary>ported from types.ts: <c>FlowContainer</c>.</summary>
-internal partial interface IFlowContainer
+internal partial interface IFlowContainer : INode
 {
     Node? FlowNode { get; set; }
 }
@@ -1043,7 +1042,7 @@ internal partial interface IFreshableType : IType
 }
 
 /// <summary>ported from types.ts: <c>FunctionLikeDeclarationBase</c>.</summary>
-internal partial interface IFunctionLikeDeclarationBase : ISignatureDeclarationBase
+internal partial interface IFunctionLikeDeclarationBase : INode, ISignatureDeclarationBase
 {
     PunctuationToken? AsteriskToken { get; }
     PunctuationToken? QuestionToken { get; }
@@ -1068,7 +1067,7 @@ internal partial interface IFutureSourceFile
 }
 
 /// <summary>ported from types.ts: <c>GeneratedIdentifier</c>.</summary>
-internal partial interface IGeneratedIdentifier
+internal partial interface IGeneratedIdentifier : INode
 {
 }
 
@@ -1081,7 +1080,7 @@ internal partial interface IGeneratedNamePart
 }
 
 /// <summary>ported from types.ts: <c>GeneratedPrivateIdentifier</c>.</summary>
-internal partial interface IGeneratedPrivateIdentifier
+internal partial interface IGeneratedPrivateIdentifier : INode
 {
 }
 
@@ -1111,9 +1110,9 @@ internal partial interface IHostForUseSourceOfProjectReferenceRedirect
     Func<object?>? GetSymlinkCache { get; set; }
     bool UseSourceOfProjectReferenceRedirect { get; set; }
     string ToPath(string? fileName);
-    List<IResolvedProjectReference> GetResolvedProjectReferences();
-    IResolvedRefAndSource GetRedirectFromOutput(string? path);
-    T ForEachResolvedProjectReference<T>(Func<IResolvedProjectReference, T>? cb);
+    List<IResolvedProjectReference>? GetResolvedProjectReferences();
+    IResolvedRefAndSource? GetRedirectFromOutput(string? path);
+    T? ForEachResolvedProjectReference<T>(Func<IResolvedProjectReference, T>? cb);
 }
 
 /// <summary>ported from types.ts: <c>IdentifierTypePredicate</c>.</summary>
@@ -1124,17 +1123,17 @@ internal partial interface IIdentifierTypePredicate : ITypePredicateBase
 }
 
 /// <summary>ported from types.ts: <c>ImportCall</c>.</summary>
-internal partial interface IImportCall
+internal partial interface IImportCall : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>ImportDeferProperty</c>.</summary>
-internal partial interface IImportDeferProperty
+internal partial interface IImportDeferProperty : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>ImportMetaProperty</c>.</summary>
-internal partial interface IImportMetaProperty
+internal partial interface IImportMetaProperty : INode
 {
 }
 
@@ -1202,7 +1201,7 @@ internal partial interface IInferenceInfo
 }
 
 /// <summary>ported from types.ts: <c>InstanceofExpression</c>.</summary>
-internal partial interface IInstanceofExpression
+internal partial interface IInstanceofExpression : INode
 {
 }
 
@@ -1290,58 +1289,58 @@ internal partial interface IJSDocArray
 }
 
 /// <summary>ported from types.ts: <c>JSDocContainer</c>.</summary>
-internal partial interface IJSDocContainer
+internal partial interface IJSDocContainer : INode
 {
     IJSDocArray? JsDoc { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocNamespaceDeclaration</c>.</summary>
-internal partial interface IJSDocNamespaceDeclaration
+internal partial interface IJSDocNamespaceDeclaration : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>JSDocSatisfiesExpression</c>.</summary>
-internal partial interface IJSDocSatisfiesExpression
+internal partial interface IJSDocSatisfiesExpression : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>JSDocTypeAssertion</c>.</summary>
-internal partial interface IJSDocTypeAssertion
+internal partial interface IJSDocTypeAssertion : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>JsonObjectExpressionStatement</c>.</summary>
-internal partial interface IJsonObjectExpressionStatement
+internal partial interface IJsonObjectExpressionStatement : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>JsxTagNamePropertyAccess</c>.</summary>
-internal partial interface IJsxTagNamePropertyAccess
+internal partial interface IJsxTagNamePropertyAccess : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>KeywordTypeNode</c>.</summary>
-internal partial interface IKeywordTypeNode<TKind> : ITypeNode
+internal partial interface IKeywordTypeNode<TKind> : INode, ITypeNode
 {
 }
 
 /// <summary>ported from types.ts: <c>LateBoundBinaryExpressionDeclaration</c>.</summary>
-internal partial interface ILateBoundBinaryExpressionDeclaration
+internal partial interface ILateBoundBinaryExpressionDeclaration : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>LateBoundDeclaration</c>.</summary>
-internal partial interface ILateBoundDeclaration
+internal partial interface ILateBoundDeclaration : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>LateBoundElementAccessExpression</c>.</summary>
-internal partial interface ILateBoundElementAccessExpression
+internal partial interface ILateBoundElementAccessExpression : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>LateBoundName</c>.</summary>
-internal partial interface ILateBoundName
+internal partial interface ILateBoundName : INode
 {
 }
 
@@ -1355,8 +1354,7 @@ internal partial interface ILibFile
 /// <summary>ported from types.ts: <c>LibResolution</c>.</summary>
 internal partial interface ILibResolution<T>
 {
-    /// <remarks>PORT-NOTE: <c>T</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
-    object? Resolution { get; set; }
+    T? Resolution { get; set; }
     string? Actual { get; set; }
 }
 
@@ -1368,7 +1366,7 @@ internal partial interface ILineAndCharacter
 }
 
 /// <summary>ported from types.ts: <c>LiteralLikeNode</c>.</summary>
-internal partial interface ILiteralLikeNode
+internal partial interface ILiteralLikeNode : INode
 {
     string? Text { get; set; }
     bool? IsUnterminated { get; set; }
@@ -1382,7 +1380,7 @@ internal partial interface ILiteralType : IFreshableType
 }
 
 /// <summary>ported from types.ts: <c>LocalsContainer</c>.</summary>
-internal partial interface ILocalsContainer
+internal partial interface ILocalsContainer : INode
 {
     Dictionary<string, ISymbol>? Locals { get; set; }
     Node? NextContainer { get; set; }
@@ -1417,7 +1415,7 @@ internal partial interface IMappedType : IAnonymousType
 internal partial interface IMinimalResolutionCacheHost : IModuleResolutionHost
 {
     ICompilerOptions GetCompilationSettings();
-    ICompilerHost GetCompilerHost();
+    ICompilerHost? GetCompilerHost();
 }
 
 /// <summary>ported from types.ts: <c>ModulePath</c>.</summary>
@@ -1432,14 +1430,14 @@ internal partial interface IModulePath
 internal partial interface IModuleResolutionHost
 {
     bool FileExists(string? fileName);
-    string ReadFile(string? fileName);
+    string? ReadFile(string? fileName);
     void Trace(string? s);
     bool DirectoryExists(string? directoryName);
     string Realpath(string? path);
     string GetCurrentDirectory();
     List<string> GetDirectories(string? path);
     object? UseCaseSensitiveFileNames { get; set; }
-    string GetGlobalTypingsCacheLocation();
+    string? GetGlobalTypingsCacheLocation();
 }
 
 /// <summary>ported from types.ts: <c>ModuleSpecifierCache</c>.</summary>
@@ -1467,17 +1465,17 @@ internal partial interface IModuleSpecifierResolutionHost
     bool FileExists(string? path);
     string GetCurrentDirectory();
     bool DirectoryExists(string? path);
-    string ReadFile(string? path);
+    string? ReadFile(string? path);
     string Realpath(string? path);
     /// <remarks>PORT-NOTE: <c>SymlinkCache</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
     object? GetSymlinkCache();
     IModuleSpecifierCache GetModuleSpecifierCache();
     /// <remarks>PORT-NOTE: <c>PackageJsonInfoCache</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
     object? GetPackageJsonInfoCache();
-    string GetGlobalTypingsCacheLocation();
-    string GetNearestAncestorDirectoryWithPackageJson(string? fileName, string? rootDir);
+    string? GetGlobalTypingsCacheLocation();
+    string? GetNearestAncestorDirectoryWithPackageJson(string? fileName, string? rootDir);
     Dictionary<string, List<string>>? RedirectTargetsMap { get; }
-    IResolvedRefAndOutputDts GetRedirectFromSourceFile(string? fileName);
+    IResolvedRefAndOutputDts? GetRedirectFromSourceFile(string? fileName);
     bool IsSourceOfProjectReferenceRedirect(string? fileName);
     Dictionary<string, List<Node>> GetFileIncludeReasons();
     string GetCommonSourceDirectory();
@@ -1489,13 +1487,13 @@ internal partial interface IModuleSpecifierResolutionHost
 }
 
 /// <summary>ported from types.ts: <c>NamedDeclaration</c>.</summary>
-internal partial interface INamedDeclaration : IDeclaration
+internal partial interface INamedDeclaration : INode, IDeclaration
 {
     Node? Name { get; }
 }
 
 /// <summary>ported from types.ts: <c>NamespaceDeclaration</c>.</summary>
-internal partial interface INamespaceDeclaration
+internal partial interface INamespaceDeclaration : INode
 {
 }
 
@@ -1571,7 +1569,7 @@ internal partial interface INodeFactory
     TrueLiteral CreateTrue();
     FalseLiteral CreateFalse();
     ModifierToken CreateModifier(SyntaxKind kind);
-    List<ModifierToken> CreateModifiersFromModifierFlags(ModifierFlags flags);
+    List<ModifierToken>? CreateModifiersFromModifierFlags(ModifierFlags flags);
     QualifiedName CreateQualifiedName(Node? left, object? right);
     QualifiedName CreateQualifiedName(Node? left, Identifier? right) => CreateQualifiedName(left, (object?)right);
     QualifiedName CreateQualifiedName(Node? left, string? right) => CreateQualifiedName(left, (object?)right);
@@ -1668,10 +1666,7 @@ internal partial interface INodeFactory
     ParenthesizedTypeNode CreateParenthesizedType(ITypeNode? type);
     ParenthesizedTypeNode UpdateParenthesizedType(ParenthesizedTypeNode? node, ITypeNode? type);
     ThisTypeNode CreateThisTypeNode();
-    TypeOperatorNode CreateTypeOperatorNode(object? @operator, ITypeNode? type);
-    TypeOperatorNode CreateTypeOperatorNode(TypedEnum.KeyOfKeyword? @operator, ITypeNode? type) => CreateTypeOperatorNode((object?)@operator, type);
-    TypeOperatorNode CreateTypeOperatorNode(TypedEnum.ReadonlyKeyword? @operator, ITypeNode? type) => CreateTypeOperatorNode((object?)@operator, type);
-    TypeOperatorNode CreateTypeOperatorNode(TypedEnum.UniqueKeyword? @operator, ITypeNode? type) => CreateTypeOperatorNode((object?)@operator, type);
+    TypeOperatorNode CreateTypeOperatorNode(SyntaxKind @operator, ITypeNode? type);
     TypeOperatorNode UpdateTypeOperatorNode(TypeOperatorNode? node, ITypeNode? type);
     IndexedAccessTypeNode CreateIndexedAccessTypeNode(ITypeNode? objectType, ITypeNode? indexType);
     IndexedAccessTypeNode UpdateIndexedAccessTypeNode(IndexedAccessTypeNode? node, ITypeNode? objectType, ITypeNode? indexType);
@@ -1703,22 +1698,22 @@ internal partial interface INodeFactory
     PropertyAccessExpression CreatePropertyAccessExpression(Expression? expression, MemberExpression? name) => CreatePropertyAccessExpression(expression, (object?)name);
     PropertyAccessExpression CreatePropertyAccessExpression(Expression? expression, string? name) => CreatePropertyAccessExpression(expression, (object?)name);
     PropertyAccessExpression UpdatePropertyAccessExpression(PropertyAccessExpression? node, Expression? expression, MemberExpression? name);
-    PropertyAccessChain CreatePropertyAccessChain(Expression? expression, PunctuationToken? questionDotToken, object? name);
-    PropertyAccessChain CreatePropertyAccessChain(Expression? expression, PunctuationToken? questionDotToken, MemberExpression? name) => CreatePropertyAccessChain(expression, questionDotToken, (object?)name);
-    PropertyAccessChain CreatePropertyAccessChain(Expression? expression, PunctuationToken? questionDotToken, string? name) => CreatePropertyAccessChain(expression, questionDotToken, (object?)name);
-    PropertyAccessChain UpdatePropertyAccessChain(PropertyAccessChain? node, Expression? expression, PunctuationToken? questionDotToken, MemberExpression? name);
+    PropertyAccessExpression CreatePropertyAccessChain(Expression? expression, PunctuationToken? questionDotToken, object? name);
+    PropertyAccessExpression CreatePropertyAccessChain(Expression? expression, PunctuationToken? questionDotToken, MemberExpression? name) => CreatePropertyAccessChain(expression, questionDotToken, (object?)name);
+    PropertyAccessExpression CreatePropertyAccessChain(Expression? expression, PunctuationToken? questionDotToken, string? name) => CreatePropertyAccessChain(expression, questionDotToken, (object?)name);
+    PropertyAccessExpression UpdatePropertyAccessChain(PropertyAccessExpression? node, Expression? expression, PunctuationToken? questionDotToken, MemberExpression? name);
     ElementAccessExpression CreateElementAccessExpression(Expression? expression, object? index);
     ElementAccessExpression CreateElementAccessExpression(Expression? expression, Expression? index) => CreateElementAccessExpression(expression, (object?)index);
     ElementAccessExpression CreateElementAccessExpression(Expression? expression, int index) => CreateElementAccessExpression(expression, (object?)index);
     ElementAccessExpression UpdateElementAccessExpression(ElementAccessExpression? node, Expression? expression, Expression? argumentExpression);
-    ElementAccessChain CreateElementAccessChain(Expression? expression, PunctuationToken? questionDotToken, object? index);
-    ElementAccessChain CreateElementAccessChain(Expression? expression, PunctuationToken? questionDotToken, Expression? index) => CreateElementAccessChain(expression, questionDotToken, (object?)index);
-    ElementAccessChain CreateElementAccessChain(Expression? expression, PunctuationToken? questionDotToken, int index) => CreateElementAccessChain(expression, questionDotToken, (object?)index);
-    ElementAccessChain UpdateElementAccessChain(ElementAccessChain? node, Expression? expression, PunctuationToken? questionDotToken, Expression? argumentExpression);
+    ElementAccessExpression CreateElementAccessChain(Expression? expression, PunctuationToken? questionDotToken, object? index);
+    ElementAccessExpression CreateElementAccessChain(Expression? expression, PunctuationToken? questionDotToken, Expression? index) => CreateElementAccessChain(expression, questionDotToken, (object?)index);
+    ElementAccessExpression CreateElementAccessChain(Expression? expression, PunctuationToken? questionDotToken, int index) => CreateElementAccessChain(expression, questionDotToken, (object?)index);
+    ElementAccessExpression UpdateElementAccessChain(ElementAccessExpression? node, Expression? expression, PunctuationToken? questionDotToken, Expression? argumentExpression);
     CallExpression CreateCallExpression(Expression? expression, List<ITypeNode>? typeArguments, List<Expression>? argumentsArray);
     CallExpression UpdateCallExpression(CallExpression? node, Expression? expression, List<ITypeNode>? typeArguments, List<Expression>? argumentsArray);
-    CallChain CreateCallChain(Expression? expression, PunctuationToken? questionDotToken, List<ITypeNode>? typeArguments, List<Expression>? argumentsArray);
-    CallChain UpdateCallChain(CallChain? node, Expression? expression, PunctuationToken? questionDotToken, List<ITypeNode>? typeArguments, List<Expression>? argumentsArray);
+    CallExpression CreateCallChain(Expression? expression, PunctuationToken? questionDotToken, List<ITypeNode>? typeArguments, List<Expression>? argumentsArray);
+    CallExpression UpdateCallChain(CallExpression? node, Expression? expression, PunctuationToken? questionDotToken, List<ITypeNode>? typeArguments, List<Expression>? argumentsArray);
     NewExpression CreateNewExpression(Expression? expression, List<ITypeNode>? typeArguments, List<Expression>? argumentsArray);
     NewExpression UpdateNewExpression(NewExpression? node, Expression? expression, List<ITypeNode>? typeArguments, List<Expression>? argumentsArray);
     TaggedTemplateExpression CreateTaggedTemplateExpression(Expression? tag, List<ITypeNode>? typeArguments, MemberExpression? template);
@@ -1741,17 +1736,9 @@ internal partial interface INodeFactory
     VoidExpression UpdateVoidExpression(VoidExpression? node, Expression? expression);
     AwaitExpression CreateAwaitExpression(Expression? expression);
     AwaitExpression UpdateAwaitExpression(AwaitExpression? node, Expression? expression);
-    PrefixUnaryExpression CreatePrefixUnaryExpression(object? @operator, Expression? operand);
-    PrefixUnaryExpression CreatePrefixUnaryExpression(TypedEnum.ExclamationToken? @operator, Expression? operand) => CreatePrefixUnaryExpression((object?)@operator, operand);
-    PrefixUnaryExpression CreatePrefixUnaryExpression(TypedEnum.MinusMinusToken? @operator, Expression? operand) => CreatePrefixUnaryExpression((object?)@operator, operand);
-    PrefixUnaryExpression CreatePrefixUnaryExpression(TypedEnum.MinusToken? @operator, Expression? operand) => CreatePrefixUnaryExpression((object?)@operator, operand);
-    PrefixUnaryExpression CreatePrefixUnaryExpression(TypedEnum.PlusPlusToken? @operator, Expression? operand) => CreatePrefixUnaryExpression((object?)@operator, operand);
-    PrefixUnaryExpression CreatePrefixUnaryExpression(TypedEnum.PlusToken? @operator, Expression? operand) => CreatePrefixUnaryExpression((object?)@operator, operand);
-    PrefixUnaryExpression CreatePrefixUnaryExpression(TypedEnum.TildeToken? @operator, Expression? operand) => CreatePrefixUnaryExpression((object?)@operator, operand);
+    PrefixUnaryExpression CreatePrefixUnaryExpression(SyntaxKind @operator, Expression? operand);
     PrefixUnaryExpression UpdatePrefixUnaryExpression(PrefixUnaryExpression? node, Expression? operand);
-    PostfixUnaryExpression CreatePostfixUnaryExpression(Expression? operand, object? @operator);
-    PostfixUnaryExpression CreatePostfixUnaryExpression(Expression? operand, TypedEnum.MinusMinusToken? @operator) => CreatePostfixUnaryExpression(operand, (object?)@operator);
-    PostfixUnaryExpression CreatePostfixUnaryExpression(Expression? operand, TypedEnum.PlusPlusToken? @operator) => CreatePostfixUnaryExpression(operand, (object?)@operator);
+    PostfixUnaryExpression CreatePostfixUnaryExpression(Expression? operand, SyntaxKind @operator);
     PostfixUnaryExpression UpdatePostfixUnaryExpression(PostfixUnaryExpression? node, Expression? operand);
     BinaryExpression CreateBinaryExpression(Expression? left, object? @operator, Expression? right);
     BinaryExpression CreateBinaryExpression(Expression? left, Token? @operator, Expression? right) => CreateBinaryExpression(left, (object?)@operator, right);
@@ -1850,11 +1837,7 @@ internal partial interface INodeFactory
     TemplateTail CreateTemplateTail(string? text, string? rawText, TokenFlags? templateFlags);
     NoSubstitutionTemplateLiteral CreateNoSubstitutionTemplateLiteral(string? text, string? rawText);
     Node CreateLiteralLikeNode(object? kind, string? text);
-    ITemplateLiteralLikeNode CreateTemplateLiteralLikeNode(object? kind, string? text, string? rawText, TokenFlags templateFlags);
-    ITemplateLiteralLikeNode CreateTemplateLiteralLikeNode(TypedEnum.NoSubstitutionTemplateLiteral? kind, string? text, string? rawText, TokenFlags templateFlags) => CreateTemplateLiteralLikeNode((object?)kind, text, rawText, templateFlags);
-    ITemplateLiteralLikeNode CreateTemplateLiteralLikeNode(TypedEnum.TemplateHead? kind, string? text, string? rawText, TokenFlags templateFlags) => CreateTemplateLiteralLikeNode((object?)kind, text, rawText, templateFlags);
-    ITemplateLiteralLikeNode CreateTemplateLiteralLikeNode(TypedEnum.TemplateMiddle? kind, string? text, string? rawText, TokenFlags templateFlags) => CreateTemplateLiteralLikeNode((object?)kind, text, rawText, templateFlags);
-    ITemplateLiteralLikeNode CreateTemplateLiteralLikeNode(TypedEnum.TemplateTail? kind, string? text, string? rawText, TokenFlags templateFlags) => CreateTemplateLiteralLikeNode((object?)kind, text, rawText, templateFlags);
+    ITemplateLiteralLikeNode CreateTemplateLiteralLikeNode(SyntaxKind kind, string? text, string? rawText, TokenFlags? templateFlags);
     YieldExpression CreateYieldExpression(PunctuationToken? asteriskToken, Expression? expression);
     YieldExpression CreateYieldExpression(JsUndefined? asteriskToken, Expression? expression);
     YieldExpression UpdateYieldExpression(YieldExpression? node, PunctuationToken? asteriskToken, Expression? expression);
@@ -1871,11 +1854,9 @@ internal partial interface INodeFactory
     AsExpression UpdateAsExpression(AsExpression? node, Expression? expression, ITypeNode? type);
     NonNullExpression CreateNonNullExpression(Expression? expression);
     NonNullExpression UpdateNonNullExpression(NonNullExpression? node, Expression? expression);
-    INonNullChain CreateNonNullChain(Expression? expression);
-    INonNullChain UpdateNonNullChain(INonNullChain? node, Expression? expression);
-    MetaProperty CreateMetaProperty(object? keywordToken, Identifier? name);
-    MetaProperty CreateMetaProperty(TypedEnum.ImportKeyword? keywordToken, Identifier? name) => CreateMetaProperty((object?)keywordToken, name);
-    MetaProperty CreateMetaProperty(TypedEnum.NewKeyword? keywordToken, Identifier? name) => CreateMetaProperty((object?)keywordToken, name);
+    NonNullExpression CreateNonNullChain(Expression? expression);
+    NonNullExpression UpdateNonNullChain(NonNullExpression? node, Expression? expression);
+    MetaProperty CreateMetaProperty(SyntaxKind keywordToken, Identifier? name);
     MetaProperty UpdateMetaProperty(MetaProperty? node, Identifier? name);
     SatisfiesExpression CreateSatisfiesExpression(Expression? expression, ITypeNode? type);
     SatisfiesExpression UpdateSatisfiesExpression(SatisfiesExpression? node, Expression? expression, ITypeNode? type);
@@ -1968,24 +1949,18 @@ internal partial interface INodeFactory
     ImportEqualsDeclaration UpdateImportEqualsDeclaration(ImportEqualsDeclaration? node, List<Node>? modifiers, bool isTypeOnly, Identifier? name, Node? moduleReference);
     ImportDeclaration CreateImportDeclaration(List<Node>? modifiers, ImportClause? importClause, Expression? moduleSpecifier, ImportAttributes? attributes);
     ImportDeclaration UpdateImportDeclaration(ImportDeclaration? node, List<Node>? modifiers, ImportClause? importClause, Expression? moduleSpecifier, ImportAttributes? attributes);
-    ImportClause CreateImportClause(object? phaseModifier, Identifier? name, Node? namedBindings);
-    ImportClause CreateImportClause(TypedEnum.DeferKeyword? phaseModifier, Identifier? name, Node? namedBindings) => CreateImportClause((object?)phaseModifier, name, namedBindings);
-    ImportClause CreateImportClause(TypedEnum.TypeKeyword? phaseModifier, Identifier? name, Node? namedBindings) => CreateImportClause((object?)phaseModifier, name, namedBindings);
+    ImportClause CreateImportClause(SyntaxKind? phaseModifier, Identifier? name, Node? namedBindings);
     ImportClause CreateImportClause(bool isTypeOnly, Identifier? name, Node? namedBindings);
-    ImportClause UpdateImportClause(ImportClause? node, object? phaseModifier, Identifier? name, Node? namedBindings);
-    ImportClause UpdateImportClause(ImportClause? node, TypedEnum.DeferKeyword? phaseModifier, Identifier? name, Node? namedBindings) => UpdateImportClause(node, (object?)phaseModifier, name, namedBindings);
-    ImportClause UpdateImportClause(ImportClause? node, TypedEnum.TypeKeyword? phaseModifier, Identifier? name, Node? namedBindings) => UpdateImportClause(node, (object?)phaseModifier, name, namedBindings);
+    ImportClause UpdateImportClause(ImportClause? node, SyntaxKind? phaseModifier, Identifier? name, Node? namedBindings);
     ImportClause UpdateImportClause(ImportClause? node, bool isTypeOnly, Identifier? name, Node? namedBindings);
-    IAssertClause CreateAssertClause(NodeArray<IAssertEntry>? elements, bool? multiLine);
-    IAssertClause UpdateAssertClause(IAssertClause? node, NodeArray<IAssertEntry>? elements, bool? multiLine);
-    IAssertEntry CreateAssertEntry(MemberExpression? name, Expression? value);
-    IAssertEntry UpdateAssertEntry(IAssertEntry? node, MemberExpression? name, Expression? value);
-    ImportTypeAssertionContainer CreateImportTypeAssertionContainer(IAssertClause? clause, bool? multiLine);
-    ImportTypeAssertionContainer UpdateImportTypeAssertionContainer(ImportTypeAssertionContainer? node, IAssertClause? clause, bool? multiLine);
+    ImportAttributes CreateAssertClause(NodeArray<ImportAttribute>? elements, bool? multiLine);
+    ImportAttributes UpdateAssertClause(ImportAttributes? node, NodeArray<ImportAttribute>? elements, bool? multiLine);
+    ImportAttribute CreateAssertEntry(MemberExpression? name, Expression? value);
+    ImportAttribute UpdateAssertEntry(ImportAttribute? node, MemberExpression? name, Expression? value);
+    ImportTypeAssertionContainer CreateImportTypeAssertionContainer(ImportAttributes? clause, bool? multiLine);
+    ImportTypeAssertionContainer UpdateImportTypeAssertionContainer(ImportTypeAssertionContainer? node, ImportAttributes? clause, bool? multiLine);
     ImportAttributes CreateImportAttributes(NodeArray<ImportAttribute>? elements, bool? multiLine);
-    ImportAttributes CreateImportAttributes(NodeArray<ImportAttribute>? elements, bool? multiLine, object? token);
-    ImportAttributes CreateImportAttributes(NodeArray<ImportAttribute>? elements, bool? multiLine, TypedEnum.AssertKeyword? token) => CreateImportAttributes(elements, multiLine, (object?)token);
-    ImportAttributes CreateImportAttributes(NodeArray<ImportAttribute>? elements, bool? multiLine, TypedEnum.WithKeyword? token) => CreateImportAttributes(elements, multiLine, (object?)token);
+    ImportAttributes CreateImportAttributes(NodeArray<ImportAttribute>? elements, bool? multiLine, SyntaxKind? token);
     ImportAttributes UpdateImportAttributes(ImportAttributes? node, NodeArray<ImportAttribute>? elements, bool? multiLine);
     ImportAttribute CreateImportAttribute(MemberExpression? name, Expression? value);
     ImportAttribute UpdateImportAttribute(ImportAttribute? node, MemberExpression? name, Expression? value);
@@ -1997,7 +1972,7 @@ internal partial interface INodeFactory
     NamedImports UpdateNamedImports(NamedImports? node, List<ImportSpecifier>? elements);
     ImportSpecifier CreateImportSpecifier(bool isTypeOnly, MemberExpression? propertyName, Identifier? name);
     ImportSpecifier UpdateImportSpecifier(ImportSpecifier? node, bool isTypeOnly, MemberExpression? propertyName, Identifier? name);
-    ExportAssignment CreateExportAssignment(List<Node>? modifiers, bool isExportEquals, Expression? expression);
+    ExportAssignment CreateExportAssignment(List<Node>? modifiers, bool? isExportEquals, Expression? expression);
     ExportAssignment UpdateExportAssignment(ExportAssignment? node, List<Node>? modifiers, Expression? expression);
     ExportDeclaration CreateExportDeclaration(List<Node>? modifiers, bool isTypeOnly, Node? exportClause, Expression? moduleSpecifier, ImportAttributes? attributes);
     ExportDeclaration UpdateExportDeclaration(ExportDeclaration? node, List<Node>? modifiers, bool isTypeOnly, Node? exportClause, Expression? moduleSpecifier, ImportAttributes? attributes);
@@ -2043,7 +2018,7 @@ internal partial interface INodeFactory
     JSDocLinkPlain CreateJSDocLinkPlain(Node? name, string? text);
     JSDocLinkPlain UpdateJSDocLinkPlain(JSDocLinkPlain? node, Node? name, string? text);
     JSDocTypeLiteral CreateJSDocTypeLiteral(List<JSDocPropertyLikeTag>? jsDocPropertyTags, bool? isArrayType);
-    JSDocTypeLiteral UpdateJSDocTypeLiteral(JSDocTypeLiteral? node, List<JSDocPropertyLikeTag>? jsDocPropertyTags, bool isArrayType);
+    JSDocTypeLiteral UpdateJSDocTypeLiteral(JSDocTypeLiteral? node, List<JSDocPropertyLikeTag>? jsDocPropertyTags, bool? isArrayType);
     JSDocSignature CreateJSDocSignature(List<JSDocTemplateTag>? typeParameters, List<JSDocParameterTag>? parameters, JSDocReturnTag? type);
     JSDocSignature UpdateJSDocSignature(JSDocSignature? node, List<JSDocTemplateTag>? typeParameters, List<JSDocParameterTag>? parameters, JSDocReturnTag? type);
     JSDocTemplateTag CreateJSDocTemplateTag(Identifier? tagName, JSDocTypeExpression? constraint, List<TypeParameterDeclaration>? typeParameters, object? comment);
@@ -2232,9 +2207,7 @@ internal partial interface INodeFactory
     CaseClause UpdateCaseClause(CaseClause? node, Expression? expression, List<IStatement>? statements);
     DefaultClause CreateDefaultClause(List<IStatement>? statements);
     DefaultClause UpdateDefaultClause(DefaultClause? node, List<IStatement>? statements);
-    HeritageClause CreateHeritageClause(object? token, List<ExpressionWithTypeArguments>? types);
-    HeritageClause CreateHeritageClause(TypedEnum.ExtendsKeyword? token, List<ExpressionWithTypeArguments>? types) => CreateHeritageClause((object?)token, types);
-    HeritageClause CreateHeritageClause(TypedEnum.ImplementsKeyword? token, List<ExpressionWithTypeArguments>? types) => CreateHeritageClause((object?)token, types);
+    HeritageClause CreateHeritageClause(SyntaxKind token, List<ExpressionWithTypeArguments>? types);
     HeritageClause UpdateHeritageClause(HeritageClause? node, List<ExpressionWithTypeArguments>? types);
     CatchClause CreateCatchClause(object? variableDeclaration, Block? block);
     CatchClause CreateCatchClause(Node? variableDeclaration, Block? block) => CreateCatchClause((object?)variableDeclaration, block);
@@ -2342,9 +2315,9 @@ internal partial interface INodeFactory
     MemberExpression GetExternalModuleOrNamespaceExportName(Identifier? ns, IDeclaration? node, bool? allowComments, bool? allowSourceMaps);
     Expression RestoreOuterExpressions(Expression? outerExpression, Expression? innerExpression, OuterExpressionKinds? kinds);
     IStatement RestoreEnclosingLabel(IStatement? node, LabeledStatement? outermostLabeledStatement, Action<LabeledStatement>? afterRestoreLabelCallback);
-    IPrologueDirective CreateUseStrictPrologue();
+    ExpressionStatement CreateUseStrictPrologue();
     int CopyPrologue(List<IStatement>? source, List<IStatement>? target, bool? ensureUseStrict, Func<Node, object?>? visitor);
-    int CopyStandardPrologue(List<IStatement>? source, List<IStatement>? target, int statementOffset, bool? ensureUseStrict);
+    int CopyStandardPrologue(List<IStatement>? source, List<IStatement>? target, int? statementOffset, bool? ensureUseStrict);
     int CopyCustomPrologue(List<IStatement>? source, List<IStatement>? target, int statementOffset, Func<Node, object?>? visitor, Func<IStatement, bool>? filter);
     NodeArray<IStatement> EnsureUseStrict(NodeArray<IStatement>? statements);
     IStatement LiftToBlock(List<Node>? nodes);
@@ -2353,7 +2326,7 @@ internal partial interface INodeFactory
     T CloneNode<T>(T? node) where T : Node;
     T ReplaceModifiers<T>(T? node, object? modifiers) where T : Node;
     T ReplaceModifiers<T>(T? node, List<ModifierToken>? modifiers) where T : Node => ReplaceModifiers(node, (object?)modifiers);
-    T ReplaceModifiers<T>(T? node, ModifierFlags modifiers) where T : Node => ReplaceModifiers(node, (object?)modifiers);
+    T ReplaceModifiers<T>(T? node, ModifierFlags? modifiers) where T : Node => ReplaceModifiers(node, (object?)modifiers);
     T ReplaceDecoratorsAndModifiers<T>(T? node, List<Node>? modifiers) where T : Node;
     T ReplacePropertyName<T>(T? node, object? name) where T : Node;
 }
@@ -2408,7 +2381,7 @@ internal partial interface INodeVisitor
 }
 
 /// <summary>ported from types.ts: <c>NodeWithTypeArguments</c>.</summary>
-internal partial interface INodeWithTypeArguments : ITypeNode
+internal partial interface INodeWithTypeArguments : INode, ITypeNode
 {
     NodeArray<ITypeNode>? TypeArguments { get; }
 }
@@ -2419,7 +2392,7 @@ internal partial interface INodesVisitor
 }
 
 /// <summary>ported from types.ts: <c>NonNullChain</c>.</summary>
-internal partial interface INonNullChain
+internal partial interface INonNullChain : INode
 {
 }
 
@@ -2434,12 +2407,12 @@ internal partial interface INumberLiteralType : ILiteralType
 }
 
 /// <summary>ported from types.ts: <c>ObjectDestructuringAssignment</c>.</summary>
-internal partial interface IObjectDestructuringAssignment
+internal partial interface IObjectDestructuringAssignment : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>ObjectLiteralElement</c>.</summary>
-internal partial interface IObjectLiteralElement : INamedDeclaration
+internal partial interface IObjectLiteralElement : INode, INamedDeclaration
 {
 }
 
@@ -2497,7 +2470,7 @@ internal partial interface IParenthesizerRules
     ITypeNode ParenthesizeConstituentTypeOfIntersectionType(ITypeNode? type);
     NodeArray<ITypeNode> ParenthesizeConstituentTypesOfIntersectionType(List<ITypeNode>? constituents);
     ITypeNode ParenthesizeLeadingTypeArgument(ITypeNode? typeNode);
-    NodeArray<ITypeNode> ParenthesizeTypeArguments(List<ITypeNode>? typeParameters);
+    NodeArray<ITypeNode>? ParenthesizeTypeArguments(List<ITypeNode>? typeParameters);
 }
 
 /// <summary>ported from types.ts: <c>ParseConfigHost</c>.</summary>
@@ -2545,8 +2518,7 @@ internal partial interface IPluginImport
 /// <summary>ported from types.ts: <c>PragmaArgumentSpecification</c>.</summary>
 internal partial interface IPragmaArgumentSpecification<TName>
 {
-    /// <remarks>PORT-NOTE: <c>TName</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
-    object? Name { get; set; }
+    TName? Name { get; set; }
     bool? Optional { get; set; }
     bool? CaptureSpan { get; set; }
 }
@@ -2559,7 +2531,6 @@ internal partial interface IPragmaContext : IReadonlyPragmaContext
 /// <summary>ported from types.ts: <c>PragmaDefinition</c>.</summary>
 internal partial interface IPragmaDefinition<T1, T2, T3, T4>
 {
-    /// <remarks>PORT-NOTE: <c>T1</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
     object? Args { get; set; }
     PragmaKindFlags? Kind { get; set; }
 }
@@ -2571,7 +2542,7 @@ internal partial interface IPragmaMap : IReadonlyPragmaMap
 }
 
 /// <summary>ported from types.ts: <c>PrimaryExpression</c>.</summary>
-internal partial interface IPrimaryExpression
+internal partial interface IPrimaryExpression : INode
 {
 }
 
@@ -2630,32 +2601,32 @@ internal partial interface IPrinterOptions
 }
 
 /// <summary>ported from types.ts: <c>PrivateIdentifierAutoAccessorPropertyDeclaration</c>.</summary>
-internal partial interface IPrivateIdentifierAutoAccessorPropertyDeclaration
+internal partial interface IPrivateIdentifierAutoAccessorPropertyDeclaration : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>PrivateIdentifierGetAccessorDeclaration</c>.</summary>
-internal partial interface IPrivateIdentifierGetAccessorDeclaration
+internal partial interface IPrivateIdentifierGetAccessorDeclaration : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>PrivateIdentifierMethodDeclaration</c>.</summary>
-internal partial interface IPrivateIdentifierMethodDeclaration
+internal partial interface IPrivateIdentifierMethodDeclaration : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>PrivateIdentifierPropertyAccessExpression</c>.</summary>
-internal partial interface IPrivateIdentifierPropertyAccessExpression
+internal partial interface IPrivateIdentifierPropertyAccessExpression : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>PrivateIdentifierPropertyDeclaration</c>.</summary>
-internal partial interface IPrivateIdentifierPropertyDeclaration
+internal partial interface IPrivateIdentifierPropertyDeclaration : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>PrivateIdentifierSetAccessorDeclaration</c>.</summary>
-internal partial interface IPrivateIdentifierSetAccessorDeclaration
+internal partial interface IPrivateIdentifierSetAccessorDeclaration : INode
 {
 }
 
@@ -2667,9 +2638,9 @@ internal partial interface IProgram : ITypeCheckerHost, IModuleSpecifierResoluti
     Dictionary<string, object?> GetFilesByNameMap();
     Dictionary<string, ModeAwareCache<IResolvedModuleWithFailedLookupLocations>>? ResolvedModules { get; set; }
     Dictionary<string, ModeAwareCache<IResolvedTypeReferenceDirectiveWithFailedLookupLocations>>? ResolvedTypeReferenceDirectiveNames { get; set; }
-    IResolvedModuleWithFailedLookupLocations GetResolvedModuleFromModuleSpecifier(LiteralExpression? moduleSpecifier, SourceFile? sourceFile);
-    IResolvedTypeReferenceDirectiveWithFailedLookupLocations GetResolvedTypeReferenceDirective(SourceFile? f, string? typeDirectiveName, object? mode);
-    IResolvedTypeReferenceDirectiveWithFailedLookupLocations GetResolvedTypeReferenceDirectiveFromTypeReferenceDirective(IFileReference? typedRef, SourceFile? sourceFile);
+    IResolvedModuleWithFailedLookupLocations? GetResolvedModuleFromModuleSpecifier(LiteralExpression? moduleSpecifier, SourceFile? sourceFile);
+    IResolvedTypeReferenceDirectiveWithFailedLookupLocations? GetResolvedTypeReferenceDirective(SourceFile? f, string? typeDirectiveName, object? mode);
+    IResolvedTypeReferenceDirectiveWithFailedLookupLocations? GetResolvedTypeReferenceDirectiveFromTypeReferenceDirective(IFileReference? typedRef, SourceFile? sourceFile);
     void ForEachResolvedModule(Action<IResolvedModuleWithFailedLookupLocations, string, object?, string>? callback, SourceFile? file);
     void ForEachResolvedTypeReferenceDirective(Action<IResolvedTypeReferenceDirectiveWithFailedLookupLocations, string, object?, string>? callback, SourceFile? file);
     IEmitResult Emit(SourceFile? targetSourceFile, Action<string, string, bool, Action<string>, List<SourceFile>, IWriteFileCallbackData, object?>? writeFile, ICancellationToken? cancellationToken, bool? emitOnlyDtsFiles, ICustomTransformers? customTransformers);
@@ -2683,7 +2654,7 @@ internal partial interface IProgram : ITypeCheckerHost, IModuleSpecifierResoluti
     List<IDiagnostic> GetBindAndCheckDiagnostics(SourceFile? sourceFile, ICancellationToken? cancellationToken);
     List<IDiagnostic> GetProgramDiagnostics(SourceFile? sourceFile, ICancellationToken? cancellationToken);
     ITypeChecker GetTypeChecker();
-    List<IDiagnostic> GetCachedSemanticDiagnostics(SourceFile? sourceFile);
+    List<IDiagnostic>? GetCachedSemanticDiagnostics(SourceFile? sourceFile);
     HashSet<string> GetClassifiableNames();
     int GetNodeCount();
     int GetIdentifierCount();
@@ -2692,23 +2663,23 @@ internal partial interface IProgram : ITypeCheckerHost, IModuleSpecifierResoluti
     int GetInstantiationCount();
     /// <remarks>PORT-NOTE: TS's anonymous object type has no C# counterpart, so the slot stays <c>object?</c>.</remarks>
     object? GetRelationCacheSizes();
-    List<Node> GetFileProcessingDiagnostics();
+    List<Node>? GetFileProcessingDiagnostics();
     List<string> GetAutomaticTypeDirectiveNames();
     ModeAwareCache<IResolvedTypeReferenceDirectiveWithFailedLookupLocations> GetAutomaticTypeDirectiveResolutions();
     bool ShouldTransformImportCall(SourceFile? sourceFile);
     StructureIsReused StructureIsReused { get; }
-    SourceFile GetSourceFileFromReference(SourceFile? referencingFile, IFileReference? @ref);
-    SourceFile GetLibFileFromReference(IFileReference? @ref);
+    SourceFile? GetSourceFileFromReference(SourceFile? referencingFile, IFileReference? @ref);
+    SourceFile? GetLibFileFromReference(IFileReference? @ref);
     Dictionary<string, string>? SourceFileToPackageName { get; set; }
-    bool UsesUriStyleNodeCoreModules { get; }
+    bool? UsesUriStyleNodeCoreModules { get; }
     Dictionary<string, ILibResolution<object?>>? ResolvedLibReferences { get; set; }
     Func<object?>? GetProgramDiagnosticsContainer { get; set; }
-    Dictionary<string, bool> GetCurrentPackagesMap();
+    Dictionary<string, bool>? GetCurrentPackagesMap();
     bool IsEmittedFile(string? file);
-    List<IProjectReference> GetProjectReferences();
-    List<IResolvedProjectReference> GetResolvedProjectReferences();
-    T ForEachResolvedProjectReference<T>(Func<IResolvedProjectReference, T>? cb);
-    IResolvedProjectReference GetResolvedProjectReferenceByPath(string? projectReferencePath);
+    List<IProjectReference>? GetProjectReferences();
+    List<IResolvedProjectReference>? GetResolvedProjectReferences();
+    T? ForEachResolvedProjectReference<T>(Func<IResolvedProjectReference, T>? cb);
+    IResolvedProjectReference? GetResolvedProjectReferenceByPath(string? projectReferencePath);
     ICompilerOptions GetCompilerOptionsForFile(SourceFile? file);
     IBuildInfo GetBuildInfo();
     IEmitResult EmitBuildInfo(Action<string, string, bool, Action<string>, List<SourceFile>, IWriteFileCallbackData, object?>? writeFile, ICancellationToken? cancellationToken);
@@ -2732,7 +2703,7 @@ internal partial interface IProjectReferenceFile
 }
 
 /// <summary>ported from types.ts: <c>PrologueDirective</c>.</summary>
-internal partial interface IPrologueDirective
+internal partial interface IPrologueDirective : INode
 {
 }
 
@@ -2745,12 +2716,12 @@ internal partial interface IPromiseOrAwaitableType : IObjectType, IUnionType
 }
 
 /// <summary>ported from types.ts: <c>PropertyAccessChainRoot</c>.</summary>
-internal partial interface IPropertyAccessChainRoot
+internal partial interface IPropertyAccessChainRoot : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>PropertyAccessEntityNameExpression</c>.</summary>
-internal partial interface IPropertyAccessEntityNameExpression
+internal partial interface IPropertyAccessEntityNameExpression : INode
 {
 }
 
@@ -2775,9 +2746,8 @@ internal partial interface IPseudoBigInt
 /// <summary>ported from types.ts: <c>Queue</c>.</summary>
 internal partial interface IQueue<T>
 {
-    void Enqueue(params List<object?> items);
-    /// <remarks>PORT-NOTE: <c>T</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
-    object? Dequeue();
+    void Enqueue(params List<T> items);
+    T Dequeue();
     bool IsEmpty();
 }
 
@@ -2854,12 +2824,12 @@ internal partial interface IRepopulateModuleNotFoundDiagnosticChain
 }
 
 /// <summary>ported from types.ts: <c>RequireVariableDeclarationList</c>.</summary>
-internal partial interface IRequireVariableDeclarationList
+internal partial interface IRequireVariableDeclarationList : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>RequireVariableStatement</c>.</summary>
-internal partial interface IRequireVariableStatement
+internal partial interface IRequireVariableStatement : INode
 {
 }
 
@@ -2873,19 +2843,15 @@ internal partial interface IResolutionDiagnostics
 /// <summary>ported from types.ts: <c>ResolutionLoader</c>.</summary>
 internal partial interface IResolutionLoader<Entry, Resolution, SourceFile>
 {
-    /// <remarks>PORT-NOTE: <c>Entry</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
     object? NameAndMode { get; set; }
-    /// <remarks>PORT-NOTE: <c>Resolution</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
-    object? Resolve(string? name, object? mode);
+    Resolution Resolve(string? name, object? mode);
 }
 
 /// <summary>ported from types.ts: <c>ResolutionNameAndModeGetter</c>.</summary>
 internal partial interface IResolutionNameAndModeGetter<Entry, SourceFile>
 {
-    /// <remarks>PORT-NOTE: <c>Entry</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
-    string GetName(object? entry);
-    /// <remarks>PORT-NOTE: <c>Entry</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
-    object? GetMode(object? entry, SourceFile? file, ICompilerOptions? compilerOptions);
+    string GetName(Entry? entry);
+    object? GetMode(Entry? entry, SourceFile? file, ICompilerOptions? compilerOptions);
 }
 
 /// <summary>ported from types.ts: <c>ResolutionWithResolvedFileName</c>.</summary>
@@ -2918,7 +2884,7 @@ internal partial interface IResolvedModuleSpecifierInfo
     List<IModulePath>? ModulePaths { get; set; }
     string? PackageName { get; set; }
     List<string>? ModuleSpecifiers { get; set; }
-    bool IsBlockedByPackageJsonDependencies { get; set; }
+    bool? IsBlockedByPackageJsonDependencies { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ResolvedModuleWithFailedLookupLocations</c>.</summary>
@@ -3014,8 +2980,8 @@ internal partial interface IScopedEmitHelper : IEmitHelperBase
 internal partial interface IScriptReferenceHost
 {
     ICompilerOptions GetCompilerOptions();
-    SourceFile GetSourceFile(string? fileName);
-    SourceFile GetSourceFileByPath(string? path);
+    SourceFile? GetSourceFile(string? fileName);
+    SourceFile? GetSourceFileByPath(string? path);
     string GetCurrentDirectory();
 }
 
@@ -3055,7 +3021,7 @@ internal partial interface ISignature
 }
 
 /// <summary>ported from types.ts: <c>SignatureDeclarationBase</c>.</summary>
-internal partial interface ISignatureDeclarationBase : INamedDeclaration, IJSDocContainer
+internal partial interface ISignatureDeclarationBase : INode, INamedDeclaration, IJSDocContainer
 {
     NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
     NodeArray<ParameterDeclaration>? Parameters { get; }
@@ -3087,7 +3053,7 @@ internal partial interface ISourceFileMayBeEmittedHost
 {
     ICompilerOptions GetCompilerOptions();
     bool IsSourceFileFromExternalLibrary(SourceFile? file);
-    IResolvedRefAndOutputDts GetRedirectFromSourceFile(string? fileName);
+    IResolvedRefAndOutputDts? GetRedirectFromSourceFile(string? fileName);
     bool IsSourceOfProjectReferenceRedirect(string? fileName);
     string GetCurrentDirectory();
     /// <remarks>PORT-NOTE: <c>GetCanonicalFileName</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
@@ -3143,7 +3109,7 @@ internal partial interface ISourceMapSpan
 }
 
 /// <summary>ported from types.ts: <c>Statement</c>.</summary>
-internal partial interface IStatement : IJSDocContainer
+internal partial interface IStatement : INode, IJSDocContainer
 {
 }
 
@@ -3167,17 +3133,17 @@ internal partial interface ISubstitutionType : IInstantiableType
 }
 
 /// <summary>ported from types.ts: <c>SuperCall</c>.</summary>
-internal partial interface ISuperCall
+internal partial interface ISuperCall : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>SuperElementAccessExpression</c>.</summary>
-internal partial interface ISuperElementAccessExpression
+internal partial interface ISuperElementAccessExpression : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>SuperPropertyAccessExpression</c>.</summary>
-internal partial interface ISuperPropertyAccessExpression
+internal partial interface ISuperPropertyAccessExpression : INode
 {
 }
 
@@ -3195,7 +3161,7 @@ internal partial interface ISymbol
     int MergeId { get; set; }
     ISymbol? Parent { get; set; }
     ISymbol? ExportSymbol { get; set; }
-    bool ConstEnumOnlyModule { get; set; }
+    bool? ConstEnumOnlyModule { get; set; }
     SymbolFlags? IsReferenced { get; set; }
     int? LastAssignmentPos { get; set; }
     bool? IsReplaceableByMethod { get; set; }
@@ -3340,21 +3306,21 @@ internal partial interface ISyntacticTypeNodeBuilderResolver
     bool RequiresAddingImplicitUndefined(Node? declaration, ISymbol? symbol, Node? enclosingDeclaration);
     bool IsDefinitelyReferenceToGlobalSymbolObject(Node? node);
     ISymbolVisibilityResult IsEntityNameVisible(ISyntacticTypeNodeBuilderContext? context, Node? entityName, bool? shouldComputeAliasToMakeVisible);
-    ITypeNode SerializeExistingTypeNode(ISyntacticTypeNodeBuilderContext? context, ITypeNode? node, bool? addUndefined);
-    ITypeNode SerializeReturnTypeForSignature(ISyntacticTypeNodeBuilderContext? context, Node? signatureDeclaration, ISymbol? symbol);
+    ITypeNode? SerializeExistingTypeNode(ISyntacticTypeNodeBuilderContext? context, ITypeNode? node, bool? addUndefined);
+    ITypeNode? SerializeReturnTypeForSignature(ISyntacticTypeNodeBuilderContext? context, Node? signatureDeclaration, ISymbol? symbol);
     ITypeNode SerializeTypeOfExpression(ISyntacticTypeNodeBuilderContext? context, Expression? expr);
-    ITypeNode SerializeTypeOfDeclaration(ISyntacticTypeNodeBuilderContext? context, object? node, ISymbol? symbol);
+    ITypeNode? SerializeTypeOfDeclaration(ISyntacticTypeNodeBuilderContext? context, object? node, ISymbol? symbol);
     object? SerializeNameOfParameter(ISyntacticTypeNodeBuilderContext? context, ParameterDeclaration? parameter);
-    ITypeNode SerializeTypeName(ISyntacticTypeNodeBuilderContext? context, Node? node, bool? isTypeOf, List<ITypeNode>? typeArguments);
-    Expression SerializeEntityName(ISyntacticTypeNodeBuilderContext? context, Node? node);
-    ITypeNode GetJsDocPropertyOverride(ISyntacticTypeNodeBuilderContext? context, JSDocTypeLiteral? jsDocTypeLiteral, JSDocPropertyLikeTag? jsDocProperty);
+    ITypeNode? SerializeTypeName(ISyntacticTypeNodeBuilderContext? context, Node? node, bool? isTypeOf, List<ITypeNode>? typeArguments);
+    Expression? SerializeEntityName(ISyntacticTypeNodeBuilderContext? context, MemberExpression? node);
+    ITypeNode? GetJsDocPropertyOverride(ISyntacticTypeNodeBuilderContext? context, JSDocTypeLiteral? jsDocTypeLiteral, JSDocPropertyLikeTag? jsDocProperty);
     Action EnterNewScope(ISyntacticTypeNodeBuilderContext? context, Node? node);
     T MarkNodeReuse<T>(ISyntacticTypeNodeBuilderContext? context, T? range, Node? location) where T : Node;
     /// <remarks>PORT-NOTE: TS's anonymous object type has no C# counterpart, so the slot stays <c>object?</c>.</remarks>
     object? TrackExistingEntityName<T>(ISyntacticTypeNodeBuilderContext? context, T? node) where T : Node;
     void TrackComputedName(ISyntacticTypeNodeBuilderContext? context, Node? accessExpression);
-    IEvaluatorResult<object?> EvaluateEntityNameExpression(Node? expression);
-    string GetModuleSpecifierOverride(ISyntacticTypeNodeBuilderContext? context, ImportTypeNode? parent, StringLiteral? lit);
+    IEvaluatorResult<object?> EvaluateEntityNameExpression(MemberExpression? expression);
+    string? GetModuleSpecifierOverride(ISyntacticTypeNodeBuilderContext? context, ImportTypeNode? parent, StringLiteral? lit);
     bool CanReuseTypeNode(ISyntacticTypeNodeBuilderContext? context, ITypeNode? existing);
     bool CanReuseTypeNodeAnnotation(ISyntacticTypeNodeBuilderContext? context, IDeclaration? node, ITypeNode? existing, ISymbol? symbol, bool? requiresAddingUndefined);
     bool ShouldRemoveDeclaration(ISyntacticTypeNodeBuilderContext? context, DynamicNamedDeclaration? node);
@@ -3394,7 +3360,7 @@ internal partial interface ITabStop
 }
 
 /// <summary>ported from types.ts: <c>TemplateLiteralLikeNode</c>.</summary>
-internal partial interface ITemplateLiteralLikeNode : ILiteralLikeNode
+internal partial interface ITemplateLiteralLikeNode : INode, ILiteralLikeNode
 {
     string? RawText { get; set; }
     TokenFlags? TemplateFlags { get; set; }
@@ -3442,7 +3408,7 @@ internal partial interface ITransformationContext : ICoreTransformationContext
     IEmitHost GetEmitHost();
     IEmitHelperFactory GetEmitHelperFactory();
     void RequestEmitHelper(Node? helper);
-    List<Node> ReadEmitHelpers();
+    List<Node>? ReadEmitHelpers();
     void EnableSubstitution(SyntaxKind kind);
     bool IsSubstitutionEnabled(Node? node);
     Func<EmitHint, Node, Node>? OnSubstituteNode { get; set; }
@@ -3455,7 +3421,7 @@ internal partial interface ITransformationContext : ICoreTransformationContext
 /// <summary>ported from types.ts: <c>TransformationResult</c>.</summary>
 internal partial interface ITransformationResult<T>
 {
-    List<object?>? Transformed { get; set; }
+    List<T>? Transformed { get; set; }
     List<IDiagnosticWithLocation>? Diagnostics { get; set; }
     Node SubstituteNode(EmitHint hint, Node? node);
     void EmitNodeWithNotification(EmitHint hint, Node? node, Action<EmitHint, Node>? emitCallback);
@@ -3464,7 +3430,7 @@ internal partial interface ITransformationResult<T>
 }
 
 /// <summary>ported from types.ts: <c>TransientIdentifier</c>.</summary>
-internal partial interface ITransientIdentifier
+internal partial interface ITransientIdentifier : INode
 {
     ISymbol? ResolvedSymbol { get; set; }
 }
@@ -3489,7 +3455,7 @@ internal partial interface ITsConfigOnlyOption : ICommandLineOptionBase
 }
 
 /// <summary>ported from types.ts: <c>TsConfigSourceFile</c>.</summary>
-internal partial interface ITsConfigSourceFile
+internal partial interface ITsConfigSourceFile : INode
 {
     List<string>? ExtendedSourceFiles { get; set; }
     IConfigFileSpecs? ConfigFileSpecs { get; set; }
@@ -3544,21 +3510,21 @@ internal partial interface ITypeChecker
     IType GetTypeOfSymbol(ISymbol? symbol);
     IType GetDeclaredTypeOfSymbol(ISymbol? symbol);
     List<ISymbol> GetPropertiesOfType(IType? type);
-    ISymbol GetPropertyOfType(IType? type, string? propertyName);
-    ISymbol GetPrivateIdentifierPropertyOfType(IType? leftType, string? name, Node? location);
-    IType GetTypeOfPropertyOfType(IType? type, string? propertyName);
-    IIndexInfo GetIndexInfoOfType(IType? type, IndexKind kind);
+    ISymbol? GetPropertyOfType(IType? type, string? propertyName);
+    ISymbol? GetPrivateIdentifierPropertyOfType(IType? leftType, string? name, Node? location);
+    IType? GetTypeOfPropertyOfType(IType? type, string? propertyName);
+    IIndexInfo? GetIndexInfoOfType(IType? type, IndexKind kind);
     List<IIndexInfo> GetIndexInfosOfType(IType? type);
     List<Func<ISymbol, List<ISymbol>, IIndexInfo>>? GetIndexInfosOfIndexSymbol { get; set; }
     List<ISignature> GetSignaturesOfType(IType? type, SignatureKind kind);
-    IType GetIndexTypeOfType(IType? type, IndexKind kind);
+    IType? GetIndexTypeOfType(IType? type, IndexKind kind);
     IType GetIndexType(IType? type);
     List<Node> GetBaseTypes(IInterfaceType? type);
     IType GetBaseTypeOfLiteralType(IType? type);
     IType GetWidenedType(IType? type);
     IType GetWidenedLiteralType(IType? type);
-    IType GetPromisedTypeOfPromise(IType? promise, Node? errorNode);
-    IType GetAwaitedType(IType? type);
+    IType? GetPromisedTypeOfPromise(IType? promise, Node? errorNode);
+    IType? GetAwaitedType(IType? type);
     bool IsEmptyAnonymousObjectType(IType? type);
     IType GetReturnTypeOfSignature(ISignature? signature);
     IType GetParameterType(ISignature? signature, int parameterIndex);
@@ -3569,28 +3535,28 @@ internal partial interface ITypeChecker
     IType GetNonOptionalType(IType? type);
     bool IsNullableType(IType? type);
     List<IType> GetTypeArguments(ITypeReference? type);
-    ITypeNode TypeToTypeNode(IType? type, Node? enclosingDeclaration, NodeBuilderFlags flags);
-    ITypeNode TypeToTypeNode(IType? type, Node? enclosingDeclaration, NodeBuilderFlags flags, InternalNodeBuilderFlags? internalFlags, ISymbolTracker? tracker);
-    TypePredicateNode TypePredicateToTypePredicateNode(Node? typePredicate, Node? enclosingDeclaration, NodeBuilderFlags flags, InternalNodeBuilderFlags? internalFlags, ISymbolTracker? tracker);
-    Node SignatureToSignatureDeclaration(ISignature? signature, SyntaxKind kind, Node? enclosingDeclaration, NodeBuilderFlags flags);
-    Node SignatureToSignatureDeclaration(ISignature? signature, SyntaxKind kind, Node? enclosingDeclaration, NodeBuilderFlags flags, InternalNodeBuilderFlags? internalFlags, ISymbolTracker? tracker);
-    IndexSignatureDeclaration IndexInfoToIndexSignatureDeclaration(IIndexInfo? indexInfo, Node? enclosingDeclaration, NodeBuilderFlags flags);
-    IndexSignatureDeclaration IndexInfoToIndexSignatureDeclaration(IIndexInfo? indexInfo, Node? enclosingDeclaration, NodeBuilderFlags flags, InternalNodeBuilderFlags? internalFlags, ISymbolTracker? tracker);
-    Node SymbolToEntityName(ISymbol? symbol, SymbolFlags meaning, Node? enclosingDeclaration, NodeBuilderFlags flags);
-    Expression SymbolToExpression(ISymbol? symbol, SymbolFlags meaning, Node? enclosingDeclaration, NodeBuilderFlags flags);
-    Node SymbolToNode(ISymbol? symbol, SymbolFlags meaning, Node? enclosingDeclaration, NodeBuilderFlags flags, InternalNodeBuilderFlags internalFlags);
-    NodeArray<TypeParameterDeclaration> SymbolToTypeParameterDeclarations(ISymbol? symbol, Node? enclosingDeclaration, NodeBuilderFlags flags);
-    ParameterDeclaration SymbolToParameterDeclaration(ISymbol? symbol, Node? enclosingDeclaration, NodeBuilderFlags flags);
-    TypeParameterDeclaration TypeParameterToDeclaration(ITypeParameter? parameter, Node? enclosingDeclaration, NodeBuilderFlags flags);
-    TypeParameterDeclaration TypeParameterToDeclaration(ITypeParameter? parameter, Node? enclosingDeclaration, NodeBuilderFlags flags, InternalNodeBuilderFlags? internalFlags, ISymbolTracker? tracker, int? maximumLength, int? verbosityLevel, IWriterContextOut? @out);
+    ITypeNode? TypeToTypeNode(IType? type, Node? enclosingDeclaration, NodeBuilderFlags? flags);
+    ITypeNode? TypeToTypeNode(IType? type, Node? enclosingDeclaration, NodeBuilderFlags? flags, InternalNodeBuilderFlags? internalFlags, ISymbolTracker? tracker);
+    TypePredicateNode? TypePredicateToTypePredicateNode(Node? typePredicate, Node? enclosingDeclaration, NodeBuilderFlags? flags, InternalNodeBuilderFlags? internalFlags, ISymbolTracker? tracker);
+    Node? SignatureToSignatureDeclaration(ISignature? signature, SyntaxKind kind, Node? enclosingDeclaration, NodeBuilderFlags? flags);
+    Node? SignatureToSignatureDeclaration(ISignature? signature, SyntaxKind kind, Node? enclosingDeclaration, NodeBuilderFlags? flags, InternalNodeBuilderFlags? internalFlags, ISymbolTracker? tracker);
+    IndexSignatureDeclaration? IndexInfoToIndexSignatureDeclaration(IIndexInfo? indexInfo, Node? enclosingDeclaration, NodeBuilderFlags? flags);
+    IndexSignatureDeclaration? IndexInfoToIndexSignatureDeclaration(IIndexInfo? indexInfo, Node? enclosingDeclaration, NodeBuilderFlags? flags, InternalNodeBuilderFlags? internalFlags, ISymbolTracker? tracker);
+    Node? SymbolToEntityName(ISymbol? symbol, SymbolFlags meaning, Node? enclosingDeclaration, NodeBuilderFlags? flags);
+    Expression? SymbolToExpression(ISymbol? symbol, SymbolFlags meaning, Node? enclosingDeclaration, NodeBuilderFlags? flags);
+    Node? SymbolToNode(ISymbol? symbol, SymbolFlags meaning, Node? enclosingDeclaration, NodeBuilderFlags? flags, InternalNodeBuilderFlags? internalFlags);
+    NodeArray<TypeParameterDeclaration>? SymbolToTypeParameterDeclarations(ISymbol? symbol, Node? enclosingDeclaration, NodeBuilderFlags? flags);
+    ParameterDeclaration? SymbolToParameterDeclaration(ISymbol? symbol, Node? enclosingDeclaration, NodeBuilderFlags? flags);
+    TypeParameterDeclaration? TypeParameterToDeclaration(ITypeParameter? parameter, Node? enclosingDeclaration, NodeBuilderFlags? flags);
+    TypeParameterDeclaration? TypeParameterToDeclaration(ITypeParameter? parameter, Node? enclosingDeclaration, NodeBuilderFlags? flags, InternalNodeBuilderFlags? internalFlags, ISymbolTracker? tracker, int? maximumLength, int? verbosityLevel, IWriterContextOut? @out);
     List<ISymbol> GetSymbolsInScope(Node? location, SymbolFlags meaning);
-    ISymbol GetSymbolAtLocation(Node? node);
-    List<IIndexInfo> GetIndexInfosAtLocation(Node? node);
+    ISymbol? GetSymbolAtLocation(Node? node);
+    List<IIndexInfo>? GetIndexInfosAtLocation(Node? node);
     List<ISymbol> GetSymbolsOfParameterPropertyDeclaration(ParameterDeclaration? parameter, string? parameterName);
-    ISymbol GetShorthandAssignmentValueSymbol(Node? location);
-    ISymbol GetExportSpecifierLocalTargetSymbol(Node? location);
+    ISymbol? GetShorthandAssignmentValueSymbol(Node? location);
+    ISymbol? GetExportSpecifierLocalTargetSymbol(Node? location);
     ISymbol GetExportSymbolOfSymbol(ISymbol? symbol);
-    ISymbol GetPropertySymbolOfDestructuringAssignment(Identifier? location);
+    ISymbol? GetPropertySymbolOfDestructuringAssignment(Identifier? location);
     IType GetTypeOfAssignmentPattern(MemberExpression? pattern);
     IType GetTypeAtLocation(Node? node);
     IType GetTypeFromTypeNode(ITypeNode? node);
@@ -3605,22 +3571,22 @@ internal partial interface ITypeChecker
     string GetFullyQualifiedName(ISymbol? symbol);
     List<ISymbol> GetAugmentedPropertiesOfType(IType? type);
     List<ISymbol> GetRootSymbols(ISymbol? symbol);
-    ISymbol GetSymbolOfExpando(Node? node, bool allowDeclaration);
-    IType GetContextualType(Expression? node);
-    IType GetContextualType(Expression? node, ContextFlags? contextFlags);
-    IType GetContextualTypeForObjectLiteralElement(Node? element);
-    IType GetContextualTypeForArgumentAtIndex(Node? call, int argIndex);
-    IType GetContextualTypeForJsxAttribute(Node? attribute);
+    ISymbol? GetSymbolOfExpando(Node? node, bool allowDeclaration);
+    IType? GetContextualType(Expression? node);
+    IType? GetContextualType(Expression? node, ContextFlags? contextFlags);
+    IType? GetContextualTypeForObjectLiteralElement(Node? element);
+    IType? GetContextualTypeForArgumentAtIndex(Node? call, int argIndex);
+    IType? GetContextualTypeForJsxAttribute(Node? attribute);
     bool IsContextSensitive(Node? node);
-    IType GetTypeOfPropertyOfContextualType(IType? type, string? name);
-    ISignature GetResolvedSignature(Node? node, List<ISignature>? candidatesOutArray, int? argumentCount);
-    ISignature GetResolvedSignatureForSignatureHelp(Node? node, List<ISignature>? candidatesOutArray, int? argumentCount);
+    IType? GetTypeOfPropertyOfContextualType(IType? type, string? name);
+    ISignature? GetResolvedSignature(Node? node, List<ISignature>? candidatesOutArray, int? argumentCount);
+    ISignature? GetResolvedSignatureForSignatureHelp(Node? node, List<ISignature>? candidatesOutArray, int? argumentCount);
     List<ISignature> GetCandidateSignaturesForStringLiteralCompletions(Node? call, Node? editingArgument);
     List<List<ISymbol>> GetExpandedParameters(ISignature? sig);
     bool HasEffectiveRestParameter(ISignature? sig);
     bool ContainsArgumentsReference(Node? declaration);
-    ISignature GetSignatureFromDeclaration(Node? declaration);
-    bool IsImplementationOfOverload(Node? node);
+    ISignature? GetSignatureFromDeclaration(Node? declaration);
+    bool? IsImplementationOfOverload(Node? node);
     bool IsUndefinedSymbol(ISymbol? symbol);
     bool IsArgumentsSymbol(ISymbol? symbol);
     bool IsUnknownSymbol(ISymbol? symbol);
@@ -3630,27 +3596,27 @@ internal partial interface ITypeChecker
     bool IsValidPropertyAccess(Node? node, string? propertyName);
     bool IsValidPropertyAccessForCompletions(Node? node, IType? type, ISymbol? property);
     ISymbol GetAliasedSymbol(ISymbol? symbol);
-    ISymbol GetImmediateAliasedSymbol(ISymbol? symbol);
+    ISymbol? GetImmediateAliasedSymbol(ISymbol? symbol);
     List<ISymbol> GetExportsOfModule(ISymbol? moduleSymbol);
     List<ISymbol> GetExportsAndPropertiesOfModule(ISymbol? moduleSymbol);
     void ForEachExportAndPropertyOfModule(ISymbol? moduleSymbol, Action<ISymbol, string>? cb);
     List<ISymbol> GetJsxIntrinsicTagNamesAt(Node? location);
     bool IsOptionalParameter(ParameterDeclaration? node);
     List<ISymbol> GetAmbientModules();
-    ISymbol TryGetMemberInModuleExports(string? memberName, ISymbol? moduleSymbol);
-    ISymbol TryGetMemberInModuleExportsAndProperties(string? memberName, ISymbol? moduleSymbol);
+    ISymbol? TryGetMemberInModuleExports(string? memberName, ISymbol? moduleSymbol);
+    ISymbol? TryGetMemberInModuleExportsAndProperties(string? memberName, ISymbol? moduleSymbol);
     IType GetApparentType(IType? type);
-    ISymbol GetSuggestedSymbolForNonexistentProperty(object? name, IType? containingType);
-    ISymbol GetSuggestedSymbolForNonexistentProperty(MemberExpression? name, IType? containingType) => GetSuggestedSymbolForNonexistentProperty((object?)name, containingType);
-    ISymbol GetSuggestedSymbolForNonexistentProperty(string? name, IType? containingType) => GetSuggestedSymbolForNonexistentProperty((object?)name, containingType);
-    ISymbol GetSuggestedSymbolForNonexistentJSXAttribute(object? name, IType? containingType);
-    ISymbol GetSuggestedSymbolForNonexistentJSXAttribute(Identifier? name, IType? containingType) => GetSuggestedSymbolForNonexistentJSXAttribute((object?)name, containingType);
-    ISymbol GetSuggestedSymbolForNonexistentJSXAttribute(string? name, IType? containingType) => GetSuggestedSymbolForNonexistentJSXAttribute((object?)name, containingType);
-    ISymbol GetSuggestedSymbolForNonexistentSymbol(Node? location, string? name, SymbolFlags meaning);
-    ISymbol GetSuggestedSymbolForNonexistentModule(Identifier? node, ISymbol? target);
-    ISymbol GetSuggestedSymbolForNonexistentClassMember(string? name, IType? baseType);
-    IType GetBaseConstraintOfType(IType? type);
-    IType GetDefaultFromTypeParameter(IType? type);
+    ISymbol? GetSuggestedSymbolForNonexistentProperty(object? name, IType? containingType);
+    ISymbol? GetSuggestedSymbolForNonexistentProperty(MemberExpression? name, IType? containingType) => GetSuggestedSymbolForNonexistentProperty((object?)name, containingType);
+    ISymbol? GetSuggestedSymbolForNonexistentProperty(string? name, IType? containingType) => GetSuggestedSymbolForNonexistentProperty((object?)name, containingType);
+    ISymbol? GetSuggestedSymbolForNonexistentJSXAttribute(object? name, IType? containingType);
+    ISymbol? GetSuggestedSymbolForNonexistentJSXAttribute(Identifier? name, IType? containingType) => GetSuggestedSymbolForNonexistentJSXAttribute((object?)name, containingType);
+    ISymbol? GetSuggestedSymbolForNonexistentJSXAttribute(string? name, IType? containingType) => GetSuggestedSymbolForNonexistentJSXAttribute((object?)name, containingType);
+    ISymbol? GetSuggestedSymbolForNonexistentSymbol(Node? location, string? name, SymbolFlags meaning);
+    ISymbol? GetSuggestedSymbolForNonexistentModule(Identifier? node, ISymbol? target);
+    ISymbol? GetSuggestedSymbolForNonexistentClassMember(string? name, IType? baseType);
+    IType? GetBaseConstraintOfType(IType? type);
+    IType? GetDefaultFromTypeParameter(IType? type);
     IType GetAnyType();
     IType GetStringType();
     IStringLiteralType GetStringLiteralType(string? value);
@@ -3673,18 +3639,18 @@ internal partial interface ITypeChecker
     IType GetOptionalType();
     IType GetUnionType(List<IType>? types, UnionReduction? subtypeReduction);
     IType CreateArrayType(IType? elementType);
-    IType GetElementTypeOfArrayType(IType? arrayType);
+    IType? GetElementTypeOfArrayType(IType? arrayType);
     IType CreatePromiseType(IType? type);
     IType GetPromiseType();
     IType GetPromiseLikeType();
-    IType GetAnyAsyncIterableType();
+    IType? GetAnyAsyncIterableType();
     bool IsTypeAssignableTo(IType? source, IType? target);
     IType CreateAnonymousType(ISymbol? symbol, Dictionary<string, ISymbol>? members, List<ISignature>? callSignatures, List<ISignature>? constructSignatures, List<IIndexInfo>? indexInfos);
     ISignature CreateSignature(Node? declaration, List<ITypeParameter>? typeParameters, ISymbol? thisParameter, List<ISymbol>? parameters, IType? resolvedReturnType, Node? typePredicate, int minArgumentCount, SignatureFlags flags);
     ITransientSymbol CreateSymbol(SymbolFlags flags, string? name);
     IIndexInfo CreateIndexInfo(IType? keyType, IType? type, bool isReadonly, Node? declaration);
     ISymbolAccessibilityResult IsSymbolAccessible(ISymbol? symbol, Node? enclosingDeclaration, SymbolFlags meaning, bool shouldComputeAliasToMarkVisible);
-    ISymbol TryFindAmbientModule(string? moduleName);
+    ISymbol? TryFindAmbientModule(string? moduleName);
     ISymbolWalker GetSymbolWalker(Func<ISymbol, bool>? accept);
     List<IDiagnostic> GetDiagnostics(SourceFile? sourceFile, ICancellationToken? cancellationToken, List<Node>? nodesToCheck);
     List<IDiagnostic> GetGlobalDiagnostics();
@@ -3706,28 +3672,28 @@ internal partial interface ITypeChecker
     bool IsTypeInvalidDueToUnionDiscriminant(IType? contextualType, MemberExpression? obj);
     List<ISymbol> GetExactOptionalProperties(IType? type);
     List<ISymbol> GetAllPossiblePropertiesOfTypes(List<IType>? type);
-    ISymbol ResolveName(string? name, Node? location, SymbolFlags meaning, bool excludeGlobals);
+    ISymbol? ResolveName(string? name, Node? location, SymbolFlags meaning, bool excludeGlobals);
     string GetJsxNamespace(Node? location);
-    string GetJsxFragmentFactory(Node? location);
-    List<ISymbol> GetAccessibleSymbolChain(ISymbol? symbol, Node? enclosingDeclaration, SymbolFlags meaning, bool useOnlyExternalAliasing);
-    Node GetTypePredicateOfSignature(ISignature? signature);
-    ISymbol ResolveExternalModuleName(Expression? moduleSpecifier);
+    string? GetJsxFragmentFactory(Node? location);
+    List<ISymbol>? GetAccessibleSymbolChain(ISymbol? symbol, Node? enclosingDeclaration, SymbolFlags meaning, bool useOnlyExternalAliasing);
+    Node? GetTypePredicateOfSignature(ISignature? signature);
+    ISymbol? ResolveExternalModuleName(Expression? moduleSpecifier);
     ISymbol ResolveExternalModuleSymbol(ISymbol? symbol);
     /// <remarks>PORT-NOTE: <c>ThisContainer</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
-    IType TryGetThisTypeAt(Node? node, bool? includeGlobalThis, object? container);
-    IType GetTypeArgumentConstraint(ITypeNode? node);
+    IType? TryGetThisTypeAt(Node? node, bool? includeGlobalThis, object? container);
+    IType? GetTypeArgumentConstraint(ITypeNode? node);
     List<IDiagnosticWithLocation> GetSuggestionDiagnostics(SourceFile? file, ICancellationToken? cancellationToken);
     T RunWithCancellationToken<T>(ICancellationToken? token, Func<ITypeChecker, T>? cb);
-    List<ITypeParameter> GetLocalTypeParametersOfClassOrInterfaceOrTypeAlias(ISymbol? symbol);
+    List<ITypeParameter>? GetLocalTypeParametersOfClassOrInterfaceOrTypeAlias(ISymbol? symbol);
     bool IsDeclarationVisible(Node? node);
     bool IsPropertyAccessible(Node? node, bool isSuper, bool isWrite, IType? containingType, ISymbol? property);
-    Node GetTypeOnlyAliasDeclaration(ISymbol? symbol);
+    Node? GetTypeOnlyAliasDeclaration(ISymbol? symbol);
     MemberOverrideStatus GetMemberOverrideModifierStatus(ClassLikeDeclarationBase? node, IClassElement? member, ISymbol? memberSymbol);
     bool IsTypeParameterPossiblyReferenced(ITypeParameter? tp, Node? node);
     bool TypeHasCallOrConstructSignatures(IType? type);
     SymbolFlags GetSymbolFlags(ISymbol? symbol);
     List<IType> FillMissingTypeArguments(List<IType>? typeArguments, List<ITypeParameter>? typeParameters, int minTypeArgumentCount, bool isJavaScriptImplicitAny);
-    List<IType> GetTypeArgumentsForResolvedSignature(ISignature? signature);
+    List<IType>? GetTypeArgumentsForResolvedSignature(ISignature? signature);
     bool IsLibType(IType? type);
 }
 
@@ -3735,26 +3701,26 @@ internal partial interface ITypeChecker
 internal partial interface ITypeCheckerHost : IModuleSpecifierResolutionHost, ISourceFileMayBeEmittedHost
 {
     List<SourceFile> GetSourceFiles();
-    SourceFile GetSourceFile(string? fileName);
+    SourceFile? GetSourceFile(string? fileName);
     object? GetEmitSyntaxForUsageLocation(SourceFile? file, LiteralExpression? usage);
-    IResolvedRefAndSource GetRedirectFromOutput(string? filePath);
+    IResolvedRefAndSource? GetRedirectFromOutput(string? filePath);
     object? GetModeForUsageLocation(SourceFile? file, LiteralExpression? usage);
     object? GetImpliedNodeFormatForEmit(SourceFile? sourceFile);
     ModuleKind GetEmitModuleFormatOfFile(SourceFile? sourceFile);
-    IResolvedModuleWithFailedLookupLocations GetResolvedModule(SourceFile? f, string? moduleName, object? mode);
+    IResolvedModuleWithFailedLookupLocations? GetResolvedModule(SourceFile? f, string? moduleName, object? mode);
     bool TypesPackageExists(string? packageName);
     bool PackageBundlesTypes(string? packageName);
     bool IsSourceFileDefaultLibrary(SourceFile? file);
 }
 
 /// <summary>ported from types.ts: <c>TypeElement</c>.</summary>
-internal partial interface ITypeElement : INamedDeclaration
+internal partial interface ITypeElement : INode, INamedDeclaration
 {
     PunctuationToken? QuestionToken { get; }
 }
 
 /// <summary>ported from types.ts: <c>TypeNode</c>.</summary>
-internal partial interface ITypeNode
+internal partial interface ITypeNode : INode
 {
 }
 
@@ -3818,7 +3784,7 @@ internal partial interface IUniqueESSymbolType : IType
 }
 
 /// <summary>ported from types.ts: <c>UniqueTypeOperatorNode</c>.</summary>
-internal partial interface IUniqueTypeOperatorNode
+internal partial interface IUniqueTypeOperatorNode : INode
 {
 }
 
@@ -3878,12 +3844,12 @@ internal partial interface IUserPreferences
 }
 
 /// <summary>ported from types.ts: <c>ValidImportTypeNode</c>.</summary>
-internal partial interface IValidImportTypeNode
+internal partial interface IValidImportTypeNode : INode
 {
 }
 
 /// <summary>ported from types.ts: <c>VariableDeclarationInitializedTo</c>.</summary>
-internal partial interface IVariableDeclarationInitializedTo<T>
+internal partial interface IVariableDeclarationInitializedTo<T> : INode
 {
 }
 

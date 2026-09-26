@@ -103,6 +103,59 @@ internal static partial class Utilities
         return node as SourceFile;
     }
 
+    /// <summary>ported from: src/compiler/utilities.ts:6798-6825 — <c>isThisIdentifier</c>.</summary>
+    public static bool IsThisIdentifier(Node? node)
+        => node is Identifier identifier && IdentifierIsThisKeyword(identifier);
+
+    /// <summary>ported from: src/compiler/utilities.ts:6822 — <c>identifierIsThisKeyword</c>.</summary>
+    public static bool IdentifierIsThisKeyword(Identifier id) => id.EscapedText == "this";
+
+    /// <summary>ported from: src/compiler/utilities.ts:7353 — <c>modifiersToFlags</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: <c>utilities.ts</c> is a Layer 5 file, and this is the part the factory needs ahead of it — the same
+    /// arrangement as <see cref="IsParseTreeNode"/>. TS takes <c>readonly ModifierLike[]</c>, which is a
+    /// <c>List&lt;Node&gt;</c> here because <c>ModifierLike</c> collapses to <c>Node</c> (§12.5).
+    /// </remarks>
+    public static ModifierFlags ModifiersToFlags(List<Node>? modifiers)
+    {
+        var flags = ModifierFlags.None;
+        if (modifiers is not null)
+        {
+            foreach (var modifier in modifiers) flags |= ModifierToFlag(modifier.Kind);
+        }
+
+        return flags;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:7364 — <c>modifierToFlag</c>.</summary>
+    public static ModifierFlags ModifierToFlag(SyntaxKind token) => token switch
+    {
+        SyntaxKind.StaticKeyword => ModifierFlags.Static,
+        SyntaxKind.PublicKeyword => ModifierFlags.Public,
+        SyntaxKind.ProtectedKeyword => ModifierFlags.Protected,
+        SyntaxKind.PrivateKeyword => ModifierFlags.Private,
+        SyntaxKind.AbstractKeyword => ModifierFlags.Abstract,
+        SyntaxKind.AccessorKeyword => ModifierFlags.Accessor,
+        SyntaxKind.ExportKeyword => ModifierFlags.Export,
+        SyntaxKind.DeclareKeyword => ModifierFlags.Ambient,
+        SyntaxKind.ConstKeyword => ModifierFlags.Const,
+        SyntaxKind.DefaultKeyword => ModifierFlags.Default,
+        SyntaxKind.AsyncKeyword => ModifierFlags.Async,
+        SyntaxKind.ReadonlyKeyword => ModifierFlags.Readonly,
+        SyntaxKind.OverrideKeyword => ModifierFlags.Override,
+        SyntaxKind.InKeyword => ModifierFlags.In,
+        SyntaxKind.OutKeyword => ModifierFlags.Out,
+        SyntaxKind.Decorator => ModifierFlags.Decorator,
+        _ => ModifierFlags.None,
+    };
+
+    /// <summary>ported from: src/compiler/utilities.ts:2274-2287 — <c>nodeIsSynthesized</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS asks <c>!(pos &gt;= 0)</c>, which also counts a <c>NaN</c> position as synthesized. A C# position is
+    /// an <c>int</c> and never is, so the same question is <c>pos &lt; 0</c>.
+    /// </remarks>
+    public static bool NodeIsSynthesized(ITextRange range) => range.Pos < 0 || range.End < 0;
+
     /// <summary>
     /// Whether the node came from parsing rather than from a factory or a transform — i.e. whether it is part of the
     /// parse tree that <c>nodeChildren</c> and the emit-node cleanup annotate.

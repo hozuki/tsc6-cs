@@ -271,6 +271,13 @@ internal sealed class TsTypeMapper
         if (candidates.Count == 0) return "object?";
         if (candidates.Count == 1) return candidates[0];
 
+        // §16: a union of enum members used as types — `SyntaxKind.KeyOfKeyword | SyntaxKind.UniqueKeyword` — is the
+        // enum itself in C#. The members are values there and not types, so there is nothing narrower to widen to.
+        if (candidates.All(static candidate => candidate.StartsWith("TypedEnum.", StringComparison.Ordinal)))
+        {
+            return "SyntaxKind";
+        }
+
         var (nodes, atoms) = Partition(candidates);
         return atoms.Count == 0 ? Widen(nodes) : "object?";
     }
@@ -339,9 +346,14 @@ internal sealed class TsTypeMapper
             var overloads = OverloadsOf(candidates, core);
             var note = core == "object?" && overloads.Count == 0 ? DegradeNote(tsType) : null;
 
+            // `A | undefined` is A, but the union member says the slot may also be absent — and that is a fact about
+            // the type, not about whether the parameter happens to be optional in TS's signature. TS writes both
+            // (`isExportEquals: boolean | undefined` is required and still accepts `undefined`).
+            var nullable = optional || HasNullishMember(tsType);
+
             return new MappedSlot(
-                Nullable(core, optional),
-                overloads.Select(overload => Nullable(overload, optional)).ToList(),
+                Nullable(core, nullable),
+                overloads.Select(overload => Nullable(overload, nullable)).ToList(),
                 note);
         }
         finally
@@ -367,7 +379,25 @@ internal sealed class TsTypeMapper
             .OrderBy(static overload => overload, StringComparer.Ordinal)
             .ToList();
 
+        // §16: a union of enum members collapses to `SyntaxKind`, which already names every one of them, so there is
+        // nothing for a narrower C# overload to add — and the core body compares against the kind directly.
+        if (core == "SyntaxKind" && distinct.All(static overload => overload.StartsWith("TypedEnum.", StringComparison.Ordinal)))
+        {
+            return [];
+        }
+
         return distinct.Count > 1 ? distinct : [];
+    }
+
+    /// <summary>Whether a type expression is a union with <c>undefined</c> or <c>null</c> among its members.</summary>
+    /// <remarks>
+    /// A bare <c>undefined</c> or <c>null</c> is a type of its own here (§12.6), not an optionality marker, so the
+    /// question only applies to a union.
+    /// </remarks>
+    private static bool HasNullishMember(string tsType)
+    {
+        var parts = SplitTopLevel(CollapseWhitespace(tsType), '|');
+        return parts.Count > 1 && parts.Any(static part => part.Trim() is "undefined" or "null");
     }
 
     /// <summary>Appends the nullability annotation for an optional TS member.</summary>
@@ -592,6 +622,16 @@ internal sealed class TsTypeMapper
         // (TransformerFactory<T>, …), which milestone M7 will give real C# shapes.
         if (_model.AliasOf(text) is not null) return "object?";
 
+        // A TS interface can refine its base without pinning a kind of its own — `NonNullChain` is a
+        // `NonNullExpression` carrying the `OptionalChain` flag, `AssertClause` is an `ImportAttributes`
+        // carrying `TokenFlags.PossiblyContainsAssertClause`. There is no second object at run time, so the base
+        // class is the answer and the interface only ever existed in TS's type system (docs/architecture.md §12.9).
+        if (KindViewClassOf(text) is { } viewClass) return viewClass;
+
+        // An indexed access type the extractor left unresolved — `LiteralTypeNode["literal"]` — is one lookup away:
+        // the owner is an interface in the model and the member's declared type is what TS resolved it to.
+        if (IndexedAccessOf(text) is { } indexedMember) return Map(indexedMember);
+
         if (_model.IsKnown(text))
         {
             // TS allows a bare reference to a generic type, falling back to its declared defaults
@@ -609,6 +649,49 @@ internal sealed class TsTypeMapper
         // Unknown name: something declared outside the extracted files. Degrading to object keeps the
         // generated code compiling instead of referencing a type nothing declares.
         return "object?";
+    }
+
+    /// <summary>
+    /// The class behind a TS interface that only refines its base with a flag, or <c>null</c> for anything else.
+    /// </summary>
+    /// <remarks>
+    /// TS writes <c>interface NonNullChain extends NonNullExpression</c> and hangs a flag on the refinement; the value
+    /// is still the base's kind, so the port has no second class to name. An interface that pins a kind of its own, or
+    /// whose bases are categorisation steps rather than concrete nodes, is not one of these.
+    /// </remarks>
+    private string? KindViewClassOf(string name)
+    {
+        if (_model.AliasOf(name) is not null) return null;
+        if (!_model.Interfaces.TryGetValue(name, out var iface)) return null;
+        if (iface.ConcreteKind is not null) return null;
+
+        foreach (var baseName in iface.Extends)
+        {
+            var bare = BareName(baseName);
+            if (_model.Interfaces.TryGetValue(bare, out var baseInterface) && baseInterface.ConcreteKind is not null)
+            {
+                return bare;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The declared type behind an indexed access type, or <c>null</c> when it cannot be resolved.</summary>
+    /// <remarks>
+    /// <c>T["kind"]</c> is not resolvable — a type parameter has no members in the model — and stays with the caller's
+    /// fallback.
+    /// </remarks>
+    private string? IndexedAccessOf(string text)
+    {
+        var open = text.IndexOf("[\"", StringComparison.Ordinal);
+        if (open <= 0 || !text.EndsWith("\"]", StringComparison.Ordinal)) return null;
+
+        var owner = text[..open].Trim();
+        if (!_model.Interfaces.TryGetValue(owner, out var iface)) return null;
+
+        var member = text[(open + 2)..^2];
+        return iface.Members.FirstOrDefault(candidate => candidate.Name == member)?.Type;
     }
 
     private string ConvertGeneric(string name, List<string> arguments) => name switch
@@ -629,6 +712,11 @@ internal sealed class TsTypeMapper
         // `IterableIterator<T>` is IEnumerable in C#: the port only ever enumerates these. Returning IEnumerator
         // would lose the ability to enumerate twice, which TS's iterators allow.
         "IterableIterator" or "Iterator" or "Iterable" => $"IEnumerable<{arguments[0]}>",
+        // `Mutable<T>` only lifts TS's readonly modifiers — C# nodes are mutable to begin with, so it is transparent.
+        "Mutable" => arguments[0],
+        // `Parameters<T>` / `ConstructorParameters<T>` describe a rest tuple; C# cannot spread one, and a `params`
+        // parameter needs a collection type, so the member is refused rather than emitted.
+        "Parameters" or "ConstructorParameters" => "object?",
         // Declared outside the extracted files; see MapReference for why unknown generics degrade.
         "ResolutionNameAndModeGetter" => "object?",
         // Everything else is a model type. The name goes through TypeName, which is what puts the `I` prefix on a
@@ -640,6 +728,9 @@ internal sealed class TsTypeMapper
     /// <summary>The C# name for a TS type: mixin interfaces get the <c>I</c> prefix (porting decision D1).</summary>
     public string TypeName(string tsName)
         => _model.RoleOf(tsName) == TypeRole.Interface ? "I" + tsName : tsName;
+
+    /// <summary>Whether a TS name is one of the port's classes, which is what a generic type argument may be.</summary>
+    public bool IsClass(string tsName) => _model.RoleOf(tsName) == TypeRole.Class;
 
     /// <summary>Strips generic arguments from a type reference.</summary>
     public static string BareName(string typeReference)

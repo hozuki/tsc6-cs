@@ -89,10 +89,19 @@ internal static class NodeEmitter
     {
         var bases = iface.Extends
             .Select(TsTypeMapper.BareName)
-            .Where(b => model.RoleOf(b) == TypeRole.Interface)
+            .Where(b => b != "Node" && model.RoleOf(b) == TypeRole.Interface)
             .Select(mapper.TypeName)
             .Distinct(StringComparer.Ordinal)
             .ToList();
+
+        // A categorisation step such as `TypeNode` reaches the hand-written `Node` class — but C# interfaces cannot
+        // inherit a class, so the link is lost and `ITypeNode` would be unrelated to `Node`. `INode` is the anchor the
+        // chains meet in instead (Model/Node.cs), and it is what lets a slot or an array hold `ITypeNode` where TS
+        // holds `TypeNode` (docs/architecture.md §12.9).
+        if (model.ReachesNode(iface.Name) && !bases.Contains("INode", StringComparer.Ordinal))
+        {
+            bases.Insert(0, "INode");
+        }
 
         sb.AppendLine($"/// <summary>ported from types.ts: <c>{iface.Name}</c>.</summary>");
         sb.Append($"internal partial interface {mapper.TypeName(iface.Name)}{GenericsOf(iface.TypeParameters)}");
@@ -146,7 +155,8 @@ internal static class NodeEmitter
                 mapper,
                 inInterface: true,
                 forceType: forcedReturnType,
-                widening: WideningTargetOf(declarations, member, mapper));
+                widening: WideningTargetOf(declarations, member, mapper),
+                scope: ScopeOf(iface, member));
         }
 
         sb.AppendLine("}");
@@ -195,7 +205,7 @@ internal static class NodeEmitter
         {
             if (!Skip(member, extendsNode: true) && !provided.Contains(member.Name))
             {
-                classMembers[member.Name] = (member, mapper.MapMember(member.Type, member.IsOptional));
+                classMembers[member.Name] = (member, mapper.MapMember(member.Type, member.IsOptional, ScopeOf(iface, member)));
             }
         }
 
@@ -205,13 +215,13 @@ internal static class NodeEmitter
             foreach (var member in mixinInterface.Members)
             {
                 if (Skip(member, extendsNode: true) || provided.Contains(member.Name) || classMembers.ContainsKey(member.Name)) continue;
-                classMembers[member.Name] = (member, mapper.MapMember(member.Type, member.IsOptional));
+                classMembers[member.Name] = (member, mapper.MapMember(member.Type, member.IsOptional, ScopeOf(iface, member)));
             }
         }
 
         foreach (var entry in classMembers.Values)
         {
-            AppendMember(sb, entry.Member, mapper, inInterface: false, forceType: entry.Type);
+            AppendMember(sb, entry.Member, mapper, inInterface: false, forceType: entry.Type, scope: ScopeOf(iface, entry.Member));
         }
 
         // Interfaces whose declaration of a member differs from the class's own need an explicit
@@ -310,7 +320,8 @@ internal static class NodeEmitter
         TsTypeMapper mapper,
         bool inInterface,
         string? forceType = null,
-        TsMember? widening = null)
+        TsMember? widening = null,
+        IReadOnlyList<TsTypeParameter>? scope = null)
     {
         var name = PascalCase(member.Name);
         // Interface members are implicitly public; class members must say so to satisfy the interface.
@@ -318,7 +329,7 @@ internal static class NodeEmitter
 
         if (!member.IsMethod)
         {
-            var memberSlot = mapper.MapSlot(member.Type, member.IsOptional);
+            var memberSlot = mapper.MapSlot(member.Type, member.IsOptional, scope);
             AppendNote(sb, memberSlot.Note);
 
             // Generated code runs under `#nullable enable`, and TS's non-optional properties are set by the
@@ -334,7 +345,7 @@ internal static class NodeEmitter
         }
 
         var typeParameters = LiveTypeParameters(member, mapper);
-        var slots = Slots(member, mapper);
+        var slots = Slots(member, mapper, scope);
 
         foreach (var note in slots.Select(slot => slot.Note).Where(static note => note is not null))
         {
@@ -343,7 +354,7 @@ internal static class NodeEmitter
 
         // A method produces its result, so — unlike a property — a non-nullable TS return type maps to a
         // non-nullable C# one. A union return type cannot be overloaded either: it widens (MapSlot.Type).
-        var returnSlot = mapper.MapSlot(member.Type, optional: false, member.TypeParameters, EnumTypeParameters(member, mapper));
+        var returnSlot = mapper.MapSlot(member.Type, optional: false, scope ?? member.TypeParameters, EnumTypeParameters(member, mapper));
         if (returnSlot.Note is not null) AppendNote(sb, returnSlot.Note);
 
         var returnType = forceType ?? (member.Type == "this" ? "object" : returnSlot.Type);
@@ -408,18 +419,34 @@ internal static class NodeEmitter
     /// specific enum, and every call site passes the enum anyway. And a parameter is the one position where an enum
     /// member used as a type becomes its <c>TypedEnum</c> nested type (§16).
     /// </remarks>
-    private static List<MappedSlot> Slots(TsMember member, TsTypeMapper mapper)
+    private static List<MappedSlot> Slots(TsMember member, TsTypeMapper mapper, IReadOnlyList<TsTypeParameter>? scope = null)
         => member.Parameters
             .Select(parameter => mapper.MapSlot(
                 parameter.Type,
                 parameter.IsOptional,
-                member.TypeParameters,
+                scope ?? member.TypeParameters,
                 EnumTypeParameters(member, mapper),
                 parameter: true))
             .ToList();
 
-    private static List<string> ParameterTypesOf(TsMember member, TsTypeMapper mapper)
-        => Slots(member, mapper).Select(static slot => slot.Type).ToList();
+    /// <summary>The type parameters a member is mapped under: its declaring type's, then its own.</summary>
+    /// <remarks>
+    /// A generic node type declares members in terms of its own parameter
+    /// (<c>ObjectLiteralExpressionBase&lt;T&gt;.properties: NodeArray&lt;T&gt;</c>), and without it in scope the
+    /// member degrades to <c>NodeArray&lt;object?&gt;</c> while the class that instantiates it says
+    /// <c>ObjectLiteralExpressionBase&lt;Node&gt;</c> — the two then disagree on the same property.
+    /// </remarks>
+    private static List<TsTypeParameter>? ScopeOf(TsInterface iface, TsMember member)
+    {
+        if (iface.TypeParameters.Count == 0 && member.TypeParameters.Count == 0) return null;
+
+        var scope = iface.TypeParameters.Select(static name => new TsTypeParameter { Name = name }).ToList();
+        scope.AddRange(member.TypeParameters);
+        return scope;
+    }
+
+    private static List<string> ParameterTypesOf(TsMember member, TsTypeMapper mapper, IReadOnlyList<TsTypeParameter>? scope = null)
+        => Slots(member, mapper, scope).Select(static slot => slot.Type).ToList();
 
     /// <summary>Type parameters that survive into C#: an enum-constrained one does not.</summary>
     private static List<TsTypeParameter> LiveTypeParameters(TsMember member, TsTypeMapper mapper)
