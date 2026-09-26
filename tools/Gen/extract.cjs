@@ -41,14 +41,38 @@ const tableSources = [
 
 const ts = require(path.join(tsRoot, "lib", "typescript.js"));
 
+// Indexed-access types (`LiteralTypeNode["literal"]`, `HeritageClause["token"]`) are TS's way of naming a
+// member's type from the outside, and the *checker* knows what that member holds. Reading the declaration
+// text alone leaves `X["y"]` unresolved on the C# side, where it has no spelling at all, so a program is
+// built and the checker is consulted for exactly those nodes. Building it costs about a second (the
+// compiler pulls in ~170 files); if it fails, extraction continues and such types stay as written.
+let checker = null;
+let program = null;
+try {
+    program = ts.createProgram(
+        sources.map(sourceRelative => path.join(tsRoot, sourceRelative)),
+        {
+            target: ts.ScriptTarget.ESNext,
+            module: ts.ModuleKind.ESNext,
+            skipLibCheck: true,
+            noEmit: true,
+            strict: false,
+        });
+    checker = program.getTypeChecker();
+} catch (error) {
+    console.warn(`extract: no type checker available, indexed-access types stay as written (${error.message})`);
+}
+
 const enums = [];
 const interfaces = [];
 const aliases = [];
 
 for (const sourceRelative of sources) {
     const filePath = path.join(tsRoot, sourceRelative);
-    const text = fs.readFileSync(filePath, "utf8");
-    const source = ts.createSourceFile(filePath, text, ts.ScriptTarget.Latest, /* setParentNodes */ true, ts.ScriptKind.TS);
+    // The file has to come from the program for the checker to recognise its nodes; the fallback keeps
+    // extraction working when the program could not be built.
+    const source = program?.getSourceFile(filePath)
+        ?? ts.createSourceFile(filePath, fs.readFileSync(filePath, "utf8"), ts.ScriptTarget.Latest, /* setParentNodes */ true, ts.ScriptKind.TS);
     collect(source, sourceRelative);
 }
 
@@ -112,16 +136,16 @@ function collect(source, sourceRelative) {
                         ? {
                             name: memberName(member.name),
                             isMethod: true,
-                            type: member.type ? member.type.getText(source) : "void",
+                            type: typeTextOf(member.type, source) ?? "void",
                             parameters: member.parameters.map(parameter => ({
                                 name: parameter.name.getText(source),
-                                type: parameter.type ? parameter.type.getText(source) : "any",
+                                type: typeTextOf(parameter.type, source) ?? "any",
                                 isOptional: !!parameter.questionToken,
                                 isRest: !!parameter.dotDotDotToken,
                             })),
                             typeParameters: (member.typeParameters ?? []).map(typeParameter => ({
                                 name: typeParameter.name.text,
-                                constraint: typeParameter.constraint ? typeParameter.constraint.getText(source) : null,
+                                constraint: typeTextOf(typeParameter.constraint, source),
                             })),
                             isReadonly: false,
                             isOptional: !!member.questionToken,
@@ -131,7 +155,7 @@ function collect(source, sourceRelative) {
                         : {
                             name: memberName(member.name),
                             isMethod: false,
-                            type: member.type ? member.type.getText(source) : "any",
+                            type: typeTextOf(member.type, source) ?? "any",
                             parameters: [],
                             typeParameters: [],
                             isReadonly: hasModifier(member, ts.SyntaxKind.ReadonlyKeyword),
@@ -140,7 +164,7 @@ function collect(source, sourceRelative) {
                             trailing: trailingCommentOf(member),
                         }),
                 doc: docOf(statement),
-                concreteKind: kindMember ? kindMember.type.getText(source).slice("SyntaxKind.".length) : null,
+                concreteKind: kindMember ? typeTextOf(kindMember.type, source).slice("SyntaxKind.".length) : null,
                 source: sourceRelative,
                 startLine: lineAt(statement.getStart(source)),
                 endLine: lineAt(statement.end),
@@ -149,12 +173,39 @@ function collect(source, sourceRelative) {
             aliases.push({
                 name: statement.name.text,
                 typeParameters: (statement.typeParameters || []).map(p => p.name.text),
-                value: statement.type.getText(source),
+                value: typeTextOf(statement.type, source, statement.name.text) ?? "any",
                 doc: docOf(statement),
                 source: sourceRelative,
                 startLine: lineAt(statement.getStart(source)),
                 endLine: lineAt(statement.end),
             });
+        }
+    }
+
+    // The declared type text of a type node, with indexed-access types resolved through the checker. TS writes
+    // `X["y"]` as a type selector (`LiteralTypeNode["literal"]` is `NullLiteral | BooleanLiteral | …`) and what
+    // the C# side needs is the member's real type. An answer that is still an indexed access — `T["name"]` on an
+    // unresolved type parameter — keeps the written text, which the C# side degrades to `object?` with a note.
+    function typeTextOf(node, source, selfName) {
+        if (!node) return null;
+
+        const written = node.getText(source);
+        if (!checker || !ts.isIndexedAccessTypeNode(node)) return written;
+
+        try {
+            const resolved = checker.typeToString(
+                checker.getTypeAtLocation(node),
+                /* enclosingDeclaration */ undefined,
+                ts.TypeFormatFlags.NoTruncation);
+
+            // Keep the written form when the answer does not name anything new: still an indexed access
+            // (`T["name"]` on an unresolved type parameter), or a recursive alias resolving to itself
+            // (`type A<T> = { … }[…]` answers `A<T>`, which says nothing more than the declaration did).
+            if (resolved.includes("[\"") || resolved.includes("['")) return written;
+            if (selfName && new RegExp(`\\b${selfName}\\b`).test(resolved)) return written;
+            return resolved;
+        } catch {
+            return written;
         }
     }
 

@@ -511,7 +511,7 @@ dotnet run --project tools/Gen -- --check    # 只校验不写入（CI / 本地�
 |---|---|
 | 提取 | `tools/Gen/extract.cjs`（用 TS 编译器）→ `TsModel`；76 个枚举 / 537 个接口 / 276 个别名（三个源文件合并） |
 | 映射 | `TsTypeMapper`：TS 类型 → C# |
-| 分类 | 235 个类（继承链）/ 302 个接口（mixin），`tools/Gen --stats` 口径（修正见 §12.4） |
+| 分类 | 239 个类（继承链）/ 295 个接口（mixin），`tools/Gen --stats` 口径（数字随模型修正而变，见 §12.4） |
 | 生成物 | `Model/NodeInterfaces.cs`、`Model/NodeClasses.cs`，以及全部枚举 |
 | 手工 | `Node.cs`（抽象根 + `abstract Kind`）、`NodeArray.cs`、`Token.cs`（token 家族） |
 | 验收 | `NodeModelTests` + `GeneratedTablesTests`（逐字节比对生成物） |
@@ -529,7 +529,7 @@ TS 允许子接口**收窄**成员类型 —— `FunctionDeclaration.body` 是 `
 
 §12.1 的位置规则单独用会**高估**节点集合。`Symbol` 只被 `TransientSymbol` 首位继承、`Type` 只被它的子类型首位继承、`CommentRange` 只被 `SynthesizedComment` 首位继承 —— 形状与 `Expression` → `LeftHandSideExpression` 这类分类台阶一模一样，但它们与语法无关。它们此前被生成为 `Node` 的派生类（`abstract class Symbol : Node`），而 `CommentRange` 还挡住了 M3 的 `getLeadingCommentRanges`：那里需要一个**可构造**的注释范围值。
 
-修正：位置规则之上再加一条**必要条件** —— 该接口的 `extends` 链必须能到达 `Node`（`NodeArray`/`MutableNodeArray` 是显式强制的类，不走这条路径）。于是 268 类 / 269 接口 → **235 类 / 302 接口**，节点链不受影响（`CallExpression → LeftHandSideExpression → UpdateExpression → UnaryExpression → Expression → Node` 依旧）。
+修正：位置规则之上再加一条**必要条件** —— 该接口的 `extends` 链必须能到达 `Node`（`NodeArray`/`MutableNodeArray` 是显式强制的类，不走这条路径）。于是 268 类 / 269 接口 → **239 类 / 295 接口**（`tools/Gen --stats` 的当前口径；§15.5 的声明合并修正又动过这两个数），节点链不受影响（`CallExpression → LeftHandSideExpression → UpdateExpression → UnaryExpression → Expression → Node` 依旧）。
 
 代价：`MapUnion` 的 `CommonBase` 对"到不了 `Node`"的成员会落到 `Node`，于是这类 union 的映射从"某个具体类"退化成 `Node`。这些 union 本来也只能降级（C# 里它们没有共同基类），M4/M5 真正用到时再收紧。
 
@@ -563,7 +563,7 @@ TS 允许子接口**收窄**成员类型 —— `FunctionDeclaration.body` 是 `
 
 | TS | C# | 说明 |
 |---|---|---|
-| 联合类型 | 共同基类 / `object?` | `CommonBase` 求最派生公共祖先 |
+| 联合类型 | 公共基类，或一组 C# 重载 | 见 §12.5 |
 | 交叉类型 | 第一个成员 | `EmitNode & { … }` 的主体总是第一个 |
 | 泛型基类引用 | 连同实参一起映射 | `ObjectLiteralExpressionBase<ObjectLiteralElementLike>` |
 | 裸引用泛型 | 参数补 `object?` | TS 有类型参数默认值，C# 没有 |
@@ -581,6 +581,39 @@ TS 允许子接口**收窄**成员类型 —— `FunctionDeclaration.body` 是 `
    - 与之相关：生成器**不照抄**字符串字面量。JS 的 `\x` 是定长两位、`\0`/`\'` 的规则也与 C# 不同，所以字面量先解码成实际字符，再按 C# 规则重新编码；遇到不认识的转义会中止生成而不是猜。
    - `default(T)` 在 C# 里总是存在（TS 没有这个概念），struct 的 `Value` 对 `default` 返回空串而不抛异常，且与任何真实成员都不相等。
 4. 另外还有一类**字符串字面量联合类型**（`TypeOfTag`、`BufferEncoding`、`OrganizeImportsTypeOrder`）。它们没有成员名，C# 中直接用 `string` 表示、值在调用点内联；到实际用到时（`TypeOfTag` 在 checker，`BufferEncoding` 在 `sys.ts`）再评估是否需要命名常量。
+
+### 12.5 联合类型与索引访问类型（M4c 期间）
+
+M4c 开工前把"退化成 `object?`"的每一处都复核了一遍：`INodeFactory` 的 503 个成员里有 185 个参数位是 `object?`。四条改动之后剩 110，其中 106 个改由重载承担，真正收敛不了的只剩 4 处、且都带注释。
+
+**1. 联合类型：能收敛就收敛，收不住就用重载。** 先把成员**映射后的 C# 类型**分成两组：
+
+| 分组 | 判据 | 处理 |
+|---|---|---|
+| 节点类型 | 名字能在模型里回查（`Identifier`、`IDeclaration`） | 求 `CommonBase`，收敛成一个 |
+| 原子 | `string`/`int`/`bool`/生成的枚举/BCL 集合 | 各自保留 |
+
+- 只有节点组 → 公共基类，**不产生重载**。`ModifierLike`（`Modifier \| Decorator`，而 `Modifier` 又展开成一串 token 别名）因此收敛到 `Node`，`readonly ModifierLike[]` 得到 `List<Node>`。
+- 只剩原子组 → 每个原子一条重载：`string \| number` → `(int)` + `(string)`。
+- 两组都有 → 核心签名收 `object?`，再逐条重载：`string \| Identifier` → `object?` 核心 + `(Identifier)` + `(string)`。
+- 重载体是接口的**默认实现**，薄转发到核心，实参显式转成核心参数类型 —— 不转的话它会解析回自己，递归到栈溢出。**实现方因此每个方法只写一个方法体**，与重载条数无关。
+- 代价：互不相关的重载之间 `null` 有歧义（`CreateBreakStatement(null)` 同时命中 `string?` 与 `Node?`，CS0121）。调用点加一次 cast 即可，不为它另造类型。
+
+**2. 类型别名走同一条路。** 非泛型别名先展开再判联合，所以 `DeclarationName`（6 路、成员本身还是别名）能一路展开到具体节点类型。`__String` 是例外：它必须命中手写 override（→ `string`）而**不能**展开，否则 TS 的 `(string & {…}) | (void & {…}) | InternalSymbolName` 里那个 `void` 会变成一个 `void name` 参数。TS 的多行联合以 `|` 开头（`type Modifier = | AbstractKeyword | …`），切分时空段要先丢掉 —— 漏掉它等于给每个成员集合掺一个 `object?`。
+
+**3. 索引访问类型交给 tsc 的 checker。** `extract.cjs` 现在会建一个 `Program`（约 1 秒，拉进约 170 个文件），对 `X["y"]` 调 `checker.typeToString(checker.getTypeAtLocation(...))`：
+
+| TS | checker 给出的类型 |
+|---|---|
+| `LiteralTypeNode["literal"]` | `NullLiteral \| BooleanLiteral \| LiteralExpression \| PrefixUnaryExpression` |
+| `HeritageClause["token"]` | `SyntaxKind.ExtendsKeyword \| SyntaxKind.ImplementsKeyword` |
+| `CompilerOptions["module"]` | `ModuleKind` |
+
+推导不出来就保留原文（`T["name"]` 依赖未解析的类型参数，递归别名解析回自身），C# 侧照常降级并注释；`Program` 建不起来时提取照旧进行。索引访问类型在模型里一共 20 处。
+
+**4. 未提取类型保留 `object?`，但加一行注释。** `BaseNodeFactory`（在 `baseNodeFactory.ts`）、`NodeFactoryFlags`（`nodeFactory.ts` 的 `const enum`）都在 `TypeModelSources` 之外，映射器因此返回 `object?` 并附上原因，由 emitter 写成 `<remarks>PORT-NOTE: …</remarks>`。同一个接口里 `converters: NodeConverters` 是真实类型而 `baseFactory: BaseNodeFactory` 是 `object?`，差别只在这份清单。
+
+**副作用：显式接口实现的两个方向都要 cast。** `DeclarationName` 现在收敛到 `Node`（以前是 `object?`），而 `ArrowFunction.name` 是 `never`（→ `object?`），类上的类型于是比接口更宽。`NodeEmitter` 的显式实现因此读写两侧都写 cast。
 
 ---
 

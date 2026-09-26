@@ -65,6 +65,22 @@ internal sealed class TsTypeModel
     public bool IsKnown(string name) => _interfaces.ContainsKey(name) || _aliases.ContainsKey(name);
 
     /// <summary>
+    /// The TS name behind a mapped C# type, or <c>null</c> when the name comes from somewhere else (a BCL
+    /// collection, <c>string</c>, a generated enum) — which is exactly the distinction that decides whether a
+    /// set of candidates has a common base in the C# class chain.
+    /// </summary>
+    /// <remarks>
+    /// Mixin interfaces carry an <c>I</c> prefix in C# (D1), and the bare name is tried first because
+    /// <c>Identifier</c> is itself a modelled name and must not be read as <c>I</c> + <c>dentifier</c>.
+    /// </remarks>
+    public string? TsNameOf(string csharpName)
+    {
+        if (IsKnown(csharpName)) return csharpName;
+        if (csharpName.StartsWith('I') && IsKnown(csharpName[1..])) return csharpName[1..];
+        return null;
+    }
+
+    /// <summary>
     /// The C# base class reference of a generated class, including generic arguments, or <c>null</c> when
     /// it derives straight from <c>Node</c>.
     /// </summary>

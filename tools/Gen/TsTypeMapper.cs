@@ -110,21 +110,75 @@ internal sealed class TsTypeMapper
         }
     }
 
-    public string Map(string tsType)
+    /// <summary>
+    /// Maps a TS type expression to a single C# type, widening a union to the narrowest type that holds all
+    /// of its members.
+    /// </summary>
+    public string Map(string tsType) => Collapse(Candidates(tsType));
+
+    /// <summary>
+    /// The C# types a TS type can be: one entry for anything but a union, and one per member for a union,
+    /// after expanding aliases. So <c>string | PropertyName</c> reports <c>string</c> plus each property-name
+    /// node type rather than the alias itself.
+    /// </summary>
+    /// <remarks>
+    /// A union is where TS's type system says "either of these" and C# must choose. Two answers are possible
+    /// and <see cref="MapSlot"/> picks between them: widen to one type (<see cref="Collapse"/>) when the
+    /// members share a base, or emit C# overloads when they do not.
+    /// </remarks>
+    public IReadOnlyList<string> Candidates(string tsType)
     {
-        // `node.getText()` on a long type keeps its line breaks; collapse them so the shape tests below and
-        // the emitted type are both single-line.
         var text = CollapseWhitespace(tsType);
-        if (text.Length == 0) return "object?";
+        if (text.Length == 0) return ["object?"];
 
         // A type parameter of the member being emitted is already a legal C# name; mapping it would degrade it
         // to `object` (see MapMember).
-        if (_currentTypeParameters?.Contains(text) == true) return text;
+        if (_currentTypeParameters?.Contains(text) == true) return [text];
 
         // Parenthesised groups carry no information once the inner type is mapped.
         var unwrapped = StripOuterParentheses(text);
-        if (!ReferenceEquals(unwrapped, text)) return Map(unwrapped);
+        if (!ReferenceEquals(unwrapped, text)) return Candidates(unwrapped);
 
+        // A name the port decides by hand wins over the alias it is declared as. `__String` is the case that
+        // matters: TS spells it `(string & { … }) | (void & { … }) | InternalSymbolName`, so expanding it
+        // would hand back a `void` candidate, and `void` is not a valid C# parameter type.
+        if (s_overrides.TryGetValue(text, out var overridden)) return [overridden];
+
+        // A non-generic alias is transparent: `ModifierLike` is `Modifier | Decorator`, and that union is what
+        // decides between one widened type and several overloads.
+        if (_model.AliasOf(text) is { TypeParameters.Count: 0 } alias) return Candidates(alias.Value);
+
+        // A generic alias is not expanded: substituting nothing for its type parameters would produce a
+        // misleading type (see MapReference).
+        if (_model.AliasOf(text) is not null) return ["object?"];
+
+        // TS writes long unions with a leading `|` (`type Modifier = | AbstractKeyword | …`), so empty parts
+        // have to be dropped before counting: left in, they become an `object?` candidate that poisons every
+        // member of the union.
+        var parts = SplitTopLevel(text, '|').Select(static part => part.Trim()).Where(static part => part.Length != 0).ToList();
+        if (parts.Count == 1 && parts[0] == text) return [MapSingle(text)];
+
+        // `undefined`, `null` and `void` carry no value, and nullability is expressed by the `?` annotation.
+        // `never` is the bottom type: `A | never` is just `A`, so it contributes no candidate either.
+        var union = parts.Where(static part => part is not ("undefined" or "null" or "void" or "never")).ToList();
+        if (union.Count == 0) return ["object?"];
+        if (union.Count == 1) return Candidates(union[0]);
+
+        var result = new List<string>();
+        foreach (var part in union)
+        {
+            foreach (var candidate in Candidates(part))
+            {
+                if (!result.Contains(candidate, StringComparer.Ordinal)) result.Add(candidate);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>Maps a TS type that is not a union (aliases and parentheses are handled by the caller).</summary>
+    private string MapSingle(string text)
+    {
         // Tuple types (`[DiagnosticMessage, ...string[]]`) have no C# equivalent; degrade like other
         // structural shapes.
         if (text.StartsWith('[')) return "object?";
@@ -142,10 +196,7 @@ internal sealed class TsTypeMapper
                 : Map(inner);
         }
 
-        var union = SplitTopLevel(text, '|');
-        if (union.Count > 1) return MapUnion(union);
-
-        var intersection = SplitTopLevel(text, '&');
+        var intersection = SplitTopLevel(text, '&').Where(static part => part.Trim().Length != 0).ToList();
         if (intersection.Count > 1) return Map(intersection[0]);
 
         if (text.EndsWith("[]", StringComparison.Ordinal)) return $"List<{Map(text[..^2])}>";
@@ -163,6 +214,108 @@ internal sealed class TsTypeMapper
 
         return MapReference(text);
     }
+
+    /// <summary>
+    /// Widens several candidates to the single C# type a slot can declare: the most derived base the node
+    /// types share, or <c>object?</c> when an atom such as <c>string</c> is in the mix and shares nothing.
+    /// </summary>
+    public string Collapse(IReadOnlyList<string> candidates)
+    {
+        if (candidates.Count == 0) return "object?";
+        if (candidates.Count == 1) return candidates[0];
+
+        var (nodes, atoms) = Partition(candidates);
+        return atoms.Count == 0 ? Widen(nodes) : "object?";
+    }
+
+    /// <summary>
+    /// Splits candidates into those the model knows — which therefore have a common base in the C# class
+    /// chain — and the atoms that come from TS itself (<c>string</c>, <c>int</c>, a generated enum, a BCL
+    /// collection) and share nothing with the node types.
+    /// </summary>
+    private (List<string> Nodes, List<string> Atoms) Partition(IReadOnlyList<string> candidates)
+    {
+        var nodes = new List<string>();
+        var atoms = new List<string>();
+
+        foreach (var candidate in candidates)
+        {
+            if (_model.TsNameOf(candidate) is null) atoms.Add(candidate);
+            else nodes.Add(candidate);
+        }
+
+        return (nodes, atoms);
+    }
+
+    /// <summary>The most derived C# type all of <paramref name="nodeTypes"/> share.</summary>
+    private string Widen(List<string> nodeTypes)
+    {
+        var names = nodeTypes
+            .Select(_model.TsNameOf)
+            .Where(static name => name is not null)
+            .Select(static name => name!)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        return TypeName(_model.CommonBase(names));
+    }
+
+    /// <summary>
+    /// Maps a member slot and works out the C# overloads a union needs.
+    /// </summary>
+    /// <remarks>
+    /// Where TS says "either a string or a node", C# can say it with overloads: one thin overload per
+    /// candidate, next to the core signature that takes the wide type. <see cref="MappedSlot.Overloads"/> is
+    /// empty whenever the candidates collapse to one type, which is the common case — the widened base covers
+    /// them all.
+    /// </remarks>
+    public MappedSlot MapSlot(string tsType, bool optional, IReadOnlyList<TsTypeParameter>? typeParameters = null)
+    {
+        var previous = _currentTypeParameters;
+        _currentTypeParameters = typeParameters is null || typeParameters.Count == 0
+            ? null
+            : new HashSet<string>(typeParameters.Select(static tp => tp.Name), StringComparer.Ordinal);
+
+        try
+        {
+            var candidates = Candidates(tsType);
+            var core = Collapse(candidates);
+            var overloads = OverloadsOf(candidates, core);
+            var note = core == "object?" && overloads.Count == 0 ? DegradeNote(tsType) : null;
+
+            return new MappedSlot(
+                Nullable(core, optional),
+                overloads.Select(overload => Nullable(overload, optional)).ToList(),
+                note);
+        }
+        finally
+        {
+            _currentTypeParameters = previous;
+        }
+    }
+
+    private List<string> OverloadsOf(IReadOnlyList<string> candidates, string core)
+    {
+        if (candidates.Count <= 1) return [];
+
+        var (nodes, atoms) = Partition(candidates);
+        var overloads = new List<string>();
+        if (nodes.Count != 0) overloads.Add(Widen(nodes));
+        overloads.AddRange(atoms);
+
+        // A single distinct candidate narrower than the core is already the core itself — nothing to overload.
+        var distinct = overloads
+            .Distinct(StringComparer.Ordinal)
+            .Where(overload => overload != core)
+            .OrderBy(static overload => overload, StringComparer.Ordinal)
+            .ToList();
+
+        return distinct.Count > 1 ? distinct : [];
+    }
+
+    /// <summary>Appends the nullability annotation for an optional TS member.</summary>
+    private static string Nullable(string type, bool optional)
+        => optional && !type.EndsWith('?') ? type + "?" : type;
 
     private static string CollapseWhitespace(string text)
     {
@@ -211,25 +364,98 @@ internal sealed class TsTypeMapper
         return text;
     }
 
-    private string MapUnion(List<string> parts)
+    /// <summary>
+    /// Explains why a slot has no C# type better than <c>object?</c>, phrased for the comment the emitter
+    /// writes next to the member.
+    /// </summary>
+    /// <remarks>
+    /// Only consulted when overloads cannot cover the slot: a union whose members share no base is handled by
+    /// overloads, not by a note. What is left is a TS shape with no C# spelling at all (<c>any</c>, <c>keyof</c>,
+    /// a tuple, an anonymous object type) or a name from outside the files the model is extracted from.
+    /// </remarks>
+    private string? DegradeNote(string tsType)
     {
-        var real = parts.Select(static p => p.Trim()).Where(static p => p is not ("undefined" or "null")).ToList();
-        if (real.Count == 0) return "object?";
-        if (real.Count == 1) return Map(real[0]);
+        var text = CollapseWhitespace(tsType).Trim();
+        if (text.Length == 0) return null;
 
-        // `SyntaxKind.A | SyntaxKind.B` is still a SyntaxKind.
-        if (real.TrueForAll(static p => p.StartsWith("SyntaxKind.", StringComparison.Ordinal))) return "SyntaxKind";
-
-        // Every member a known node type: widen to their most derived common ancestor.
-        var bareNames = real.Select(BareName).Where(static n => n.Length != 0).ToList();
-        if (bareNames.Count == real.Count && bareNames.TrueForAll(_model.IsKnown))
+        switch (text)
         {
-            return TypeName(_model.CommonBase(bareNames));
+            case "any":
+            case "unknown":
+            case "never":
+            case "null":
+            case "undefined":
+                return $"TS's <c>{text}</c> has no C# counterpart, so the slot stays <c>object?</c>.";
         }
 
-        // Anything else (string | number, literal unions, …) has no C# counterpart narrower than object.
-        return "object?";
+        if (text.StartsWith("keyof ", StringComparison.Ordinal))
+            return "TS's <c>keyof</c> has no C# counterpart, so the slot stays <c>object?</c>.";
+        if (text.StartsWith('['))
+            return "TS's tuple type has no C# counterpart, so the slot stays <c>object?</c>.";
+        if (text.StartsWith('{'))
+            return "TS's anonymous object type has no C# counterpart, so the slot stays <c>object?</c>.";
+
+        foreach (var name in Identifiers(text))
+        {
+            if (IsKnownName(name)) continue;
+            return $"<c>{name}</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.";
+        }
+
+        return null;
     }
+
+    /// <summary>Whether a TS name maps to something the port declares.</summary>
+    private bool IsKnownName(string name)
+        => s_tsKeywords.Contains(name)
+            || _currentTypeParameters?.Contains(name) == true
+            || _model.IsKnown(name)
+            || _enumNames.Contains(name)
+            || s_overrides.ContainsKey(name);
+
+    /// <summary>The identifiers in a TS type expression, in order of appearance, skipping string literals.</summary>
+    private static IEnumerable<string> Identifiers(string text)
+    {
+        var start = -1;
+        var quote = '\0';
+
+        for (var i = 0; i <= text.Length; i++)
+        {
+            var c = i < text.Length ? text[i] : ' ';
+
+            if (quote != '\0')
+            {
+                if (c == quote) quote = '\0';
+                start = -1;
+                continue;
+            }
+
+            if (c is '"' or '\'' or '`')
+            {
+                quote = c;
+                start = -1;
+                continue;
+            }
+
+            if (char.IsLetterOrDigit(c) || c is '_' or '$')
+            {
+                if (start < 0) start = i;
+                continue;
+            }
+
+            if (start >= 0)
+            {
+                yield return text[start..i];
+                start = -1;
+            }
+        }
+    }
+
+    /// <summary>TS syntax that appears in a type expression without naming a type.</summary>
+    private static readonly HashSet<string> s_tsKeywords = new(StringComparer.Ordinal)
+    {
+        "readonly", "extends", "keyof", "infer", "in", "is", "typeof", "import", "new", "asserts",
+        "string", "number", "boolean", "void", "this", "true", "false", "null", "undefined",
+    };
 
     private string MapReference(string text)
     {
@@ -430,3 +656,14 @@ internal sealed class TsTypeMapper
         return true;
     }
 }
+
+/// <summary>
+/// A mapped member slot: the C# type its core signature declares, the overloads a union needs, and — when the
+/// slot could not be mapped to anything better — the reason, for the comment next to the member.
+/// </summary>
+/// <remarks>
+/// <see cref="Overloads"/> is empty in the common case, where the candidates collapse to one type. When it is
+/// not, the core signature takes the wide type and every overload is a thin narrowing of it, so the
+/// hand-written implementation needs one body per member rather than one per overload.
+/// </remarks>
+internal readonly record struct MappedSlot(string Type, IReadOnlyList<string> Overloads, string? Note);

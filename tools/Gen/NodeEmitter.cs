@@ -130,7 +130,7 @@ internal static class NodeEmitter
                 }
             }
 
-            sb.AppendLine($"    {Declaration(member, mapper, inInterface: true, forceType: forcedReturnType)}");
+            AppendMember(sb, member, mapper, inInterface: true, forceType: forcedReturnType);
         }
 
         sb.AppendLine("}");
@@ -196,7 +196,7 @@ internal static class NodeEmitter
 
         foreach (var entry in classMembers.Values)
         {
-            sb.AppendLine($"    {Declaration(entry.Member, mapper, inInterface: false, forceType: entry.Type)}");
+            AppendMember(sb, entry.Member, mapper, inInterface: false, forceType: entry.Type);
         }
 
         // Interfaces whose declaration of a member differs from the class's own need an explicit
@@ -222,9 +222,13 @@ internal static class NodeEmitter
 
                 var name = PascalCase(member.Name);
                 var prefix = $"{interfaceType} {mapper.TypeName(mixin)}.{name}";
+
+                // Both directions need an explicit cast: TS lets a class narrow the member and it lets the
+                // class declare something else entirely (`ArrowFunction.name` is `never`, which is `object?`
+                // here, while the interface says `DeclarationName`), so neither side is implicitly convertible.
                 explicitImplementations.Add(member.IsReadonly
-                    ? $"    {prefix} => {name};"
-                    : $"    {prefix} {{ get => {name}; set => {name} = ({own.Type})value!; }}");
+                    ? $"    {prefix} => ({interfaceType}){name};"
+                    : $"    {prefix} {{ get => ({interfaceType}){name}; set => {name} = ({own.Type})value!; }}");
             }
         }
 
@@ -271,27 +275,110 @@ internal static class NodeEmitter
         }
     }
 
-    private static string Declaration(TsMember member, TsTypeMapper mapper, bool inInterface, string? forceType = null)
+    /// <summary>
+    /// Appends one member: its core signature, the overloads a union needs, and the note explaining a slot
+    /// that had to stay <c>object?</c>.
+    /// </summary>
+    /// <remarks>
+    /// Overloads are emitted for interfaces only, and only as <em>default</em> implementations forwarding to the
+    /// core member. That is what keeps union support cheap: TS writes one signature per union member and C# needs
+    /// one per narrowing, but every member still has exactly one body to implement.
+    /// <para>
+    /// The arguments are cast to the core parameter types. Without the cast the forwarding member would bind to
+    /// itself wherever a narrowed overload happens to be applicable again, and recurse until the stack overflows.
+    /// </para>
+    /// </remarks>
+    private static void AppendMember(StringBuilder sb, TsMember member, TsTypeMapper mapper, bool inInterface, string? forceType = null)
     {
         var name = PascalCase(member.Name);
         // Interface members are implicitly public; class members must say so to satisfy the interface.
         var accessibility = inInterface ? "" : "public ";
 
-        if (member.IsMethod)
+        if (!member.IsMethod)
         {
-            return $"{accessibility}{MethodDeclaration(member, mapper, name, forceType)}";
+            var slot = mapper.MapSlot(member.Type, member.IsOptional);
+            AppendNote(sb, slot.Note);
+
+            // Generated code runs under `#nullable enable`, and TS's non-optional properties are set by the
+            // parser/factory rather than at construction, so reference-typed members are declared nullable to
+            // match how the field is actually populated.
+            var accessors = member.IsReadonly ? "{ get; }" : "{ get; set; }";
+            sb.AppendLine($"    {accessibility}{Nullable(slot.Type, mapper, forceType)} {name} {accessors}");
+            return;
         }
 
-        var type = forceType ?? mapper.MapMember(member.Type, member.IsOptional);
+        var slots = member.Parameters
+            .Select(parameter => mapper.MapSlot(parameter.Type, parameter.IsOptional, member.TypeParameters))
+            .ToList();
 
-        // Generated code runs under `#nullable enable`, and TS's non-optional properties are set by the
-        // parser/factory rather than at construction, so reference-typed members are declared nullable to
-        // match how the field is actually populated. Return types are not: a method produces its result, so a
-        // non-nullable TS return type maps to a non-nullable C# one.
-        if (!type.EndsWith('?') && type != "void" && !mapper.IsValueType(type)) type += "?";
+        foreach (var note in slots.Select(slot => slot.Note).Where(static note => note is not null))
+        {
+            AppendNote(sb, note);
+        }
 
-        var accessors = member.IsReadonly ? "{ get; }" : "{ get; set; }";
-        return $"{accessibility}{type} {name} {accessors}";
+        // A method produces its result, so — unlike a property — a non-nullable TS return type maps to a
+        // non-nullable C# one. A union return type cannot be overloaded either: it widens (MapSlot.Type).
+        var returnSlot = mapper.MapSlot(member.Type, optional: false, member.TypeParameters);
+        if (returnSlot.Note is not null) AppendNote(sb, returnSlot.Note);
+
+        var returnType = forceType ?? (member.Type == "this" ? "object" : returnSlot.Type);
+
+        var coreTypes = slots
+            .Select((slot, index) => ParameterType(slot.Type, member.Parameters[index].IsRest, mapper))
+            .ToList();
+
+        sb.AppendLine($"    {accessibility}{SignatureOf(member, name, returnType, coreTypes, mapper)};");
+
+        if (!inInterface) return;
+
+        // One default implementation per combination of narrowed slots; the all-core combination is the member
+        // just written, so it is skipped.
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var combination in Combinations(slots))
+        {
+            if (combination.All(static part => part.IsCore)) continue;
+
+            var types = combination
+                .Select((part, index) => ParameterType(part.Type, member.Parameters[index].IsRest, mapper))
+                .ToList();
+
+            var arguments = combination
+                .Select((part, index) => part.IsCore ? ParameterName(member.Parameters[index].Name) : $"(object?){ParameterName(member.Parameters[index].Name)}");
+
+            var signature = SignatureOf(member, name, returnType, types, mapper);
+            if (!seen.Add(signature)) continue;
+            sb.AppendLine($"    {signature} => {name}({string.Join(", ", arguments)});");
+        }
+    }
+
+    /// <summary>
+    /// Every argument list the overloads need: each slot contributes its core type, plus one narrowing per
+    /// overload it has.
+    /// </summary>
+    private static List<(bool IsCore, string Type)[]> Combinations(IReadOnlyList<MappedSlot> slots)
+    {
+        var result = new List<(bool IsCore, string Type)[]>();
+        var current = new (bool IsCore, string Type)[slots.Count];
+        Walk(0);
+        return result;
+
+        void Walk(int index)
+        {
+            if (index == slots.Count)
+            {
+                result.Add([.. current]);
+                return;
+            }
+
+            current[index] = (true, slots[index].Type);
+            Walk(index + 1);
+
+            foreach (var overload in slots[index].Overloads)
+            {
+                current[index] = (false, overload);
+                Walk(index + 1);
+            }
+        }
     }
 
     /// <summary>
@@ -307,10 +394,9 @@ internal static class NodeEmitter
     /// one place that cannot be worked around.
     /// </para>
     /// </remarks>
-    private static string MethodDeclaration(TsMember member, TsTypeMapper mapper, string name, string? forceReturnType)
+    private static string SignatureOf(TsMember member, string name, string returnType, IReadOnlyList<string> parameterTypes, TsTypeMapper mapper)
     {
         var sb = new StringBuilder();
-        var returnType = forceReturnType ?? (member.Type == "this" ? "object" : mapper.MapMember(member.Type, false, member.TypeParameters));
         sb.Append(returnType).Append(' ').Append(name);
 
         if (member.TypeParameters.Count != 0)
@@ -319,21 +405,11 @@ internal static class NodeEmitter
         }
 
         sb.Append('(');
-        sb.Append(string.Join(", ", member.Parameters.Select(parameter =>
-        {
-            var parameterType = mapper.MapMember(parameter.Type, parameter.IsOptional, member.TypeParameters);
-            if (!parameterType.EndsWith('?') && !parameterType.Contains("params ") && !mapper.IsValueType(parameterType))
-            {
-                parameterType += "?";
-            }
-
-            // TS's `...args: T[]` is C#'s `params T[] args`; the element type is already an array by then.
-            // TS's `...args: T[]` is C#'s `params T[] args`, and a parameter name keeps its TS spelling
-            // (camelCase) — which occasionally lands on a C# keyword (`createTypeOperatorNode(operator, type)`),
-            // so it is escaped rather than renamed.
-            var parameterName = s_csharpKeywords.Contains(parameter.Name) ? "@" + parameter.Name : parameter.Name;
-            return $"{(parameter.IsRest ? "params " : "")}{parameterType} {parameterName}";
-        })));
+        // TS's `...args: T[]` is C#'s `params T[] args`, and a parameter name keeps its TS spelling (camelCase)
+        // — which occasionally lands on a C# keyword (`createTypeOperatorNode(operator, type)`), so it is
+        // escaped rather than renamed.
+        sb.Append(string.Join(", ", parameterTypes.Select((type, index) =>
+            $"{(member.Parameters[index].IsRest ? "params " : "")}{type} {ParameterName(member.Parameters[index].Name)}")));
         sb.Append(')');
 
         foreach (var typeParameter in member.TypeParameters)
@@ -344,8 +420,34 @@ internal static class NodeEmitter
             sb.Append($" where {typeParameter.Name} : {constraint}");
         }
 
-        return sb.Append(';').ToString();
+        return sb.ToString();
     }
+
+    /// <summary>Writes the reason a slot could not be typed, as a remark on the member it belongs to.</summary>
+    private static void AppendNote(StringBuilder sb, string? note)
+    {
+        if (note is null) return;
+        sb.AppendLine($"    /// <remarks>PORT-NOTE: {note}</remarks>");
+    }
+
+    /// <summary>A reference-typed slot is nullable; a value type keeps whatever it was mapped to.</summary>
+    private static string Nullable(string type, TsTypeMapper mapper, string? forced = null)
+    {
+        var declared = forced ?? type;
+        // `void` is not a valid C# parameter or member type. TS only produces it in a slot through an
+        // intersection that means "no value here" (`__String`), so such a slot takes `object?` instead.
+        if (declared == "void") return "object?";
+
+        return !declared.EndsWith('?') && !mapper.IsValueType(declared) ? declared + "?" : declared;
+    }
+
+    /// <summary>"void" cannot be a generic argument; numeric assignment is available in C#.</summary>
+    private static string ParameterType(string type, bool isRest, TsTypeMapper mapper)
+        => isRest ? type : Nullable(type, mapper);
+
+    /// <summary>A parameter name, escaped when it collides with a C# keyword.</summary>
+    private static string ParameterName(string name)
+        => s_csharpKeywords.Contains(name) ? "@" + name : name;
 
     /// <summary>C# reserved keywords, so a parameter name that collides is escaped with `@`.</summary>
     private static readonly HashSet<string> s_csharpKeywords = new(StringComparer.Ordinal)
