@@ -1681,3 +1681,53 @@ ThisExpression  CreateToken(TypedEnum.ThisKeyword? token)  => (ThisExpression)Cr
 - 宽签名的返回类型是 `Node` 而不是 `Token`：5 条泛型声明里 `KeywordTypeNode` 不在 `Token` 链上，`CommonBase` 因此只到 `Node`（§15.6 的合并口径，未变）。
 
 
+
+## 17. M7 计划：Layer 6/7（Transformers + Emitter）
+
+### 17.1 规模（实测 `release-6.0`）
+
+| 区域 | 行数 | 备注 |
+|---|---|---|
+| `emitter.ts` | **6,378** | 1-1190 发射文件/路径/`emitFiles`/`printSourceFileOrBundle`/buildInfo；**1211-6320 是 printer**（`createPrinter` 1211、`print` 1395、`pipelineEmitWithHint` 家族）；6327-6378 括号表与 list 发射辅助 |
+| `sourcemap.ts` | 823 | `SourceMapGenerator`/`SourceMapSource`/`SourceMapWriter` |
+| `transformers/**` | **33,556**（26 文件） | es2015 5,065、classFields 3,360、generators 3,284、ts 2,750、esDecorators 2,533、module/module 2,504、module/system 2,050、declarations 1,977 + declarations/diagnostics 812、es2018 1,486、es2017 1,154、jsx 937、utilities 886、legacyDecorators 846、esnext 800、typeSerializer 633、destructuring 626、namedEvaluation 489、module/esnextAnd2015 439、es2020 267、classThis 148、taggedTemplate 132、es2016 122、es2021 106、module/impliedNodeFormatDependent 99、es2019 51 |
+| 合计 | **≈41,000** | 相对 Layer 0-5 的 176k 行约 23%，**是多会话里程碑**；本节给出切片、依赖与验收 |
+
+### 17.2 端口已有基础（M4 期间落地，可直接用）
+
+`EmitNode` 槽与辅助（`Parser/EmitNodes.cs`，M4b）、`EmitFlags`/`InternalEmitFlags`/`ExternalEmitHelpers`/`EmitHelper`/`EmitHint`/`ListFormat`/`EmitOnly`（`Model/`）、`NodeFactory` + `ParenthesizerRules`（M4c/M4d）、`factory/emitHelpers.ts` 的半量（M4f，§15.14）、生成接口 `IPrinter`/`IPrinterOptions`/`IPrintHandlers`/`IEmitTextWriter`/`ISymbolWriter`、`Utilities.UsingSingleLineStringWriter`（`SingleLineStringWriter : IEmitTextWriter`）。
+
+### 17.3 阶段 A（M7-0）：printer 优先
+
+理由：printer 是 TypeDiff 上 2,191 条崩溃与 80 条分歧的**唯一**成因（四个 `*ToString` 门控），又是发射与声明发射的共同前置；它也是 M7 里唯一"做完立刻能用全语料量化"的切片。
+
+| 片 | 内容 | 参考范围 | 归属文件（端口） |
+|---|---|---|---|
+| A1 | 文本写入层：`createTextWriter`、`getTrailingSemicolonDeferringWriter`、缩进串缓存 | utilities.ts:6260-6470 | `Emit/EmitTextWriter.cs`、`Utilities/Utilities.Emit.cs` |
+| A2 | printer 状态与工厂：字段、`createPrinter`、`createPrinterWith*` 四个记忆化默认、`printNode`/`printList`/`printFile`/`printBundle`、`writeNode`/`writeList`/`writeFile`/`writeBundle`、`beginPrint`/`endPrint`/`print`、`setSourceFile`/`setWriter`/`reset`/`getCurrentLineMap`、`emit`/`emitExpression`/`emitIdentifierName` 重载族、`beforeEmitNode`/`afterEmitNode`/`pipelineEmit`、`getPipelinePhase`/`getNextPipelinePhase`/`pipelineEmitWithNotification`/`pipelineEmitWithHint`/`pipelineEmitWithHintWorker`（巨型分派） | emitter.ts:1211-2031、1100-1190 | `Emit/Printer.cs`、`Emit/Printer.State.cs` |
+| A3 | 类型与名字：`pipelineEmitWithSubstitution`、`emitHelpers`/`getSortedEmitHelpers`、字面量/标识符/限定名/实体名、类型参数/参数/装饰器、全部类型节点、绑定模式 | emitter.ts:2040-2611 | `Emit/Printer.Types.cs` |
+| A4 | 表达式与语句：表达式族（含 `createEmitBinaryExpression`、`parenthesizeExpressionForNoAsi`）、语句族、声明族、模块族、注释与 token 发射辅助 | emitter.ts:2612-3876、3183-3334 | `Emit/Printer.Expressions.cs`、`Emit/Printer.Statements.cs` |
+| A5 | JSX、case 子句、source-map 注释路径（本阶段按"无 generator 时的参考行为"实现，`SourceMapGenerator` 归阶段 B）、尾段辅助 | emitter.ts:3877-6327 | `Emit/Printer.Jsx.cs`、`Emit/Printer.Tail.cs` |
+| A6 | 接线与验收：`Checker.Stringify.cs` 四个门控改调真 printer（`createPrinterWithRemoveComments`/`WithRemoveCommentsNeverAsciiEscape`/`WithDefaults`/`WithRemoveCommentsOmitTrailingSemicolon`、`getTrailingSemicolonDeferringWriter`），删掉 `PrinterNotSupported` 与钉"仍抛"的测试，改成钉字符串；全语料复测 | checker.ts:6194-6308 | `Checker/Checker.Stringify.cs` |
+
+**阶段 A 验收**：`TypeDiff` 全语料（5,908）的 80 条分歧与 2,191 条崩溃整体塌陷（门控消失后应只剩真实分歧）；四个 `*ToString` 的单测钉住字符串（`TypeToString(numberType)` 之类）；build 0/0、全量测试绿。
+
+### 17.4 阶段 B：transformers + emitter + source maps（分批）
+
+依赖顺序（每批做完即可编译并跑对应能力）：
+1. `transformers/utilities.ts`（886）+ `destructuring.ts`（626）+ `taggedTemplate.ts`（132）——公共工具；
+2. `ts.ts`（2,750，含 `classThis.ts` 148、`typeSerializer.ts` 633）——TS 专属擦除（类型/接口/枚举/命名空间/参数属性…），是 `.js` 发射的主链；
+3. `es2015.ts`（5,065）+ `generators.ts`（3,284）——class/箭头/解构/生成器降级；
+4. `es2016/2017/2018/2019/2020/2021/esnext`（122+1,154+1,486+51+267+106+800）；
+5. `classFields.ts`（3,360）+ `legacyDecorators.ts`（846）+ `esDecorators.ts`（2,533）+ `namedEvaluation.ts`（489）；
+6. `jsx.ts`（937）；
+7. `module/{esnextAnd2015,impliedNodeFormatDependent,module,system}.ts`（439+99+2,504+2,050）；
+8. `sourcemap.ts`（823）+ printer 的 source-map 路径；
+9. `emitter.ts:1-1190`（`getOutputPathsFor`/`emitFiles`/`printSourceFileOrBundle`/host）+ `Program.Emit`/`EmitBuildInfo`/`GetDeclarationDiagnostics`/`GetEmitHost`/`GetTsBuildInfoEmitOutputFilePath`/`GetOutputDeclarationFileName`/`forEachEmittedFile` 八条阻断逐条接管；
+10. `declarations.ts`（1,977）+ `declarations/diagnostics.ts`（812）——声明发射（依赖 printer + typeSerializer）。
+
+### 17.5 阶段 C：验收外环与收口
+
+- 新建 `tools/EmitDiff`（形制照 `tools/BindDiff`/`tools/TypeDiff`：同语料、两半各写 `.js` 与诊断，逐字节比），先跑单文件选项矩阵（`target`/`module`/`jsx`/`useDefineForClassFields`…），再上全语料。
+- P1b（§7）：`.errors.txt` + `.js` 与 `tests/baselines/reference/**` 逐字节比对（需要指令注释解析与 harness 复刻）。
+- `EmitBuildInfo` 与增量属 M8；本阶段只把 `Program` 侧接口接通。
