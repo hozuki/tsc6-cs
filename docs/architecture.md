@@ -853,6 +853,10 @@ M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质�
 
 **关于接口自检（§15.7 说"全部就位后再挂上 `INodeFactory`"）**：试过了，它同样是跨批的。接口的 503 个成员伸出了这个文件——`createAdd`/`createBitwiseAnd`/`createAssignment`、`CloneNode` 与三个 prologue copier 由 `factory/utilities.ts` 声明（M4d），`baseFactory`/`converters` 属于根本不移植的 `baseNodeFactory.ts`（§15.2）。今天挂上它是 284 个错误（272 个成员未实现 + 12 个签名不匹配），这些错误不说明移植面的任何问题，只说明接口比 M4c 大。这一步归 **M4d**：等那些成员到位，并且生成器能给永远不会存在的两个留出余地。
 
+**针对性单测**（判据 4）：`NodeFactoryFamilyTests` 覆盖手写半里那些"需要决定"而不是"照抄"的行为 —— 模板的 cooked 文本、条件表达式补标点 token、`++x` 只对真标识符置 `ContainsUpdateExpressionForIdentifier`、`update*` 在没变时返回同一实例、source file 的初值与克隆式更新、heritage clause 的 kind → flags、类声明的 ambient 分支、JSDoc 的默认 tag 名与两个布尔位、typedef 从 fullName 派生 name、`use strict` 序言的新行标志。
+
+**测试抓到的一处真 bug**：`NullParenthesizerRules` 的列表成员一律新建 `NodeArray`，把 `createNodeArray` 刚刚设好的文本范围与 `HasTrailingComma` 丢掉了 —— `createArrayLiteralExpression` 的尾随省略元素正是靠那个标志（`[1, 2, ,]` 与 `[1, 2, ]` 的区别）。修法是"入参已经是 `NodeArray` 就原样交回"，四个列表成员一起改。这与 §14.3 记的两处 Scanner bug 同属一类：**规格化/包装函数悄悄改写了入参的身份**。
+
 ---
 
 ## 16. `const enum` 成员作类型：typed enum

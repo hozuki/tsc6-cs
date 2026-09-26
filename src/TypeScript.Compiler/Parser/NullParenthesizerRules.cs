@@ -48,9 +48,11 @@ internal sealed class NullParenthesizerRules : IParenthesizerRules
     public UnaryExpression ParenthesizeOperandOfPrefixUnary(Expression? operand) => (UnaryExpression)operand!;
 
     // The list-returning members cannot simply answer with their argument: TS's structural types let a
-    // `readonly Expression[]` stand in for a `NodeArray<Expression>`, C# does not.
+    // `readonly Expression[]` stand in for a `NodeArray<Expression>`, C# does not. When the argument already *is* a
+    // `NodeArray`, though, it is handed straight back — allocating a fresh one would drop the text range and the
+    // trailing-comma flag `createNodeArray` had just put on it, which `createArrayLiteralExpression` relies on.
     public NodeArray<Expression> ParenthesizeExpressionsOfCommaDelimitedList(List<Expression>? elements)
-        => new(elements ?? []);
+        => elements as NodeArray<Expression> ?? new(elements ?? []);
 
     public Expression ParenthesizeExpressionForDisallowedComma(Expression? expression) => expression!;
 
@@ -80,15 +82,15 @@ internal sealed class NullParenthesizerRules : IParenthesizerRules
     public ITypeNode ParenthesizeConstituentTypeOfUnionType(ITypeNode? type) => type!;
 
     public NodeArray<ITypeNode> ParenthesizeConstituentTypesOfUnionType(List<ITypeNode>? constituents)
-        => new(constituents ?? []);
+        => constituents as NodeArray<ITypeNode> ?? new(constituents ?? []);
 
     public ITypeNode ParenthesizeConstituentTypeOfIntersectionType(ITypeNode? type) => type!;
 
     public NodeArray<ITypeNode> ParenthesizeConstituentTypesOfIntersectionType(List<ITypeNode>? constituents)
-        => new(constituents ?? []);
+        => constituents as NodeArray<ITypeNode> ?? new(constituents ?? []);
 
     public ITypeNode ParenthesizeLeadingTypeArgument(ITypeNode? typeNode) => typeNode!;
 
     public NodeArray<ITypeNode> ParenthesizeTypeArguments(List<ITypeNode>? typeParameters)
-        => new(typeParameters ?? []);
+        => typeParameters as NodeArray<ITypeNode> ?? new(typeParameters ?? []);
 }
