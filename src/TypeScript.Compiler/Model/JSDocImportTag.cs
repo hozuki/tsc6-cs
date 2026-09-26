@@ -20,7 +20,7 @@ namespace TypeScript.Compiler;
 internal partial class JSDocImportTag : ILocalsContainer
 {
     /// <summary>ported from: src/compiler/binder.ts:1005 — the locals table <c>bindContainer</c> creates for the tag.</summary>
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
 
     /// <summary>ported from: src/compiler/binder.ts:1006 — the container-chain link.</summary>
     public Node? NextContainer { get; set; }

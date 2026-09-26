@@ -223,8 +223,8 @@ public class TracingTests
 
             Tracing.StartTracing(Tracing.Mode.Project, TraceDir, system);
             Tracing.Current!.RecordType(reference);
-            // `IndexType.type` 在移植版里被生成成 `Node?`，所以这里读到的是节点的 id。
-            Tracing.Current.RecordType(new FakeIndexType(id: 5, name));
+            // `IndexType.type` 是 `IType?`，所以这里读到的是被索引类型自己的 id（tracing.ts:324）。
+            Tracing.Current.RecordType(new FakeIndexType(id: 5, new FakeType(TypeFlags.String, id: 42)));
             Tracing.Current.StopTracing();
 
             using var types = JsonDocument.Parse(WrittenFile(system, ModeFileName("types", Tracing.Mode.Project)));
@@ -380,11 +380,11 @@ public class TracingTests
 
         public IDeclaration? ValueDeclaration { get; set; }
 
-        public Dictionary<string, ISymbol>? Members { get; set; }
+        public SymbolTable? Members { get; set; }
 
-        public Dictionary<string, ISymbol>? Exports { get; set; }
+        public SymbolTable? Exports { get; set; }
 
-        public Dictionary<string, ISymbol>? GlobalExports { get; set; }
+        public SymbolTable? GlobalExports { get; set; }
 
         public int Id { get; set; }
 
@@ -440,7 +440,7 @@ public class TracingTests
 
         public ObjectFlags ObjectFlags { get; set; }
 
-        public Dictionary<string, ISymbol>? Members { get; set; }
+        public SymbolTable? Members { get; set; }
 
         public List<ISymbol>? Properties { get; set; }
 
@@ -468,7 +468,7 @@ public class TracingTests
     /// <summary>最小的 <see cref="IIndexType"/>：<c>dumpTypes</c> 的 keyof 分支读到的槽位。</summary>
     private sealed class FakeIndexType : IType, IIndexType
     {
-        public FakeIndexType(int id, Node? type)
+        public FakeIndexType(int id, IType type)
         {
             Id = id;
             Type = type;
@@ -496,7 +496,7 @@ public class TracingTests
 
         public IType? Widened { get; set; }
 
-        public Node? Type { get; set; }
+        public IType? Type { get; set; }
 
         public IndexFlags IndexFlags { get; set; }
 

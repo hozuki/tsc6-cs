@@ -498,9 +498,8 @@ internal sealed class TracingEnabled
                 ["unionTypes"] = (type.Flags & TypeFlags.Union) != 0 ? IdList(((IUnionType)type).Types) : TracingValue.Undefined,
                 ["intersectionTypes"] = (type.Flags & TypeFlags.Intersection) != 0 ? IdList(((IIntersectionType)type).Types) : TracingValue.Undefined,
                 ["aliasTypeArguments"] = IdList(type.AliasTypeArguments),
-                // PORT-NOTE: `IndexType.type` is declared `Node?` in the port's Model (the generator maps TS's
-                // `InstantiableType | UnionOrIntersectionType` union onto it), so the id read here is the slot's id
-                // whatever it holds; TS reads a type id.
+                // PORT-NOTE: TS reads `(type as IndexType).type?.id`; the port's `IIndexType.Type` is `IType?`, so
+                // the id read here is the indexed type's own id, exactly as upstream (tracing.ts:324).
                 ["keyofType"] = (type.Flags & TypeFlags.Index) != 0 ? ((IIndexType)type).Type?.Id : (int?)null,
             };
 

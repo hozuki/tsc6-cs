@@ -1165,7 +1165,7 @@ internal partial interface IIndexInfo
 /// <summary>ported from types.ts: <c>IndexType</c>.</summary>
 internal partial interface IIndexType : IInstantiableType
 {
-    Node? Type { get; set; }
+    IType? Type { get; set; }
     IndexFlags IndexFlags { get; set; }
 }
 
@@ -1235,7 +1235,7 @@ internal partial interface IInterfaceType : IObjectType
     List<ITypeParameter>? LocalTypeParameters { get; set; }
     ITypeParameter? ThisType { get; set; }
     IType? ResolvedBaseConstructorType { get; set; }
-    List<Node>? ResolvedBaseTypes { get; set; }
+    List<IType>? ResolvedBaseTypes { get; set; }
     bool? BaseTypesResolved { get; set; }
 }
 
@@ -1390,7 +1390,7 @@ internal partial interface ILiteralType : IFreshableType
 /// <summary>ported from types.ts: <c>LocalsContainer</c>.</summary>
 internal partial interface ILocalsContainer : INode
 {
-    Dictionary<string, ISymbol>? Locals { get; set; }
+    SymbolTable? Locals { get; set; }
     Node? NextContainer { get; set; }
 }
 
@@ -2428,7 +2428,7 @@ internal partial interface IObjectLiteralElement : INode, INamedDeclaration
 internal partial interface IObjectType : IType
 {
     ObjectFlags ObjectFlags { get; set; }
-    Dictionary<string, ISymbol>? Members { get; set; }
+    SymbolTable? Members { get; set; }
     List<ISymbol>? Properties { get; set; }
     List<ISignature>? CallSignatures { get; set; }
     List<ISignature>? ConstructSignatures { get; set; }
@@ -3012,7 +3012,7 @@ internal partial interface ISignature
     List<ISymbol>? Parameters { get; set; }
     ISymbol? ThisParameter { get; set; }
     IType? ResolvedReturnType { get; set; }
-    Node? ResolvedTypePredicate { get; set; }
+    ITypePredicateBase? ResolvedTypePredicate { get; set; }
     int MinArgumentCount { get; set; }
     int? ResolvedMinArgumentCount { get; set; }
     ISignature? Target { get; set; }
@@ -3162,9 +3162,9 @@ internal partial interface ISymbol
     string? EscapedName { get; set; }
     List<IDeclaration>? Declarations { get; set; }
     IDeclaration? ValueDeclaration { get; set; }
-    Dictionary<string, ISymbol>? Members { get; set; }
-    Dictionary<string, ISymbol>? Exports { get; set; }
-    Dictionary<string, ISymbol>? GlobalExports { get; set; }
+    SymbolTable? Members { get; set; }
+    SymbolTable? Exports { get; set; }
+    SymbolTable? GlobalExports { get; set; }
     int Id { get; set; }
     int MergeId { get; set; }
     ISymbol? Parent { get; set; }
@@ -3203,8 +3203,8 @@ internal partial interface ISymbolLinks
     ISymbol? RightSpread { get; set; }
     ISymbol? SyntheticOrigin { get; set; }
     bool? IsDiscriminantProperty { get; set; }
-    Dictionary<string, ISymbol>? ResolvedExports { get; set; }
-    Dictionary<string, ISymbol>? ResolvedMembers { get; set; }
+    SymbolTable? ResolvedExports { get; set; }
+    SymbolTable? ResolvedMembers { get; set; }
     bool? ExportsChecked { get; set; }
     bool? TypeParametersChecked { get; set; }
     bool? IsDeclarationWithCollidingName { get; set; }
@@ -3527,7 +3527,7 @@ internal partial interface ITypeChecker
     List<ISignature> GetSignaturesOfType(IType? type, SignatureKind kind);
     IType? GetIndexTypeOfType(IType? type, IndexKind kind);
     IType GetIndexType(IType? type);
-    List<Node> GetBaseTypes(IInterfaceType? type);
+    List<IType> GetBaseTypes(IInterfaceType? type);
     IType GetBaseTypeOfLiteralType(IType? type);
     IType GetWidenedType(IType? type);
     IType GetWidenedLiteralType(IType? type);
@@ -3545,7 +3545,7 @@ internal partial interface ITypeChecker
     List<IType> GetTypeArguments(ITypeReference? type);
     ITypeNode? TypeToTypeNode(IType? type, Node? enclosingDeclaration, NodeBuilderFlags? flags);
     ITypeNode? TypeToTypeNode(IType? type, Node? enclosingDeclaration, NodeBuilderFlags? flags, InternalNodeBuilderFlags? internalFlags, ISymbolTracker? tracker);
-    TypePredicateNode? TypePredicateToTypePredicateNode(Node? typePredicate, Node? enclosingDeclaration, NodeBuilderFlags? flags, InternalNodeBuilderFlags? internalFlags, ISymbolTracker? tracker);
+    TypePredicateNode? TypePredicateToTypePredicateNode(ITypePredicateBase? typePredicate, Node? enclosingDeclaration, NodeBuilderFlags? flags, InternalNodeBuilderFlags? internalFlags, ISymbolTracker? tracker);
     Node? SignatureToSignatureDeclaration(ISignature? signature, SyntaxKind kind, Node? enclosingDeclaration, NodeBuilderFlags? flags);
     Node? SignatureToSignatureDeclaration(ISignature? signature, SyntaxKind kind, Node? enclosingDeclaration, NodeBuilderFlags? flags, InternalNodeBuilderFlags? internalFlags, ISymbolTracker? tracker);
     IndexSignatureDeclaration? IndexInfoToIndexSignatureDeclaration(IIndexInfo? indexInfo, Node? enclosingDeclaration, NodeBuilderFlags? flags);
@@ -3571,11 +3571,11 @@ internal partial interface ITypeChecker
     string SignatureToString(ISignature? signature, Node? enclosingDeclaration, TypeFormatFlags? flags, SignatureKind? kind);
     string TypeToString(IType? type, Node? enclosingDeclaration, TypeFormatFlags? flags);
     string SymbolToString(ISymbol? symbol, Node? enclosingDeclaration, SymbolFlags? meaning, SymbolFormatFlags? flags);
-    string TypePredicateToString(Node? predicate, Node? enclosingDeclaration, TypeFormatFlags? flags);
+    string TypePredicateToString(ITypePredicateBase? predicate, Node? enclosingDeclaration, TypeFormatFlags? flags);
     string WriteSignature(ISignature? signature, Node? enclosingDeclaration, TypeFormatFlags? flags, SignatureKind? kind, IEmitTextWriter? writer, int? maximumLength, int? verbosityLevel, IWriterContextOut? @out);
     string WriteType(IType? type, Node? enclosingDeclaration, TypeFormatFlags? flags, IEmitTextWriter? writer, int? maximumLength, int? verbosityLevel, IWriterContextOut? @out);
     string WriteSymbol(ISymbol? symbol, Node? enclosingDeclaration, SymbolFlags? meaning, SymbolFormatFlags? flags, IEmitTextWriter? writer);
-    string WriteTypePredicate(Node? predicate, Node? enclosingDeclaration, TypeFormatFlags? flags, IEmitTextWriter? writer);
+    string WriteTypePredicate(ITypePredicateBase? predicate, Node? enclosingDeclaration, TypeFormatFlags? flags, IEmitTextWriter? writer);
     string GetFullyQualifiedName(ISymbol? symbol);
     List<ISymbol> GetAugmentedPropertiesOfType(IType? type);
     List<ISymbol> GetRootSymbols(ISymbol? symbol);
@@ -3653,8 +3653,8 @@ internal partial interface ITypeChecker
     IType GetPromiseLikeType();
     IType? GetAnyAsyncIterableType();
     bool IsTypeAssignableTo(IType? source, IType? target);
-    IType CreateAnonymousType(ISymbol? symbol, Dictionary<string, ISymbol>? members, List<ISignature>? callSignatures, List<ISignature>? constructSignatures, List<IIndexInfo>? indexInfos);
-    ISignature CreateSignature(Node? declaration, List<ITypeParameter>? typeParameters, ISymbol? thisParameter, List<ISymbol>? parameters, IType? resolvedReturnType, Node? typePredicate, int minArgumentCount, SignatureFlags flags);
+    IType CreateAnonymousType(ISymbol? symbol, SymbolTable? members, List<ISignature>? callSignatures, List<ISignature>? constructSignatures, List<IIndexInfo>? indexInfos);
+    ISignature CreateSignature(Node? declaration, List<ITypeParameter>? typeParameters, ISymbol? thisParameter, List<ISymbol>? parameters, IType? resolvedReturnType, ITypePredicateBase? typePredicate, int minArgumentCount, SignatureFlags flags);
     ITransientSymbol CreateSymbol(SymbolFlags flags, string? name);
     IIndexInfo CreateIndexInfo(IType? keyType, IType? type, bool isReadonly, Node? declaration);
     ISymbolAccessibilityResult IsSymbolAccessible(ISymbol? symbol, Node? enclosingDeclaration, SymbolFlags meaning, bool shouldComputeAliasToMarkVisible);
@@ -3684,7 +3684,7 @@ internal partial interface ITypeChecker
     string GetJsxNamespace(Node? location);
     string? GetJsxFragmentFactory(Node? location);
     List<ISymbol>? GetAccessibleSymbolChain(ISymbol? symbol, Node? enclosingDeclaration, SymbolFlags meaning, bool useOnlyExternalAliasing);
-    Node? GetTypePredicateOfSignature(ISignature? signature);
+    ITypePredicateBase? GetTypePredicateOfSignature(ISignature? signature);
     ISymbol? ResolveExternalModuleName(Expression? moduleSpecifier);
     ISymbol ResolveExternalModuleSymbol(ISymbol? symbol);
     /// <remarks>PORT-NOTE: <c>ThisContainer</c> is declared outside the extracted sources, so the slot stays <c>object?</c>.</remarks>
@@ -3766,8 +3766,8 @@ internal partial interface IUnionOrIntersectionType : IType
 {
     List<IType>? Types { get; set; }
     ObjectFlags ObjectFlags { get; set; }
-    Dictionary<string, ISymbol>? PropertyCache { get; set; }
-    Dictionary<string, ISymbol>? PropertyCacheWithoutObjectFunctionPropertyAugment { get; set; }
+    SymbolTable? PropertyCache { get; set; }
+    SymbolTable? PropertyCacheWithoutObjectFunctionPropertyAugment { get; set; }
     List<ISymbol>? ResolvedProperties { get; set; }
     IIndexType? ResolvedIndexType { get; set; }
     IIndexType? ResolvedStringIndexType { get; set; }

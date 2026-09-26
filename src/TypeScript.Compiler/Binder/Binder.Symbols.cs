@@ -243,9 +243,14 @@ internal partial class Binder
     /// (Parser/Parser.cs:302), so the port's <c>_file.BindDiagnostics!.Add</c> does too — a file that never went
     /// through the parser cannot be bound.
     /// </para>
+    /// <para>
+    /// PORT-NOTE: TS's <c>symbolTable: SymbolTable</c> is a JS <c>Map</c>, so its insertion order is observable; the
+    /// port takes the ordered <see cref="SymbolTable"/> (§5 rule 17) and the two writes below are its indexer /
+    /// <c>TryGetValue</c>.
+    /// </para>
     /// </remarks>
     internal ISymbol DeclareSymbol(
-        Dictionary<string, ISymbol> symbolTable,
+        SymbolTable symbolTable,
         ISymbol? parent,
         IDeclaration declaration,
         SymbolFlags includes,

@@ -21,6 +21,11 @@ namespace TypeScript.Compiler;
 /// constructor; the generated interface types it <c>string?</c> like every other reference slot, so the class does
 /// too and the one place that needs the invariant (a symbol table's key) asserts it.
 /// </para>
+/// <para>
+/// PORT-NOTE: <c>members</c>/<c>exports</c>/<c>globalExports</c> are <c>SymbolTable</c> upstream, which is a JS
+/// <c>Map</c> and therefore ordered; the port types them by the ordered <see cref="SymbolTable"/> rather than by the
+/// §12.3 <c>Dictionary</c> mapping (docs/architecture.md §5 rule 17, <c>Model/SymbolTable.cs</c>).
+/// </para>
 /// </remarks>
 internal partial class Symbol : ISymbol
 {
@@ -32,8 +37,8 @@ internal partial class Symbol : ISymbol
     /// </para>
     /// <para>
     /// PORT-NOTE: TS also clears an own <c>links</c> property here because <c>TransientSymbol</c> reuses the same
-    /// constructor; <see cref="Links"/> is a plain slot and starts <c>null</c> either way. The transient symbol's
-    /// concrete class belongs to M6, when <c>SymbolLinks</c> lands with the checker.
+    /// constructor; <see cref="Links"/> is a plain slot and starts <c>null</c> either way.
+    /// <see cref="TransientSymbol"/> re-points the slot at a <c>TransientSymbolLinks</c> (M6, <c>Model/TransientSymbol.cs</c>).
     /// </para>
     /// </remarks>
     public Symbol(SymbolFlags flags, string name)
@@ -55,13 +60,13 @@ internal partial class Symbol : ISymbol
     public IDeclaration? ValueDeclaration { get; set; }
 
     /// <summary>ported from: src/compiler/types.ts:6042 — <c>Symbol.members</c>.</summary>
-    public Dictionary<string, ISymbol>? Members { get; set; }
+    public SymbolTable? Members { get; set; }
 
     /// <summary>ported from: src/compiler/types.ts:6043 — <c>Symbol.exports</c>.</summary>
-    public Dictionary<string, ISymbol>? Exports { get; set; }
+    public SymbolTable? Exports { get; set; }
 
     /// <summary>ported from: src/compiler/types.ts:6044 — <c>Symbol.globalExports</c>.</summary>
-    public Dictionary<string, ISymbol>? GlobalExports { get; set; }
+    public SymbolTable? GlobalExports { get; set; }
 
     /// <summary>ported from: src/compiler/types.ts:6045 — <c>Symbol.id</c>.</summary>
     public int Id { get; set; }

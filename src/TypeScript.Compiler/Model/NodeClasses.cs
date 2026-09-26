@@ -56,7 +56,7 @@ internal partial class ArrowFunction : Expression, IDeclaration, IFlowContainer,
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
     public FlowNode? FlowNode { get; set; }
 
@@ -137,7 +137,7 @@ internal partial class Block : Node, IJSDocContainer, ILocalsContainer, IReadonl
     public NodeArray<IStatement>? Statements { get; set; }
     public bool? MultiLine { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
 
@@ -194,7 +194,7 @@ internal partial class CallSignatureDeclaration : Node, IDeclaration, IJSDocCont
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
     public PunctuationToken? QuestionToken { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
 
@@ -204,7 +204,7 @@ internal partial class CaseBlock : Node, ILocalsContainer, IReadonlyTextRange
     public override SyntaxKind Kind => SyntaxKind.CaseBlock;
 
     public NodeArray<Node>? Clauses { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
 
@@ -226,7 +226,7 @@ internal partial class CatchClause : Node, ILocalsContainer, IReadonlyTextRange
 
     public VariableDeclaration? VariableDeclaration { get; set; }
     public Block? Block { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
 
@@ -279,7 +279,7 @@ internal partial class ClassStaticBlockDeclaration : Node, IClassElement, IDecla
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
 
@@ -322,7 +322,7 @@ internal partial class ConditionalTypeNode : Node, ILocalsContainer, IReadonlyTe
     public ITypeNode? ExtendsType { get; set; }
     public ITypeNode? TrueType { get; set; }
     public ITypeNode? FalseType { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
 
@@ -340,7 +340,7 @@ internal partial class ConstructSignatureDeclaration : Node, IDeclaration, IJSDo
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
     public PunctuationToken? QuestionToken { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
 
@@ -364,7 +364,7 @@ internal partial class ConstructorDeclaration : Node, IClassElement, IDeclaratio
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -377,7 +377,7 @@ internal partial class ConstructorTypeNode : FunctionOrConstructorTypeNodeBase, 
     public override SyntaxKind Kind => SyntaxKind.ConstructorType;
 
     public NodeArray<ModifierToken>? Modifiers { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
 
@@ -607,7 +607,7 @@ internal partial class ForInStatement : IterationStatement, IFlowContainer, IJSD
 
     public Node? Initializer { get; set; }
     public Expression? Expression { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
     public FlowNode? FlowNode { get; set; }
 }
@@ -620,7 +620,7 @@ internal partial class ForOfStatement : IterationStatement, IFlowContainer, IJSD
     public KeywordToken? AwaitModifier { get; set; }
     public Node? Initializer { get; set; }
     public Expression? Expression { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
     public FlowNode? FlowNode { get; set; }
 }
@@ -633,7 +633,7 @@ internal partial class ForStatement : IterationStatement, IFlowContainer, IJSDoc
     public Node? Initializer { get; set; }
     public Expression? Condition { get; set; }
     public Expression? Incrementor { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
     public FlowNode? FlowNode { get; set; }
 }
@@ -658,7 +658,7 @@ internal partial class FunctionDeclaration : Node, IDeclaration, IDeclarationSta
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -686,7 +686,7 @@ internal partial class FunctionExpression : MemberExpression, IDeclaration, IFlo
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
     public FlowNode? FlowNode { get; set; }
 
@@ -719,7 +719,7 @@ internal partial class FunctionTypeNode : FunctionOrConstructorTypeNodeBase, IDe
     public override SyntaxKind Kind => SyntaxKind.FunctionType;
 
     public JsUndefined? Modifiers { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
 
@@ -743,7 +743,7 @@ internal partial class GetAccessorDeclaration : Node, IClassElement, IDeclaratio
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
     public FlowNode? FlowNode { get; set; }
 
@@ -909,7 +909,7 @@ internal partial class IndexSignatureDeclaration : Node, IClassElement, IDeclara
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
     public PunctuationToken? QuestionToken { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -1007,7 +1007,7 @@ internal partial class JSDocCallbackTag : JSDocTag, IDeclaration, ILocalsContain
     public JSDocSignature? TypeExpression { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -1036,7 +1036,7 @@ internal partial class JSDocEnumTag : JSDocTag, IDeclaration, ILocalsContainer, 
     public JSDocTypeExpression? TypeExpression { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
 
@@ -1053,7 +1053,7 @@ internal partial class JSDocFunctionType : JSDocType, IDeclaration, IJSDocContai
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
 
@@ -1256,7 +1256,7 @@ internal partial class JSDocSignature : JSDocType, IDeclaration, IJSDocContainer
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
 
@@ -1342,7 +1342,7 @@ internal partial class JSDocTypedefTag : JSDocTag, IDeclaration, ILocalsContaine
     public Node? TypeExpression { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -1551,7 +1551,7 @@ internal partial class MappedTypeNode : Node, IDeclaration, ILocalsContainer, IR
     public NodeArray<ITypeElement>? Members { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 }
 
@@ -1590,7 +1590,7 @@ internal partial class MethodDeclaration : Node, IClassElement, IDeclaration, IF
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
     public FlowNode? FlowNode { get; set; }
 
@@ -1614,7 +1614,7 @@ internal partial class MethodSignature : Node, IDeclaration, IJSDocContainer, IL
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
     public PunctuationToken? QuestionToken { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -1656,7 +1656,7 @@ internal partial class ModuleDeclaration : Node, IDeclaration, IDeclarationState
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -2063,7 +2063,7 @@ internal partial class SetAccessorDeclaration : Node, IClassElement, IDeclaratio
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
     public FlowNode? FlowNode { get; set; }
 
@@ -2122,7 +2122,7 @@ internal partial class SourceFile : Node, IDeclaration, ILocalsContainer, IReado
     public object? ExternalModuleIndicator { get; set; }
     public Action<SourceFile>? SetExternalModuleIndicator { get; set; }
     public Node? CommonJsModuleIndicator { get; set; }
-    public Dictionary<string, ISymbol>? JsGlobalAugmentations { get; set; }
+    public SymbolTable? JsGlobalAugmentations { get; set; }
     public Dictionary<string, string>? Identifiers { get; set; }
     public int NodeCount { get; set; }
     public int IdentifierCount { get; set; }
@@ -2150,7 +2150,7 @@ internal partial class SourceFile : Node, IDeclaration, ILocalsContainer, IReado
     public JSDocParsingMode? JsDocParsingMode { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
@@ -2381,7 +2381,7 @@ internal partial class TypeAliasDeclaration : Node, IDeclaration, IDeclarationSt
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Dictionary<string, ISymbol>? Locals { get; set; }
+    public SymbolTable? Locals { get; set; }
     public Node? NextContainer { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.

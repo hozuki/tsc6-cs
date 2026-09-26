@@ -42,6 +42,25 @@ internal sealed class TsTypeMapper
         // `IFlowNodeBase` is a mixin the class implementing the union must satisfy by hand. The port has exactly
         // one concrete class for the union (`Model/FlowNode.cs`), and every slot TS types `FlowNode` names it.
         ["FlowNode"] = "FlowNode",
+        // `SymbolTable = Map<__String, Symbol>` (types.ts:6205). §12.3's `Map`→`Dictionary` mapping would lose
+        // the insertion order the checker reads properties, resolved members and unions out of, so these slots
+        // name the ordered `SymbolTable` (`Model/SymbolTable.cs`) instead (docs/architecture.md §5 rule 17).
+        // Checked before alias expansion: the alias must not be expanded to the `Map` it is declared as.
+        ["SymbolTable"] = "SymbolTable",
+        // Three unions of type-side interfaces that `MapUnion`'s class-only common base cannot see
+        // (TsTypeModel.CommonBase follows C# *class* chains, and every chain it builds ends at `Node`), so they
+        // degraded to `Node`/`Node?` — a type the values never are. Each is stated by hand, the same treatment
+        // `FlowNode` above gets, and each names the generated interface that is the members' real common base or
+        // the class that stands for the union:
+        //   `IndexType.type: InstantiableType | UnionOrIntersectionType` (types.ts:6922) — both are `IType` subtrees,
+        //   so the slot is `IType?` and `createIndexType` (checker.ts:18858) can assign a `Type` to it.
+        //   `BaseType = ObjectType | IntersectionType | TypeVariable` (types.ts:6626) — the element type of
+        //   `resolvedBaseTypes`/`getBaseTypes`; also `IType` for the same reason.
+        //   `TypePredicate` (types.ts:5723) is the union of the four `*TypePredicate` interfaces, which the port
+        //   generates as `ITypePredicateBase` and its four subordinates.
+        ["InstantiableType | UnionOrIntersectionType"] = "IType",
+        ["BaseType"] = "IType",
+        ["TypePredicate"] = "ITypePredicateBase",
     };
 
     private readonly TsTypeModel _model;

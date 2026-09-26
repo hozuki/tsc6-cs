@@ -295,7 +295,7 @@ internal partial class Binder
     /// face is used, so the port takes <see cref="Node"/> and casts at the declaration — every member of the union is a
     /// declaration upstream.
     /// </remarks>
-    internal void BindDynamicallyNamedThisPropertyAssignment(Node node, ISymbol symbol, Dictionary<string, ISymbol> symbolTable)
+    internal void BindDynamicallyNamedThisPropertyAssignment(Node node, ISymbol symbol, SymbolTable symbolTable)
     {
         DeclareSymbol(symbolTable, symbol, (IDeclaration)node, SymbolFlags.Property, SymbolFlags.None, /*isReplaceableByMethod*/ true, /*isComputedName*/ true);
         AddLateBoundAssignmentDeclarationToSymbol(node, symbol);

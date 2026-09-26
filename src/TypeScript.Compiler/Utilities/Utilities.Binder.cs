@@ -34,9 +34,12 @@ internal static partial class Utilities
 
     /// <summary>ported from: src/compiler/utilities.ts:644-652 — <c>createSymbolTable</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS returns <c>Map&lt;__String, Symbol&gt;</c>; the port's <c>SymbolTable</c> is
-    /// <c>Dictionary&lt;string, ISymbol&gt;</c> (§12.3), so the keys are the escaped names read back as the
-    /// <c>string</c> they already are.
+    /// <para>
+    /// PORT-NOTE: TS returns <c>Map&lt;__String, Symbol&gt;</c>, which is the <c>SymbolTable</c> alias
+    /// (types.ts:6205). The port keeps it as the ordered <see cref="SymbolTable"/> rather than the §12.3
+    /// <c>Dictionary</c> mapping, because the checker reads member/property order out of these tables
+    /// (docs/architecture.md §5 rule 17).
+    /// </para>
     /// <para>
     /// PORT-NOTE: <c>symbol.escapedName</c> is <c>__String</c> upstream — non-optional by construction, because every
     /// symbol is built through <c>escapeLeadingUnderscores</c>. <see cref="ISymbol.EscapedName"/> is the generated
@@ -44,9 +47,9 @@ internal static partial class Utilities
     /// fail here rather than silently key the empty string.
     /// </para>
     /// </remarks>
-    public static Dictionary<string, ISymbol> CreateSymbolTable(IList<ISymbol>? symbols = null)
+    public static SymbolTable CreateSymbolTable(IList<ISymbol>? symbols = null)
     {
-        var result = new Dictionary<string, ISymbol>();
+        var result = new SymbolTable();
         if (symbols is not null)
         {
             foreach (var symbol in symbols)
