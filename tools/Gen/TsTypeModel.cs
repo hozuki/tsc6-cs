@@ -247,7 +247,7 @@ internal sealed class TsTypeModel
     }
 
     /// <summary>Whether an interface sits on a categorisation chain that reaches <c>Node</c>.</summary>
-    private bool ReachesNode(string name, HashSet<string>? seen = null)
+    internal bool ReachesNode(string name, HashSet<string>? seen = null)
     {
         if (name == "Node") return true;
 

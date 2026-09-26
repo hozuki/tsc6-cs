@@ -10,13 +10,19 @@ namespace TypeScript.Compiler;
 /// (<c>public override SyntaxKind Kind =&gt; SyntaxKind.Identifier;</c>) — which is also what lets the
 /// emitting code switch on a node's kind without a null check.
 /// <para>
+/// PORT-NOTE: TS declares <c>Node extends ReadonlyTextRange</c> and relies on structural typing where a
+/// <c>TextRange</c> is wanted (<c>getSourceMapRange</c> falls back to returning the node itself). C# has no such
+/// compatibility, so the class implements both — <see cref="ITextRange"/> carries no members of its own under D1,
+/// and <c>Pos</c>/<c>End</c> are writable here anyway.
+/// </para>
+/// <para>
 /// Members that TS distributes across capability interfaces (<c>Declaration.symbol</c>,
 /// <c>LocalsContainer.locals</c>, <c>FlowContainer.flowNode</c>, <c>JSDocContainer.jsDoc</c>) are *not*
 /// hoisted here: porting decision D1 keeps them on the interfaces so a node only carries what TS says it
 /// carries. That costs a repeated field per implementing class, which the generator emits for free.
 /// </para>
 /// </remarks>
-internal abstract class Node : IReadonlyTextRange
+internal abstract class Node : IReadonlyTextRange, ITextRange
 {
     /// <summary>Which syntactic form this node is. Pinned by every concrete node.</summary>
     public abstract SyntaxKind Kind { get; }

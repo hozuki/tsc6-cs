@@ -107,7 +107,7 @@ internal static class NodeEmitter
 
         foreach (var member in iface.Members)
         {
-            if (Skip(member) || inherited.Contains(member.Name)) continue;
+            if (Skip(member, model.ReachesNode(iface.Name)) || inherited.Contains(member.Name)) continue;
             sb.AppendLine($"    {Declaration(member, mapper, inInterface: true)}");
         }
 
@@ -156,7 +156,7 @@ internal static class NodeEmitter
 
         foreach (var member in iface.Members)
         {
-            if (!Skip(member) && !provided.Contains(member.Name))
+            if (!Skip(member, extendsNode: true) && !provided.Contains(member.Name))
             {
                 classMembers[member.Name] = (member, mapper.MapMember(member.Type, member.IsOptional));
             }
@@ -167,7 +167,7 @@ internal static class NodeEmitter
             if (!model.Interfaces.TryGetValue(mixin, out var mixinInterface)) continue;
             foreach (var member in mixinInterface.Members)
             {
-                if (Skip(member) || provided.Contains(member.Name) || classMembers.ContainsKey(member.Name)) continue;
+                if (Skip(member, extendsNode: true) || provided.Contains(member.Name) || classMembers.ContainsKey(member.Name)) continue;
                 classMembers[member.Name] = (member, mapper.MapMember(member.Type, member.IsOptional));
             }
         }
@@ -187,7 +187,7 @@ internal static class NodeEmitter
 
             foreach (var member in mixinInterface.Members)
             {
-                if (Skip(member) || !classMembers.TryGetValue(member.Name, out var own)) continue;
+                if (Skip(member, extendsNode: true) || !classMembers.TryGetValue(member.Name, out var own)) continue;
 
                 // The interface may not declare this member at all: it is skipped there when a base
                 // interface already declares it, and implementing it explicitly would then fail to match.
@@ -265,19 +265,25 @@ internal static class NodeEmitter
         return $"{accessibility}{type} {name} {accessors}";
     }
 
-    private static bool Skip(TsMember member)
+    private static bool Skip(TsMember member, bool extendsNode)
     {
-        // `_xxxBrand` exists only to make TS's structural types nominal, and `kind` is emitted from the
-        // pinned SyntaxKind (or left abstract) rather than as a field.
-        if (member.Name.StartsWith('_')) return true;
-        if (member.Name == "kind") return true;
+        // `_xxxBrand` exists only to make TS's structural types nominal, and its declared type is literally
+        // `undefined`. `SyntaxList._children` also starts with an underscore but is real state, so this test is on
+        // the type rather than on the name.
+        if (member.Name.StartsWith('_') && member.Type == "undefined") return true;
+        // `kind` is emitted from the pinned SyntaxKind (or left abstract) on node types; a non-node type that
+        // declares it — CommentRange.kind is a CommentKind — keeps it.
+        if (member.Name == "kind" && extendsNode) return true;
 
         // Interfaces such as ConcretePragmaSpecs have string-literal keys (`"amd-dependency"`), which are
         // JS pragma names with no C# spelling. They are internal plumbing, so they are dropped rather than
         // renamed into something misleading.
         if (!IsCSharpIdentifier(member.Name)) return true;
 
-        return s_nodeMembers.Contains(member.Name);
+        // The Node base class owns these; a type that does not derive from Node may still declare one of them for
+        // its own purposes (EmitNode.flags is an EmitFlags, unrelated to Node.flags, and CommentRange.kind/pos/end
+        // come from TextRange, not from Node).
+        return extendsNode && s_nodeMembers.Contains(member.Name);
     }
 
     private static bool IsCSharpIdentifier(string name)

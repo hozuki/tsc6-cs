@@ -9,7 +9,7 @@ namespace TypeScript.Compiler;
 /// </remarks>
 internal sealed class TextRange : ITextRange
 {
-    public required int Pos { get; init; }
+    public required int Pos { get; set; }
 
-    public required int End { get; init; }
+    public required int End { get; set; }
 }

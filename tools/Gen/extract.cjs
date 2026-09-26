@@ -57,6 +57,8 @@ for (const [sourceRelative, name] of tableSources) {
     tables.push(collectTable(sourceRelative, name));
 }
 
+mergeDuplicateInterfaces(interfaces);
+
 // The node-predicate table's source (see collectPredicates below).
 const predicateSource = "src/compiler/factory/nodeTests.ts";
 
@@ -159,6 +161,40 @@ function collect(source, sourceRelative) {
         if (!ranges || ranges.length === 0) return null;
 
         return text.slice(ranges[0].pos, ranges[0].end).replace(/^\/\/\s*/, "").trim() || null;
+    }
+}
+
+// -----------------------------------------------------------------------------------------------
+// Declaration merging
+// -----------------------------------------------------------------------------------------------
+
+// TS lets an interface be declared more than once; the compiler merges the declarations into one type. The collector
+// sees each declaration separately, so an interface declared twice would otherwise overwrite itself in the
+// generator's by-name map — which is how `SourceFile` lost its `Declaration` base and stopped being a class. Three
+// names in types.ts are affected: `SourceFile`, `Program` and `TypeNode`.
+function mergeDuplicateInterfaces(list) {
+    const byName = new Map();
+
+    // Backwards, so splicing out a duplicate does not disturb the indices still to visit.
+    for (let i = list.length - 1; i >= 0; i--) {
+        const iface = list[i];
+        const first = byName.get(iface.name);
+        if (first === undefined) {
+            byName.set(iface.name, iface);
+            continue;
+        }
+
+        for (const base of iface.extends) {
+            if (!first.extends.includes(base)) first.extends.push(base);
+        }
+
+        for (const member of iface.members) {
+            if (!first.members.some(existing => existing.name === member.name)) first.members.push(member);
+        }
+
+        first.startLine = Math.min(first.startLine, iface.startLine);
+        first.endLine = Math.max(first.endLine, iface.endLine);
+        list.splice(i, 1);
     }
 }
 

@@ -312,12 +312,13 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 | **M1** | Layer 0：`Core`（容器、字符码、断言、比较器） | 单测覆盖 core 等价语义 |
 | **M1b** | Layer 0 其余：`Paths`（`path.ts`）、`Semver`（`semver.ts`）、`PerformanceCore` | 路径与 semver 语义单测（含 TS 文档中的路径表格） |
 | **M2** | Layer 1：`types.ts` 的枚举与标志（`SyntaxKind` 全量、`Extension`、`ScriptTarget`…）+ `Node` 类型层级 | 枚举值与 TS 逐项校验（`tools/gen` 脚本比对） |
-| **M2b** | 节点模型：`types.ts` 的接口/类型别名 → 235 个类 + 302 个接口（见 §12） | 生成物编译通过；继承链与能力接口单测 |
+| **M2b** | 节点模型：`types.ts` 的接口/类型别名 → 237 个类 + 302 个接口（见 §12） | 生成物编译通过；继承链与能力接口单测 |
 | **M2c** | Layer 0 其余：`sys.ts` 的宿主接口与纯逻辑（`getNodeSystem` 除外，见 §13）、`performance.ts` | 宿主抽象与计时埋点单测 |
 | **M3a** | Layer 1 补充：诊断基础设施 —— 全量诊断表由 `tools/Gen` 从 `diagnosticMessages.json` 生成（2,130 条），加 `DiagnosticMessage` | 生成物编译通过；名字改写规则与全表不变量单测 |
 | **M3** | Layer 2：`Scanner` 全量（见 §14） | 单测：token 流、trivia、错误恢复、关键字表 |
 | **M4** | Layer 3：`Parser` + `NodeFactory` | 能对 conformance 用例产出 AST；语法诊断 baseline 对齐 |
 | **M4a** | Layer 3 前置：`factory/nodeTests.ts` 的 227 个谓词由 `tools/Gen` 生成（`Parser/NodeTests.cs`） | 与 TS 源的函数数、返回类型、参数类型对齐；kind 而非类 |
+| **M4b** | Layer 3 基础设施：`emitNode.ts` → `Parser/EmitNodes.cs`、`nodeChildren.ts` → `Parser/NodeChildren.cs`，加 parse-tree 谓词 | `EmitNode` 槽位的创建/复用/释放、合成注释、token 源映射表；`SyntaxList` 直存子节点 |
 | **M5** | Layer 4：`Binder` | `.symbols` baseline 对齐（作用域/符号） |
 | **M6** | Layer 5：`Program` + `Checker`（分期：基础类型 → 泛型 → 高级特性） | `.types` / `.errors.txt` 语义 baseline 对齐 |
 | **M7** | Layer 6/7：Transformers + Emitter | `.js` baseline 对齐 |
@@ -485,7 +486,7 @@ dotnet run --project tools/Gen -- --check    # 只校验不写入（CI / 本地�
 5. **`types.ts` 的接口分两类生成：链上的 → C# 类，分类接口与 mixin → C# 接口。** 判据是**位置**而非形状：TS 把节点的分类链写在 `extends` 首位、mixin 写在后面（`CallExpression extends LeftHandSideExpression, Declaration`）。
    - 只在首位出现过的接口 → 类：`Expression`、`LeftHandSideExpression`、`LiteralLikeNode`、`BinaryExpression`…
    - 出现过非首位的接口 → 接口：`Declaration`（`SourceFile` 放首位、`Identifier` 放次位）、`JSDocContainer`、`LocalsContainer`、`FlowContainer`，以及 `PrimaryExpression`（`Identifier` 放首位，但 `LiteralExpression extends LiteralLikeNode, PrimaryExpression` 放次位）。
-   - 结果：**235 个类 / 302 个接口**（修正见 §12.4），`CallExpression` 的链解析为 `CallExpression → LeftHandSideExpression → UpdateExpression → UnaryExpression → Expression → Node` ✓
+   - 结果：**237 个类 / 302 个接口**（修正见 §12.4；数字随 §15.5 的声明合并修正从 235 升到 237），`CallExpression` 的链解析为 `CallExpression → LeftHandSideExpression → UpdateExpression → UnaryExpression → Expression → Node` ✓
    - 代价：`Identifier` 的 C# 基类因此是 `Node` 而非 `PrimaryExpression`（后者降为接口）。分类接口本身没有实字段（只有 brand），所以类型关系通过接口完整保留，不丢信息。
    - `PunctuationToken`/`KeywordToken`/`ModifierToken`/`NodeArray` 只经**类型别名**到达（`type DotToken = PunctuationToken<SyntaxKind.DotToken>`），位置规则看不到，用显式清单标为类。这也是 token 家族只需要少数几个类、而不是 187 个空类的原因。
    - 泛型参数在比较基名时必须剥离（`PunctuationToken<TKind>` → `PunctuationToken`），否则继承图与角色判定全线失配。
@@ -646,7 +647,7 @@ M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质�
 | 批次 | 内容 | 行数 | 状态 |
 |---|---|---|---|
 | M4a | `factory/nodeTests.ts` → `Parser/NodeTests.cs`（生成） | 1,201 | 已完成（§15.4） |
-| M4b | `factory/emitNode.ts` → `Parser/EmitNodes.cs`；`factory/nodeChildren.ts` → `Parser/NodeChildren.cs`；提前移植 `utilities.ts` 的 `getSourceFileOfNode`/`isParseTreeNode`/`getParseTreeNode` | 442 + 3 个函数 | |
+| M4b | `factory/emitNode.ts` → `Parser/EmitNodes.cs`；`factory/nodeChildren.ts` → `Parser/NodeChildren.cs`；提前移植 `getSourceFileOfNode`/`isParseTreeNode`/`getParseTreeNode` | 442 + 3 个函数 | 已完成（§15.5） |
 | M4c | `factory/nodeFactory.ts` → `Parser/NodeFactory.cs`（最大单件，再按 create/update 家族细分） | 7,542 | |
 | M4d | `factory/utilities.ts` + `nodeConverters.ts` + `parenthesizerRules.ts` | 2,656 | |
 | M4e | `parser.ts` → `Parser/*`（递归下降主体：声明 / 语句 / 表达式 / 类型 / JSDoc 各自成批） | 10,823 | |
@@ -678,3 +679,17 @@ M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质�
 **谓词保留 kind 比对，没有写成 `node is NumericLiteral`**：若干谓词测的 kind 在 C# 里共享一个类
 （所有关键字都是 `KeywordToken`，而 `isExportModifier` 测的是 `ExportKeyword`），类型测试并不等价。
 这一层同样适用于后续的 `update*` 家族 —— 它们要按 kind 判断能否复用节点。
+
+### 15.5 M4b 交付，以及 M4 期间修掉的两个生成器 bug
+
+交付：`Parser/EmitNodes.cs`（`emitNode.ts` 的 40 个导出 + 手写的 `EmitNode` 实现类）、`Parser/NodeChildren.cs`（5 个函数）、`Utilities/Utilities.cs`（`utilitiesPublic.ts` 的 parse-tree 谓词 + `getSourceFileOfNode`，作为 Layer 5 的前瞻部分），以及支撑类型 `SourceMapRange`、`SynthesizedComment`、`ModeAwareCache<T>`。
+
+`ModeAwareCache<T>` 是 `moduleNameResolver.ts` 的类型（M8 的领域），本身不该在这里出现 —— 是下面第一个 bug 修好之后才被 `IProgram` 引用到的。已在文件头记明，M8 要回头核一遍。
+
+**bug 1：同名接口的声明合并没有处理。** `types.ts` 里 `SourceFile` 声明了两次（L4320 `extends Declaration, LocalsContainer` 与 L4480 `extends ReadonlyPragmaContext {}`），提取器把两条都收进模型，生成器按名字建字典，后者覆盖前者 —— 于是 `ISourceFile` 的基接口只剩 `IReadonlyPragmaContext`，`SourceFile` 也因为没有了可达 `Node` 的 `extends` 链而**没被分类成类**。受影响的名字有三个：`SourceFile`、`Program`、`TypeNode`。修法是让提取器按 TS 的合并语义折叠（`extends` 取并集、成员按名去重、行号取范围），接口数 537 → 534、类数 235 → 237。
+
+**bug 2：`Node` 的成员排除表是全局按名字生效的。** `s_nodeMembers`（`kind`/`flags`/`pos`/`end`/`parent`…）原本对**所有**接口和类都生效，但它描述的是"这些成员已经在手写的 `Node` 基类上"，只对 `Node` 派生者成立。于是 `IEmitNode.Flags`（`EmitFlags`，与 `Node.Flags` 毫无关系）被吃掉了，`ICommentRange` 也拿不到 `Kind`/`Pos`/`End`（它们来自 `CommentRange extends TextRange`，不是来自 `Node`）。修法是让排除以"该类型能否到达 `Node`"为前提，`kind` 的排除同样以此为前提。
+
+两个 bug 是同一类错误：**排除规则按名字匹配，却没有限定它适用的类型范围**。
+
+修完之后的附带变化：`ITextRange` 现在带 `Pos`/`End`，因此 `Node` 需要**同时**实现 `ITextRange` 与 `IReadonlyTextRange` —— TS 靠结构类型让一个节点充当 `TextRange`（`getSourceMapRange` 的回退分支就是这么写的），C# 没有这个能力。`SyntaxList._children` 也不再被下划线规则误删：那条规则改为按类型判定（brand 成员的声明类型字面就是 `undefined`，而 `_children` 是 `readonly Node[]`）。
