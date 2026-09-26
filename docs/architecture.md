@@ -1262,6 +1262,30 @@ Roslyn 只要在任何一处遇到**声明级**错误，就跳过**整个编译*
 
 **旧的、已被取代的修法记录**：单独把 `Program.ProgramDiagnostics.cs` 包含回来**无效**——它自己会拉出 9 个声明级 CS0246（它对 `Program` 的兄弟 partial 与 `JsObject` 的引用）。掩蔽只能通过**等整个 Program 切片能编译后整块包含**来解除。在那之前，任何 Checker 切片的诚实证据路径是：文本证据（重复扫描、签名核对、括号配平、`ported from` 范围逐条核对）**加上**一份声明级代码集合为空的日志。
 
+### 残留与跨里程碑指派（M6 期间累积的完整账）
+
+M6 期间报出的每一个"有调用者但无人声明"或"有意不移植"的名字都在这里，附参考位置与归属。§15.16 的残留表由这张表汇总而来。
+
+| 名字 | 参考位置 | 处置 | 依据 |
+|---|---|---|---|
+| `Program.Emit` / `EmitBuildInfo` / `GetDeclarationDiagnostics`(+Worker) / `GetEmitHost` | program.ts:2688 / 2650 / 2827+3244 / 2598 | **M7**；经 `Program.EmitNotLanded` 响亮抛出，`ProgramTests` 钉住 | 需要发射器 |
+| `GetCommonSourceDirectoryFromOptions` / `GetCommonSourceDirectoryOfConfig` / `GetComputedCommonSourceDirectory` | emitter.ts:636 / :685 / :668 | 已声明在 `Program`；**M7 必须调用而不是重申** | 声明在 emitter.ts 但本质是 program 状态 |
+| `GetOutputDeclarationFileName` | emitter.ts:563（调用点 Program.cs:304、ProjectReferences.cs:849） | **M7** | 发射路径 |
+| `forEachEmittedFile` / `getTsBuildInfoEmitOutputFilePath` | emitter.ts:446-474 / :481-497（调用点 program.ts:4395 / 4588+4609） | **M7** | 同上；无桩 |
+| `TsBuild.ResolveConfigFileProjectName` | tsbuild.ts:177-183（调用点 ProjectReferences.cs:880） | **M8** | builder |
+| `IProgram.GetBuildInfo()` | types.ts:4934（可选成员）、builder.ts:1686 赋值 | 响亮抛出，消息点名 **M8 的 builder** | 生成的签名非空，表达不了"未赋值" |
+| `IProgram.GetModuleSpecifierCache()` / `GetNearestAncestorDirectoryWithPackageJson()` | program.ts | 响亮抛出，**M8-late** | 同上 |
+| `Checker.CreateTypeChecker(ITypeCheckerHost) : ITypeChecker` | checker.ts `createTypeChecker` | 签名已冻结；**M6-5 组装时落地** | `Program.GetTypeChecker()` 惰性调用它 |
+| `TypeToString` / `SymbolToString` / `SignatureToString` / `TypePredicateToString` | checker.ts:6240 / 6169 / ~6202 | **M6-6**，受 printer 门控 → 响亮抛出 + 测试钉住 | §15.15 裁定 1 |
+| `moduleSpecifiers` 的两个调用点 | checker.ts:8534 / 8638 | **M6-late / M8**，不提前引入那 1,470 行 | §15.15 裁定 2 |
+| `nodeCoreModules` | utilities.ts:12165-12171 | 登记不移植（两个输入已落地，一行即可组装） | 无调用者 |
+| `tryGetClassExtendingExpressionWithTypeArguments` / `tryGetClassImplementingOrExtendingExpressionWithTypeArguments` | utilities.ts:7444-7447 / 7455-7468 | 登记不移植 | 无调用者（留给 checker.ts:50042/50392 的切片） |
+| `_globalRegExpType` / `_globalThisType` | checker.ts:2265 / 2266 | 登记不移植 | 无读者（赋值随 M6-5 的 `initializeTypeChecker`） |
+| `ICancellationToken` 无任何实现 | — | 记录为假设：`Program` 的 `runWithCancellationToken` 以 `OperationCanceledException` 过滤 | 实现属 M8 的 CLI/host；测试可用 fake |
+| `Utilities.SupportedDeclarationExtensions`、`FactoryUtilities.IsJSDocTypeAssertion` | §15.10 / §15.9 | 见各自小节 | M4e/M4d 记的残留 |
+
+已**关闭**（曾报为缺口、实测已落地或系取证假象）：`ElaborateNeverIntersection`（`Checker.Members.cs:928`）、`GetSignatureInstantiation`（`Checker.TypeSupport.cs:1847`）、`isArrayOrTupleSymbol`/`isReadonlyArraySymbol`（`Checker.TypeSupport.cs:1407/1419`）、`Utilities.IsTypeDeclaration`（`Checker/Utilities.Checker.cs:465`）、`15871`/`15799` 段、`16577-16674` 段（已由 M6TypeSupport 落地九个成员）。
+
 ### 生成器缺口（M6 期间修掉）
 
 `MapUnion` 的公共基只看 C# 的**类**链，而对没到达 `Node` 的联合会退化成 `Node`——两处显形：`IProgram.getFileProcessingDiagnostics()` 生成为 `List<Node>?`，`getFileIncludeReasons()` 生成为 `Dictionary<string, List<Node>>`，而端口的值分别是 `List<IFilePreprocessingDiagnostics>` 与 `List<IFileIncludeReason>`（TS 的 `readonly FilePreprocessingDiagnostics[]` 与 `Map<string, FileIncludeReason[]>`）。修法与 M5-0 的 `FlowNode`、M6-0b 的 `SymbolTable` 同一机制：两条 `s_overrides`。容器形状不动（§12.3 的 `Map`→`Dictionary` 本就是对的），`Program` 在边界上构造它。
