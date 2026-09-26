@@ -1223,11 +1223,16 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:16044-16046 — <c>getApplicableIndexInfos</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS's <c>.filter(…)</c> builds an <c>IndexInfo[]</c>; <see cref="Core.Filter{T}"/> answers an
-    /// <c>IList</c> (the input when nothing is filtered out), which is the port's array idiom.
+    /// PORT-NOTE: TS's <c>.filter(…)</c> always allocates a new array, and one caller observes *that*: 
+    /// <c>getApplicableIndexSymbol</c> (checker.ts:50121-50126) compares the result against
+    /// <c>getIndexInfosOfType(type)</c> by identity — with an always-fresh array that test is never satisfied and the
+    /// checker's own filtered copy is returned (flags <c>Signature | Transient</c>, its <c>declarations</c>/<c>parent</c>
+    /// filled in), never the binder's member symbol. <see cref="Core.Filter{T}"/> answers the *input* list when nothing
+    /// is filtered out (its own contract, docs/architecture.md §10.2), which would satisfy that identity test, so the
+    /// result is copied into a fresh list here — the allocation TS's <c>.filter</c> performs.
     /// </remarks>
     internal IList<IIndexInfo> GetApplicableIndexInfos(IType type, IType keyType)
-        => Core.Filter(GetIndexInfosOfType(type), info => IsApplicableIndexType(keyType, info.KeyType!))!;
+        => [.. Core.Filter(GetIndexInfosOfType(type), info => IsApplicableIndexType(keyType, info.KeyType!))!];
 
     /// <summary>ported from: src/compiler/checker.ts:16048-16050 — <c>getApplicableIndexInfo</c>.</summary>
     internal IIndexInfo? GetApplicableIndexInfo(IType type, IType keyType) => FindApplicableIndexInfo(GetIndexInfosOfType(type), keyType);

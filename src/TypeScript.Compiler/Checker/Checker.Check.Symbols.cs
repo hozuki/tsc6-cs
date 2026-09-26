@@ -247,7 +247,13 @@ internal sealed partial class Checker
                         }
                         return;
                     }
-                    if (Utilities.NodeIsPresent((Node?)((IFunctionLikeDeclarationBase)subsequentNode).Body))
+                    // PORT-NOTE: the reference reads `nodeIsPresent((subsequentNode as FunctionLikeDeclaration).body)`
+                    // (checker.ts:43203) through a cast that cannot fail at runtime; a `MethodSignature` is not part of
+                    // TS's `FunctionLikeDeclaration` (types.ts:2074) and carries no `body` slot, so the reference
+                    // observes `undefined` and `nodeIsPresent` answers false. The port's `MethodSignature` does not
+                    // implement `IFunctionLikeDeclarationBase` (NodeClasses.cs:1603), so the body is read through the
+                    // face that declares it and a node without one observes the same false.
+                    if (subsequentNode is IFunctionLikeDeclarationBase subsequentFunctionLike && Utilities.NodeIsPresent(subsequentFunctionLike.Body))
                     {
                         Error(errorNode, Diagnostics.Function_implementation_name_must_be_0, Utilities.DeclarationNameToString(((INamedDeclaration)declarationNode).Name!));
                         return;
@@ -310,7 +316,14 @@ internal sealed partial class Checker
                     allNodeFlags &= currentNodeFlags;
                     someHaveQuestionToken = someHaveQuestionToken || Utilities.HasQuestionToken(node);
                     allHaveQuestionToken = allHaveQuestionToken && Utilities.HasQuestionToken(node);
-                    var bodyIsPresent = Utilities.NodeIsPresent((Node?)((IFunctionLikeDeclarationBase)node).Body);
+                    // PORT-NOTE: the reference reads `nodeIsPresent((node as FunctionLikeDeclaration).body)`
+                    // (checker.ts:43259) through a cast that cannot fail at runtime. The guard above admits
+                    // `FunctionDeclaration | MethodDeclaration | MethodSignature | Constructor`, and a `MethodSignature`
+                    // is not part of TS's `FunctionLikeDeclaration` (types.ts:2074) and carries no `body` slot, so the
+                    // reference observes `undefined` and `nodeIsPresent` answers false. The port's `MethodSignature`
+                    // does not implement `IFunctionLikeDeclarationBase` (NodeClasses.cs:1603), so the body is read
+                    // through the face that declares it and a node without one observes the same false.
+                    var bodyIsPresent = node is IFunctionLikeDeclarationBase functionLikeNode && Utilities.NodeIsPresent(functionLikeNode.Body);
 
                     if (bodyIsPresent && bodyDeclaration is not null)
                     {
@@ -390,8 +403,13 @@ internal sealed partial class Checker
         }
 
         // Abstract methods can't have an implementation -- in particular, they don't need one.
+        // PORT-NOTE: the reference reads `!lastSeenNonAmbientDeclaration.body` (checker.ts:43323) on a
+        // `FunctionLikeDeclaration`-typed local, which for a `MethodSignature` (not part of that union, types.ts:2074)
+        // observes `undefined`. The port's local is a `Node`, so the body is read through the face that declares it and
+        // a node without one counts as having no body, as upstream does.
+        var lastSeenBody = lastSeenNonAmbientDeclaration is IFunctionLikeDeclarationBase lastSeenFunctionLike ? lastSeenFunctionLike.Body : null;
         if (
-            lastSeenNonAmbientDeclaration is not null && ((IFunctionLikeDeclarationBase)lastSeenNonAmbientDeclaration).Body is null
+            lastSeenNonAmbientDeclaration is not null && lastSeenBody is null
             && !Utilities.HasSyntacticModifier(lastSeenNonAmbientDeclaration, ModifierFlags.Abstract) && !Utilities.HasQuestionToken(lastSeenNonAmbientDeclaration)
         )
         {
@@ -555,9 +573,17 @@ internal sealed partial class Checker
                     {
                         var result = DeclarationSpaces.None;
                         var target = ResolveAlias(GetSymbolOfDeclaration((IDeclaration)d));
-                        foreach (var inner in target.Declarations!)
+                        // PORT-NOTE: the reference writes `forEach(target.declarations, d => { result |= … })`
+                        // (checker.ts:43461-43463), and `forEach` is a no-op when the array is absent (core.ts:33-43) —
+                        // which is how an alias whose target has no declarations at all behaves (an unresolved alias
+                        // resolves to `unknownSymbol`, checker.ts:4315). The port's `foreach` would dereference the
+                        // absent slot, so the walk is guarded: a target without declarations contributes nothing.
+                        if (target.Declarations is not null)
                         {
-                            result |= GetDeclarationSpaces(inner);
+                            foreach (var inner in target.Declarations)
+                            {
+                                result |= GetDeclarationSpaces(inner);
+                            }
                         }
                         return result;
                     }
@@ -624,8 +650,14 @@ internal sealed partial class Checker
             return null;
         }
 
-        var typeAsPromise = (UnionOrIntersectionType)type;
-        if (typeAsPromise.PromisedTypeOfPromise is not null)
+        // PORT-NOTE: the reference casts to `PromiseOrAwaitableType` (types.ts:6841), an expando interface TS can attach
+        // to *any* type object, so its `(type as PromiseOrAwaitableType)` never fails. The port keeps those slots on
+        // `UnionOrIntersectionType` — the base `ObjectType`, `UnionType` and `IntersectionType` share
+        // (Model/UnionOrIntersectionType.cs) — so a type outside that family (an `IntrinsicType`, a literal type, a type
+        // parameter) cannot carry them. Both slots are caches only: the reference recomputes whenever the slot is absent
+        // (checker.ts:43512-43519), so such a type loses only the cache and the answer is unchanged.
+        var typeAsPromise = type as UnionOrIntersectionType;
+        if (typeAsPromise is not null && typeAsPromise.PromisedTypeOfPromise is not null)
         {
             return typeAsPromise.PromisedTypeOfPromise;
         }
@@ -633,7 +665,12 @@ internal sealed partial class Checker
         if (IsReferenceToType(type, GetGlobalPromiseType(/*reportErrors*/ false)))
         {
             var typeArguments = GetTypeArguments((ITypeReference)type);
-            return typeAsPromise.PromisedTypeOfPromise = typeArguments[0];
+            var promisedType = typeArguments[0];
+            if (typeAsPromise is not null)
+            {
+                typeAsPromise.PromisedTypeOfPromise = promisedType;
+            }
+            return promisedType;
         }
 
         // primitives with a `{ then() }` won't be unwrapped/adopted.
@@ -703,7 +740,12 @@ internal sealed partial class Checker
             return null;
         }
 
-        return typeAsPromise.PromisedTypeOfPromise = GetUnionType(Core.Map(onfulfilledParameterSignatures, (ISignature s, int _) => GetTypeOfFirstParameterOfSignature(s))!, UnionReduction.Subtype);
+        var promisedTypeOfThenable = GetUnionType(Core.Map(onfulfilledParameterSignatures, (ISignature s, int _) => GetTypeOfFirstParameterOfSignature(s))!, UnionReduction.Subtype);
+        if (typeAsPromise is not null)
+        {
+            typeAsPromise.PromisedTypeOfPromise = promisedTypeOfThenable;
+        }
+        return promisedTypeOfThenable;
     }
 
     /// <summary>
@@ -853,8 +895,15 @@ internal sealed partial class Checker
         }
 
         // If we've already cached an awaited type, return a possible `Awaited<T>` for it.
-        var typeAsAwaitable = (UnionOrIntersectionType)type;
-        if (typeAsAwaitable.AwaitedTypeOfType is not null)
+        // PORT-NOTE: the reference casts to `PromiseOrAwaitableType` (types.ts:6841), an expando interface TS can attach
+        // to *any* type object, so its `(type as PromiseOrAwaitableType)` never fails. The port keeps those slots on
+        // `UnionOrIntersectionType` — the base `ObjectType`, `UnionType` and `IntersectionType` share
+        // (Model/UnionOrIntersectionType.cs) — so a type outside that family (an `IntrinsicType`, a literal type, a type
+        // parameter) cannot carry them. Both slots are caches only: every write below recomputes the answer it stores and
+        // the reference recomputes whenever the slot is absent (checker.ts:43512-43519), so such a type loses only the
+        // cache and the answer is unchanged.
+        var typeAsAwaitable = type as UnionOrIntersectionType;
+        if (typeAsAwaitable is not null && typeAsAwaitable.AwaitedTypeOfType is not null)
         {
             return typeAsAwaitable.AwaitedTypeOfType;
         }
@@ -882,13 +931,21 @@ internal sealed partial class Checker
             var mapped = MapType(type, mapper);
             _awaitedTypeStack.RemoveAt(_awaitedTypeStack.Count - 1);
 
-            return typeAsAwaitable.AwaitedTypeOfType = mapped;
+            if (typeAsAwaitable is not null)
+            {
+                typeAsAwaitable.AwaitedTypeOfType = mapped;
+            }
+            return mapped;
         }
 
         // If `type` is generic and should be wrapped in `Awaited<T>`, return it.
         if (IsAwaitedTypeNeeded(type))
         {
-            return typeAsAwaitable.AwaitedTypeOfType = type;
+            if (typeAsAwaitable is not null)
+            {
+                typeAsAwaitable.AwaitedTypeOfType = type;
+            }
+            return type;
         }
 
         var thisTypeForErrorOut = new StrongBox<IType?>(null);
@@ -948,7 +1005,11 @@ internal sealed partial class Checker
                 return null;
             }
 
-            return typeAsAwaitable.AwaitedTypeOfType = awaitedType;
+            if (typeAsAwaitable is not null)
+            {
+                typeAsAwaitable.AwaitedTypeOfType = awaitedType;
+            }
+            return awaitedType;
         }
 
         // The type was not a promise, so it could not be unwrapped any further.
@@ -982,7 +1043,11 @@ internal sealed partial class Checker
             return null;
         }
 
-        return typeAsAwaitable.AwaitedTypeOfType = type;
+        if (typeAsAwaitable is not null)
+        {
+            typeAsAwaitable.AwaitedTypeOfType = type;
+        }
+        return type;
     }
 
     /// <summary>

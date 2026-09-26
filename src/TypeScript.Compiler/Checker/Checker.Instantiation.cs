@@ -556,10 +556,21 @@ internal sealed partial class Checker
                 case SyntaxKind.ThisType:
                     return tp.IsThisType == true;
                 case SyntaxKind.Identifier:
-                    return tp.IsThisType != true
-                        && Utilities.IsPartOfTypeNode(nodeToSearch)
-                        && MaybeTypeParameterReference(nodeToSearch)
-                        && ReferenceEquals(GetTypeFromTypeNodeWorker((ITypeNode)nodeToSearch), tp); // use worker because we're looking for === equality
+                    if (tp.IsThisType == true
+                        || !Utilities.IsPartOfTypeNode(nodeToSearch)
+                        || !MaybeTypeParameterReference(nodeToSearch))
+                    {
+                        return false;
+                    }
+                    // PORT-NOTE: the reference hands the node to `getTypeFromTypeNodeWorker(node as TypeNode)` — a no-op
+                    // re-view, because an identifier used as a type reference is a `TypeNode` only structurally. This
+                    // port's `Identifier` does not implement the nominal `ITypeNode` (§3's systemic defect), so the cast
+                    // cannot express it. The worker's own `case SyntaxKind.Identifier` arm (checker.ts:20527-20531) reads
+                    // only the node's symbol and its declared type — `<see cref="GetSymbolAtLocation"/>` then
+                    // `GetDeclaredTypeOfSymbol`, with `_errorType` when there is no symbol; those same slots are read
+                    // here so the `===`-equality test against `tp` is the worker's result.
+                    var identifierSymbol = GetSymbolAtLocation(nodeToSearch);
+                    return ReferenceEquals(identifierSymbol is not null ? GetDeclaredTypeOfSymbol(identifierSymbol) : _errorType, tp);
                 case SyntaxKind.TypeQuery:
                     var entityName = ((TypeQueryNode)nodeToSearch).ExprName;
                     var firstIdentifier = Utilities.GetFirstIdentifier(entityName!);

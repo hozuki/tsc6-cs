@@ -280,6 +280,14 @@ internal sealed partial class Checker
     // ---------------------------------------------------------------------------------------------
 
     /// <summary>ported from: src/compiler/checker.ts:16366-16408 — <c>getSignaturesOfSymbol</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>(decl as FunctionLikeDeclaration).body</c> re-views the <c>SignatureDeclaration</c>
+    /// union (the shape <c>isFunctionLike</c> narrows to), and its signature-only members — <c>CallSignature</c>,
+    /// <c>ConstructSignature</c>, <c>MethodSignature</c>, <c>IndexSignature</c>, the function/constructor type nodes,
+    /// the JSDoc signatures — carry no <c>body</c> slot, so the reference observes <c>undefined</c> for them. The port's
+    /// <see cref="IFunctionLikeDeclarationBase"/> is implemented by exactly the members that do carry the slot, so the
+    /// test is a match on that face; the reference's cast was erased and would throw for the other kinds.
+    /// </remarks>
     internal List<ISignature> GetSignaturesOfSymbol(ISymbol? symbol)
     {
         if (symbol is null || symbol.Declarations is null) return [];
@@ -291,7 +299,9 @@ internal sealed partial class Checker
             // Don't include signature if node is the implementation of an overloaded function. A node is considered
             // an implementation node if it has a body and the previous node is of the same kind and immediately
             // precedes the implementation node (i.e. has the same parent and ends where the implementation starts).
-            if (i > 0 && ((IFunctionLikeDeclarationBase)decl).Body is not null)
+            // Reference (checker.ts:16373): `(decl as FunctionLikeDeclaration).body` — only the function-like kinds of
+            // the narrowed union own the slot; the rest answer `undefined`.
+            if (i > 0 && (decl as IFunctionLikeDeclarationBase)?.Body is not null)
             {
                 var previous = symbol.Declarations[i - 1];
                 if (ReferenceEquals(((Node)decl).Parent, ((Node)previous).Parent) && ((Node)decl).Kind == ((Node)previous).Kind && ((Node)decl).Pos == ((Node)previous).End)
@@ -351,7 +361,12 @@ internal sealed partial class Checker
             var type = sig.Target is not null ? InstantiateType(GetReturnTypeOfSignature(sig.Target), (TypeMapper?)sig.Mapper)
                 : sig.CompositeSignatures is not null ? InstantiateType(GetUnionOrIntersectionType(Core.Map(sig.CompositeSignatures, (ISignature s, int _) => GetReturnTypeOfSignature(s))!, sig.CompositeKind!.Value, UnionReduction.Subtype), (TypeMapper?)sig.Mapper)
                 : GetReturnTypeFromAnnotation(sig.Declaration!)
-                ?? (Utilities.NodeIsMissing(((IFunctionLikeDeclarationBase)sig.Declaration!).Body) ? _anyType : GetReturnTypeFromBody((IFunctionLikeDeclarationBase)sig.Declaration!));
+                // Reference (checker.ts:16477): `nodeIsMissing((signature.declaration as FunctionLikeDeclaration).body)
+                // ? anyType : getReturnTypeFromBody(signature.declaration as FunctionLikeDeclaration)` — the cast is a
+                // no-op re-view, so a declaration kind without a `body` slot (MethodSignature, ConstructSignature, the
+                // type nodes, a JSDoc signature) reads `undefined` there and is "missing"; the two calls below stay on
+                // the declaration itself, exactly as the reference's erased cast hands the same node on.
+                ?? (Utilities.NodeIsMissing((sig.Declaration as IFunctionLikeDeclarationBase)?.Body) ? _anyType : GetReturnTypeFromBody(sig.Declaration!));
             if ((sig.Flags & SignatureFlags.IsInnerCallChain) != 0)
             {
                 type = AddOptionalTypeMarker(type!);

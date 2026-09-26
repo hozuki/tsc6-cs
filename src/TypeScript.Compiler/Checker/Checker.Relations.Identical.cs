@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace TypeScript.Compiler;
 
 // ported from: src/compiler/checker.ts:24902-25004 (typeCouldHaveTopLevelSingletonTypes … hasCommonProperties)
@@ -1944,12 +1946,18 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:26263-26265 — <c>cloneInferenceContext</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS's <c>&lt;T extends InferenceContext | undefined&gt;</c> returns <c>undefined</c> only for an
-    /// undefined context; the port states the non-optional arm (every landed call site passes a non-null context) so
-    /// the result is non-nullable, which is what those call sites read.
+    /// PORT-NOTE: TS's conditional return type <c>InferenceContext | T &amp; undefined</c> says "undefined exactly when
+    /// the context is undefined" (<c>T &amp; undefined</c> collapses for a non-optional <c>T</c>, which is why
+    /// <c>createOuterReturnMapper</c>, checker.ts:20647, reads the result as non-null). C# has no conditional return
+    /// type, so the port states both arms: the parameter is <c>IInferenceContext?</c>, like the reference's, and the
+    /// result keeps the reference's contract for the compiler through <see cref="NotNullIfNotNullAttribute"/> — the
+    /// non-null call sites still read their argument's arm, while <c>inferTypeArguments</c> (checker.ts:35858 in
+    /// <c>Checker.CallResolution.cs</c>, whose <c>outerContext</c> is the possibly-undefined inference context of the
+    /// node) gets the reference's undefined back instead of the dereference that used to throw.
     /// </remarks>
-    internal IInferenceContext CloneInferenceContext(IInferenceContext context, InferenceFlags extraFlags = InferenceFlags.None)
-        => CreateInferenceContextWorker([.. Core.Map(context.Inferences!, (inference, _) => CloneInferenceInfo(inference))!], context.Signature, context.Flags | extraFlags, context.CompareTypes!);
+    [return: NotNullIfNotNull(nameof(context))]
+    internal IInferenceContext? CloneInferenceContext(IInferenceContext? context, InferenceFlags extraFlags = InferenceFlags.None)
+        => context is null ? null : CreateInferenceContextWorker([.. Core.Map(context.Inferences!, (inference, _) => CloneInferenceInfo(inference))!], context.Signature, context.Flags | extraFlags, context.CompareTypes!);
 
     /// <summary>ported from: src/compiler/checker.ts:26267-26279 — <c>createInferenceContextWorker</c>.</summary>
     internal IInferenceContext CreateInferenceContextWorker(List<IInferenceInfo> inferences, ISignature? signature, InferenceFlags flags, Func<IType, IType, bool, Ternary> compareTypes)
@@ -2071,9 +2079,10 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:26378-26380 — <c>getMapperFromContext</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS's <c>&lt;T extends InferenceContext | undefined&gt;</c> has the same non-optional arm as
-    /// <c>cloneInferenceContext</c>; the port returns the context's <c>mapper</c> slot as the <c>TypeMapper</c> face
-    /// the reference gives it.
+    /// PORT-NOTE: TS's <c>&lt;T extends InferenceContext | undefined&gt;</c> answers the context's <c>mapper</c> slot for a
+    /// context and <c>undefined</c> for an undefined one — the same two arms <see cref="CloneInferenceContext"/> now
+    /// states, which is what lets their nesting at checker.ts:35858 answer <c>undefined</c> when the node has no
+    /// inference context. The port returns the slot as the <c>TypeMapper</c> face the reference gives it.
     /// </remarks>
     internal static TypeMapper? GetMapperFromContext(IInferenceContext? context)
         => context is not null ? (TypeMapper?)context.Mapper : null;
@@ -2299,10 +2308,32 @@ internal sealed partial class Checker
         return reversed;
     }
 
+    /// <summary>Reinterprets an indexed access type as a type parameter, without a runtime check.</summary>
+    /// <remarks>
+    /// PORT-NOTE (deviation): <c>inferReverseMappedTypeWorker</c> below ports
+    /// <c>getIndexedAccessType(constraint.type, getTypeParameterFromMappedType(target)) as TypeParameter</c>
+    /// (checker.ts:26515), and the value really is that call's cached <c>IndexedAccessType</c> (<c>T[K]</c>): the
+    /// reference's own <c>getTemplateTypeFromMappedType</c> is what answers the identical object for the same
+    /// <c>target</c>, and <c>getInferenceInfoForType</c> (checker.ts:27115-27124) is built on that identity — it matches
+    /// the template type against <c>inference.typeParameter</c> by reference, so an inference whose slot held anything
+    /// else would collect no candidates at all. The generated <c>IInferenceInfo.TypeParameter</c> mirrors types.ts:7116
+    /// (<c>typeParameter: TypeParameter;</c>) and is therefore <c>ITypeParameter?</c>, while every C# cast — <c>(T)</c>,
+    /// <c>as</c> and <c>(T)(object)</c> — checks the runtime type, so none of them can put the indexed access type into
+    /// the slot. This is the situation §15.10's defect 7 records for <c>JSDocParser.Reinterpret</c>: the reference's own
+    /// unchecked cast is observable, so the port puns it in one named helper instead of changing the answer for input the
+    /// reference accepts. This inference is read back only through <c>getTypeFromInference</c> (checker.ts:26519), so the
+    /// two reads of its slot are <c>getInferenceInfoForType</c>'s identity match (checker.ts:27118 — the read the pun
+    /// exists for) and <c>inferWithPriority</c> (checker.ts:27235, whose target parameter is a <c>Type</c>); it never
+    /// reaches <c>getInferredType</c>'s <c>TypeParameter</c>-typed reads (checker.ts:27594-27656) or the context lookup
+    /// at checker.ts:35893, which is why the pun stays invisible downstream.
+    /// </remarks>
+    private static ITypeParameter ReinterpretAsTypeParameter(IType indexedAccessType)
+        => System.Runtime.CompilerServices.Unsafe.As<IType, ITypeParameter>(ref indexedAccessType);
+
     /// <summary>ported from: src/compiler/checker.ts:26514-26520 — <c>inferReverseMappedTypeWorker</c>.</summary>
     internal IType InferReverseMappedTypeWorker(IType sourceType, IMappedType target, IIndexType constraint)
     {
-        var typeParameter = (ITypeParameter)GetIndexedAccessType(constraint.Type!, GetTypeParameterFromMappedType(target));
+        var typeParameter = ReinterpretAsTypeParameter(GetIndexedAccessType(constraint.Type!, GetTypeParameterFromMappedType(target)));
         var templateType = GetTemplateTypeFromMappedType(target);
         var inference = CreateInferenceInfo(typeParameter);
         InferTypes([inference], sourceType, templateType);

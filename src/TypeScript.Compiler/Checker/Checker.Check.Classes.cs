@@ -83,7 +83,14 @@ internal sealed partial class Checker
                     ) && !HasBindableName((IDeclaration)member))
                 {
                     var memberSymbol = GetSymbolOfDeclaration((IDeclaration)member);
-                    CheckIndexConstraintForProperty(type, memberSymbol, GetTypeOfExpression(((DynamicNamedDeclaration)member).Name!.Expression!), GetNonMissingTypeOfSymbol(memberSymbol));
+                    // PORT-NOTE: TS's `member as DynamicNamedDeclaration` (types.ts:1767) is a view of the member whose
+                    // one requirement is `name: ComputedPropertyName` (`hasDynamicName` is what established it), and
+                    // the port has no such face on its class elements. The name is therefore read through
+                    // `INamedDeclaration` and narrowed by the cast, as `isLateBindableName`'s guard is: a class
+                    // element's name is a `PropertyName`, and `ComputedPropertyName` is its only dynamic member (the
+                    // `ElementAccessExpression` arm of `isDynamicName` belongs to the expando binary expression, which
+                    // is not a class element).
+                    CheckIndexConstraintForProperty(type, memberSymbol, GetTypeOfExpression(((ComputedPropertyName)((INamedDeclaration)member).Name!).Expression!), GetNonMissingTypeOfSymbol(memberSymbol));
                 }
             }
         }
@@ -565,7 +572,13 @@ internal sealed partial class Checker
         var symbol = GetSymbolOfDeclaration((IDeclaration)node);
         var type = (InterfaceType)GetDeclaredTypeOfSymbol(symbol);
         var typeWithThis = GetTypeWithThisArgument(type);
-        var staticType = (ObjectType)GetTypeOfSymbol(symbol);
+        // PORT-NOTE: TS's `getTypeOfSymbol(symbol) as ObjectType` (types.ts:6600) views the static side through the
+        // `ObjectType` face — which an intersection type satisfies structurally, `objectFlags` included, since TS 6.0
+        // declares that slot on `UnionOrIntersectionType` (types.ts:6726) — but the port models `ObjectType` as a
+        // concrete class that is a *sibling* of `IntersectionType` under `UnionOrIntersectionType` (a mixin class
+        // expression's static side is exactly such an intersection). `IObjectType` is the face both implement, and the
+        // value the reference observes is unchanged.
+        var staticType = (IObjectType)GetTypeOfSymbol(symbol);
         CheckTypeParameterListsIdentical(symbol);
         CheckFunctionOrConstructorSymbol(symbol);
         CheckClassForDuplicateDeclarations((Node)node);
@@ -719,7 +732,12 @@ internal sealed partial class Checker
     // ---------------------------------------------------------------------------------------------
 
     /// <summary>ported from: src/compiler/checker.ts:47227-47269 — <c>checkMembersForOverrideModifier</c>.</summary>
-    internal void CheckMembersForOverrideModifier(IClassLikeDeclarationBase node, InterfaceType type, IType typeWithThis, ObjectType staticType)
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>staticType: ObjectType</c> is <c>IObjectType</c> here — the static side of a mixin class
+    /// expression is an intersection type, which the port models outside the <c>ObjectType</c> class (see
+    /// <see cref="CheckClassLikeDeclaration"/>).
+    /// </remarks>
+    internal void CheckMembersForOverrideModifier(IClassLikeDeclarationBase node, InterfaceType type, IType typeWithThis, IObjectType staticType)
     {
         var baseTypeNode = Utilities.GetEffectiveBaseTypeNode((Node)node);
         var baseTypes = baseTypeNode is not null ? GetBaseTypes(type) : null;
@@ -767,10 +785,16 @@ internal sealed partial class Checker
     /// <summary>
     /// <c>member</c> is an existing member node to be checked; it cannot be a synthetic node.
     /// </summary>
-    /// <remarks>ported from: src/compiler/checker.ts:47271-47303 — <c>checkExistingMemberForOverrideModifier</c>.</remarks>
+    /// <remarks>
+    /// ported from: src/compiler/checker.ts:47271-47303 — <c>checkExistingMemberForOverrideModifier</c>.
+    /// <para>
+    /// PORT-NOTE: TS's <c>staticType: ObjectType</c> is <c>IObjectType</c>, as in
+    /// <see cref="CheckMembersForOverrideModifier"/>.
+    /// </para>
+    /// </remarks>
     internal MemberOverrideStatus CheckExistingMemberForOverrideModifier(
         IClassLikeDeclarationBase node,
-        ObjectType staticType,
+        IObjectType staticType,
         IType baseStaticType,
         IType? baseWithThis,
         InterfaceType type,
@@ -807,10 +831,16 @@ internal sealed partial class Checker
     /// program. An example of that would be to call this function in a completions scenario, when offering a method
     /// declaration as completion.
     /// </summary>
-    /// <remarks>ported from: src/compiler/checker.ts:47313-47409 — <c>checkMemberForOverrideModifier</c>.</remarks>
+    /// <remarks>
+    /// ported from: src/compiler/checker.ts:47313-47409 — <c>checkMemberForOverrideModifier</c>.
+    /// <para>
+    /// PORT-NOTE: TS's <c>staticType: ObjectType</c> is <c>IObjectType</c>, as in
+    /// <see cref="CheckMembersForOverrideModifier"/>.
+    /// </para>
+    /// </remarks>
     internal MemberOverrideStatus CheckMemberForOverrideModifier(
         IClassLikeDeclarationBase node,
-        ObjectType staticType,
+        IObjectType staticType,
         IType baseStaticType,
         IType? baseWithThis,
         InterfaceType type,
@@ -994,7 +1024,9 @@ internal sealed partial class Checker
         var classSymbol = GetSymbolOfDeclaration((IDeclaration)node);
         var type = (InterfaceType)GetDeclaredTypeOfSymbol(classSymbol);
         var typeWithThis = GetTypeWithThisArgument(type);
-        var staticType = (ObjectType)GetTypeOfSymbol(classSymbol);
+        // PORT-NOTE: TS's `getTypeOfSymbol(classSymbol) as ObjectType` is read through `IObjectType` for the same
+        // reason as in `CheckClassLikeDeclaration`.
+        var staticType = (IObjectType)GetTypeOfSymbol(classSymbol);
 
         var baseTypeNode = Utilities.GetEffectiveBaseTypeNode((Node)node);
         var baseTypes = baseTypeNode is not null ? GetBaseTypes(type) : null;

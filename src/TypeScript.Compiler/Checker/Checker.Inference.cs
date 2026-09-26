@@ -1896,8 +1896,11 @@ internal sealed partial class Checker
         if (NodeTests.IsPropertyAccessExpression(e))
         {
             var access = (PropertyAccessExpression)e;
+            var name = access.Name!;
             var lhsType = GetTypeOfExpression(access.Expression!);
-            return NodeTests.IsPrivateIdentifier(access.Name!) ? TryGetPrivateIdentifierPropertyOfType(lhsType, (Identifier)access.Name!) : GetPropertyOfType(lhsType, ((Identifier)access.Name!).EscapedText!);
+            return NodeTests.IsPrivateIdentifier(name)
+                ? TryGetPrivateIdentifierPropertyOfType(lhsType, (PrivateIdentifier)name)
+                : GetPropertyOfType(lhsType, Utilities.GetEscapedTextOfIdentifierOrLiteral(name));
         }
         if (NodeTests.IsElementAccessExpression(e))
         {
@@ -1912,7 +1915,7 @@ internal sealed partial class Checker
         }
         return null;
 
-        ISymbol? TryGetPrivateIdentifierPropertyOfType(IType type, Identifier id)
+        ISymbol? TryGetPrivateIdentifierPropertyOfType(IType type, PrivateIdentifier id)
         {
             var lexicallyScopedSymbol = LookupSymbolForPrivateIdentifierDeclaration(id.EscapedText!, id);
             return lexicallyScopedSymbol is not null ? GetPrivateIdentifierPropertyOfType(type, lexicallyScopedSymbol) : null;
@@ -2040,6 +2043,22 @@ internal sealed partial class Checker
         PropertyAccessExpression access => access.Expression!,
         ElementAccessExpression access => access.Expression!,
         _ => Debug.Fail<Expression>("an access expression must have an expression"),
+    };
+
+    /// <summary>
+    /// The <c>(node as ParenthesizedExpression | NonNullExpression | SatisfiesExpression).expression</c> read of TS's
+    /// unions at checker.ts:27807, 27842 and 27866.
+    /// </summary>
+    /// <remarks>
+    /// PORT-NOTE: the three classes share no type below <see cref="Expression"/>, so the read is this kind switch — the
+    /// same treatment <c>Binder/Binder.Narrowing.cs</c>'s <c>GetInnerExpression</c> records. The default arm is a
+    /// programming error, not an answer TS can reach: every caller has established the kind first.
+    /// </remarks>
+    private static Expression GetInnerExpression(Node node) => node switch
+    {
+        ParenthesizedExpression parenthesized => parenthesized.Expression!,
+        NonNullExpression nonNull => nonNull.Expression!,
+        _ => ((SatisfiesExpression)node).Expression!,
     };
 
     /// <summary>ported from: src/compiler/checker.ts:27957-27965 — <c>optionalChainContainsReference</c>'s read.</summary>
@@ -3023,10 +3042,17 @@ internal sealed partial class Checker
         => (node.Flags & NodeFlags.Ambient) != 0 || Utilities.FindAncestor(node, n => NodeTests.IsInterfaceDeclaration(n) || NodeTests.IsTypeAliasDeclaration(n) || NodeTests.IsTypeLiteralNode(n)) is not null;
 
     /// <summary>ported from: src/compiler/checker.ts:32960-32965 — <c>getEffectiveFirstArgumentForJsxSignature</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>node</c> is <c>JsxCallLike</c> and the second arm hands it to
+    /// <c>getJsxPropsTypeFromClassType</c>, whose parameter is <c>JsxOpeningLikeElement</c> — TS narrows the union by
+    /// the <c>isJsxOpeningFragment</c> test the first arm states. C# cannot narrow between the two classes, so the
+    /// value stays a <see cref="Node"/> and the callee reads the slots it needs per class; the fragment never reaches
+    /// it (the first arm already answered).
+    /// </remarks>
     internal IType GetEffectiveFirstArgumentForJsxSignature(ISignature signature, Node node)
         => NodeTests.IsJsxOpeningFragment(node) || GetJsxReferenceKind(node) != JsxReferenceKind.Component
             ? GetJsxPropsTypeFromCallSignature(signature, node)
-            : GetJsxPropsTypeFromClassType(signature, (JsxOpeningElement)node);
+            : GetJsxPropsTypeFromClassType(signature, node);
 
     /// <summary>ported from: src/compiler/checker.ts:32966-32975 — <c>getJsxPropsTypeFromCallSignature</c>.</summary>
     internal IType GetJsxPropsTypeFromCallSignature(ISignature sig, Node context)
@@ -3121,7 +3147,14 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:33032-33084 — <c>getJsxPropsTypeFromClassType</c>.</summary>
-    internal IType GetJsxPropsTypeFromClassType(ISignature sig, JsxOpeningElement context)
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>context</c> is <c>JsxOpeningLikeElement</c>
+    /// (<c>JsxOpeningElement | JsxSelfClosingElement</c>, types.ts:3199-3201), whose one slot this body reads is
+    /// <c>attributes</c>; the port's two classes share no type below <see cref="Node"/>, so the parameter is
+    /// <see cref="Node"/> and the attributes read is the same cast pair every landed JSX caller uses
+    /// (<c>Checker/Checker.CallResolution.cs</c>).
+    /// </remarks>
+    internal IType GetJsxPropsTypeFromClassType(ISignature sig, Node context)
     {
         var ns = GetJsxNamespaceAt(context);
         var forcedLookupLocation = GetJsxElementPropertiesName(ns);
@@ -3137,7 +3170,8 @@ internal sealed partial class Checker
         if (attributesType is null)
         {
             // There is no property named 'props' on this instance type
-            if (forcedLookupLocation is not null && forcedLookupLocation != "" && context.Attributes!.Properties!.Count != 0)
+            if (forcedLookupLocation is not null && forcedLookupLocation != ""
+                && ((context as JsxOpeningElement)?.Attributes ?? (context as JsxSelfClosingElement)?.Attributes)!.Properties!.Count != 0)
             {
                 Error(context, Diagnostics.JSX_element_class_does_not_support_attributes_because_it_does_not_have_a_0_property, Utilities.UnescapeLeadingUnderscores(forcedLookupLocation));
             }
@@ -4060,7 +4094,7 @@ internal sealed partial class Checker
                 return $"0|{(flowContainer is not null ? Utilities.GetNodeId(flowContainer).ToString() : "-1")}|{GetTypeId(declaredType)}|{GetTypeId(initialType)}";
             case SyntaxKind.NonNullExpression:
             case SyntaxKind.ParenthesizedExpression:
-                return GetFlowCacheKey(((NonNullExpression)node).Expression!, declaredType, initialType, flowContainer);
+                return GetFlowCacheKey(GetInnerExpression(node), declaredType, initialType, flowContainer);
             case SyntaxKind.QualifiedName:
                 var left = GetFlowCacheKey(((QualifiedName)node).Left!, declaredType, initialType, flowContainer);
                 return left is not null ? $"{left}.{((QualifiedName)node).Right!.EscapedText}" : null;
@@ -4105,7 +4139,7 @@ internal sealed partial class Checker
         {
             case SyntaxKind.ParenthesizedExpression:
             case SyntaxKind.NonNullExpression:
-                return IsMatchingReference(source, ((NonNullExpression)target).Expression!);
+                return IsMatchingReference(source, GetInnerExpression(target));
             case SyntaxKind.BinaryExpression:
                 return (Utilities.IsAssignmentExpression(target, /*excludeCompoundAssignment*/ false) && IsMatchingReference(source, ((BinaryExpression)target).Left!)) ||
                     (NodeTests.IsBinaryExpression(target) && ((BinaryExpression)target).OperatorToken!.Kind == SyntaxKind.CommaToken && IsMatchingReference(source, ((BinaryExpression)target).Right!));
@@ -4130,7 +4164,7 @@ internal sealed partial class Checker
             case SyntaxKind.NonNullExpression:
             case SyntaxKind.ParenthesizedExpression:
             case SyntaxKind.SatisfiesExpression:
-                return IsMatchingReference(((NonNullExpression)source).Expression!, target);
+                return IsMatchingReference(GetInnerExpression(source), target);
             case SyntaxKind.PropertyAccessExpression:
             case SyntaxKind.ElementAccessExpression:
                 var sourcePropertyName = GetAccessedPropertyName(source);
@@ -4455,15 +4489,27 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:28647-28649 — <c>getEvolvingArrayType</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: <c>evolvingArrayTypes[elementType.id]</c> is a sparse-array read in the reference: an id the table has
+    /// not reached yet is <c>undefined</c>, and the write extends the array, filling the gap with holes. The port's
+    /// <c>List</c> is grown on write and the read is guarded, which is the same two answers without the throw a list
+    /// index would raise — the same treatment <c>Checker/Checker.Check.Expressions.cs</c>'s <c>GetTypeOfExpression</c>
+    /// records for <c>flowTypeCache</c> (checker.ts:41691/41701).
+    /// </remarks>
     private IEvolvingArrayType GetEvolvingArrayType(IType elementType)
     {
-        var existing = _evolvingArrayTypes[elementType.Id];
+        var id = elementType.Id;
+        var existing = id < _evolvingArrayTypes.Count ? _evolvingArrayTypes[id] : null;
         if (existing is not null)
         {
             return existing;
         }
         var created = CreateEvolvingArrayType(elementType);
-        _evolvingArrayTypes[elementType.Id] = created;
+        while (_evolvingArrayTypes.Count <= id)
+        {
+            _evolvingArrayTypes.Add(null!);
+        }
+        _evolvingArrayTypes[id] = created;
         return created;
     }
 
@@ -5414,7 +5460,7 @@ internal sealed partial class Checker
             return result;
         }
 
-        Expression? GetCandidateDiscriminantPropertyAccess(Expression expr)
+        Node? GetCandidateDiscriminantPropertyAccess(Expression expr)
         {
             if (Utilities.IsBindingPattern(reference) || Utilities.IsFunctionExpressionOrArrowFunction(reference) || Utilities.IsObjectLiteralMethod(reference))
             {
@@ -5436,7 +5482,11 @@ internal sealed partial class Checker
                     };
                     if (uninitialized && ReferenceEquals(reference, ((Node)declaration!).Parent))
                     {
-                        return (Expression)declaration!;
+                        // PORT-NOTE: the reference returns `declaration` here, and its inferred return type for this
+                        // local function is the union `AccessExpression | BindingElement | ParameterDeclaration` — only
+                        // the first of the three is an `Expression` in TS. The port's return type is therefore `Node`
+                        // (its erasure of that union), not the `Expression` this used to assert.
+                        return (Node)declaration!;
                     }
                 }
             }
@@ -5467,7 +5517,7 @@ internal sealed partial class Checker
                         initializer = GetCandidateVariableDeclarationInitializer(((Node)declaration).Parent!.Parent!);
                         if (initializer is not null && (NodeTests.IsIdentifier(initializer) || Utilities.IsAccessExpression(initializer)) && IsMatchingReference(reference, initializer))
                         {
-                            return (Expression)declaration;
+                            return (Node)declaration;
                         }
                     }
                 }
@@ -5481,7 +5531,7 @@ internal sealed partial class Checker
                     : null;
         }
 
-        Expression? GetDiscriminantPropertyAccess(Expression expr, IType computedType)
+        Node? GetDiscriminantPropertyAccess(Expression expr, IType computedType)
         {
             // As long as the computed type is a subset of the declared type, we use the full declared type to detect
             // a discriminant property. In cases where the computed type isn't a subset, e.g because of a preceding type
@@ -6445,10 +6495,16 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:30295-30298 — <c>isSomeSymbolAssigned</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's parameter is a <see cref="Node"/> whose <c>Debug.assert</c> establishes
+    /// <c>VariableDeclaration | ParameterDeclaration</c> and whose body reads the <c>name</c> slot both classes carry;
+    /// the port's two classes share no type below <see cref="Node"/>, so the read is this cast pair (the same
+    /// treatment the landed JSX callers give that union's <c>attributes</c>).
+    /// </remarks>
     private bool IsSomeSymbolAssigned(Node rootDeclaration)
     {
         Debug.Assert(NodeTests.IsVariableDeclaration(rootDeclaration) || NodeTests.IsParameter(rootDeclaration));
-        return IsSomeSymbolAssignedWorker(((VariableDeclaration)rootDeclaration).Name!);
+        return IsSomeSymbolAssignedWorker(((rootDeclaration as VariableDeclaration)?.Name ?? (rootDeclaration as ParameterDeclaration)?.Name)!);
     }
 
     /// <summary>ported from: src/compiler/checker.ts:30300-30306 — <c>isSomeSymbolAssignedWorker</c>.</summary>
@@ -6720,13 +6776,28 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:34756-34761 — <c>isMethodAccessForCall</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>node.parent.expression === node</c> reads one member of the
+    /// <c>CallExpression | NewExpression</c> union that <c>isCallOrNewExpression</c> has just established; the port's
+    /// two classes are siblings below <see cref="Node"/> and share no type, so the read is this kind switch, exactly
+    /// where the reference's structural access made it.
+    /// </remarks>
     private static bool IsMethodAccessForCall(Node node)
     {
         while (node.Parent!.Kind == SyntaxKind.ParenthesizedExpression)
         {
             node = node.Parent;
         }
-        return Utilities.IsCallOrNewExpression(node.Parent!) && ((CallExpression)node.Parent).Expression == node;
+        var parent = node.Parent!;
+        if (!Utilities.IsCallOrNewExpression(parent))
+        {
+            return false;
+        }
+        return parent switch
+        {
+            CallExpression call => call.Expression == node,
+            _ => ((NewExpression)parent).Expression == node,
+        };
     }
 
     /// <summary>ported from: src/compiler/checker.ts:30526-30612 — <c>markLinkedReferences</c>.</summary>
@@ -6928,6 +6999,14 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:30676-30725 — <c>markJsxAliasReferenced</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>isJsxOpeningLikeElement(node) ? node.tagName : node</c> reads <c>tagName</c> off
+    /// the <c>JsxOpeningElement | JsxSelfClosingElement</c> union (types.ts:3199-3201, tested by
+    /// utilitiesPublic.ts:2489-2493); the port's two classes share no type below <see cref="Node"/>, so the read is the
+    /// same pair of casts the landed <c>Checker/Checker.CallResolution.cs</c> uses for that union's <c>attributes</c>
+    /// slot. The parameter stays <see cref="Node"/>, which is what <c>CheckJsxOpeningLikeElementOrOpeningFragment</c>
+    /// records for the union plus <c>JsxOpeningFragment</c>.
+    /// </remarks>
     private void MarkJsxAliasReferenced(Node node)
     {
         if (GetJsxNamespaceContainerForImplicitImport(node) is not null)
@@ -6938,7 +7017,9 @@ internal sealed partial class Checker
         // And if there is no reactNamespace/jsxFactory's symbol in scope when targeting React emit, we should issue an error.
         var jsxFactoryRefErr = _diagnostics is not null && _compilerOptions.Jsx == JsxEmit.React ? Diagnostics.This_JSX_tag_requires_0_to_be_in_scope_but_it_could_not_be_found : null;
         var jsxFactoryNamespace = GetJsxNamespace(node);
-        Node jsxFactoryLocation = Utilities.IsJsxOpeningLikeElement(node) ? ((JsxOpeningElement)node).TagName! : node;
+        Node jsxFactoryLocation = Utilities.IsJsxOpeningLikeElement(node)
+            ? ((node as JsxOpeningElement)?.TagName ?? (node as JsxSelfClosingElement)?.TagName)!
+            : node;
         var shouldFactoryRefErr = _compilerOptions.Jsx != JsxEmit.Preserve && _compilerOptions.Jsx != JsxEmit.ReactNative;
 
         // #38720/60122, allow null as jsxFragmentFactory
@@ -7645,9 +7726,16 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:31396-31407 — <c>checkThisBeforeSuper</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>container.parent as ClassDeclaration</c> is the <c>ClassLikeDeclaration</c> union
+    /// (<c>ClassDeclaration | ClassExpression</c>): <c>getClassExtendsHeritageElement</c> and
+    /// <c>classDeclarationExtendsNull</c> both take that union, and a class expression's constructor reaches here with a
+    /// <c>ClassExpression</c> parent. The port declares both callees over <see cref="Node"/>, so the read is the parent
+    /// itself; TS's cast never narrowed anything either.
+    /// </remarks>
     private void CheckThisBeforeSuper(Node node, Node container, DiagnosticMessage diagnosticMessage)
     {
-        var containingClassDecl = (ClassDeclaration)container.Parent!;
+        var containingClassDecl = container.Parent!;
         var baseTypeNode = Utilities.GetClassExtendsHeritageElement(containingClassDecl);
 
         // If a containing class does not have extends clause or the class extends null
@@ -8529,15 +8617,29 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:34740-34743 — <c>checkPropertyAccessExpression</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>checkPropertyAccessChain(node as PropertyAccessChain, checkMode)</c> is a no-op
+    /// re-view — <c>PropertyAccessChain extends PropertyAccessExpression</c> (types.ts:2981-2984), so the same runtime
+    /// object is handed on. The port models the two as a class and its abstract subclass, and a plain
+    /// <see cref="PropertyAccessExpression"/> carrying <c>NodeFlags.OptionalChain</c> is exactly the value that reaches
+    /// here, so <c>CheckPropertyAccessChain</c> takes the shape whose slots it reads (<c>expression</c>, <c>name</c>);
+    /// the flag test is the reference's and is unchanged.
+    /// </remarks>
     internal IType CheckPropertyAccessExpression(PropertyAccessExpression node, CheckMode? checkMode, bool writeOnly = false)
     {
         return (node.Flags & NodeFlags.OptionalChain) != 0
-            ? CheckPropertyAccessChain((PropertyAccessChain)node, checkMode)
+            ? CheckPropertyAccessChain(node, checkMode)
             : CheckPropertyAccessExpressionOrQualifiedName(node, node.Expression!, CheckNonNullExpression(node.Expression!), node.Name!, checkMode, writeOnly);
     }
 
     /// <summary>ported from: src/compiler/checker.ts:34745-34749 — <c>checkPropertyAccessChain</c>.</summary>
-    private IType CheckPropertyAccessChain(PropertyAccessChain node, CheckMode? checkMode)
+    /// <remarks>
+    /// PORT-NOTE: the reference's parameter is <c>PropertyAccessChain</c>, the subclass of the very class
+    /// <c>checkPropertyAccessExpression</c> receives; every slot read below (<c>expression</c>, <c>name</c>) is declared on
+    /// <see cref="PropertyAccessExpression"/>, so the parameter states the shape actually read rather than the nominal
+    /// subclass TS's cast only re-viewed.
+    /// </remarks>
+    private IType CheckPropertyAccessChain(PropertyAccessExpression node, CheckMode? checkMode)
     {
         var leftType = CheckExpression(node.Expression!);
         var nonOptionalType = GetOptionalExpressionType(leftType, node.Expression!);
@@ -8977,15 +9079,29 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:35528-35531 — <c>checkIndexedAccess</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>checkElementAccessChain(node as ElementAccessChain, checkMode)</c> is a no-op
+    /// re-view — <c>ElementAccessChain extends ElementAccessExpression</c> (types.ts:3009-3011) — so the same runtime
+    /// object is handed on. The port models the two as a class and its abstract subclass, and a plain
+    /// <see cref="ElementAccessExpression"/> carrying <c>NodeFlags.OptionalChain</c> is exactly the value that reaches
+    /// here; <c>CheckElementAccessChain</c> therefore takes the shape whose slots it reads. The flag test is the
+    /// reference's and is unchanged.
+    /// </remarks>
     internal IType CheckIndexedAccess(ElementAccessExpression node, CheckMode? checkMode)
     {
         return (node.Flags & NodeFlags.OptionalChain) != 0
-            ? CheckElementAccessChain((ElementAccessChain)node, checkMode)
+            ? CheckElementAccessChain(node, checkMode)
             : CheckElementAccessExpression(node, CheckNonNullExpression(node.Expression!), checkMode);
     }
 
     /// <summary>ported from: src/compiler/checker.ts:35533-35537 — <c>checkElementAccessChain</c>.</summary>
-    private IType CheckElementAccessChain(ElementAccessChain node, CheckMode? checkMode)
+    /// <remarks>
+    /// PORT-NOTE: the reference's parameter is <c>ElementAccessChain</c>, the subclass of the very class
+    /// <c>checkIndexedAccess</c> receives; every slot read below (<c>expression</c>) is declared on
+    /// <see cref="ElementAccessExpression"/>, so the parameter states the shape actually read rather than the nominal
+    /// subclass TS's cast only re-viewed.
+    /// </remarks>
+    private IType CheckElementAccessChain(ElementAccessExpression node, CheckMode? checkMode)
     {
         var exprType = CheckExpression(node.Expression!);
         var nonOptionalType = GetOptionalExpressionType(exprType, node.Expression!);
@@ -9043,8 +9159,8 @@ internal sealed partial class Checker
             foreach (var symbol in properties)
             {
                 var decl = symbol.ValueDeclaration;
-                if (decl is not null && Utilities.IsNamedDeclaration((Node)decl) && NodeTests.IsPrivateIdentifier(((INamedDeclaration)decl).Name!)
-                    && ((Identifier)((INamedDeclaration)decl).Name!).EscapedText == right.EscapedText)
+                if (decl is not null && Utilities.IsNamedDeclaration((Node)decl) && ((INamedDeclaration)decl).Name is PrivateIdentifier privateName
+                    && privateName.EscapedText == right.EscapedText)
                 {
                     propertyOnType = symbol;
                     break;
@@ -9096,6 +9212,13 @@ internal sealed partial class Checker
     /// <c>Checker.Check.Classes.cs</c> states — so the two downlevel tests compare against the targets the table holds:
     /// <c>PrivateNamesAndClassStaticBlocks</c> is <c>ScriptTarget.ES2022</c> and <c>ClassAndClassElementDecorators</c> is
     /// <c>ScriptTarget.ESNext</c>.
+    /// <para>
+    /// PORT-NOTE: the parameter's <c>right</c> is TS's <c>Identifier | PrivateIdentifier</c> union, and every
+    /// <c>right.escapedText</c> read is the *escaped* name — <c>getApplicableIndexInfoForName</c> (checker.ts:16052)
+    /// tests <c>isLateBoundName</c> and unescapes it itself, so reading it with <c>idText</c> instead would lose
+    /// <c>__@</c>-style late-bound names and split them from <c>__</c>-prefixed ones. The port's read of that slot for
+    /// both classes is <see cref="Utilities.GetEscapedTextOfIdentifierOrLiteral"/>.
+    /// </para>
     /// </remarks>
     private IType CheckPropertyAccessExpressionOrQualifiedName(Node node, Node left, IType leftType, Node right, CheckMode? checkMode, bool writeOnly = false)
     {
@@ -9183,7 +9306,7 @@ internal sealed partial class Checker
         if (prop is null)
         {
             var indexInfo = !NodeTests.IsPrivateIdentifier(right) && (assignmentKind == AssignmentKind.None || !IsGenericObjectType(leftType) || Utilities.IsThisTypeParameter(leftType))
-                ? GetApplicableIndexInfoForName(apparentType, ((INamedDeclaration)right).Name is { } rightName ? Utilities.IdText(rightName) : Utilities.IdText(right))
+                ? GetApplicableIndexInfoForName(apparentType, Utilities.GetEscapedTextOfIdentifierOrLiteral(right))
                 : null;
             if (!(indexInfo is not null && indexInfo.Type is not null))
             {
@@ -9241,7 +9364,15 @@ internal sealed partial class Checker
             MarkPropertyAsReferenced(prop, node, IsSelfTypeAccess(left, parentSymbol));
             GetNodeLinks(node).ResolvedSymbol = prop;
             CheckPropertyAccessibilityAtLocation(node, left.Kind == SyntaxKind.SuperKeyword, Utilities.IsWriteAccess(node), apparentType, prop, /*errorNode*/ null);
-            if (IsAssignmentToReadonlyEntity((Expression)node, prop, assignmentKind))
+            // PORT-NOTE: checker.ts:34995 asserts `node as Expression` before this call. The callee's parameter is
+            // `Expression` while `node` here is `PropertyAccessExpression | QualifiedName`, and a qualified name is not
+            // an `Expression` — TS permits the assertion because the union overlaps `Expression`, but it is not a
+            // re-view the port can make. The callee's first line answers `false` for `AssignmentKind.None`, and a
+            // qualified name's `getAssignmentTargetKind` is always `None` (its parent is a `QualifiedName` or a
+            // `TypeQuery`, and neither is one of the five kinds `getAssignmentTarget`, utilities.ts:4854-4897, walks
+            // through or returns), so this kind test reproduces the reference's own answer for the member the port
+            // cannot hand on.
+            if (node is Expression nodeAsExpression && IsAssignmentToReadonlyEntity(nodeAsExpression, prop, assignmentKind))
             {
                 Error(right, Diagnostics.Cannot_assign_to_0_because_it_is_a_read_only_property, Utilities.IdText(right));
                 return _errorType;
@@ -9351,6 +9482,13 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:35030-35081 — <c>getFlowTypeOfAccessExpression</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the parameters are TS's <c>ElementAccessExpression | PropertyAccessExpression | QualifiedName</c> and
+    /// <c>Identifier | PrivateIdentifier</c> unions; the one slot the body reads off them is
+    /// <c>node.expression</c> after <c>isAccessExpression</c> established the kind, which is exactly the union read
+    /// <see cref="GetAccessExpressionOperand"/> states (the node itself is a <see cref="Node"/>, as it is at every
+    /// landed call site of this method).
+    /// </remarks>
     private IType GetFlowTypeOfAccessExpression(Node node, ISymbol? prop, IType propType, Node errorNode, CheckMode? checkMode)
     {
         // Only compute control flow type if this is a property access expression that isn't an
@@ -9380,7 +9518,7 @@ internal sealed partial class Checker
         // and if we are in a constructor of the same class as the property declaration, assume that
         // the property is uninitialized at the top of the control flow.
         var assumeUninitialized = false;
-        if (_strictNullChecks && _strictPropertyInitialization && Utilities.IsAccessExpression(node) && ((PropertyAccessExpression)node).Expression!.Kind == SyntaxKind.ThisKeyword)
+        if (_strictNullChecks && _strictPropertyInitialization && Utilities.IsAccessExpression(node) && GetAccessExpressionOperand(node).Kind == SyntaxKind.ThisKeyword)
         {
             var declaration = prop?.ValueDeclaration is not null ? (Node)prop.ValueDeclaration : null;
             if (declaration is not null && IsPropertyWithoutInitializer(declaration))
@@ -9415,6 +9553,13 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:35149-35207 — <c>reportNonexistentProperty</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's parameter is the <c>Identifier | PrivateIdentifier</c> union and every
+    /// <c>propNode.escapedText</c> read below is the *escaped* name (the same slot
+    /// <c>getApplicableIndexInfoForName</c> unescapes itself, and <c>typeHasStaticProperty</c> compares verbatim); the
+    /// port's read of it for both classes is <see cref="Utilities.GetEscapedTextOfIdentifierOrLiteral"/>, hoisted here
+    /// because the reference reads it on four paths.
+    /// </remarks>
     private void ReportNonexistentProperty(Node propNode, IType containingType, bool isUncheckedJS)
     {
         var links = GetNodeLinks(propNode);
@@ -9425,20 +9570,21 @@ internal sealed partial class Checker
             return;
         }
         cache.Add(key);
+        var propEscapedText = Utilities.GetEscapedTextOfIdentifierOrLiteral(propNode);
         IDiagnosticMessageChain? errorInfo = null;
         Diagnostic? relatedInfo = null;
         if (!NodeTests.IsPrivateIdentifier(propNode) && (containingType.Flags & TypeFlags.Union) != 0 && (containingType.Flags & TypeFlags.Primitive) == 0)
         {
             foreach (var subtype in ((IUnionType)containingType).Types!)
             {
-                if (GetPropertyOfType(subtype, ((Identifier)propNode).EscapedText!) is null && GetApplicableIndexInfoForName(subtype, ((Identifier)propNode).EscapedText!) is null)
+                if (GetPropertyOfType(subtype, propEscapedText) is null && GetApplicableIndexInfoForName(subtype, propEscapedText) is null)
                 {
                     errorInfo = Utilities.ChainDiagnosticMessages(errorInfo, Diagnostics.Property_0_does_not_exist_on_type_1, Utilities.DeclarationNameToString(propNode), TypeToString(subtype));
                     break;
                 }
             }
         }
-        if (TypeHasStaticProperty(((Identifier)propNode).EscapedText!, containingType))
+        if (TypeHasStaticProperty(propEscapedText, containingType))
         {
             var propName = Utilities.DeclarationNameToString(propNode);
             var typeName = TypeToString(containingType);
@@ -9447,7 +9593,7 @@ internal sealed partial class Checker
         else
         {
             var promisedType = GetPromisedTypeOfPromise(containingType);
-            if (promisedType is not null && GetPropertyOfType(promisedType, ((Identifier)propNode).EscapedText!) is not null)
+            if (promisedType is not null && GetPropertyOfType(promisedType, propEscapedText) is not null)
             {
                 errorInfo = Utilities.ChainDiagnosticMessages(errorInfo, Diagnostics.Property_0_does_not_exist_on_type_1, Utilities.DeclarationNameToString(propNode), TypeToString(containingType));
                 relatedInfo = Utilities.CreateDiagnosticForNode(propNode, Diagnostics.Did_you_forget_to_use_await);

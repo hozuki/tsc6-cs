@@ -206,7 +206,7 @@ internal sealed partial class Checker
         if (!NodeTests.IsCallExpression(node)) return false;
         var call = (CallExpression)node;
         Expression left = call.Expression!;
-        if (NodeTests.IsPropertyAccessExpression(left) && ((Identifier)((PropertyAccessExpression)left).Name!).EscapedText == "for")
+        if (NodeTests.IsPropertyAccessExpression(left) && NodeTests.IsIdentifier(((PropertyAccessExpression)left).Name!) && ((Identifier)((PropertyAccessExpression)left).Name!).EscapedText == "for")
         {
             left = ((PropertyAccessExpression)left).Expression!;
         }
@@ -574,8 +574,7 @@ internal sealed partial class Checker
                 Error(node, Diagnostics.The_right_hand_side_of_an_instanceof_expression_must_not_be_an_instantiation_expression);
             }
         }
-        var expressionWithTypeArguments = (ExpressionWithTypeArguments)node;
-        var exprType = node.Kind == SyntaxKind.ExpressionWithTypeArguments ? CheckExpression(expressionWithTypeArguments.Expression!)
+        var exprType = node.Kind == SyntaxKind.ExpressionWithTypeArguments ? CheckExpression(((ExpressionWithTypeArguments)node).Expression!)
             : Utilities.IsThisIdentifier(((TypeQueryNode)node).ExprName) ? CheckThisExpression(((TypeQueryNode)node).ExprName!)
             : CheckExpression(((TypeQueryNode)node).ExprName!);
         return GetInstantiationExpressionType(exprType, node);

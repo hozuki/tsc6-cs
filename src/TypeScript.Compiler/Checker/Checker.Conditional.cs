@@ -1286,20 +1286,34 @@ internal sealed partial class Checker
     internal IType GetTypeFromTypeNode(ITypeNode? node)
     {
         var typeNode = Debug.CheckDefined(node);
-        return GetConditionalFlowTypeOfType(GetTypeFromTypeNodeWorker(typeNode), (Node)typeNode);
+        return GetConditionalFlowTypeOfType(GetTypeFromTypeNodeWorker((Node)typeNode), (Node)typeNode);
     }
+
+    /// <summary>The <c>isPartOfTypeNode</c> arm of <c>getTypeOfNode</c> (checker.ts:50394-50396).</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference reaches <c>getTypeFromTypeNode(node as TypeNode)</c> from <c>isPartOfTypeNode</c>
+    /// (utilities.ts:2788), whose admitted kinds include tokens and entity names the <c>TypeNode</c> union does not
+    /// contain — <c>getTypeFromTypeNodeWorker</c>'s own comment records them (checker.ts:20530-20532) and its switch is
+    /// written for exactly those kinds. The port's <c>ITypeNode</c> is a marker interface (Model/NodeInterfaces.cs:3731)
+    /// that <c>Token</c>, <c>Identifier</c>, <c>QualifiedName</c> and <c>PropertyAccessExpression</c> do not implement,
+    /// so this arm hands the node to the worker as the class they all are; the kind test is what proves each arm.
+    /// </remarks>
+    internal IType GetTypeFromTypeNodeForPartOfTypeNode(Node node)
+        => GetConditionalFlowTypeOfType(GetTypeFromTypeNodeWorker(node), node);
 
     /// <summary>ported from: src/compiler/checker.ts:20436-20536 — <c>getTypeFromTypeNodeWorker</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: every case of the reference's switch is here, in its order. The node-class arms are casts (the switch's
     /// kind test is what proves them), the arms whose reference parameter is a union of type nodes pass the node on
-    /// unchanged (their callees take <see cref="ITypeNode"/>), the <c>getTypeFromThisTypeNode</c> arm passes the common
-    /// base <c>Node</c>, and the last three kinds — the ones the reference's own comment calls out as not being type
-    /// nodes, reached here because <c>isPartOfTypeNode</c> accepts them — are read as a node so that
-    /// <c>getSymbolAtLocation</c> takes them. <c>objectKeyword</c>'s JS-file test is the flag test the reference
-    /// performs, and <c>!noImplicitAny</c> is the checker's option field.
+    /// unchanged (their callees take <see cref="ITypeNode"/> — the kind test proves the marker for those kinds), the
+    /// <c>getTypeFromThisTypeNode</c> arm passes the common base <c>Node</c>, and the last three kinds — the ones the
+    /// reference's own comment calls out as not being type nodes, reached here because <c>isPartOfTypeNode</c> accepts
+    /// them — are read as a node so that <c>getSymbolAtLocation</c> takes them. The parameter is the base class rather
+    /// than <see cref="ITypeNode"/> for the same reason: the reference's own comment says the guard admits kinds no
+    /// <c>TypeNode</c> is. <c>objectKeyword</c>'s JS-file test is the flag test the reference performs, and
+    /// <c>!noImplicitAny</c> is the checker's option field.
     /// </remarks>
-    internal IType GetTypeFromTypeNodeWorker(ITypeNode node)
+    internal IType GetTypeFromTypeNodeWorker(Node node)
     {
         switch (node.Kind)
         {
@@ -1348,7 +1362,7 @@ internal sealed partial class Checker
                 return GetTypeFromTypeQueryNode((TypeQueryNode)node);
             case SyntaxKind.ArrayType:
             case SyntaxKind.TupleType:
-                return GetTypeFromArrayOrTupleTypeNode(node);
+                return GetTypeFromArrayOrTupleTypeNode((ITypeNode)node);
             case SyntaxKind.OptionalType:
                 return GetTypeFromOptionalTypeNode((OptionalTypeNode)node);
             case SyntaxKind.UnionType:
@@ -1366,7 +1380,7 @@ internal sealed partial class Checker
             case SyntaxKind.JSDocTypeExpression:
                 return GetTypeFromTypeNode(((ParenthesizedTypeNode)node).Type);
             case SyntaxKind.RestType:
-                return GetTypeFromRestTypeNode(node);
+                return GetTypeFromRestTypeNode((ITypeNode)node);
             case SyntaxKind.JSDocVariadicType:
                 return GetTypeFromJSDocVariadicType((JSDocVariadicType)node);
             case SyntaxKind.FunctionType:
@@ -1375,7 +1389,7 @@ internal sealed partial class Checker
             case SyntaxKind.JSDocTypeLiteral:
             case SyntaxKind.JSDocFunctionType:
             case SyntaxKind.JSDocSignature:
-                return GetTypeFromTypeLiteralOrFunctionOrConstructorTypeNode(node);
+                return GetTypeFromTypeLiteralOrFunctionOrConstructorTypeNode((ITypeNode)node);
             case SyntaxKind.TypeOperator:
                 return GetTypeFromTypeOperatorNode((TypeOperatorNode)node);
             case SyntaxKind.IndexedAccessType:

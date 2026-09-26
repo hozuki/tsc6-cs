@@ -21,9 +21,10 @@ namespace TypeScript.Compiler;
 /// <para>
 /// M4f's two files (<c>factory/emitHelpers.ts</c> and <c>expressionToTypeNode.ts</c>) added the last group: the
 /// function-like predicates they narrow with, <c>findAncestor</c>, <c>forEachReturnStatement</c>,
-/// <c>getFunctionFlags</c> and the <c>getEffective*tNode</c> family. Two of their bodies stop short of the JS-file
-/// JSDoc fallback, because <c>getJSDocType</c> / <c>getJSDocReturnType</c> belong to the JSDoc-attribution family of M5:
-/// each says so in a PORT-NOTE and throws rather than answering a type-less <c>null</c>. <c>hasDynamicName</c> is
+/// <c>getFunctionFlags</c> and the <c>getEffective*tNode</c> family. Both of that family's JSDoc fallbacks are now the
+/// reference's own: <c>getJSDocType</c> (<c>Utilities.Checker.cs</c>) and <c>getJSDocReturnType</c>
+/// (<c>Utilities.JSDoc.cs</c>) are landed, so neither body stops short of the JS-file branch any more.
+/// <c>hasDynamicName</c> is
 /// <em>not</em> here for the same milestone reason — it is defined as <c>getNonAssignedNameOfDeclaration(declaration)</c>
 /// followed by <c>isDynamicName</c>, and that name lookup is exactly the M5 family §15.9 records as residual.
 /// </para>
@@ -1063,11 +1064,12 @@ internal static partial class Utilities
 
     /// <summary>ported from: src/compiler/utilities.ts:6892-6898 — <c>getEffectiveTypeAnnotationNode</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: the JSDoc fallback that TS runs for a JavaScript file is only half ported. The JSDoc-property case is
-    /// here (<c>node.typeExpression.type</c> is the annotation, and both kinds are in the model), but the rest needs
-    /// <c>getJSDocType</c>, which belongs to the JSDoc-attribution family that arrives with M5. Answering <c>null</c>
-    /// there would silently drop every type a JS file declares through <c>@type</c> / <c>@param</c>, so the branch is a
-    /// loud blocker instead — the same choice <see cref="FactoryUtilities.IsJSDocTypeAssertion"/> makes.
+    /// PORT-NOTE: TS's JSDoc fallback for a JavaScript file is a ternary — <c>isJSDocPropertyLikeTag(node) ?
+    /// node.typeExpression && node.typeExpression.type : getJSDocType(node)</c> — whose first arm reads the tag's own
+    /// type expression and whose second is the <c>@type</c>/<c>@param</c> lookup <c>getJSDocType</c>
+    /// (utilitiesPublic.ts:1224-1231, the landed <see cref="GetJSDocType"/> in Utilities.Checker.cs). The port keeps the
+    /// arm split; <c>node.typeExpression &amp;&amp; node.typeExpression.type</c> is the port's <c>TypeExpression?.Type</c>,
+    /// the same "no expression, no type" answer.
     /// </remarks>
     public static ITypeNode? GetEffectiveTypeAnnotationNode(Node node)
     {
@@ -1076,8 +1078,7 @@ internal static partial class Utilities
         var type = GetTypeAnnotationNode(node);
         if (type is not null || !IsInJSFile(node)) return type;
         if (node is JSDocPropertyLikeTag propertyLike) return propertyLike.TypeExpression?.Type;
-        throw new NotImplementedException(
-            "getEffectiveTypeAnnotationNode's JSDoc fallback needs getJSDocType, which arrives with the JSDoc helpers in M5");
+        return GetJSDocType(node);
     }
 
     /// <summary>ported from: src/compiler/utilities.ts:6901-6903 — <c>getTypeAnnotationNode</c>.</summary>
@@ -1127,10 +1128,9 @@ internal static partial class Utilities
     /// <see cref="IsFunctionLike"/>), so the port takes <c>Node</c> and narrows with <c>is JSDocSignature</c> /
     /// <c>is ISignatureDeclarationBase</c> exactly where TS's union members apply.
     /// <para>
-    /// PORT-NOTE: the JavaScript-file fallback (<c>getJSDocReturnType</c>) is not ported — it belongs to the
-    /// JSDoc-attribution family that arrives with M5. A JS function with no return annotation is the common case there,
-    /// so answering <c>null</c> would silently drop the declared return type; the branch is a loud blocker instead, the
-    /// same choice <see cref="GetEffectiveTypeAnnotationNode"/> makes.
+    /// The JavaScript-file fallback is <c>getJSDocReturnType</c> (<see cref="GetJSDocReturnType"/>,
+    /// Utilities.JSDoc.cs), which the reference reads as <c>node.type || (isInJSFile(node) ? getJSDocReturnType(node) :
+    /// undefined)</c>.
     /// </para>
     /// </remarks>
     public static ITypeNode? GetEffectiveReturnTypeNode(Node node)
@@ -1142,9 +1142,7 @@ internal static partial class Utilities
 
         var type = node is ISignatureDeclarationBase signature ? signature.Type : null;
         if (type is not null) return type;
-        if (!IsInJSFile(node)) return null;
-        throw new NotImplementedException(
-            "getEffectiveReturnTypeNode's JSDoc fallback needs getJSDocReturnType, which arrives with the JSDoc helpers in M5");
+        return IsInJSFile(node) ? GetJSDocReturnType(node) : null;
     }
 
     /// <summary>ported from: src/compiler/utilities.ts:6933-6936 — <c>getEffectiveSetAccessorTypeAnnotationNode</c>.</summary>

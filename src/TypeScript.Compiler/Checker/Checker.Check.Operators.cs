@@ -1238,7 +1238,17 @@ internal sealed partial class Checker
             case SyntaxKind.PostfixUnaryExpression:
                 // Unary operators ~, !, +, and - have no side effects.
                 // The rest do.
-                switch (((PrefixUnaryExpression)node).Operator)
+                //
+                // PORT-NOTE: the reference reads `(node as PrefixUnaryExpression).operator` (checker.ts:40448), a no-op
+                // re-view of the `PrefixUnaryExpression | PostfixUnaryExpression` union: the cast target is structural,
+                // and a postfix node carries the same `operator` slot (types.ts:2445) as a prefix node does
+                // (types.ts:2433). The port's two classes are distinct, so the slot is read from the class the kind
+                // names — the same per-kind read `Utilities.GetOperator` makes for this union (utilities.ts:5690-5698),
+                // which is private to `Utilities.cs`.
+                var @operator = node.Kind == SyntaxKind.PrefixUnaryExpression
+                    ? ((PrefixUnaryExpression)node).Operator
+                    : ((PostfixUnaryExpression)node).Operator;
+                switch (@operator)
                 {
                     case SyntaxKind.ExclamationToken:
                     case SyntaxKind.PlusToken:
@@ -1426,7 +1436,7 @@ internal sealed partial class Checker
 
         IType? GetLeftType(WorkArea state) => state.TypeStack[state.StackIndex];
 
-        void SetLeftType(WorkArea state, IType? type) => state.TypeStack[state.StackIndex] = type;
+        void SetLeftType(WorkArea state, IType? type) => SetTypeStackEntry(state.TypeStack, state.StackIndex, type);
 
         IType? GetLastResult(WorkArea state) => state.TypeStack[state.StackIndex + 1];
 
@@ -1435,7 +1445,37 @@ internal sealed partial class Checker
             // last result. This avoids the overhead of an additional property
             // on `WorkArea` and reuses empty stack entries as we walk back up
             // the stack.
-            state.TypeStack[state.StackIndex + 1] = type;
+            SetTypeStackEntry(state.TypeStack, state.StackIndex + 1, type);
+
+        /// <summary>ported from: src/compiler/checker.ts:40597-40611 — <c>setLeftType</c>'s and <c>setLastResult</c>'s <c>typeStack</c> assignment.</summary>
+        /// <remarks>
+        /// PORT-NOTE: the reference writes <c>state.typeStack[index] = type</c> on the JavaScript array <c>onEnter</c>
+        /// seeds with <c>[undefined, undefined]</c> (checker.ts:40503), where an index past the end *expands* the array
+        /// and the slots skipped over read back as <c>undefined</c>; a <c>List&lt;IType?&gt;</c> indexer throws
+        /// <c>ArgumentOutOfRangeException</c> instead. Only the explicit frame stacks of the trampoline are pushed
+        /// (factory/utilities.ts:1392-1400, ported with the same assign-or-append shape);
+        /// <c>WorkArea.typeStack</c> instead grows here, because each frame's <c>onEnter</c> increments <c>stackIndex</c>
+        /// and then writes <c>stackIndex</c> and <c>stackIndex + 1</c> (checker.ts:40493-40496) — one slot deeper than
+        /// the parent frame's <c>setLastResult</c> reached, which is what makes the reference's stack "hold the types
+        /// from the left-side of an expression from [0..stackIndex] and the type of the result at stackIndex+1"
+        /// (checker.ts:40476-40478). Assigning when the slot exists and expanding when it does not is that array
+        /// assignment, and the skipped slots become the <c>null</c> this port's <c>undefined</c> is.
+        /// </remarks>
+        static void SetTypeStackEntry(List<IType?> typeStack, int index, IType? type)
+        {
+            if (index < typeStack.Count)
+            {
+                typeStack[index] = type;
+            }
+            else
+            {
+                while (typeStack.Count < index)
+                {
+                    typeStack.Add(null);
+                }
+                typeStack.Add(type);
+            }
+        }
     }
 
     /// <summary>ported from: src/compiler/checker.ts:40471-40481 — <c>createCheckBinaryExpression</c>'s <c>WorkArea</c>.</summary>

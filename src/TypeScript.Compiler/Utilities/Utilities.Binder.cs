@@ -595,11 +595,13 @@ internal static partial class Utilities
 
     /// <summary>ported from: src/compiler/utilitiesPublic.ts:1744-1746 — <c>isClassLike</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS's <c>node &amp;&amp;</c> truthiness test has no counterpart because the parameter is non-nullable;
-    /// its guard narrows to <c>ClassLikeDeclaration</c>, so the port answers <c>bool</c>.
+    /// PORT-NOTE: TS's guard narrows to <c>ClassLikeDeclaration</c>, so the port answers <c>bool</c>. Its <c>node
+    /// &amp;&amp;</c> is the function's contract, not a defensive test: callers hand it a nullable parent
+    /// (<c>checker.ts:3408</c>'s <c>if (isClassLike(location.parent))</c> walks to the root, where the parent is
+    /// undefined), so the parameter is nullable here too and an absent node answers <c>false</c>.
     /// </remarks>
-    public static bool IsClassLike(Node node)
-        => node.Kind is SyntaxKind.ClassDeclaration or SyntaxKind.ClassExpression;
+    public static bool IsClassLike(Node? node)
+        => node is not null && node.Kind is SyntaxKind.ClassDeclaration or SyntaxKind.ClassExpression;
 
     /// <summary>ported from: src/compiler/utilitiesPublic.ts:1752-1754 — <c>isAutoAccessorPropertyDeclaration</c>.</summary>
     /// <remarks>

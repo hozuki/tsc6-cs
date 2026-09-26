@@ -497,7 +497,12 @@ internal sealed partial class Checker
                 // falls through
                 goto case SyntaxKind.NewExpression;
             case SyntaxKind.NewExpression:
-                return CheckCallExpression((CallExpression)node, checkMode);
+                // Reference (checker.ts:37810): `checkCallExpression(node: CallExpression | NewExpression, checkMode)`.
+                // `NewExpression extends PrimaryExpression` and `CallExpression extends LeftHandSideExpression` in TS,
+                // so the reference's cast is structural: the two kinds share `expression`/`typeArguments`/`arguments`
+                // and `questionDotToken` reads `undefined` on a new-expression. C# cannot cast between the sibling
+                // classes, so the node is handed to the same union-typed entry point, which reads those slots per class.
+                return CheckCallExpression(node, checkMode);
             case SyntaxKind.TaggedTemplateExpression:
                 return CheckTaggedTemplateExpression((TaggedTemplateExpression)node);
             case SyntaxKind.ParenthesizedExpression:

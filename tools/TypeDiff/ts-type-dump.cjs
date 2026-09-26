@@ -328,7 +328,10 @@ function main() {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
     // allowJs: a `.js` root file is only a supported program root when it is on, and the corpus has a few. `strict` is
     // off by default like the reference's own default options object, and is what --strict turns on for both sides.
-    const options = { target: ts.ScriptTarget.ESNext, allowJs: true };
+    // suppressOutputPathCheck: the port half cannot ask for an emit host yet (its emitter is M7), and the reference's
+    // verifyCompilerOptions only asks for one when this flag is unset (program.ts:4392-4395); the flag is read nowhere
+    // else for these corpora, so setting it on both sides keeps the two option sets identical.
+    const options = { target: ts.ScriptTarget.ESNext, allowJs: true, suppressOutputPathCheck: true };
     if (strict) options.strict = true;
 
     const portHashes = new Map();

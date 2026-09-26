@@ -333,16 +333,12 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:49710-49721 — <c>checkSourceFileWithEagerDiagnostics</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS swaps the <c>addLazyDiagnostic</c> closure for <c>cb =&gt; cb()</c> so every deferral during
-    /// <c>checkSourceFile</c> runs its callback immediately, then restores the closure. In the port
-    /// <c>addLazyDiagnostic</c> is the shared method <see cref="AddLazyDiagnostic"/> (Checker.cs:144), which every
-    /// slice calls, so the swap cannot be expressed without changing that member; the port instead drains the
-    /// callbacks the check just deferred. The queue is empty on entry (the first call), so the second call reaches
-    /// exactly the callbacks the check deferred — in the order they were deferred, including ones a callback defers
-    /// itself, which is the same set and order TS's identity-function mode invokes. The one difference is timing: TS
-    /// runs such a callback at its deferral point, the port runs it when the check returns, which is also what the
-    /// deferred-diagnostics contract says those callbacks assume. Every observer sees the same state
-    /// (<c>_diagnostics</c> holds the file's deferred diagnostics) before this member returns.
+    /// PORT-NOTE: TS swaps <c>addLazyDiagnostic</c> for <c>cb =&gt; cb()</c> so every deferral made during the check
+    /// runs at its deferral point, then restores the queueing closure. The port performs the identical swap on
+    /// <c>_addLazyDiagnostic</c> (Checker.cs:179), so the callbacks run where the reference runs them: in the middle of
+    /// the check, before the members checked after the deferral point. That ordering is observable — it decides when
+    /// the types those callbacks create get their ids (checker.ts:5517-5523) and where their diagnostics land in the
+    /// file's list — so draining them afterwards, as this member once did, reordered both.
     /// </remarks>
     internal void CheckSourceFileWithEagerDiagnostics(SourceFile sourceFile, List<Node>? nodesToCheck = null)
     {
@@ -352,8 +348,10 @@ internal sealed partial class Checker
         // This also serves to make the shift to possibly lazy diagnostics transparent to serial command-line scenarios
         // (as in those cases, all the diagnostics will still be computed as the appropriate place in the tree,
         // thus much more likely retaining the same union ordering as before we had lazy diagnostics)
+        var oldAddLazyDiagnostics = _addLazyDiagnostic;
+        _addLazyDiagnostic = arg => arg();
         CheckSourceFile(sourceFile, nodesToCheck);
-        EnsurePendingDiagnosticWorkComplete();
+        _addLazyDiagnostic = oldAddLazyDiagnostics;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:49723-49759 — <c>getDiagnosticsWorker</c>.</summary>
@@ -1045,12 +1043,17 @@ internal sealed partial class Checker
             }
         }
 
+        // Reference (checker.ts:50181-50182): `name.left` / `name.right.escapedText` are read straight off the
+        // `EntityName | JSDocMemberName` union. Both non-identifier arms of that union — `QualifiedName` and
+        // `JSDocMemberName` — carry the two slots but declare them on no shared interface, so the port reads them per
+        // kind (as the parser's `escapedTextsEqual` does for the same union). The old code's concrete
+        // `JSDocMemberName` cast threw for the `QualifiedName` arm, which checker.ts:50114 does reach.
         var left = NodeTests.IsIdentifier(name)
             ? container
-            : ResolveJSDocMemberName(((JSDocMemberName)name).Left!, ignoreErrors, container);
+            : ResolveJSDocMemberName(JSDocNameLeft(name), ignoreErrors, container);
         var right = NodeTests.IsIdentifier(name)
             ? ((Identifier)name).EscapedText
-            : ((JSDocMemberName)name).Right!.EscapedText;
+            : JSDocNameRightEscapedText(name);
         if (left is not null)
         {
             var proto = (left.Flags & SymbolFlags.Value) != 0
@@ -1062,6 +1065,30 @@ internal sealed partial class Checker
 
         return null;
     }
+
+    /// <summary>TS: <c>name.left</c> for the two non-identifier arms of the <c>EntityName | JSDocMemberName</c> union
+    /// <see cref="ResolveJSDocMemberName"/> walks.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>name.left</c> is one read over the union; the port's <c>QualifiedName</c> and
+    /// <c>JSDocMemberName</c> declare the slot on no shared interface, so the port switches on the kind (the parser's
+    /// <c>escapedTextsEqual</c>/<c>NameLeft</c> does the same for this union). The discard arm is unreachable — the
+    /// caller has already ruled out the identifier form and the union has no third member — and answers the node itself,
+    /// as the parser's <c>NameLeft</c> does.
+    /// </remarks>
+    private static Node JSDocNameLeft(Node name) => name switch
+    {
+        QualifiedName qualifiedName => qualifiedName.Left!,
+        JSDocMemberName memberName => memberName.Left!,
+        _ => name,
+    };
+
+    /// <summary>TS: <c>name.right.escapedText</c> for the two non-identifier arms of the same union.</summary>
+    private static string? JSDocNameRightEscapedText(Node name) => name switch
+    {
+        QualifiedName qualifiedName => qualifiedName.Right?.EscapedText,
+        JSDocMemberName memberName => memberName.Right?.EscapedText,
+        _ => null,
+    };
 
     /// <summary>ported from: src/compiler/checker.ts:50190-50349 — <c>getSymbolAtLocation</c>.</summary>
     /// <remarks>
@@ -1400,7 +1427,11 @@ internal sealed partial class Checker
             : null;
         if (Utilities.IsPartOfTypeNode(node))
         {
-            var typeFromTypeNode = GetTypeFromTypeNode((ITypeNode)node);
+            // PORT-NOTE: the reference's `getTypeFromTypeNode(node as TypeNode)` here is the structural cast its own
+            // worker's comment records (checker.ts:20530-20532): `isPartOfTypeNode` (utilities.ts:2788) admits
+            // identifiers, qualified names, property accesses, `null` and `this`. The port's marker interface
+            // `ITypeNode` is not on those classes, so the arm enters through the worker's node-typed entry point.
+            var typeFromTypeNode = GetTypeFromTypeNodeForPartOfTypeNode(node);
             return classType is not null ? GetTypeWithThisArgument(typeFromTypeNode, classType.ThisType) : typeFromTypeNode;
         }
 

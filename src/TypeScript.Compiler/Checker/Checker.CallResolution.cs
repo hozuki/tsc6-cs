@@ -231,7 +231,10 @@ internal sealed partial class Checker
     /// PORT-NOTE: the reference reads <c>node.template</c>, <c>node.attributes</c> and <c>node.arguments</c> from the
     /// union after its own <c>node.kind</c>/<c>isJsxOpeningLikeElement</c>/<c>isCallOrNewExpression</c> tests; the port
     /// keeps each test and reads the slot with a cast to the arm the test admitted (<c>as</c> + <c>?.</c> for the two
-    /// JSX opener classes, whose <c>attributes</c> slot is declared on both). <c>node.arguments.hasTrailingComma</c>
+    /// JSX opener classes, whose <c>attributes</c> slot is declared on both). The template span's <c>literal</c> is the
+    /// union <c>TemplateMiddle | TemplateTail</c> in the reference, whose <c>isUnterminated</c> comes from
+    /// <c>LiteralLikeNode</c>, and the port's <see cref="ILiteralLikeNode"/> is that same face (<c>TemplateTail</c> is
+    /// not a <c>LiteralExpression</c>). <c>node.arguments.hasTrailingComma</c>
     /// is <c>NodeArray.HasTrailingComma</c>. <c>Math.min</c> is <see cref="Math.Min(int, int)"/>.
     /// </remarks>
     internal bool HasCorrectArity(Node node, IList<Expression> args, ISignature signature, bool signatureHelpTrailingComma = false)
@@ -252,7 +255,7 @@ internal sealed partial class Checker
                 // If a tagged template expression lacks a tail literal, the call is incomplete.
                 // Specifically, a template only can end in a TemplateTail or a Missing literal.
                 var lastSpan = Core.Last(((TemplateExpression)template).TemplateSpans!); // we should always have at least one span.
-                callIsIncomplete = Utilities.NodeIsMissing(lastSpan.Literal!) || ((LiteralExpression)lastSpan.Literal!).IsUnterminated == true;
+                callIsIncomplete = Utilities.NodeIsMissing(lastSpan.Literal!) || ((ILiteralLikeNode)lastSpan.Literal!).IsUnterminated == true;
             }
             else
             {
@@ -611,8 +614,12 @@ internal sealed partial class Checker
 
         if (index >= argCount - 1)
         {
-            var arg = args[argCount - 1];
-            if (IsSpreadArgument(arg))
+            // PORT-NOTE: the reference's `args[argCount - 1]` is the falsy `undefined` when that slot does not exist —
+            // an empty argument list (`args[-1]`) or an `argCount` past the end — and `isSpreadArgument` rejects it, so
+            // the tail analysis below is skipped. The port's List indexer throws instead, so the missing element is
+            // read as null, the same "there is no argument here" answer.
+            Expression? arg = argCount >= 1 && argCount <= args.Count ? args[argCount - 1] : null;
+            if (arg is not null && IsSpreadArgument(arg))
             {
                 // We are inferring from a spread expression in the last argument position, i.e. both the parameter
                 // and the argument are ...x forms.
@@ -1153,13 +1160,25 @@ internal sealed partial class Checker
             {
                 var arg = effectiveArgsSource[i];
                 // We can call checkExpressionCached because spread expressions never have a contextual type.
-                var spreadType = arg.Kind == SyntaxKind.SpreadElement && _flowLoopCount != 0 ? CheckExpression(((SpreadElement)arg).Expression!) : CheckExpressionCached(((SpreadElement)arg).Expression!);
+                // PORT-NOTE: the reference's `arg.kind === SyntaxKind.SpreadElement && (flowLoopCount ? checkExpression(…) :
+                // checkExpressionCached(…))` is the falsy `false` for a non-spread argument, so the `spreadType && isTupleType(spreadType)`
+                // test below is false and the argument is pushed unchanged. A C# `?:` cannot produce `false | Type`, so the port states
+                // that same value as a null type for the non-spread arm.
+                IType? spreadType = arg.Kind == SyntaxKind.SpreadElement
+                    ? (_flowLoopCount != 0 ? CheckExpression(((SpreadElement)arg).Expression!) : CheckExpressionCached(((SpreadElement)arg).Expression!))
+                    : null;
                 if (spreadType is not null && IsTupleType(spreadType))
                 {
                     Core.ForEach(GetElementTypes((ITupleTypeReference)spreadType), (IType t, int i) =>
                     {
                         var elementFlags = ((ITupleType)((ITupleTypeReference)spreadType).Target!).ElementFlags![i];
-                        var syntheticArg = CreateSyntheticExpression(arg, (elementFlags & ElementFlags.Rest) != 0 ? CreateArrayType(t) : t, (elementFlags & ElementFlags.Variable) != 0, ((ITupleType)((ITupleTypeReference)spreadType).Target!).LabeledElementDeclarations?[i]);
+                        var labeledElementDeclarations = ((ITupleType)((ITupleTypeReference)spreadType).Target!).LabeledElementDeclarations;
+                        // PORT-NOTE: the reference reads `target.labeledElementDeclarations?.[i]`, whose value is
+                        // `undefined` whenever the tuple target carries no labels at all (the reference's
+                        // `createTupleType` default of `[]`, which the port's `CreateTupleType` also passes) or fewer
+                        // labels than elements — a JS array read past the end. The port's List indexer throws
+                        // instead, so the missing label is read as null.
+                        var syntheticArg = CreateSyntheticExpression(arg, (elementFlags & ElementFlags.Rest) != 0 ? CreateArrayType(t) : t, (elementFlags & ElementFlags.Variable) != 0, i < Core.Length(labeledElementDeclarations) ? labeledElementDeclarations![i] : null);
                         effectiveArgs.Add(syntheticArg);
                         return (object?)null;
                     });

@@ -198,8 +198,17 @@ internal static partial class Program
         File.WriteAllText(paths.Report, report, Utf8NoBom);
         File.WriteAllText(paths.Divergences, BuildJsonLines(divergences), Utf8NoBom);
         Console.Out.Write(report);
+        // Contract (the file header): 0 = every hash matched, 1 = divergences or crashes were found. `same` alone does
+        // not make a run clean: a file with a hash on only one side (unpaired), a port crash, a reference error and a
+        // divergence each mean something was *not* compared, and a run that compared nothing at all must never read as
+        // agreement — including the case where every file crashed without the crash index being readable back.
+        var clean = same == files.Count && missing == 0 && divergences.Count == 0 && crashes.Count == 0 && tsErrors.Count == 0;
+        var verdict = clean ? 0 : 1;
+        Console.Error.WriteLine(
+            $"typediff: VERDICT {(clean ? "clean" : "fail")} same={same}/{files.Count} diverged={divergences.Count}"
+            + $" port-crash={crashes.Count} ts-error={tsErrors.Count} unpaired={missing} exit={verdict}");
         Console.Error.WriteLine($"typediff: port pass {portElapsed.TotalSeconds:F2}s, total {started.Elapsed.TotalSeconds:F2}s");
-        return divergences.Count == 0 && crashes.Count == 0 && tsErrors.Count == 0 ? 0 : 1;
+        return verdict;
     }
 
     // ------------------------------------------------------------------------------------------------------------
@@ -312,6 +321,16 @@ internal static partial class Program
         Target = ScriptTarget.ESNext,
         AllowJs = true,
         Strict = settings.Strict ? true : null,
+        // PORT-NOTE: the reference's `verifyCompilerOptions` asks for the emit host whenever
+        // `!noEmit && !suppressOutputPathCheck` (program.ts:4392-4395: `const emitHost = getEmitHost();` then
+        // `forEachEmittedFile(emitHost, …)`), and its own `getEmitHost` is real. The port's `getEmitHost` is M7's loud
+        // blocker (`Program.EmitBoundary.cs`), so a program over default options cannot finish `createProgram` until
+        // M7 — the same reachability the checker's own end-to-end tests take `suppressOutputPathCheck` for
+        // (`CheckerCreateTypeCheckerTests.CreateProgramOver`). The flag is read in exactly two places in the reference
+        // (that block and program.ts:4588, the project-reference build-info path) and neither emits a diagnostic for a
+        // single-file corpus whose outputs cannot collide with its inputs, so both halves stay comparable; the node
+        // half sets the same flag (`ts-type-dump.cjs`), which is what keeps the option sets identical.
+        SuppressOutputPathCheck = true,
     };
 
     /// <summary>The canonical dump of one file: its diagnostic lists, then every node with the records it refers to.</summary>

@@ -2673,7 +2673,7 @@ internal sealed partial class Checker
                 && (source.Symbol.Flags & SymbolFlags.Class) != 0
             )
             {
-                var privateIdentifierDescription = ((Identifier)((INamedDeclaration)unmatchedProperty.ValueDeclaration).Name!).EscapedText!;
+                var privateIdentifierDescription = ((PrivateIdentifier)((INamedDeclaration)unmatchedProperty.ValueDeclaration).Name!).EscapedText!;
                 var symbolTableKey = Utilities.GetSymbolNameForPrivateIdentifier(source.Symbol, privateIdentifierDescription);
                 if (symbolTableKey is not null && GetPropertyOfType(source, symbolTableKey) is not null)
                 {

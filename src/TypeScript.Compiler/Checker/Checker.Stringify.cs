@@ -634,7 +634,12 @@ internal sealed partial class Checker
             {
                 if ((t.Flags & TypeFlags.BooleanLiteral) != 0 || (!expandingEnum && (t.Flags | TypeFlags.EnumLike) != 0))
                 {
-                    var baseType = (t.Flags & TypeFlags.BooleanLiteral) != 0 ? _booleanType : GetBaseTypeOfEnumLikeType((LiteralType)t);
+                    // Reference (checker.ts:11196): `getBaseTypeOfEnumLikeType(t as LiteralType)` — the reference's cast
+                    // is erased, and `getBaseTypeOfEnumLikeType` itself takes a `Type` and tests `TypeFlags.EnumLike`
+                    // before reading anything literal-only, so every type that satisfies the enclosing guard may be
+                    // passed: an `IntrinsicType`/`InstantiationExpressionType` is answered unchanged, while the old
+                    // concrete `(LiteralType)` cast threw `InvalidCastException` for them.
+                    var baseType = (t.Flags & TypeFlags.BooleanLiteral) != 0 ? _booleanType : GetBaseTypeOfEnumLikeType(t);
                     if ((baseType.Flags & TypeFlags.Union) != 0)
                     {
                         var count = ((IUnionType)baseType).Types!.Count;

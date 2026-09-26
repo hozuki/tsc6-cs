@@ -158,6 +158,9 @@ internal sealed partial class Checker
 
         // checker.ts:1558, 1563-1565 — `globals` is created first because `globalThisSymbol` publishes itself into it.
         _globals = Utilities.CreateSymbolTable();
+
+        // checker.ts:1492-1494 — the queueing mode of `addLazyDiagnostic`, assigned after the fields it captures.
+        _addLazyDiagnostic = arg => _deferredDiagnosticsCallbacks.Add(arg);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -169,13 +172,17 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:1492-1494 — <c>addLazyDiagnostic</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS's arrow function is stored by the factory functions it is passed to; the port states it as a
-    /// member of this class because <c>addLazyDiagnostic(() => …)</c> is called from the checking members (M6-5).
+    /// PORT-NOTE: TS declares <c>addLazyDiagnostic</c> as a <c>var</c> holding an arrow function, and its two modes
+    /// are the point of that mutability: the default queues the callback, and <c>checkSourceFileWithEagerDiagnostics</c>
+    /// (checker.ts:49710-49721) swaps in <c>cb =&gt; cb()</c> for the duration of one file's check, so every deferral
+    /// runs at its deferral point instead of at the end. The port states the same two modes as this delegate — a real
+    /// method could not be swapped — and <see cref="AddLazyDiagnostic"/> keeps the call shape every checking member
+    /// uses.
     /// </remarks>
-    internal void AddLazyDiagnostic(Action arg)
-    {
-        _deferredDiagnosticsCallbacks.Add(arg);
-    }
+    internal Action<Action> _addLazyDiagnostic = null!;
+
+    /// <summary>Adds one deferred diagnostic callback (the reference's <c>addLazyDiagnostic</c> call shape).</summary>
+    internal void AddLazyDiagnostic(Action arg) => _addLazyDiagnostic(arg);
 
     // ---------------------------------------------------------------------------------------------
     // Cancellation and the shared scanner (checker.ts:1505-1507)

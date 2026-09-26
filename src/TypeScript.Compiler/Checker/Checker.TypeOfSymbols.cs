@@ -242,10 +242,13 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:11723-11732 — <c>getDestructuringPropertyName</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS casts the parent to <c>BindingPattern | ArrayLiteralExpression</c> and then reads
-    /// <c>elements as NodeArray&lt;Node&gt;</c>; C# generics are invariant and the two patterns' element lists have
-    /// different element types, so the port keeps the same <c>indexOf</c> with one arm per pattern (the cast to
-    /// <c>BindingElement</c> is the one TS's cast to <c>NodeArray&lt;Node&gt;</c> buys).
+    /// PORT-NOTE: the reference's <c>parent</c> is the union <c>BindingPattern | ArrayLiteralExpression</c> and
+    /// checker.ts:11731 widens all three <c>elements</c> slots to <c>NodeArray&lt;Node&gt;</c> before <c>indexOf</c>;
+    /// C# generics are invariant and those slots' element types differ (<c>BindingElement</c>, <c>Node</c>,
+    /// <c>Expression</c>), so the port spells one arm per kind — the same <c>indexOf</c> over the same runtime array.
+    /// The <c>BindingElement</c> arm is the narrowing the reference's first <c>if</c> already proved; the
+    /// <c>Expression</c> arm is the reference's <c>elements as NodeArray&lt;Node&gt;</c> widening read back at the
+    /// slot's own element type (only expressions are elements of an array literal).
     /// </remarks>
     private string? GetDestructuringPropertyName(Node node)
     {
@@ -261,9 +264,12 @@ internal sealed partial class Checker
             return GetLiteralPropertyNameText(((INamedDeclaration)node).Name!);
         }
 
-        var index = parent.Kind == SyntaxKind.ObjectBindingPattern
-            ? ((ObjectBindingPattern)parent).Elements!.IndexOf((BindingElement)node)
-            : ((ArrayBindingPattern)parent).Elements!.IndexOf(node);
+        var index = parent.Kind switch
+        {
+            SyntaxKind.ObjectBindingPattern => ((ObjectBindingPattern)parent).Elements!.IndexOf((BindingElement)node),
+            SyntaxKind.ArrayLiteralExpression => ((ArrayLiteralExpression)parent).Elements!.IndexOf((Expression)node),
+            _ => ((ArrayBindingPattern)parent).Elements!.IndexOf(node),
+        };
         return "" + index;
     }
 
@@ -446,9 +452,12 @@ internal sealed partial class Checker
     /// PORT-NOTE: TS's parameter is the six-way declaration union (plus, at the
     /// <c>getTypeForBindingElementParent</c> call site, a binding pattern), so the port takes <see cref="Node"/> and
     /// narrows with the reference's own predicates; every cast in the body is the narrowing TS's union types give it
-    /// for free. PORT-NOTE: the reference reads <c>declaration.name</c> twice off that union; the port hoists the same
-    /// slot into <c>declarationName</c> in one place because <c>JSDocPropertyLikeTag</c> is the only face without
-    /// <see cref="INamedDeclaration"/> and the two reads are adjacent and side-effect free.
+    /// for free. The static-block arm's <c>declaration.parent</c> is the reference's <c>ClassLikeDeclaration</c>
+    /// (types.ts:1934), so the port casts to <see cref="IClassLikeDeclarationBase"/> — the face
+    /// <see cref="ClassDeclaration"/> and <see cref="ClassExpression"/> both declare — and never to either class
+    /// (checker.ts:11958). PORT-NOTE: the reference reads <c>declaration.name</c> twice off that union; the port hoists
+    /// the same slot into <c>declarationName</c> in one place because <c>JSDocPropertyLikeTag</c> is the only face
+    /// without <see cref="INamedDeclaration"/> and the two reads are adjacent and side-effect free.
     /// </para>
     /// </remarks>
     private IType? GetTypeForVariableLikeDeclaration(Node declaration, bool includeOptionality, CheckMode checkMode)
@@ -608,7 +617,7 @@ internal sealed partial class Checker
             }
             else
             {
-                var staticBlocks = Core.Filter<IClassElement>(((ClassDeclaration)property.Parent!).Members, e => NodeTests.IsClassStaticBlockDeclaration((Node)e));
+                var staticBlocks = Core.Filter<IClassElement>(((IClassLikeDeclarationBase)property.Parent!).Members, e => NodeTests.IsClassStaticBlockDeclaration((Node)e));
                 var type = staticBlocks is not null && staticBlocks.Count != 0 ? GetFlowTypeInStaticBlocks(property.Symbol!, staticBlocks)
                     : (Utilities.GetEffectiveModifierFlags(declaration) & ModifierFlags.Ambient) != 0 ? GetTypeOfPropertyInBaseClass(property.Symbol!)
                     : null;
@@ -679,10 +688,13 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:12009-12019 — <c>getDeclaringConstructor</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS's <c>ConstructorDeclaration</c> result face is the port's <see cref="Node"/> (the container the
-    /// <c>getThisContainer</c> walk returns); the caller only passes it to members that take a node.
+    /// PORT-NOTE: TS's <c>container as ConstructorDeclaration</c> re-views a runtime value that <c>isJSConstructor</c>
+    /// equally admits as a <c>FunctionDeclaration</c>/<c>FunctionExpression</c> (checker.ts:12014-12015), so the cast is
+    /// structural, not nominal: the port spells it <see cref="IFunctionLikeDeclarationBase"/> — the face
+    /// <c>ConstructorDeclaration</c> and both JS-constructor kinds declare, and the one that carries the
+    /// <c>returnFlowNode</c> the single caller reads (types.ts:2071).
     /// </remarks>
-    internal Node? GetDeclaringConstructor(ISymbol symbol)
+    internal IFunctionLikeDeclarationBase? GetDeclaringConstructor(ISymbol symbol)
     {
         if (symbol.Declarations is null)
         {
@@ -694,7 +706,7 @@ internal sealed partial class Checker
             var container = Utilities.GetThisContainer((Node)declaration, /*includeArrowFunctions*/ false, /*includeClassComputedPropertyName*/ false);
             if (container is not null && (container.Kind == SyntaxKind.Constructor || IsJSConstructor(container)))
             {
-                return container;
+                return (IFunctionLikeDeclarationBase)container;
             }
         }
 
@@ -782,11 +794,15 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:12059-12073 — <c>getFlowTypeInConstructor</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS's <c>ConstructorDeclaration</c> parameter is the port's <see cref="Node"/> (what
-    /// <c>GetDeclaringConstructor</c> answers). The <c>factory</c> is
-    /// <see cref="FactoryUtilities.ParseNodeFactory"/> (see the file header).
+    /// PORT-NOTE: TS declares the parameter <c>ConstructorDeclaration</c> and reads its inherited
+    /// <c>returnFlowNode</c>, but its two callers hand it <c>findConstructorDeclaration(declaration.parent)</c>
+    /// (checker.ts:11952) and <c>getDeclaringConstructor(symbol)!</c> (checker.ts:12100), the latter of which may be a
+    /// JS constructor (<c>FunctionDeclaration</c>/<c>FunctionExpression</c>). The port therefore takes
+    /// <see cref="IFunctionLikeDeclarationBase"/> — the face all three declare and the one holding
+    /// <c>returnFlowNode</c> (types.ts:2071) — rather than the one concrete class, whose cast is what threw.
+    /// The <c>factory</c> is <see cref="FactoryUtilities.ParseNodeFactory"/> (see the file header).
     /// </remarks>
-    private IType? GetFlowTypeInConstructor(ISymbol symbol, Node constructor)
+    private IType? GetFlowTypeInConstructor(ISymbol symbol, IFunctionLikeDeclarationBase constructor)
     {
         object accessName = Core.StartsWith(symbol.EscapedName!, "__#")
             ? FactoryUtilities.ParseNodeFactory.CreatePrivateIdentifier(symbol.EscapedName!.Split("@")[1])
@@ -795,8 +811,8 @@ internal sealed partial class Checker
             FactoryUtilities.ParseNodeFactory.CreateThis(),
             accessName);
         Utilities.SetParent(reference.Expression, reference);
-        Utilities.SetParent(reference, constructor);
-        reference.FlowNode = ((ClassStaticBlockDeclaration)constructor).ReturnFlowNode;
+        Utilities.SetParent(reference, (Node)constructor);
+        reference.FlowNode = constructor.ReturnFlowNode;
         var flowType = GetFlowTypeOfProperty(reference, symbol);
         if (_noImplicitAny && (ReferenceEquals(flowType, _autoType) || ReferenceEquals(flowType, _autoArrayType)))
         {

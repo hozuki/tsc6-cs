@@ -184,15 +184,26 @@ public class M4fPrereqUtilitiesTests
         Assert.Equal("value", ((Identifier)Utilities.GetSetAccessorValueParameter(withThis)!.Name!).EscapedText);
     }
 
+    /// <summary>
+    /// The JSDoc fallbacks answer now that the family has landed (utilities.ts:6892-6898's
+    /// <c>getEffectiveTypeAnnotationNode</c> and utilities.ts:6911-6915's <c>getEffectiveReturnTypeNode</c>): a
+    /// JS-file node with no JSDoc around it reads as "no annotation", the reference's <c>undefined</c>.
+    /// </summary>
+    /// <remarks>
+    /// PORT-NOTE: this test replaced the M4f blocker pin (<c>Assert.Throws&lt;NotImplementedException&gt;</c>) that the
+    /// JSDoc family's absence required. The reference never throws on these two nodes — the fallbacks consult
+    /// <c>getJSDocType</c>/<c>getJSDocReturnType</c> and answer <c>undefined</c> when there is no JSDoc — so the
+    /// expectations are the reference's own answers, not a relaxation of the old ones.
+    /// </remarks>
     [Fact]
-    public void TheJavaScriptFallbacks_ThrowUntilTheJsDocFamilyLands()
+    public void TheJavaScriptFallbacks_ReadTheJSDocFamily()
     {
         var jsDeclaration = FirstDeclaration("var x = 1;", ScriptKind.JS);
         Assert.True(Utilities.IsInJSFile(jsDeclaration));
-        Assert.Throws<NotImplementedException>(() => Utilities.GetEffectiveTypeAnnotationNode(jsDeclaration));
+        Assert.Null(Utilities.GetEffectiveTypeAnnotationNode(jsDeclaration));
 
         var jsFunction = (Node)Parse("function f() {}", ScriptKind.JS).Statements![0];
-        Assert.Throws<NotImplementedException>(() => Utilities.GetEffectiveReturnTypeNode(jsFunction));
+        Assert.Null(Utilities.GetEffectiveReturnTypeNode(jsFunction));
 
         // The same two nodes in a TypeScript file answer "no annotation" instead of asking JSDoc.
         var tsDeclaration = FirstDeclaration("var x = 1;");

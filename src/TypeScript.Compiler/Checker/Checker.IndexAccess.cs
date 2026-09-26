@@ -116,13 +116,21 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:18865-18869 — <c>createOriginIndexType</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: <c>createOriginType</c> leaves <c>id</c> at 0 (checker.ts:5531-5533), so an origin index type is not
-    /// a key into any id-keyed map; nothing here reads it. The union parameter is widened as in
+    /// PORT-NOTE: the reference's body is <c>const result = createOriginType(TypeFlags.Index) as IndexType;
+    /// result.type = type;</c> (:18866-18867) — again an <c>as</c> re-view of the plain <c>Type</c>
+    /// <c>createOriginType</c> (:5531-5533) built, so the object must here be the class the flags→class dispatch picks
+    /// for <c>TypeFlags.Index</c> (<see cref="CreateTypeInstance"/>): its sole caller passes the origin as the
+    /// <c>origin</c> of a union (checker.ts:18968, Checker.IndexAccess.cs:328), where the union cache key reads
+    /// <c>(origin as IndexType).type.id</c> (checker.ts:18441, Checker.Unions.cs:690). <c>createOriginType</c> leaves
+    /// <c>id</c> at 0 (:5517-5523 gives an id only in <c>createType</c>), so an origin index type is not a key into any
+    /// id-keyed map and never enters <c>typeCount</c>. <c>indexFlags</c> is not written, as upstream
+    /// (:18865-18869): the slot keeps its default, and TS's absent property reads as 0 in the bit tests
+    /// (<c>IndexFlags.None</c>, Model/IndexFlags.cs:15). The union parameter is widened as in
     /// <see cref="CreateIndexType"/>.
     /// </remarks>
     internal IIndexType CreateOriginIndexType(IType type)
     {
-        var result = (IIndexType)CreateOriginType(TypeFlags.Index);
+        var result = new IndexType(this, TypeFlags.Index);
         result.Type = type;
         return result;
     }

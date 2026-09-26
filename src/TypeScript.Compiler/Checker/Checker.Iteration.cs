@@ -130,45 +130,60 @@ internal sealed partial class Checker
     };
 
     /// <summary>ported from: src/compiler/checker.ts:45899-45901 — <c>getCachedIterationTypes</c>.</summary>
-    /// <remarks>PORT-NOTE: TS indexes the type with the resolver's cache key; the port switches on the same key over the four slots <see cref="IIterableOrIteratorType"/> declares.</remarks>
+    /// <remarks>
+    /// <para>PORT-NOTE: TS indexes the type with the resolver's cache key; the port switches on the same key over the slots <see cref="IIterableOrIteratorType"/> declares.</para>
+    /// <para>PORT-NOTE: the reference's <c>(type as IterableOrIteratorType)[cacheKey]</c> is a plain expando read on any
+    /// type object, so a type that is not an instance of the port's <see cref="UnionOrIntersectionType"/> family (an
+    /// intrinsic or a type parameter, say) simply has nothing cached. The port answers the same <c>null</c> "absent"
+    /// through a pattern match instead of casting, because these two slots are caches only: every reader recomputes the
+    /// iteration types when they are absent (checker.ts:45956, :46085).</para>
+    /// </remarks>
     internal static IterationTypes? GetCachedIterationTypes(IType type, string cacheKey)
-        => cacheKey switch
+    {
+        if (type is not IIterableOrIteratorType iterable) return null;
+        return cacheKey switch
         {
-            "iterationTypesOfIterable" => (IterationTypes?)((IIterableOrIteratorType)type).IterationTypesOfIterable,
-            "iterationTypesOfAsyncIterable" => (IterationTypes?)((IIterableOrIteratorType)type).IterationTypesOfAsyncIterable,
-            "iterationTypesOfIterator" => (IterationTypes?)((IIterableOrIteratorType)type).IterationTypesOfIterator,
-            "iterationTypesOfAsyncIterator" => (IterationTypes?)((IIterableOrIteratorType)type).IterationTypesOfAsyncIterator,
-            "iterationTypesOfGeneratorReturnType" => (IterationTypes?)((IIterableOrIteratorType)type).IterationTypesOfGeneratorReturnType,
-            "iterationTypesOfAsyncGeneratorReturnType" => (IterationTypes?)((IIterableOrIteratorType)type).IterationTypesOfAsyncGeneratorReturnType,
-            "iterationTypesOfIteratorResult" => (IterationTypes?)((IIterableOrIteratorType)type).IterationTypesOfIteratorResult,
+            "iterationTypesOfIterable" => (IterationTypes?)iterable.IterationTypesOfIterable,
+            "iterationTypesOfAsyncIterable" => (IterationTypes?)iterable.IterationTypesOfAsyncIterable,
+            "iterationTypesOfIterator" => (IterationTypes?)iterable.IterationTypesOfIterator,
+            "iterationTypesOfAsyncIterator" => (IterationTypes?)iterable.IterationTypesOfAsyncIterator,
+            "iterationTypesOfGeneratorReturnType" => (IterationTypes?)iterable.IterationTypesOfGeneratorReturnType,
+            "iterationTypesOfAsyncGeneratorReturnType" => (IterationTypes?)iterable.IterationTypesOfAsyncGeneratorReturnType,
+            "iterationTypesOfIteratorResult" => (IterationTypes?)iterable.IterationTypesOfIteratorResult,
             _ => Debug.Fail<IterationTypes?>($"unknown iteration types cache key: {cacheKey}"),
         };
+    }
 
     /// <summary>ported from: src/compiler/checker.ts:45903-45905 — <c>setCachedIterationTypes</c>.</summary>
+    /// <remarks>PORT-NOTE: the reference's write is a plain expando write on any type object; a type that is not an
+    /// instance of the port's <see cref="UnionOrIntersectionType"/> family loses only that cache — its next reader
+    /// recomputes the iteration types (see <see cref="GetCachedIterationTypes"/>) — so the write is left out rather than
+    /// casting.</remarks>
     internal static void SetCachedIterationTypes(IType type, string cacheKey, IterationTypes cachedTypes)
     {
+        if (type is not IIterableOrIteratorType iterable) return;
         switch (cacheKey)
         {
             case "iterationTypesOfIterable":
-                ((IIterableOrIteratorType)type).IterationTypesOfIterable = cachedTypes;
+                iterable.IterationTypesOfIterable = cachedTypes;
                 break;
             case "iterationTypesOfAsyncIterable":
-                ((IIterableOrIteratorType)type).IterationTypesOfAsyncIterable = cachedTypes;
+                iterable.IterationTypesOfAsyncIterable = cachedTypes;
                 break;
             case "iterationTypesOfIterator":
-                ((IIterableOrIteratorType)type).IterationTypesOfIterator = cachedTypes;
+                iterable.IterationTypesOfIterator = cachedTypes;
                 break;
             case "iterationTypesOfAsyncIterator":
-                ((IIterableOrIteratorType)type).IterationTypesOfAsyncIterator = cachedTypes;
+                iterable.IterationTypesOfAsyncIterator = cachedTypes;
                 break;
             case "iterationTypesOfGeneratorReturnType":
-                ((IIterableOrIteratorType)type).IterationTypesOfGeneratorReturnType = cachedTypes;
+                iterable.IterationTypesOfGeneratorReturnType = cachedTypes;
                 break;
             case "iterationTypesOfAsyncGeneratorReturnType":
-                ((IIterableOrIteratorType)type).IterationTypesOfAsyncGeneratorReturnType = cachedTypes;
+                iterable.IterationTypesOfAsyncGeneratorReturnType = cachedTypes;
                 break;
             case "iterationTypesOfIteratorResult":
-                ((IIterableOrIteratorType)type).IterationTypesOfIteratorResult = cachedTypes;
+                iterable.IterationTypesOfIteratorResult = cachedTypes;
                 break;
             default:
                 Debug.Fail($"unknown iteration types cache key: {cacheKey}");

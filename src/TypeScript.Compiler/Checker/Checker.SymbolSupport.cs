@@ -63,7 +63,9 @@ namespace TypeScript.Compiler;
 /// concrete classes and <c>Node</c> carries none of those slots, so the file casts to the generated face that declares
 /// them (<see cref="IDeclaration"/>, <see cref="ILocalsContainer"/>, <see cref="IFunctionLikeDeclarationBase"/>,
 /// <see cref="ISignatureDeclarationBase"/>, <see cref="INamedDeclaration"/>) exactly where TS's own union narrowing
-/// does.
+/// does. Where the union a guard admits is wider than the face (<c>isFunctionLike</c> holds of every
+/// <c>SignatureDeclaration</c>, and only the <c>FunctionLikeDeclaration</c> arm declares <c>body</c>), the file reads
+/// the slot through a union read instead of casting — see <see cref="GetFunctionLikeBody"/>.
 /// </para>
 /// </remarks>
 internal sealed partial class Checker
@@ -143,7 +145,7 @@ internal sealed partial class Checker
                 if ((result = Lookup(locals!, name, meaning)) is not null)
                 {
                     var useResult = true;
-                    if (Utilities.IsFunctionLike(location) && lastLocation is not null && !ReferenceEquals(lastLocation, ((IFunctionLikeDeclarationBase)location).Body))
+                    if (Utilities.IsFunctionLike(location) && lastLocation is not null && !ReferenceEquals(lastLocation, GetFunctionLikeBody(location)))
                     {
                         // symbol lookup restrictions for function-like declarations
                         // - Type parameters of a function are in scope in the entire function declaration, including the parameter
@@ -348,10 +350,14 @@ internal sealed partial class Checker
                     break;
                 case SyntaxKind.ExpressionWithTypeArguments:
                     // The type parameters of a class are not in scope in the base class expression.
+                    // PORT-NOTE: the reference reads `(location.parent as HeritageClause).token` (utilities.ts:11711), a
+                    // slot only a heritage clause declares; on the parser's `Foo<T>.Bar()` shape the parent is a
+                    // PropertyAccessExpression, where JS reads `undefined` and this disjunct is false. The pattern is
+                    // that read, so a parent that is not a heritage clause answers no token instead of failing the cast.
                     if (ReferenceEquals(lastLocation, ((ExpressionWithTypeArguments)location).Expression)
-                        && ((HeritageClause)location.Parent!).Token == SyntaxKind.ExtendsKeyword)
+                        && location.Parent is HeritageClause heritageClause && heritageClause.Token == SyntaxKind.ExtendsKeyword)
                     {
-                        var container = location.Parent!.Parent!;
+                        var container = heritageClause.Parent!;
                         if (Utilities.IsClassLike(container)
                             && (result = Lookup(GetSymbolOfDeclaration((IDeclaration)container).Members!, name, meaning & SymbolFlags.Type)) is not null)
                         {
@@ -603,6 +609,18 @@ internal sealed partial class Checker
     internal ISymbol? ResolveNameForSymbolSuggestion(Node? location, string name, SymbolFlags meaning, DiagnosticMessage? nameNotFoundMessage, bool isUse, bool excludeGlobals)
         => ResolveName(location, name, meaning, nameNotFoundMessage, isUse, excludeGlobals, /*forSymbolSuggestion*/ true);
 
+    /// <summary>The <c>location as FunctionLikeDeclaration</c> <c>body</c> read of utilities.ts:11545 and 11908-11914.</summary>
+    /// <remarks>
+    /// PORT-NOTE: both reads are guarded by <c>isFunctionLike</c> (utilities.ts:1675), whose TS signature narrows to
+    /// <c>SignatureDeclaration</c> — the seven <c>FunctionLikeDeclaration</c> kinds plus the call, construct and index
+    /// signatures and the function and constructor types. Only the first group declares <c>body</c>; on the
+    /// signature-only kinds JS reads <c>undefined</c>, which is what the absence of
+    /// <see cref="IFunctionLikeDeclarationBase"/> answers here (the treatment <c>Utilities.GetFunctionFlags</c> gives
+    /// the same <c>as FunctionLikeDeclaration</c> cast).
+    /// </remarks>
+    private static Node? GetFunctionLikeBody(Node location)
+        => location is IFunctionLikeDeclarationBase functionLike ? functionLike.Body : null;
+
     /// <summary>ported from: src/compiler/utilities.ts:11906-11983 — <c>useOuterVariableScopeInParameter</c> (a local function of the name resolver).</summary>
     /// <remarks>
     /// PORT-NOTE: TS nests this inside <c>createNameResolver</c>; the port states it as a private member of this class
@@ -613,15 +631,19 @@ internal sealed partial class Checker
     private bool UseOuterVariableScopeInParameter(ISymbol result, Node location, Node lastLocation)
     {
         var target = Utilities.GetEmitScriptTarget(_compilerOptions);
-        var functionLocation = (IFunctionLikeDeclarationBase)location;
+        // PORT-NOTE: TS's `location as FunctionLikeDeclaration` (utilities.ts:11908) is a no-op re-view: the `body` it
+        // then tests is simply absent on the signature kinds without one (the guarded caller admits a FunctionTypeNode),
+        // where JS reads `undefined` and the test is false. The port reads the slot through the same union read
+        // <see cref="ResolveName"/> uses, so a signature without a body answers `null` instead of failing the cast.
+        var functionBody = GetFunctionLikeBody(location);
         // PORT-NOTE: TS reads `result.valueDeclaration.pos/.end` off the `Declaration` face (whose `Node` base carries
         // the range); the port reads the same range through <see cref="Node"/>.
         var valueDeclaration = (Node?)result.ValueDeclaration;
         if (NodeTests.IsParameter(lastLocation)
-            && functionLocation.Body is not null
+            && functionBody is not null
             && valueDeclaration is not null
-            && valueDeclaration.Pos >= functionLocation.Body.Pos
-            && valueDeclaration.End <= functionLocation.Body.End)
+            && valueDeclaration.Pos >= functionBody.Pos
+            && valueDeclaration.End <= functionBody.End)
         {
             // check for several cases where we introduce temporaries that require moving the name/initializer of the parameter to the body
             // - static field in a class expression
@@ -846,9 +868,13 @@ internal sealed partial class Checker
         ISymbol? typeOnlyResolution = null;
         if (typeOnlyDeclaration is not null)
         {
-            var moduleSpecifier = ((ExportDeclaration)typeOnlyDeclaration).ModuleSpecifier;
-            typeOnlyResolution = typeOnlyDeclarationIsExportStar
-                ? ResolveExternalModuleName(moduleSpecifier!, moduleSpecifier!, /*ignoreErrors*/ true)
+            // PORT-NOTE: TS reads `typeOnlyDeclaration.moduleSpecifier` only in the ternary's export-star arm, which
+            // the aliased condition `typeOnlyDeclarationIsExportStar` narrows to ExportDeclaration (checker.ts:4354-4358).
+            // The other members of the TypeOnlyDeclaration union (ImportClause, ImportSpecifier, ImportEqualsDeclaration,
+            // NamespaceImport) declare no `moduleSpecifier`, so JS reads `undefined` there and takes the resolveAlias arm;
+            // the port states that narrowing as the pattern and reads the slot in the export-star arm alone.
+            typeOnlyResolution = typeOnlyDeclarationIsExportStar && typeOnlyDeclaration is ExportDeclaration exportStarDeclaration
+                ? ResolveExternalModuleName(exportStarDeclaration.ModuleSpecifier!, exportStarDeclaration.ModuleSpecifier!, /*ignoreErrors*/ true)
                 : ResolveAlias(((IDeclaration)typeOnlyDeclaration).Symbol!);
         }
 
@@ -961,7 +987,13 @@ internal sealed partial class Checker
             // PORT-NOTE: TS guards `namespace.valueDeclaration` and then reads it again inside the arm; the port
             // keeps one local so the C# flow analysis sees the same narrowed value at every read.
             var namespaceValueDeclaration = (Node?)ns.ValueDeclaration;
-            var namespaceInitializer = namespaceValueDeclaration is not null ? ((VariableDeclaration)namespaceValueDeclaration).Initializer : null;
+            // PORT-NOTE: the reference reads `namespace.valueDeclaration.initializer` before its own
+            // `isVariableDeclaration` guard (checker.ts:4559-4564), so on any other declaration — a namespace, class or
+            // enum declaration declares no `initializer` — JS reads `undefined` and the arm is skipped; the port reads
+            // the slot in the narrowed arm, which is the value the reference's later guard would admit.
+            var namespaceInitializer = namespaceValueDeclaration is VariableDeclaration namespaceVariableDeclaration
+                ? namespaceVariableDeclaration.Initializer
+                : null;
             if (
                 namespaceValueDeclaration is not null &&
                 namespaceInitializer is not null &&
@@ -1173,12 +1205,18 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:5314-5316 — <c>getSymbolOfDeclaration</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: <c>node.symbol &amp;&amp; getLateBoundSymbol(node.symbol)</c> answers <c>undefined</c> for an unbound
-    /// node although TS declares the result <c>Symbol</c>; the port asserts the invariant the ported callers rely on
-    /// (every one of them dereferences the result immediately) rather than handing a null back to them.
+    /// PORT-NOTE: the reference's body is <c>getMergedSymbol(node.symbol &amp;&amp; getLateBoundSymbol(node.symbol))!</c>
+    /// — the <c>!</c> is a lie its declaration tells its callers. A declaration the binder left unbound answers
+    /// <c>undefined</c>; measured on <c>classStaticBlock22.ts</c> at the <c>await</c> identifier of an illegal
+    /// `let await` in a static block, at the enclosing <c>VariableDeclaration</c> of an illegal binding pattern, and at
+    /// the <c>PropertyAccessExpression</c> left-hand side of an assignment (where <c>canHaveSymbol</c> is true but
+    /// nothing bound a symbol). Callers that can meet such a declaration are written tolerantly in the reference
+    /// (<c>checker.ts:5322-5324</c>'s <c>getSymbolOfNode</c> only reaches it behind <c>canHaveSymbol</c>, and
+    /// <c>checker.ts:41091</c> reads <c>symbol?.exports</c>), so the port states the same non-nullable result with the
+    /// same body — without a port-only assertion that turned the reference's ordinary <c>undefined</c> into a crash.
     /// </remarks>
     internal ISymbol GetSymbolOfDeclaration(IDeclaration node)
-        => Debug.CheckDefined(GetMergedSymbol(node.Symbol is not null ? GetLateBoundSymbol(node.Symbol) : null), "a declaration always has a symbol once it is bound");
+        => GetMergedSymbol(node.Symbol is not null ? GetLateBoundSymbol(node.Symbol) : null)!;
 
     /// <summary>ported from: src/compiler/checker.ts:5322-5324 — <c>getSymbolOfNode</c>.</summary>
     /// <remarks>
@@ -3023,9 +3061,13 @@ internal sealed partial class Checker
                 if (suggestedLib is null && _suggestionCount < _maximumSuggestionCount)
                 {
                     suggestion = GetSuggestedSymbolForNonexistentSymbol(errorLocation, name, meaning);
-                    var isGlobalScopeAugmentationDeclaration = suggestion?.ValueDeclaration is not null
-                        && Utilities.IsAmbientModule((ModuleDeclaration)suggestion.ValueDeclaration)
-                        && Utilities.IsGlobalScopeAugmentation((ModuleDeclaration)suggestion.ValueDeclaration);
+                    // PORT-NOTE: the reference's `isAmbientModule` (utilities.ts:2078) is the kind test
+                    // `isModuleDeclaration(node) && …`, so its true arm is what lets the second read
+                    // (`isGlobalScopeAugmentation`) take a ModuleDeclaration. The port states that narrowing as the
+                    // pattern rather than casting the class/enum declaration a suggestion can also name.
+                    var isGlobalScopeAugmentationDeclaration = suggestion?.ValueDeclaration is ModuleDeclaration suggestionDeclaration
+                        && Utilities.IsAmbientModule(suggestionDeclaration)
+                        && Utilities.IsGlobalScopeAugmentation(suggestionDeclaration);
                     if (isGlobalScopeAugmentationDeclaration)
                     {
                         suggestion = null;
@@ -3895,15 +3937,35 @@ internal sealed partial class Checker
     /// <remarks>
     /// PORT-NOTE (cross-band): this member sits at checker.ts:35220, outside the symbol band, but its only caller is
     /// <see cref="OnFailedToResolveSymbol"/> and no other order file claims it, so it is declared here.
-    /// <c>getScriptTargetFeatures</c> is <see cref="Utilities.GetScriptTargetFeatures"/> and <c>firstIterator</c> is
-    /// <c>Core.FirstIterator</c>; the reference's <c>typeFeatures &amp;&amp; …</c> is the port's null test.
+    /// <c>getScriptTargetFeatures</c> is <see cref="Utilities.GetScriptTargetFeatures"/>; the reference's
+    /// <c>typeFeatures &amp;&amp; …</c> is the port's null test.
+    /// <para>
+    /// PORT-NOTE: the reference reads its table with <c>firstIterator</c> (core.ts:1104), whose empty-sequence branch is
+    /// <c>Debug.fail("iterator is empty")</c>; the port reads <c>Core.FirstOrUndefinedIterator</c>, the reference's own
+    /// <c>firstOrUndefinedIterator</c> (core.ts:1088), so the same lookup answers <c>null</c> where the key set is empty
+    /// — the value the reference's <c>typeFeatures &amp;&amp;</c> guard answers for a name with no table entry — instead
+    /// of failing the process. On every non-empty key set the two reads are the same first key.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: the empty key sets this guards against are a defect of
+    /// <see cref="Utilities.GetScriptTargetFeatures"/> (Checker/Utilities.SymbolBand.cs), not of the reference: ten of
+    /// its type names carry entries in the reference whose <c>array</c> is <c>emptyArray</c> — <c>Iterator</c> and
+    /// <c>AsyncIterator</c> under <c>es2015</c>, <c>AsyncIterable</c>, <c>AsyncIterableIterator</c>,
+    /// <c>AsyncGenerator</c> and <c>AsyncGeneratorFunction</c> under <c>es2018</c>, <c>BigInt</c> under
+    /// <c>es2020</c>, <c>Float16Array</c> under <c>es2025</c>, and <c>DisposableStack</c>/<c>AsyncDisposableStack</c>
+    /// under <c>esnext</c> (utilities.ts:1384-9283) — and the port's transcription dropped those keys, leaving their
+    /// inner tables empty (as it dropped <c>Promise</c>'s <c>es2015</c> and <c>BigInt64Array</c>/<c>BigUint64Array</c>'s
+    /// <c>es2020</c>, whose suggestion is therefore a later target than the reference's). The reference's own
+    /// <c>firstIterator</c> never sees an empty key set; until the table carries those keys, this read answers
+    /// <c>null</c> where the reference's answers <c>es2015</c>/<c>es2018</c>/<c>es2020</c>/<c>es2025</c>/<c>esnext</c>.
+    /// </para>
     /// </remarks>
     private string? GetSuggestedLibForNonExistentName(object? nameArg)
     {
         var missingName = DiagnosticName(nameArg);
         var allFeatures = Utilities.GetScriptTargetFeatures();
         var typeFeatures = allFeatures.GetValueOrDefault(missingName);
-        return typeFeatures is not null ? Core.FirstIterator(typeFeatures.Keys) : null;
+        return typeFeatures is not null ? Core.FirstOrUndefinedIterator(typeFeatures.Keys) : null;
     }
 
     // ---------------------------------------------------------------------------------------------

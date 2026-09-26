@@ -303,6 +303,17 @@ internal sealed partial class Checker
     /// produce, which the <c>if</c> then reads as truthiness; the port states the same tests as booleans, and the
     /// last term's <c>containsType(types, (t as LiteralType).regularType)</c> passes a <c>FreshableType</c>, which is a
     /// <c>Type</c> upstream and an <c>IType</c> in the port's model.
+    /// <para>
+    /// PORT-NOTE: that last term's <c>as LiteralType</c> (checker.ts:18212) is another <c>as</c> re-view of an open
+    /// object, not a kind test: <c>regularType</c> is declared on <c>FreshableType</c> (types.ts:6472) and
+    /// <c>LiteralType extends FreshableType</c> (types.ts:6482) adds only <c>value</c>, so the slot read is the
+    /// freshable one. The reference itself reads it through <c>FreshableType</c> under this same guard elsewhere
+    /// (<c>getRegularTypeOfLiteralType</c>, checker.ts:20296; <c>getNormalizedType</c>, checker.ts:22320), and the port
+    /// must, because the freshable set also holds the boolean literal intrinsics (<c>BooleanLiteralType</c> is an
+    /// <c>IntrinsicType</c>, Model/IntrinsicType.cs:76) and the guard is <c>IsFreshLiteralType</c>
+    /// (checker.ts:20301-20303), whose own body reads the same face (Checker.Conditional.cs:991); the port's
+    /// <c>GetNormalizedType</c> (Checker.Relations.Matching.cs:763) already spells it this way.
+    /// </para>
     /// </remarks>
     internal void RemoveRedundantLiteralTypes(List<IType> types, TypeFlags includes, bool reduceVoidUndefined)
     {
@@ -317,7 +328,7 @@ internal sealed partial class Checker
                 || ((flags & TypeFlags.BigIntLiteral) != 0 && (includes & TypeFlags.BigInt) != 0)
                 || ((flags & TypeFlags.UniqueESSymbol) != 0 && (includes & TypeFlags.ESSymbol) != 0)
                 || (reduceVoidUndefined && (flags & TypeFlags.Undefined) != 0 && (includes & TypeFlags.Void) != 0)
-                || (IsFreshLiteralType(t) && ContainsType(types, ((ILiteralType)t).RegularType!));
+                || (IsFreshLiteralType(t) && ContainsType(types, ((IFreshableType)t).RegularType!));
             if (remove)
             {
                 Core.OrderedRemoveItemAt(types, i);
@@ -447,9 +458,23 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:18300-18304 — <c>createOriginUnionOrIntersectionType</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's body is <c>const result = createOriginType(flags) as UnionOrIntersectionType;
+    /// result.types = types;</c> (:18301-18302) — an <c>as</c> re-view of the plain <c>Type</c> that
+    /// <c>createOriginType</c> (:5531-5533) built, valid only because TS's objects carry their slots as properties:
+    /// the same object then holds <c>types</c>. Here that slot is a member of this family
+    /// (Model/UnionOrIntersectionType.cs:47), so the object has to be of the class the flags→class dispatch picks for
+    /// these flags (<see cref="CreateTypeInstance"/>) — the only two flags this function is called with are exactly
+    /// <c>TypeFlags.Union</c> (:18391 and, through <c>filterType</c>, :28547) and <c>TypeFlags.Intersection</c> (:18786)
+    /// — because readers take an origin type at that class: <c>(type as UnionType).types</c> /
+    /// <c>(type as IntersectionType).types</c> (checker.ts:6975-6979, NodeBuilder.Types.cs:336-337) and
+    /// <c>(origin as IntersectionType).types</c> in the union cache key (checker.ts:18439-18441,
+    /// Checker.Unions.cs:689). No id is assigned and <c>typeCount</c> is not advanced, which is what
+    /// <c>createOriginType</c> omits as well (checker.ts:5517-5523 gives an id only in <c>createType</c>).
+    /// </remarks>
     internal UnionOrIntersectionType CreateOriginUnionOrIntersectionType(TypeFlags flags, List<IType> types)
     {
-        var result = (UnionOrIntersectionType)CreateOriginType(flags);
+        var result = (flags & TypeFlags.Intersection) != 0 ? new IntersectionType(this, flags) : (UnionOrIntersectionType)new UnionType(this, flags);
         result.Types = types;
         return result;
     }

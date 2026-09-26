@@ -391,6 +391,54 @@ internal static partial class Utilities
         return null;
     }
 
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1189-1192 — <c>getJSDocReturnTag</c>.</summary>
+    /// <remarks>
+    /// <para>Gets the JSDoc return tag for the node if present.</para>
+    /// <para>PORT-NOTE: the same finder-plus-cast shape as <see cref="GetJSDocSatisfiesTag"/>: <c>getFirstJSDocTag</c> is
+    /// this family's private member above and the reference's <c>isJSDocReturnTag</c> is
+    /// <see cref="NodeTests.IsJSDocReturnTag"/>, whose <c>bool</c> answer finds the tag without narrowing it.</para>
+    /// </remarks>
+    public static JSDocReturnTag? GetJSDocReturnTag(Node node)
+        => GetFirstJSDocTag(node, static tag => NodeTests.IsJSDocReturnTag(tag)) as JSDocReturnTag;
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1233-1255 — <c>getJSDocReturnType</c>.</summary>
+    /// <remarks>
+    /// <para>Gets the return type node for the node if provided via JSDoc return tag or type tag. <c>getJSDocReturnTag</c>
+    /// just gets the whole JSDoc tag; this function gets the type from inside the braces, after the fat arrow, etc.</para>
+    /// <para>PORT-NOTE: TS tests <c>returnTag &amp;&amp; returnTag.typeExpression</c> / <c>typeTag &amp;&amp;
+    /// typeTag.typeExpression</c> and reads the same optional slot twice; the port states each as one test on
+    /// <c>TypeExpression</c> and reads the type from the tested value. <c>find(type.members,
+    /// isCallSignatureDeclaration)</c> narrows the found member to <c>CallSignatureDeclaration</c>; the port's
+    /// <see cref="Core.Find{T}(IList{T}?, Func{T, int, bool}, int)"/> answers the element type, so the signature node is
+    /// read through <see cref="ISignatureDeclarationBase"/> — the face both a <c>CallSignatureDeclaration</c> and the
+    /// <c>JSDocFunctionType</c>/<c>FunctionTypeNode</c> arm of the second branch declare.</para>
+    /// </remarks>
+    public static ITypeNode? GetJSDocReturnType(Node node)
+    {
+        var returnTag = GetJSDocReturnTag(node);
+        if (returnTag?.TypeExpression is { } returnTypeExpression)
+        {
+            return returnTypeExpression.Type;
+        }
+
+        var typeTag = GetJSDocTypeTag(node);
+        if (typeTag?.TypeExpression?.Type is { } type)
+        {
+            if (NodeTests.IsTypeLiteralNode((Node)type))
+            {
+                var sig = Core.Find(((TypeLiteralNode)type).Members, static (member, _) => NodeTests.IsCallSignatureDeclaration((Node)member));
+                return sig is not null ? ((ISignatureDeclarationBase)sig).Type : null;
+            }
+
+            if (NodeTests.IsFunctionTypeNode((Node)type) || NodeTests.IsJSDocFunctionType((Node)type))
+            {
+                return ((ISignatureDeclarationBase)type).Type;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>ported from: src/compiler/utilitiesPublic.ts:1199-1201 — <c>getJSDocSatisfiesTag</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: <c>getFirstJSDocTag</c> is this family's own private member (above) and <c>isJSDocSatisfiesTag</c> is

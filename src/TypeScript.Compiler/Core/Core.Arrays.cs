@@ -1536,8 +1536,19 @@ internal static partial class Core
     // ---- shared helpers ----
 
     /// <summary>Shared helper: TS expresses this as <c>array.slice(start, end)</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: <c>Array.prototype.slice</c> copies the requested range and never throws: a negative bound counts back
+    /// from the end of the array and a bound past either end is clamped to <c>[0, count]</c>, so <c>end &lt; start</c>
+    /// yields the empty array. C#'s indexer would throw instead, so the two bounds are normalized here before the copy;
+    /// in-range bounds take exactly the steps they took before. Callers rely on the clamping rather than passing only
+    /// in-range bounds — e.g. <c>sliceTupleType</c>'s <c>getTypeArguments(type).slice(index, endIndex)</c>
+    /// (checker.ts:18032) and <c>getElementTypes</c>'s <c>typeArguments.slice(0, arity)</c> (checker.ts:18057).
+    /// </remarks>
     internal static IList<T> Slice<T>(IList<T> array, int start, int end)
     {
+        var count = array.Count;
+        start = start < 0 ? Math.Max(count + start, 0) : Math.Min(start, count);
+        end = end < 0 ? Math.Max(count + end, 0) : Math.Min(end, count);
         var result = new List<T>(Math.Max(0, end - start));
         for (var i = start; i < end; i++)
         {

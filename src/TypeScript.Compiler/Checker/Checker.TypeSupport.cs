@@ -1596,8 +1596,11 @@ internal sealed partial class Checker
             }
 
             var hostDeclaration = declarationIsJSDocSignature ? Utilities.GetEffectiveJSDocHost(declaration) : declaration;
+            // PORT-NOTE: TS's `hostDeclaration.parent as ClassDeclaration` is a no-op re-view (checker.ts:16256): it exists
+            // only to read `.symbol`, and a constructor's parent may equally be a `ClassExpression` (both kinds are the one
+            // union `ClassLikeDeclaration`). The port reads the slot through `IClassLikeDeclarationBase`, that union's face.
             var classType = hostDeclaration is not null && NodeTests.IsConstructorDeclaration(hostDeclaration)
-                ? GetDeclaredTypeOfClassOrInterface(GetMergedSymbol(((ClassDeclaration)hostDeclaration.Parent!).Symbol!)!)
+                ? GetDeclaredTypeOfClassOrInterface(GetMergedSymbol(((IClassLikeDeclarationBase)hostDeclaration.Parent!).Symbol!)!)
                 : null;
             var typeParameters = classType is not null ? classType.LocalTypeParameters : GetTypeParametersFromDeclaration(declaration);
             if (Utilities.HasRestParameter(declaration) || Utilities.IsInJSFile(declaration) && MaybeAddJsSyntheticRestParameter(declaration, parameters))
