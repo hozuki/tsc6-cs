@@ -12,53 +12,53 @@ namespace TypeScript.Compiler;
 [Flags]
 internal enum ModifierFlags : uint
 {
-    None = 0,
-    Public = 0x00000001,  // TS: 1 << 0  |  Property/Method
-    Private = 0x00000002,  // TS: 1 << 1  |  Property/Method
-    Protected = 0x00000004,  // TS: 1 << 2  |  Property/Method
-    Readonly = 0x00000008,  // TS: 1 << 3  |  Property/Method
-    Override = 0x00000010,  // TS: 1 << 4  |  Override method.
-    Export = 0x00000020,  // TS: 1 << 5  |  Declarations
-    Abstract = 0x00000040,  // TS: 1 << 6  |  Class/Method/ConstructSignature
-    Ambient = 0x00000080,  // TS: 1 << 7  |  Declarations
-    Static = 0x00000100,  // TS: 1 << 8  |  Property/Method
-    Accessor = 0x00000200,  // TS: 1 << 9  |  Property
-    Async = 0x00000400,  // TS: 1 << 10  |  Property/Method/Function
-    Default = 0x00000800,  // TS: 1 << 11  |  Function/Class (export default declaration)
-    Const = 0x00001000,  // TS: 1 << 12  |  Const enum
-    In = 0x00002000,  // TS: 1 << 13  |  Contravariance modifier
-    Out = 0x00004000,  // TS: 1 << 14  |  Covariance modifier
-    Decorator = 0x00008000,  // TS: 1 << 15  |  Contains a decorator.
-    Deprecated = 0x00010000,  // TS: 1 << 16  |  Deprecated tag.
+    None = 0u,
+    Public = 1u << 0,  // Property/Method
+    Private = 1u << 1,  // Property/Method
+    Protected = 1u << 2,  // Property/Method
+    Readonly = 1u << 3,  // Property/Method
+    Override = 1u << 4,  // Override method.
+    Export = 1u << 5,  // Declarations
+    Abstract = 1u << 6,  // Class/Method/ConstructSignature
+    Ambient = 1u << 7,  // Declarations
+    Static = 1u << 8,  // Property/Method
+    Accessor = 1u << 9,  // Property
+    Async = 1u << 10,  // Property/Method/Function
+    Default = 1u << 11,  // Function/Class (export default declaration)
+    Const = 1u << 12,  // Const enum
+    In = 1u << 13,  // Contravariance modifier
+    Out = 1u << 14,  // Covariance modifier
+    Decorator = 1u << 15,  // Contains a decorator.
+    Deprecated = 1u << 16,  // Deprecated tag.
     /// <summary>@internal</summary>
-    JSDocPublic = 0x00800000,  // TS: 1 << 23  |  if this value changes, `selectEffectiveModifierFlags` must change accordingly
+    JSDocPublic = 1u << 23,  // if this value changes, `selectEffectiveModifierFlags` must change accordingly
     /// <summary>@internal</summary>
-    JSDocPrivate = 0x01000000,  // TS: 1 << 24
+    JSDocPrivate = 1u << 24,
     /// <summary>@internal</summary>
-    JSDocProtected = 0x02000000,  // TS: 1 << 25
+    JSDocProtected = 1u << 25,
     /// <summary>@internal</summary>
-    JSDocReadonly = 0x04000000,  // TS: 1 << 26
+    JSDocReadonly = 1u << 26,
     /// <summary>@internal</summary>
-    JSDocOverride = 0x08000000,  // TS: 1 << 27
+    JSDocOverride = 1u << 27,
     /// <summary>@internal</summary>
-    SyntacticOrJSDocModifiers = 0x0000001F,  // TS: Public | Private | Protected | Readonly | Override
+    SyntacticOrJSDocModifiers = Public | Private | Protected | Readonly | Override,
     /// <summary>@internal</summary>
-    SyntacticOnlyModifiers = 0x0000FFE0,  // TS: Export | Ambient | Abstract | Static | Accessor | Async | Default | Const | In | Out | Decorator
+    SyntacticOnlyModifiers = Export | Ambient | Abstract | Static | Accessor | Async | Default | Const | In | Out | Decorator,
     /// <summary>@internal</summary>
-    SyntacticModifiers = 0x0000FFFF,  // TS: SyntacticOrJSDocModifiers | SyntacticOnlyModifiers
+    SyntacticModifiers = SyntacticOrJSDocModifiers | SyntacticOnlyModifiers,
     /// <summary>@internal</summary>
-    JSDocCacheOnlyModifiers = 0x0F800000,  // TS: JSDocPublic | JSDocPrivate | JSDocProtected | JSDocReadonly | JSDocOverride
+    JSDocCacheOnlyModifiers = JSDocPublic | JSDocPrivate | JSDocProtected | JSDocReadonly | JSDocOverride,
     /// <summary>@internal</summary>
-    JSDocOnlyModifiers = 0x00010000,  // TS: JSDocOnlyModifiers = Deprecated
+    JSDocOnlyModifiers = Deprecated,
     /// <summary>@internal</summary>
-    NonCacheOnlyModifiers = 0x0001FFFF,  // TS: SyntacticOrJSDocModifiers | SyntacticOnlyModifiers | JSDocOnlyModifiers
-    HasComputedJSDocModifiers = 0x10000000,  // TS: 1 << 28  |  Indicates the computed modifier flags include modifiers from JSDoc.
-    HasComputedFlags = 0x20000000,  // TS: 1 << 29  |  Modifier flags have been computed
-    AccessibilityModifier = 0x00000007,  // TS: Public | Private | Protected
-    ParameterPropertyModifier = 0x0000001F,  // TS: AccessibilityModifier | Readonly | Override
-    NonPublicAccessibilityModifier = 0x00000006,  // TS: Private | Protected
-    TypeScriptModifier = 0x000070DF,  // TS: Ambient | Public | Private | Protected | Readonly | Abstract | Const | Override | In | Out
-    ExportDefault = 0x00000820,  // TS: Export | Default
-    All = 0x0001FFFF,  // TS: Export | Ambient | Public | Private | Protected | Static | Readonly | Abstract | Accessor | Async | Default | Const | Deprecated | Override | In | Out | Decorator
-    Modifier = 0x00017FFF,  // TS: All & ~Decorator
+    NonCacheOnlyModifiers = SyntacticOrJSDocModifiers | SyntacticOnlyModifiers | JSDocOnlyModifiers,
+    HasComputedJSDocModifiers = 1u << 28,  // Indicates the computed modifier flags include modifiers from JSDoc.
+    HasComputedFlags = 1u << 29,  // Modifier flags have been computed
+    AccessibilityModifier = Public | Private | Protected,
+    ParameterPropertyModifier = AccessibilityModifier | Readonly | Override,
+    NonPublicAccessibilityModifier = Private | Protected,
+    TypeScriptModifier = Ambient | Public | Private | Protected | Readonly | Abstract | Const | Override | In | Out,
+    ExportDefault = Export | Default,
+    All = Export | Ambient | Public | Private | Protected | Static | Readonly | Abstract | Accessor | Async | Default | Const | Deprecated | Override | In | Out | Decorator,
+    Modifier = (uint)All & ~(uint)Decorator,
 }

@@ -318,9 +318,9 @@ internal enum SyntaxKind : int
     ImportAttributes = 301,
     ImportAttribute = 302,
     /// <summary>@deprecated</summary>
-    AssertClause = 301,  // TS: AssertClause = ImportAttributes
+    AssertClause = ImportAttributes,
     /// <summary>@deprecated</summary>
-    AssertEntry = 302,  // TS: AssertEntry = ImportAttribute
+    AssertEntry = ImportAttribute,
     /// <summary>@deprecated</summary>
     ImportTypeAssertionContainer = 303,
     PropertyAssignment = 304,
@@ -342,7 +342,7 @@ internal enum SyntaxKind : int
     JSDocNamepathType = 320,  // https://jsdoc.app/about-namepaths.html
     JSDoc = 321,
     /// <summary>@deprecated Use SyntaxKind.JSDoc</summary>
-    JSDocComment = 321,  // TS: JSDocComment = JSDoc
+    JSDocComment = JSDoc,
     JSDocText = 322,
     JSDocTypeLiteral = 323,
     JSDocSignature = 324,
@@ -381,39 +381,39 @@ internal enum SyntaxKind : int
     CommaListExpression = 357,
     SyntheticReferenceExpression = 358,
     Count = 359,
-    FirstAssignment = 64,  // TS: FirstAssignment = EqualsToken
-    LastAssignment = 79,  // TS: LastAssignment = CaretEqualsToken
-    FirstCompoundAssignment = 65,  // TS: FirstCompoundAssignment = PlusEqualsToken
-    LastCompoundAssignment = 79,  // TS: LastCompoundAssignment = CaretEqualsToken
-    FirstReservedWord = 83,  // TS: FirstReservedWord = BreakKeyword
-    LastReservedWord = 118,  // TS: LastReservedWord = WithKeyword
-    FirstKeyword = 83,  // TS: FirstKeyword = BreakKeyword
-    LastKeyword = 166,  // TS: LastKeyword = DeferKeyword
-    FirstFutureReservedWord = 119,  // TS: FirstFutureReservedWord = ImplementsKeyword
-    LastFutureReservedWord = 127,  // TS: LastFutureReservedWord = YieldKeyword
-    FirstTypeNode = 183,  // TS: FirstTypeNode = TypePredicate
-    LastTypeNode = 206,  // TS: LastTypeNode = ImportType
-    FirstPunctuation = 19,  // TS: FirstPunctuation = OpenBraceToken
-    LastPunctuation = 79,  // TS: LastPunctuation = CaretEqualsToken
-    FirstToken = 0,  // TS: FirstToken = Unknown
-    LastToken = 166,  // TS: LastToken = LastKeyword
-    FirstTriviaToken = 2,  // TS: FirstTriviaToken = SingleLineCommentTrivia
-    LastTriviaToken = 7,  // TS: LastTriviaToken = ConflictMarkerTrivia
-    FirstLiteralToken = 9,  // TS: FirstLiteralToken = NumericLiteral
-    LastLiteralToken = 15,  // TS: LastLiteralToken = NoSubstitutionTemplateLiteral
-    FirstTemplateToken = 15,  // TS: FirstTemplateToken = NoSubstitutionTemplateLiteral
-    LastTemplateToken = 18,  // TS: LastTemplateToken = TemplateTail
-    FirstBinaryOperator = 30,  // TS: FirstBinaryOperator = LessThanToken
-    LastBinaryOperator = 79,  // TS: LastBinaryOperator = CaretEqualsToken
-    FirstStatement = 244,  // TS: FirstStatement = VariableStatement
-    LastStatement = 260,  // TS: LastStatement = DebuggerStatement
-    FirstNode = 167,  // TS: FirstNode = QualifiedName
-    FirstJSDocNode = 310,  // TS: FirstJSDocNode = JSDocTypeExpression
-    LastJSDocNode = 352,  // TS: LastJSDocNode = JSDocImportTag
-    FirstJSDocTagNode = 328,  // TS: FirstJSDocTagNode = JSDocTag
-    LastJSDocTagNode = 352,  // TS: LastJSDocTagNode = JSDocImportTag
+    FirstAssignment = EqualsToken,
+    LastAssignment = CaretEqualsToken,
+    FirstCompoundAssignment = PlusEqualsToken,
+    LastCompoundAssignment = CaretEqualsToken,
+    FirstReservedWord = BreakKeyword,
+    LastReservedWord = WithKeyword,
+    FirstKeyword = BreakKeyword,
+    LastKeyword = DeferKeyword,
+    FirstFutureReservedWord = ImplementsKeyword,
+    LastFutureReservedWord = YieldKeyword,
+    FirstTypeNode = TypePredicate,
+    LastTypeNode = ImportType,
+    FirstPunctuation = OpenBraceToken,
+    LastPunctuation = CaretEqualsToken,
+    FirstToken = Unknown,
+    LastToken = LastKeyword,
+    FirstTriviaToken = SingleLineCommentTrivia,
+    LastTriviaToken = ConflictMarkerTrivia,
+    FirstLiteralToken = NumericLiteral,
+    LastLiteralToken = NoSubstitutionTemplateLiteral,
+    FirstTemplateToken = NoSubstitutionTemplateLiteral,
+    LastTemplateToken = TemplateTail,
+    FirstBinaryOperator = LessThanToken,
+    LastBinaryOperator = CaretEqualsToken,
+    FirstStatement = VariableStatement,
+    LastStatement = DebuggerStatement,
+    FirstNode = QualifiedName,
+    FirstJSDocNode = JSDocTypeExpression,
+    LastJSDocNode = JSDocImportTag,
+    FirstJSDocTagNode = JSDocTag,
+    LastJSDocTagNode = JSDocImportTag,
     /// <summary>@internal</summary>
-    FirstContextualKeyword = 128,  // TS: FirstContextualKeyword = AbstractKeyword
+    FirstContextualKeyword = AbstractKeyword,
     /// <summary>@internal</summary>
-    LastContextualKeyword = 166,  // TS: LastContextualKeyword = LastKeyword
+    LastContextualKeyword = LastKeyword,
 }

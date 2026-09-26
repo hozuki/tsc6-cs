@@ -12,29 +12,29 @@ namespace TypeScript.Compiler;
 [Flags]
 internal enum CheckFlags : uint
 {
-    None = 0,
-    Instantiated = 0x00000001,  // TS: 1 << 0  |  Instantiated symbol
-    SyntheticProperty = 0x00000002,  // TS: 1 << 1  |  Property in union or intersection type
-    SyntheticMethod = 0x00000004,  // TS: 1 << 2  |  Method in union or intersection type
-    Readonly = 0x00000008,  // TS: 1 << 3  |  Readonly transient symbol
-    ReadPartial = 0x00000010,  // TS: 1 << 4  |  Synthetic property present in some but not all constituents
-    WritePartial = 0x00000020,  // TS: 1 << 5  |  Synthetic property present in some but only satisfied by an index signature in others
-    HasNonUniformType = 0x00000040,  // TS: 1 << 6  |  Synthetic property with non-uniform type in constituents
-    HasLiteralType = 0x00000080,  // TS: 1 << 7  |  Synthetic property with at least one literal type in constituents
-    ContainsPublic = 0x00000100,  // TS: 1 << 8  |  Synthetic property with public constituent(s)
-    ContainsProtected = 0x00000200,  // TS: 1 << 9  |  Synthetic property with protected constituent(s)
-    ContainsPrivate = 0x00000400,  // TS: 1 << 10  |  Synthetic property with private constituent(s)
-    ContainsStatic = 0x00000800,  // TS: 1 << 11  |  Synthetic property with static constituent(s)
-    Late = 0x00001000,  // TS: 1 << 12  |  Late-bound symbol for a computed property with a dynamic name
-    ReverseMapped = 0x00002000,  // TS: 1 << 13  |  Property of reverse-inferred homomorphic mapped type
-    OptionalParameter = 0x00004000,  // TS: 1 << 14  |  Optional parameter
-    RestParameter = 0x00008000,  // TS: 1 << 15  |  Rest parameter
-    DeferredType = 0x00010000,  // TS: 1 << 16  |  Calculation of the type of this symbol is deferred due to processing costs, should be fetched with `getTypeOfSymbolWithDeferredType`
-    HasNeverType = 0x00020000,  // TS: 1 << 17  |  Synthetic property with at least one never type in constituents
-    Mapped = 0x00040000,  // TS: 1 << 18  |  Property of mapped type
-    StripOptional = 0x00080000,  // TS: 1 << 19  |  Strip optionality in mapped property
-    Unresolved = 0x00100000,  // TS: 1 << 20  |  Unresolved type alias symbol
-    Synthetic = 0x00000006,  // TS: SyntheticProperty | SyntheticMethod
-    Discriminant = 0x000000C0,  // TS: HasNonUniformType | HasLiteralType
-    Partial = 0x00000030,  // TS: ReadPartial | WritePartial
+    None = 0u,
+    Instantiated = 1u << 0,  // Instantiated symbol
+    SyntheticProperty = 1u << 1,  // Property in union or intersection type
+    SyntheticMethod = 1u << 2,  // Method in union or intersection type
+    Readonly = 1u << 3,  // Readonly transient symbol
+    ReadPartial = 1u << 4,  // Synthetic property present in some but not all constituents
+    WritePartial = 1u << 5,  // Synthetic property present in some but only satisfied by an index signature in others
+    HasNonUniformType = 1u << 6,  // Synthetic property with non-uniform type in constituents
+    HasLiteralType = 1u << 7,  // Synthetic property with at least one literal type in constituents
+    ContainsPublic = 1u << 8,  // Synthetic property with public constituent(s)
+    ContainsProtected = 1u << 9,  // Synthetic property with protected constituent(s)
+    ContainsPrivate = 1u << 10,  // Synthetic property with private constituent(s)
+    ContainsStatic = 1u << 11,  // Synthetic property with static constituent(s)
+    Late = 1u << 12,  // Late-bound symbol for a computed property with a dynamic name
+    ReverseMapped = 1u << 13,  // Property of reverse-inferred homomorphic mapped type
+    OptionalParameter = 1u << 14,  // Optional parameter
+    RestParameter = 1u << 15,  // Rest parameter
+    DeferredType = 1u << 16,  // Calculation of the type of this symbol is deferred due to processing costs, should be fetched with `getTypeOfSymbolWithDeferredType`
+    HasNeverType = 1u << 17,  // Synthetic property with at least one never type in constituents
+    Mapped = 1u << 18,  // Property of mapped type
+    StripOptional = 1u << 19,  // Strip optionality in mapped property
+    Unresolved = 1u << 20,  // Unresolved type alias symbol
+    Synthetic = SyntheticProperty | SyntheticMethod,
+    Discriminant = HasNonUniformType | HasLiteralType,
+    Partial = ReadPartial | WritePartial,
 }

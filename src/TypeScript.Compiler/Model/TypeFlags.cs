@@ -12,99 +12,99 @@ namespace TypeScript.Compiler;
 [Flags]
 internal enum TypeFlags : uint
 {
-    Any = 0x00000001,  // TS: 1 << 0
-    Unknown = 0x00000002,  // TS: 1 << 1
-    Undefined = 0x00000004,  // TS: 1 << 2
-    Null = 0x00000008,  // TS: 1 << 3
-    Void = 0x00000010,  // TS: 1 << 4
-    String = 0x00000020,  // TS: 1 << 5
-    Number = 0x00000040,  // TS: 1 << 6
-    BigInt = 0x00000080,  // TS: 1 << 7
-    Boolean = 0x00000100,  // TS: 1 << 8
-    ESSymbol = 0x00000200,  // TS: 1 << 9  |  Type of symbol primitive introduced in ES6
-    StringLiteral = 0x00000400,  // TS: 1 << 10
-    NumberLiteral = 0x00000800,  // TS: 1 << 11
-    BigIntLiteral = 0x00001000,  // TS: 1 << 12
-    BooleanLiteral = 0x00002000,  // TS: 1 << 13
-    UniqueESSymbol = 0x00004000,  // TS: 1 << 14  |  unique symbol
-    EnumLiteral = 0x00008000,  // TS: 1 << 15  |  Always combined with StringLiteral, NumberLiteral, or Union
-    Enum = 0x00010000,  // TS: 1 << 16  |  Numeric computed enum member value (must be right after EnumLiteral, see getSortOrderFlags)
-    NonPrimitive = 0x00020000,  // TS: 1 << 17  |  intrinsic object type
-    Never = 0x00040000,  // TS: 1 << 18  |  Never type
-    TypeParameter = 0x00080000,  // TS: 1 << 19  |  Type parameter
-    Object = 0x00100000,  // TS: 1 << 20  |  Object type
-    Index = 0x00200000,  // TS: 1 << 21  |  keyof T
-    TemplateLiteral = 0x00400000,  // TS: 1 << 22  |  Template literal type
-    StringMapping = 0x00800000,  // TS: 1 << 23  |  Uppercase/Lowercase type
-    Substitution = 0x01000000,  // TS: 1 << 24  |  Type parameter substitution
-    IndexedAccess = 0x02000000,  // TS: 1 << 25  |  T[K]
-    Conditional = 0x04000000,  // TS: 1 << 26  |  T extends U ? X : Y
-    Union = 0x08000000,  // TS: 1 << 27  |  Union (T | U)
-    Intersection = 0x10000000,  // TS: 1 << 28  |  Intersection (T & U)
+    Any = 1u << 0,
+    Unknown = 1u << 1,
+    Undefined = 1u << 2,
+    Null = 1u << 3,
+    Void = 1u << 4,
+    String = 1u << 5,
+    Number = 1u << 6,
+    BigInt = 1u << 7,
+    Boolean = 1u << 8,
+    ESSymbol = 1u << 9,  // Type of symbol primitive introduced in ES6
+    StringLiteral = 1u << 10,
+    NumberLiteral = 1u << 11,
+    BigIntLiteral = 1u << 12,
+    BooleanLiteral = 1u << 13,
+    UniqueESSymbol = 1u << 14,  // unique symbol
+    EnumLiteral = 1u << 15,  // Always combined with StringLiteral, NumberLiteral, or Union
+    Enum = 1u << 16,  // Numeric computed enum member value (must be right after EnumLiteral, see getSortOrderFlags)
+    NonPrimitive = 1u << 17,  // intrinsic object type
+    Never = 1u << 18,  // Never type
+    TypeParameter = 1u << 19,  // Type parameter
+    Object = 1u << 20,  // Object type
+    Index = 1u << 21,  // keyof T
+    TemplateLiteral = 1u << 22,  // Template literal type
+    StringMapping = 1u << 23,  // Uppercase/Lowercase type
+    Substitution = 1u << 24,  // Type parameter substitution
+    IndexedAccess = 1u << 25,  // T[K]
+    Conditional = 1u << 26,  // T extends U ? X : Y
+    Union = 1u << 27,  // Union (T | U)
+    Intersection = 1u << 28,  // Intersection (T & U)
     /// <summary>@internal</summary>
-    Reserved1 = 0x20000000,  // TS: 1 << 29  |  Used by union/intersection type construction
+    Reserved1 = 1u << 29,  // Used by union/intersection type construction
     /// <summary>@internal</summary>
-    Reserved2 = 0x40000000,  // TS: 1 << 30  |  Used by union/intersection type construction
+    Reserved2 = 1u << 30,  // Used by union/intersection type construction
     /// <summary>@internal</summary>
-    Reserved3 = 0x80000000,  // TS: 1 << 31
+    Reserved3 = 1u << 31,
     /// <summary>@internal</summary>
-    AnyOrUnknown = 0x00000003,  // TS: Any | Unknown
+    AnyOrUnknown = Any | Unknown,
     /// <summary>@internal</summary>
-    Nullable = 0x0000000C,  // TS: Undefined | Null
-    Literal = 0x00003C00,  // TS: StringLiteral | NumberLiteral | BigIntLiteral | BooleanLiteral
-    Unit = 0x00017C0C,  // TS: Enum | Literal | UniqueESSymbol | Nullable
-    Freshable = 0x00013C00,  // TS: Enum | Literal
-    StringOrNumberLiteral = 0x00000C00,  // TS: StringLiteral | NumberLiteral
+    Nullable = Undefined | Null,
+    Literal = StringLiteral | NumberLiteral | BigIntLiteral | BooleanLiteral,
+    Unit = Enum | Literal | UniqueESSymbol | Nullable,
+    Freshable = Enum | Literal,
+    StringOrNumberLiteral = StringLiteral | NumberLiteral,
     /// <summary>@internal</summary>
-    StringOrNumberLiteralOrUnique = 0x00004C00,  // TS: StringLiteral | NumberLiteral | UniqueESSymbol
+    StringOrNumberLiteralOrUnique = StringLiteral | NumberLiteral | UniqueESSymbol,
     /// <summary>@internal</summary>
-    DefinitelyFalsy = 0x00003C1C,  // TS: StringLiteral | NumberLiteral | BigIntLiteral | BooleanLiteral | Void | Undefined | Null
-    PossiblyFalsy = 0x00003DFC,  // TS: DefinitelyFalsy | String | Number | BigInt | Boolean
+    DefinitelyFalsy = StringLiteral | NumberLiteral | BigIntLiteral | BooleanLiteral | Void | Undefined | Null,
+    PossiblyFalsy = DefinitelyFalsy | String | Number | BigInt | Boolean,
     /// <summary>@internal</summary>
-    Intrinsic = 0x000623FF,  // TS: Any | Unknown | String | Number | BigInt | Boolean | BooleanLiteral | ESSymbol | Void | Undefined | Null | Never | NonPrimitive
-    StringLike = 0x00C00420,  // TS: String | StringLiteral | TemplateLiteral | StringMapping
-    NumberLike = 0x00010840,  // TS: Number | NumberLiteral | Enum
-    BigIntLike = 0x00001080,  // TS: BigInt | BigIntLiteral
-    BooleanLike = 0x00002100,  // TS: Boolean | BooleanLiteral
-    EnumLike = 0x00018000,  // TS: Enum | EnumLiteral
-    ESSymbolLike = 0x00004200,  // TS: ESSymbol | UniqueESSymbol
-    VoidLike = 0x00000014,  // TS: Void | Undefined
+    Intrinsic = Any | Unknown | String | Number | BigInt | Boolean | BooleanLiteral | ESSymbol | Void | Undefined | Null | Never | NonPrimitive,
+    StringLike = String | StringLiteral | TemplateLiteral | StringMapping,
+    NumberLike = Number | NumberLiteral | Enum,
+    BigIntLike = BigInt | BigIntLiteral,
+    BooleanLike = Boolean | BooleanLiteral,
+    EnumLike = Enum | EnumLiteral,
+    ESSymbolLike = ESSymbol | UniqueESSymbol,
+    VoidLike = Void | Undefined,
     /// <summary>@internal</summary>
-    Primitive = 0x00C1FFFC,  // TS: StringLike | NumberLike | BigIntLike | BooleanLike | EnumLike | ESSymbolLike | VoidLike | Null
+    Primitive = StringLike | NumberLike | BigIntLike | BooleanLike | EnumLike | ESSymbolLike | VoidLike | Null,
     /// <summary>@internal</summary>
-    DefinitelyNonNullable = 0x00D3FFE0,  // TS: StringLike | NumberLike | BigIntLike | BooleanLike | EnumLike | ESSymbolLike | Object | NonPrimitive
+    DefinitelyNonNullable = StringLike | NumberLike | BigIntLike | BooleanLike | EnumLike | ESSymbolLike | Object | NonPrimitive,
     /// <summary>@internal</summary>
-    DisjointDomains = 0x00C37FFC,  // TS: NonPrimitive | StringLike | NumberLike | BigIntLike | BooleanLike | ESSymbolLike | VoidLike | Null
-    UnionOrIntersection = 0x18000000,  // TS: Union | Intersection
-    StructuredType = 0x18100000,  // TS: Object | Union | Intersection
-    TypeVariable = 0x02080000,  // TS: TypeParameter | IndexedAccess
-    InstantiableNonPrimitive = 0x07080000,  // TS: TypeVariable | Conditional | Substitution
-    InstantiablePrimitive = 0x00E00000,  // TS: Index | TemplateLiteral | StringMapping
-    Instantiable = 0x07E80000,  // TS: InstantiableNonPrimitive | InstantiablePrimitive
-    StructuredOrInstantiable = 0x1FF80000,  // TS: StructuredType | Instantiable
+    DisjointDomains = NonPrimitive | StringLike | NumberLike | BigIntLike | BooleanLike | ESSymbolLike | VoidLike | Null,
+    UnionOrIntersection = Union | Intersection,
+    StructuredType = Object | Union | Intersection,
+    TypeVariable = TypeParameter | IndexedAccess,
+    InstantiableNonPrimitive = TypeVariable | Conditional | Substitution,
+    InstantiablePrimitive = Index | TemplateLiteral | StringMapping,
+    Instantiable = InstantiableNonPrimitive | InstantiablePrimitive,
+    StructuredOrInstantiable = StructuredType | Instantiable,
     /// <summary>@internal</summary>
-    ObjectFlagsType = 0x1814000D,  // TS: Any | Nullable | Never | Object | Union | Intersection
+    ObjectFlagsType = Any | Nullable | Never | Object | Union | Intersection,
     /// <summary>@internal</summary>
-    Simplifiable = 0x06200000,  // TS: IndexedAccess | Conditional | Index
+    Simplifiable = IndexedAccess | Conditional | Index,
     /// <summary>@internal</summary>
-    Singleton = 0x000603FF,  // TS: Any | Unknown | String | Number | Boolean | BigInt | ESSymbol | Void | Undefined | Null | Never | NonPrimitive
-    Narrowable = 0x1FFB7FE3,  // TS: Any | Unknown | StructuredOrInstantiable | StringLike | NumberLike | BigIntLike | BooleanLike | ESSymbol | UniqueESSymbol | NonPrimitive
+    Singleton = Any | Unknown | String | Number | Boolean | BigInt | ESSymbol | Void | Undefined | Null | Never | NonPrimitive,
+    Narrowable = Any | Unknown | StructuredOrInstantiable | StringLike | NumberLike | BigIntLike | BooleanLike | ESSymbol | UniqueESSymbol | NonPrimitive,
     /// <summary>@internal</summary>
-    IncludesMask = 0x18D7FFFF,  // TS: Any | Unknown | Primitive | Never | Object | Union | Intersection | NonPrimitive | TemplateLiteral | StringMapping
+    IncludesMask = Any | Unknown | Primitive | Never | Object | Union | Intersection | NonPrimitive | TemplateLiteral | StringMapping,
     /// <summary>@internal</summary>
-    IncludesMissingType = 0x00080000,  // TS: IncludesMissingType = TypeParameter
+    IncludesMissingType = TypeParameter,
     /// <summary>@internal</summary>
-    IncludesNonWideningType = 0x00200000,  // TS: IncludesNonWideningType = Index
+    IncludesNonWideningType = Index,
     /// <summary>@internal</summary>
-    IncludesWildcard = 0x02000000,  // TS: IncludesWildcard = IndexedAccess
+    IncludesWildcard = IndexedAccess,
     /// <summary>@internal</summary>
-    IncludesEmptyObject = 0x04000000,  // TS: IncludesEmptyObject = Conditional
+    IncludesEmptyObject = Conditional,
     /// <summary>@internal</summary>
-    IncludesInstantiable = 0x01000000,  // TS: IncludesInstantiable = Substitution
+    IncludesInstantiable = Substitution,
     /// <summary>@internal</summary>
-    IncludesConstrainedTypeVariable = 0x20000000,  // TS: IncludesConstrainedTypeVariable = Reserved1
+    IncludesConstrainedTypeVariable = Reserved1,
     /// <summary>@internal</summary>
-    IncludesError = 0x40000000,  // TS: IncludesError = Reserved2
+    IncludesError = Reserved2,
     /// <summary>@internal</summary>
-    NotPrimitiveUnion = 0x11140013,  // TS: Any | Unknown | Void | Never | Object | Intersection | IncludesInstantiable
+    NotPrimitiveUnion = Any | Unknown | Void | Never | Object | Intersection | IncludesInstantiable,
 }

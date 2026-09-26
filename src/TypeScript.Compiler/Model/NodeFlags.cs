@@ -12,56 +12,56 @@ namespace TypeScript.Compiler;
 [Flags]
 internal enum NodeFlags : uint
 {
-    None = 0,
-    Let = 0x00000001,  // TS: 1 << 0  |  Variable declaration
-    Const = 0x00000002,  // TS: 1 << 1  |  Variable declaration
-    Using = 0x00000004,  // TS: 1 << 2  |  Variable declaration
-    AwaitUsing = 0x00000006,  // TS: Const | Using  |  Variable declaration (NOTE: on a single node these flags would otherwise be mutually exclusive)
-    NestedNamespace = 0x00000008,  // TS: 1 << 3  |  Namespace declaration
-    Synthesized = 0x00000010,  // TS: 1 << 4  |  Node was synthesized during transformation
-    Namespace = 0x00000020,  // TS: 1 << 5  |  Namespace declaration
-    OptionalChain = 0x00000040,  // TS: 1 << 6  |  Chained MemberExpression rooted to a pseudo-OptionalExpression
-    ExportContext = 0x00000080,  // TS: 1 << 7  |  Export context (initialized by binding)
-    ContainsThis = 0x00000100,  // TS: 1 << 8  |  Interface contains references to "this"
-    HasImplicitReturn = 0x00000200,  // TS: 1 << 9  |  If function implicitly returns on one of codepaths (initialized by binding)
-    HasExplicitReturn = 0x00000400,  // TS: 1 << 10  |  If function has explicit reachable return on one of codepaths (initialized by binding)
-    GlobalAugmentation = 0x00000800,  // TS: 1 << 11  |  Set if module declaration is an augmentation for the global scope
-    HasAsyncFunctions = 0x00001000,  // TS: 1 << 12  |  If the file has async functions (initialized by binding)
-    DisallowInContext = 0x00002000,  // TS: 1 << 13  |  If node was parsed in a context where 'in-expressions' are not allowed
-    YieldContext = 0x00004000,  // TS: 1 << 14  |  If node was parsed in the 'yield' context created when parsing a generator
-    DecoratorContext = 0x00008000,  // TS: 1 << 15  |  If node was parsed as part of a decorator
-    AwaitContext = 0x00010000,  // TS: 1 << 16  |  If node was parsed in the 'await' context created when parsing an async function
-    DisallowConditionalTypesContext = 0x00020000,  // TS: 1 << 17  |  If node was parsed in a context where conditional types are not allowed
-    ThisNodeHasError = 0x00040000,  // TS: 1 << 18  |  If the parser encountered an error when parsing the code that created this node
-    JavaScriptFile = 0x00080000,  // TS: 1 << 19  |  If node was parsed in a JavaScript
-    ThisNodeOrAnySubNodesHasError = 0x00100000,  // TS: 1 << 20  |  If this node or any of its children had an error
-    HasAggregatedChildData = 0x00200000,  // TS: 1 << 21  |  If we've computed data from children and cached it in this node
+    None = 0u,
+    Let = 1u << 0,  // Variable declaration
+    Const = 1u << 1,  // Variable declaration
+    Using = 1u << 2,  // Variable declaration
+    AwaitUsing = Const | Using,  // Variable declaration (NOTE: on a single node these flags would otherwise be mutually exclusive)
+    NestedNamespace = 1u << 3,  // Namespace declaration
+    Synthesized = 1u << 4,  // Node was synthesized during transformation
+    Namespace = 1u << 5,  // Namespace declaration
+    OptionalChain = 1u << 6,  // Chained MemberExpression rooted to a pseudo-OptionalExpression
+    ExportContext = 1u << 7,  // Export context (initialized by binding)
+    ContainsThis = 1u << 8,  // Interface contains references to "this"
+    HasImplicitReturn = 1u << 9,  // If function implicitly returns on one of codepaths (initialized by binding)
+    HasExplicitReturn = 1u << 10,  // If function has explicit reachable return on one of codepaths (initialized by binding)
+    GlobalAugmentation = 1u << 11,  // Set if module declaration is an augmentation for the global scope
+    HasAsyncFunctions = 1u << 12,  // If the file has async functions (initialized by binding)
+    DisallowInContext = 1u << 13,  // If node was parsed in a context where 'in-expressions' are not allowed
+    YieldContext = 1u << 14,  // If node was parsed in the 'yield' context created when parsing a generator
+    DecoratorContext = 1u << 15,  // If node was parsed as part of a decorator
+    AwaitContext = 1u << 16,  // If node was parsed in the 'await' context created when parsing an async function
+    DisallowConditionalTypesContext = 1u << 17,  // If node was parsed in a context where conditional types are not allowed
+    ThisNodeHasError = 1u << 18,  // If the parser encountered an error when parsing the code that created this node
+    JavaScriptFile = 1u << 19,  // If node was parsed in a JavaScript
+    ThisNodeOrAnySubNodesHasError = 1u << 20,  // If this node or any of its children had an error
+    HasAggregatedChildData = 1u << 21,  // If we've computed data from children and cached it in this node
     /// <summary>@internal</summary>
-    PossiblyContainsDynamicImport = 0x00400000,  // TS: 1 << 22
+    PossiblyContainsDynamicImport = 1u << 22,
     /// <summary>@internal</summary>
-    PossiblyContainsImportMeta = 0x00800000,  // TS: 1 << 23
-    JSDoc = 0x01000000,  // TS: 1 << 24  |  If node was parsed inside jsdoc
+    PossiblyContainsImportMeta = 1u << 23,
+    JSDoc = 1u << 24,  // If node was parsed inside jsdoc
     /// <summary>@internal</summary>
-    Ambient = 0x02000000,  // TS: 1 << 25  |  If node was inside an ambient context -- a declaration file, or inside something with the `declare` modifier.
+    Ambient = 1u << 25,  // If node was inside an ambient context -- a declaration file, or inside something with the `declare` modifier.
     /// <summary>@internal</summary>
-    InWithStatement = 0x04000000,  // TS: 1 << 26  |  If any ancestor of node was the `statement` of a WithStatement (not the `expression`)
-    JsonFile = 0x08000000,  // TS: 1 << 27  |  If node was parsed in a Json
+    InWithStatement = 1u << 26,  // If any ancestor of node was the `statement` of a WithStatement (not the `expression`)
+    JsonFile = 1u << 27,  // If node was parsed in a Json
     /// <summary>@internal</summary>
-    TypeCached = 0x10000000,  // TS: 1 << 28  |  If a type was cached for node at any point
+    TypeCached = 1u << 28,  // If a type was cached for node at any point
     /// <summary>@internal</summary>
-    Deprecated = 0x20000000,  // TS: 1 << 29  |  If has '@deprecated' JSDoc tag
+    Deprecated = 1u << 29,  // If has '@deprecated' JSDoc tag
     /// <summary>@internal</summary>
-    Unreachable = 0x40000000,  // TS: 1 << 30  |  If node is unreachable according to the binder
-    BlockScoped = 0x00000007,  // TS: Let | Const | Using
-    Constant = 0x00000006,  // TS: Const | Using
-    ReachabilityCheckFlags = 0x00000600,  // TS: HasImplicitReturn | HasExplicitReturn
-    ReachabilityAndEmitFlags = 0x00001600,  // TS: ReachabilityCheckFlags | HasAsyncFunctions
-    ContextFlags = 0x060BE000,  // TS: DisallowInContext | DisallowConditionalTypesContext | YieldContext | DecoratorContext | AwaitContext | JavaScriptFile | InWithStatement | Ambient
-    TypeExcludesFlags = 0x00014000,  // TS: YieldContext | AwaitContext
+    Unreachable = 1u << 30,  // If node is unreachable according to the binder
+    BlockScoped = Let | Const | Using,
+    Constant = Const | Using,
+    ReachabilityCheckFlags = HasImplicitReturn | HasExplicitReturn,
+    ReachabilityAndEmitFlags = ReachabilityCheckFlags | HasAsyncFunctions,
+    ContextFlags = DisallowInContext | DisallowConditionalTypesContext | YieldContext | DecoratorContext | AwaitContext | JavaScriptFile | InWithStatement | Ambient,
+    TypeExcludesFlags = YieldContext | AwaitContext,
     /// <summary>@internal</summary>
-    PermanentlySetIncrementalFlags = 0x00C00000,  // TS: PossiblyContainsDynamicImport | PossiblyContainsImportMeta
+    PermanentlySetIncrementalFlags = PossiblyContainsDynamicImport | PossiblyContainsImportMeta,
     /// <summary>@internal</summary>
-    IdentifierHasExtendedUnicodeEscape = 0x00000100,  // TS: IdentifierHasExtendedUnicodeEscape = ContainsThis  |  Indicates whether the identifier contains an extended unicode escape sequence
+    IdentifierHasExtendedUnicodeEscape = ContainsThis,  // Indicates whether the identifier contains an extended unicode escape sequence
     /// <summary>@internal</summary>
-    IdentifierIsInJSDocNamespace = 0x00001000,  // TS: IdentifierIsInJSDocNamespace = HasAsyncFunctions  |  Indicates whether the identifier is part of a JSDoc namespace
+    IdentifierIsInJSDocNamespace = HasAsyncFunctions,  // Indicates whether the identifier is part of a JSDoc namespace
 }

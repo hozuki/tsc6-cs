@@ -27,6 +27,8 @@ internal static class EnumEmitter
     /// </summary>
     private static string EmitNumericEnum(TsEnum tsEnum, EnumSpec spec)
     {
+        var memberValues = tsEnum.Members.ToDictionary(static m => m.Name, static m => m.Value, StringComparer.Ordinal);
+
         var sb = Header(tsEnum, spec);
         if (spec.Flags) sb.AppendLine("[Flags]");
         sb.AppendLine($"internal enum {spec.Name} : {spec.UnderlyingType}");
@@ -36,23 +38,15 @@ internal static class EnumEmitter
         {
             AppendDoc(sb, member);
 
-            var literal = FormatNumericValue(member.Value, spec);
+            // Keep the TS expression rather than its numeric value: expressions stay readable next to the
+            // source, and aliases (`JSDocComment = JSDoc`) keep pointing at their target. Members with no
+            // explicit value are implicit increments and are emitted as plain numbers.
+            var literal = member.ValueExpression is null
+                ? member.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                : ExpressionEvaluator.Rewrite(member.ValueExpression, memberValues, spec.UnderlyingType!);
+
             var line = $"    {member.Name} = {literal},";
-
-            var notes = new List<string>();
-            if (member.IsAlias && member.ValueExpression is not null)
-            {
-                // Preserve the alias relationship, which the numeric value alone loses.
-                notes.Add($"TS: {member.Name} = {member.ValueExpression}");
-            }
-            else if (member.ValueExpression is not null && member.ValueExpression != literal)
-            {
-                notes.Add($"TS: {member.ValueExpression}");
-            }
-
-            if (member.TrailingComment is { Length: > 0 }) notes.Add(member.TrailingComment);
-            if (notes.Count != 0) line += "  // " + string.Join("  |  ", notes);
-
+            if (member.TrailingComment is { Length: > 0 }) line += "  // " + member.TrailingComment;
             sb.AppendLine(line);
         }
 
@@ -147,12 +141,6 @@ internal static class EnumEmitter
         // The repository is LF-only (.gitattributes: eol=lf); AppendLine emits CRLF on Windows and would
         // make the committed files differ from what the generator produces after checkout.
         return sb.ToString().Replace("\r\n", "\n");
-    }
-
-    private static string FormatNumericValue(long value, EnumSpec spec)
-    {
-        if (value == 0) return "0";
-        return spec.Flags ? $"0x{value:X8}" : value.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     /// <summary>Escapes text for use inside an XML doc comment.</summary>

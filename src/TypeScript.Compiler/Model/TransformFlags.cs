@@ -12,68 +12,68 @@ namespace TypeScript.Compiler;
 [Flags]
 internal enum TransformFlags : uint
 {
-    None = 0,
-    ContainsTypeScript = 0x00000001,  // TS: 1 << 0
-    ContainsJsx = 0x00000002,  // TS: 1 << 1
-    ContainsESNext = 0x00000004,  // TS: 1 << 2
-    ContainsES2022 = 0x00000008,  // TS: 1 << 3
-    ContainsES2021 = 0x00000010,  // TS: 1 << 4
-    ContainsES2020 = 0x00000020,  // TS: 1 << 5
-    ContainsES2019 = 0x00000040,  // TS: 1 << 6
-    ContainsES2018 = 0x00000080,  // TS: 1 << 7
-    ContainsES2017 = 0x00000100,  // TS: 1 << 8
-    ContainsES2016 = 0x00000200,  // TS: 1 << 9
-    ContainsES2015 = 0x00000400,  // TS: 1 << 10
-    ContainsGenerator = 0x00000800,  // TS: 1 << 11
-    ContainsDestructuringAssignment = 0x00001000,  // TS: 1 << 12
-    ContainsTypeScriptClassSyntax = 0x00002000,  // TS: 1 << 13  |  Property Initializers, Parameter Property Initializers
-    ContainsLexicalThis = 0x00004000,  // TS: 1 << 14
-    ContainsRestOrSpread = 0x00008000,  // TS: 1 << 15
-    ContainsObjectRestOrSpread = 0x00010000,  // TS: 1 << 16
-    ContainsComputedPropertyName = 0x00020000,  // TS: 1 << 17
-    ContainsBlockScopedBinding = 0x00040000,  // TS: 1 << 18
-    ContainsBindingPattern = 0x00080000,  // TS: 1 << 19
-    ContainsYield = 0x00100000,  // TS: 1 << 20
-    ContainsAwait = 0x00200000,  // TS: 1 << 21
-    ContainsHoistedDeclarationOrCompletion = 0x00400000,  // TS: 1 << 22
-    ContainsDynamicImport = 0x00800000,  // TS: 1 << 23
-    ContainsClassFields = 0x01000000,  // TS: 1 << 24
-    ContainsDecorators = 0x02000000,  // TS: 1 << 25
-    ContainsPossibleTopLevelAwait = 0x04000000,  // TS: 1 << 26
-    ContainsLexicalSuper = 0x08000000,  // TS: 1 << 27
-    ContainsUpdateExpressionForIdentifier = 0x10000000,  // TS: 1 << 28
-    ContainsPrivateIdentifierInExpression = 0x20000000,  // TS: 1 << 29
-    HasComputedFlags = 0x80000000,  // TS: 1 << 31  |  Transform flags have been computed.
-    AssertTypeScript = 0x00000001,  // TS: AssertTypeScript = ContainsTypeScript
-    AssertJsx = 0x00000002,  // TS: AssertJsx = ContainsJsx
-    AssertESNext = 0x00000004,  // TS: AssertESNext = ContainsESNext
-    AssertES2022 = 0x00000008,  // TS: AssertES2022 = ContainsES2022
-    AssertES2021 = 0x00000010,  // TS: AssertES2021 = ContainsES2021
-    AssertES2020 = 0x00000020,  // TS: AssertES2020 = ContainsES2020
-    AssertES2019 = 0x00000040,  // TS: AssertES2019 = ContainsES2019
-    AssertES2018 = 0x00000080,  // TS: AssertES2018 = ContainsES2018
-    AssertES2017 = 0x00000100,  // TS: AssertES2017 = ContainsES2017
-    AssertES2016 = 0x00000200,  // TS: AssertES2016 = ContainsES2016
-    AssertES2015 = 0x00000400,  // TS: AssertES2015 = ContainsES2015
-    AssertGenerator = 0x00000800,  // TS: AssertGenerator = ContainsGenerator
-    AssertDestructuringAssignment = 0x00001000,  // TS: AssertDestructuringAssignment = ContainsDestructuringAssignment
-    OuterExpressionExcludes = 0x80000000,  // TS: OuterExpressionExcludes = HasComputedFlags
-    PropertyAccessExcludes = 0x80000000,  // TS: PropertyAccessExcludes = OuterExpressionExcludes
-    NodeExcludes = 0x80000000,  // TS: NodeExcludes = PropertyAccessExcludes
-    ArrowFunctionExcludes = 0x847D2000,  // TS: NodeExcludes | ContainsTypeScriptClassSyntax | ContainsBlockScopedBinding | ContainsYield | ContainsAwait | ContainsHoistedDeclarationOrCompletion | ContainsBindingPattern | ContainsObjectRestOrSpread | ContainsPossibleTopLevelAwait
-    FunctionExcludes = 0x8C7D6000,  // TS: NodeExcludes | ContainsTypeScriptClassSyntax | ContainsLexicalThis | ContainsLexicalSuper | ContainsBlockScopedBinding | ContainsYield | ContainsAwait | ContainsHoistedDeclarationOrCompletion | ContainsBindingPattern | ContainsObjectRestOrSpread | ContainsPossibleTopLevelAwait
-    ConstructorExcludes = 0x8C7D4000,  // TS: NodeExcludes | ContainsLexicalThis | ContainsLexicalSuper | ContainsBlockScopedBinding | ContainsYield | ContainsAwait | ContainsHoistedDeclarationOrCompletion | ContainsBindingPattern | ContainsObjectRestOrSpread | ContainsPossibleTopLevelAwait
-    MethodOrAccessorExcludes = 0x887D4000,  // TS: NodeExcludes | ContainsLexicalThis | ContainsLexicalSuper | ContainsBlockScopedBinding | ContainsYield | ContainsAwait | ContainsHoistedDeclarationOrCompletion | ContainsBindingPattern | ContainsObjectRestOrSpread
-    PropertyExcludes = 0x88004000,  // TS: NodeExcludes | ContainsLexicalThis | ContainsLexicalSuper
-    ClassExcludes = 0x80022000,  // TS: NodeExcludes | ContainsTypeScriptClassSyntax | ContainsComputedPropertyName
-    ModuleExcludes = 0x8C446000,  // TS: NodeExcludes | ContainsTypeScriptClassSyntax | ContainsLexicalThis | ContainsLexicalSuper | ContainsBlockScopedBinding | ContainsHoistedDeclarationOrCompletion | ContainsPossibleTopLevelAwait
-    TypeExcludes = 0xFFFFFFFE,  // TS: ~ContainsTypeScript
-    ObjectLiteralExcludes = 0x80032000,  // TS: NodeExcludes | ContainsTypeScriptClassSyntax | ContainsComputedPropertyName | ContainsObjectRestOrSpread
-    ArrayLiteralOrCallOrNewExcludes = 0x80008000,  // TS: NodeExcludes | ContainsRestOrSpread
-    VariableDeclarationListExcludes = 0x80090000,  // TS: NodeExcludes | ContainsBindingPattern | ContainsObjectRestOrSpread
-    ParameterExcludes = 0x80000000,  // TS: ParameterExcludes = NodeExcludes
-    CatchClauseExcludes = 0x80010000,  // TS: NodeExcludes | ContainsObjectRestOrSpread
-    BindingPatternExcludes = 0x80008000,  // TS: NodeExcludes | ContainsRestOrSpread
-    ContainsLexicalThisOrSuper = 0x08004000,  // TS: ContainsLexicalThis | ContainsLexicalSuper
-    PropertyNamePropagatingFlags = 0x08004000,  // TS: ContainsLexicalThis | ContainsLexicalSuper
+    None = 0u,
+    ContainsTypeScript = 1u << 0,
+    ContainsJsx = 1u << 1,
+    ContainsESNext = 1u << 2,
+    ContainsES2022 = 1u << 3,
+    ContainsES2021 = 1u << 4,
+    ContainsES2020 = 1u << 5,
+    ContainsES2019 = 1u << 6,
+    ContainsES2018 = 1u << 7,
+    ContainsES2017 = 1u << 8,
+    ContainsES2016 = 1u << 9,
+    ContainsES2015 = 1u << 10,
+    ContainsGenerator = 1u << 11,
+    ContainsDestructuringAssignment = 1u << 12,
+    ContainsTypeScriptClassSyntax = 1u << 13,  // Property Initializers, Parameter Property Initializers
+    ContainsLexicalThis = 1u << 14,
+    ContainsRestOrSpread = 1u << 15,
+    ContainsObjectRestOrSpread = 1u << 16,
+    ContainsComputedPropertyName = 1u << 17,
+    ContainsBlockScopedBinding = 1u << 18,
+    ContainsBindingPattern = 1u << 19,
+    ContainsYield = 1u << 20,
+    ContainsAwait = 1u << 21,
+    ContainsHoistedDeclarationOrCompletion = 1u << 22,
+    ContainsDynamicImport = 1u << 23,
+    ContainsClassFields = 1u << 24,
+    ContainsDecorators = 1u << 25,
+    ContainsPossibleTopLevelAwait = 1u << 26,
+    ContainsLexicalSuper = 1u << 27,
+    ContainsUpdateExpressionForIdentifier = 1u << 28,
+    ContainsPrivateIdentifierInExpression = 1u << 29,
+    HasComputedFlags = 1u << 31,  // Transform flags have been computed.
+    AssertTypeScript = ContainsTypeScript,
+    AssertJsx = ContainsJsx,
+    AssertESNext = ContainsESNext,
+    AssertES2022 = ContainsES2022,
+    AssertES2021 = ContainsES2021,
+    AssertES2020 = ContainsES2020,
+    AssertES2019 = ContainsES2019,
+    AssertES2018 = ContainsES2018,
+    AssertES2017 = ContainsES2017,
+    AssertES2016 = ContainsES2016,
+    AssertES2015 = ContainsES2015,
+    AssertGenerator = ContainsGenerator,
+    AssertDestructuringAssignment = ContainsDestructuringAssignment,
+    OuterExpressionExcludes = HasComputedFlags,
+    PropertyAccessExcludes = OuterExpressionExcludes,
+    NodeExcludes = PropertyAccessExcludes,
+    ArrowFunctionExcludes = NodeExcludes | ContainsTypeScriptClassSyntax | ContainsBlockScopedBinding | ContainsYield | ContainsAwait | ContainsHoistedDeclarationOrCompletion | ContainsBindingPattern | ContainsObjectRestOrSpread | ContainsPossibleTopLevelAwait,
+    FunctionExcludes = NodeExcludes | ContainsTypeScriptClassSyntax | ContainsLexicalThis | ContainsLexicalSuper | ContainsBlockScopedBinding | ContainsYield | ContainsAwait | ContainsHoistedDeclarationOrCompletion | ContainsBindingPattern | ContainsObjectRestOrSpread | ContainsPossibleTopLevelAwait,
+    ConstructorExcludes = NodeExcludes | ContainsLexicalThis | ContainsLexicalSuper | ContainsBlockScopedBinding | ContainsYield | ContainsAwait | ContainsHoistedDeclarationOrCompletion | ContainsBindingPattern | ContainsObjectRestOrSpread | ContainsPossibleTopLevelAwait,
+    MethodOrAccessorExcludes = NodeExcludes | ContainsLexicalThis | ContainsLexicalSuper | ContainsBlockScopedBinding | ContainsYield | ContainsAwait | ContainsHoistedDeclarationOrCompletion | ContainsBindingPattern | ContainsObjectRestOrSpread,
+    PropertyExcludes = NodeExcludes | ContainsLexicalThis | ContainsLexicalSuper,
+    ClassExcludes = NodeExcludes | ContainsTypeScriptClassSyntax | ContainsComputedPropertyName,
+    ModuleExcludes = NodeExcludes | ContainsTypeScriptClassSyntax | ContainsLexicalThis | ContainsLexicalSuper | ContainsBlockScopedBinding | ContainsHoistedDeclarationOrCompletion | ContainsPossibleTopLevelAwait,
+    TypeExcludes = unchecked((uint)~(uint)ContainsTypeScript),
+    ObjectLiteralExcludes = NodeExcludes | ContainsTypeScriptClassSyntax | ContainsComputedPropertyName | ContainsObjectRestOrSpread,
+    ArrayLiteralOrCallOrNewExcludes = NodeExcludes | ContainsRestOrSpread,
+    VariableDeclarationListExcludes = NodeExcludes | ContainsBindingPattern | ContainsObjectRestOrSpread,
+    ParameterExcludes = NodeExcludes,
+    CatchClauseExcludes = NodeExcludes | ContainsObjectRestOrSpread,
+    BindingPatternExcludes = NodeExcludes | ContainsRestOrSpread,
+    ContainsLexicalThisOrSuper = ContainsLexicalThis | ContainsLexicalSuper,
+    PropertyNamePropagatingFlags = ContainsLexicalThis | ContainsLexicalSuper,
 }

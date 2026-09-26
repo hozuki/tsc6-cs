@@ -12,10 +12,10 @@ namespace TypeScript.Compiler;
 [Flags]
 internal enum JsxFlags : uint
 {
-    None = 0,
+    None = 0u,
     /// <summary>An element from a named property of the JSX.IntrinsicElements interface</summary>
-    IntrinsicNamedElement = 0x00000001,  // TS: 1 << 0
+    IntrinsicNamedElement = 1u << 0,
     /// <summary>An element inferred from the string index signature of the JSX.IntrinsicElements interface</summary>
-    IntrinsicIndexedElement = 0x00000002,  // TS: 1 << 1
-    IntrinsicElement = 0x00000003,  // TS: IntrinsicNamedElement | IntrinsicIndexedElement
+    IntrinsicIndexedElement = 1u << 1,
+    IntrinsicElement = IntrinsicNamedElement | IntrinsicIndexedElement,
 }

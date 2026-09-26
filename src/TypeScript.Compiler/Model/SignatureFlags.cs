@@ -12,15 +12,15 @@ namespace TypeScript.Compiler;
 [Flags]
 internal enum SignatureFlags : uint
 {
-    None = 0,
-    HasRestParameter = 0x00000001,  // TS: 1 << 0  |  Indicates last parameter is rest parameter
-    HasLiteralTypes = 0x00000002,  // TS: 1 << 1  |  Indicates signature is specialized
-    Abstract = 0x00000004,  // TS: 1 << 2  |  Indicates signature comes from an abstract class, abstract construct signature, or abstract constructor type
-    IsInnerCallChain = 0x00000008,  // TS: 1 << 3  |  Indicates signature comes from a CallChain nested in an outer OptionalChain
-    IsOuterCallChain = 0x00000010,  // TS: 1 << 4  |  Indicates signature comes from a CallChain that is the outermost chain of an optional expression
-    IsUntypedSignatureInJSFile = 0x00000020,  // TS: 1 << 5  |  Indicates signature is from a js file and has no types
-    IsNonInferrable = 0x00000040,  // TS: 1 << 6  |  Indicates signature comes from a non-inferrable type
-    IsSignatureCandidateForOverloadFailure = 0x00000080,  // TS: 1 << 7
-    PropagatingFlags = 0x000000A7,  // TS: HasRestParameter | HasLiteralTypes | Abstract | IsUntypedSignatureInJSFile | IsSignatureCandidateForOverloadFailure
-    CallChainFlags = 0x00000018,  // TS: IsInnerCallChain | IsOuterCallChain
+    None = 0u,
+    HasRestParameter = 1u << 0,  // Indicates last parameter is rest parameter
+    HasLiteralTypes = 1u << 1,  // Indicates signature is specialized
+    Abstract = 1u << 2,  // Indicates signature comes from an abstract class, abstract construct signature, or abstract constructor type
+    IsInnerCallChain = 1u << 3,  // Indicates signature comes from a CallChain nested in an outer OptionalChain
+    IsOuterCallChain = 1u << 4,  // Indicates signature comes from a CallChain that is the outermost chain of an optional expression
+    IsUntypedSignatureInJSFile = 1u << 5,  // Indicates signature is from a js file and has no types
+    IsNonInferrable = 1u << 6,  // Indicates signature comes from a non-inferrable type
+    IsSignatureCandidateForOverloadFailure = 1u << 7,
+    PropagatingFlags = HasRestParameter | HasLiteralTypes | Abstract | IsUntypedSignatureInJSFile | IsSignatureCandidateForOverloadFailure,
+    CallChainFlags = IsInnerCallChain | IsOuterCallChain,
 }

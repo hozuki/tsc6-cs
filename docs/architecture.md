@@ -445,7 +445,13 @@ dotnet run --project tools/Gen -- --check    # 只校验不写入（CI / 本地�
 **生成过程中确认的三处 TS enum → C# 的差异（生成器已处理）**：
 
 1. TS 的 `const enum` 在编译期内联，别名不占运行时位置；C# 的 enum 保留别名成员，于是 `Enum.GetValues` 会返回重复值，`ToString()` 对别名也不可靠。**调试输出必须用独立的名称表**（`formatSyntaxKind`，随 M2 的 model 层实现），不能依赖 `Enum.GetName`。
-2. C# 的 enum **不支持一元 `~`**，所以 `ModifierFlags.Modifier = All & ~Decorator` 这类表达式在生成期求值为十六进制字面量，原表达式保留在行尾注释里以便追溯。同理 `1 << 31` 会溢出 `int`，相关枚举（`TypeFlags`/`TransformFlags`）的底层类型为 `uint`。
+2. **C# enum 没有一元 `~`；更微妙的是，enum 成员初始化式要求常量表达式的类型是「底层类型」而不是枚举类型。** 两点叠加决定了两种不同写法：
+   - **生成的 enum 成员**（TS 的 `ModifierFlags.Modifier = All & ~Decorator`）写成 `(uint)All & ~(uint)Decorator` —— 所有操作数转换到底层类型，整体保持 `uint`。外层**不能再包** `(ModifierFlags)`：成员初始化式要的是 `uint`，包了会报 `CS0019`/`CS0266`。只做 `|`/`&`/`^` 组合的表达式（`A | B`）无需转换，C# 为 enum 定义了这些运算符。
+   - **移植代码里的运行时表达式**（值需要留成 enum 类型）用 `Flags.Clear(value, mask)`（`Core/Flags.cs`），展开为 `(T)((U)value & ~(U)mask)`。
+   - 负数（TS 的 `SymbolFlags.All = -1`）渲染为 `unchecked((uint)-1)`：`-1u` 在 C# 里是 `long`，赋不进 `uint` 底层的成员。
+   - 移位：`1u << 31` —— 左操作数需要后缀（否则 `1 << 31` 溢出 `int`），右操作数**不能**带后缀（C# 只有 `T << int`，没有 `uint << uint`）。
+   - 生成器**保留表达式**而非求值成字面量，正是为了这几处能与 TS 源码逐字对照；求值仍然保留，用于挑选底层类型宽度和检出越界成员。
+   - 生成器**不照抄**字符串字面量。JS 的 `\x` 是定长两位、`\0`/`\'` 的规则也与 C# 不同，所以字面量先解码成实际字符，再按 C# 规则重新编码；遇到不认识的转义会中止生成而不是猜。
 3. **字符串值枚举生成为 `readonly struct` 包装，而不是 C# enum，也不是裸 `const string`。** TS 里有 4 个这样的枚举（`Extension`、`InternalSymbolName`、`PrivateIdentifierKind`、`ForegroundColorEscapeSequences`）。
    - C# enum 不能携带字符串值 —— 无法表示 `"__call"`、`"export="`、`"\u001b[90m"`。
    - 裸 `const string` 会丢掉名义类型，`fileExtensionIs` 这类函数的签名就退化成 `string, string`，没有任何东西能区分 `Extension` 与随手写的字面量。

@@ -1,73 +1,123 @@
 namespace TypeScript.Compiler.Tools;
 
 /// <summary>
-/// Evaluates the value expressions found in TS <c>const enum</c> bodies: identifiers, decimal/hex/binary
-/// literals, and the bitwise operators <c>| ^ &amp; &lt;&lt; &gt;&gt; ~</c>.
+/// Evaluates and re-renders the value expressions found in TS <c>const enum</c> bodies: identifiers,
+/// decimal/hex/binary literals, and the bitwise operators <c>| ^ &amp; &lt;&lt; &gt;&gt; ~</c>.
 /// </summary>
 /// <remarks>
-/// PORT-NOTE: JS bitwise operators coerce operands to 32-bit integers. Evaluation here uses
-/// <see cref="long"/> and normalises the result with <c>&amp; 0xFFFFFFFF</c>, which reproduces the 32-bit
-/// result for the "set/clear a flag" shapes the compiler's flag enums use (e.g. <c>All &amp; ~Decorator</c>).
+/// Two jobs, one parse:
+/// <list type="bullet">
+/// <item><see cref="Evaluate"/> produces the numeric value — needed to pick the enum's underlying type
+/// and to detect out-of-range members.</item>
+/// <item><see cref="Rewrite"/> produces an equivalent <em>C#</em> constant expression. Keeping the
+/// expression (instead of collapsing it to <c>0xFFFF7FFF</c>) keeps the generated enum readable next to
+/// the TS source.</item>
+/// </list>
+/// <para>
+/// C# enums have no unary <c>~</c>, and — a subtler point — an enum <em>member initializer</em> must be a
+/// constant expression of the <em>underlying type</em>, not of the enum type. So a "clear these bits"
+/// expression is rendered as <c>(uint)All &amp; ~(uint)Decorator</c>: every operand is converted down, and
+/// the whole thing stays <c>uint</c>. (An expression that merely combines members, like <c>A | B</c>, is
+/// fine as-is because C# defines the bitwise operators on enums.)
+/// </para>
 /// </remarks>
 internal static class ExpressionEvaluator
 {
+    /// <summary>Evaluates a TS enum value expression to its numeric value.</summary>
     public static long Evaluate(string expression, IReadOnlyDictionary<string, long> members)
+        => new Parser(expression, members, underlyingType: null, castIdentifiers: false).ParseOr().Value;
+
+    /// <summary>Rewrites a TS enum value expression into an equivalent C# constant expression.</summary>
+    /// <param name="underlyingType">The enum's underlying integer type (<c>int</c>/<c>uint</c>/<c>ulong</c>).</param>
+    public static string Rewrite(
+        string expression,
+        IReadOnlyDictionary<string, long> members,
+        string underlyingType)
     {
-        var parser = new Parser(expression, members);
-        var value = parser.ParseOr();
+        // `~` is the only operator that forces operands to the underlying type; expressions built purely
+        // from `|`/`&`/`^` stay in the enum's own type, which C# accepts in a member initializer.
+        var parser = new Parser(expression, members, underlyingType, castIdentifiers: expression.Contains('~'));
+        var (value, text) = parser.ParseOr();
         parser.ExpectEnd();
-        return value & 0xFFFFFFFFL;
+
+        // Negative results (TS writes `-1` for "all bits") cannot be folded into an unsigned member
+        // initializer without an explicit unchecked conversion.
+        if (value < 0 && underlyingType is "uint" or "ulong")
+        {
+            return $"unchecked(({underlyingType}){text})";
+        }
+
+        return text;
     }
 
-    private sealed class Parser(string text, IReadOnlyDictionary<string, long> members)
+    private sealed class Parser(
+        string text,
+        IReadOnlyDictionary<string, long> members,
+        string? underlyingType,
+        bool castIdentifiers)
     {
         private int _pos;
 
-        public long ParseOr()
+        /// <summary>Integer suffix applied to literals so they fit the enum's underlying type.</summary>
+        private string Suffix => underlyingType switch
+        {
+            "uint" => "u",
+            "ulong" => "ul",
+            _ => "",
+        };
+
+        public (long Value, string Text) ParseOr()
         {
             var left = ParseXor();
             while (Consume('|'))
             {
-                left |= ParseXor();
+                var right = ParseXor();
+                left = (left.Value | right.Value, $"{left.Text} | {right.Text}");
             }
 
             return left;
         }
 
-        private long ParseXor()
+        private (long Value, string Text) ParseXor()
         {
             var left = ParseAnd();
             while (Consume('^'))
             {
-                left ^= ParseAnd();
+                var right = ParseAnd();
+                left = (left.Value ^ right.Value, $"{left.Text} ^ {right.Text}");
             }
 
             return left;
         }
 
-        private long ParseAnd()
+        private (long Value, string Text) ParseAnd()
         {
             var left = ParseShift();
             while (Consume('&'))
             {
-                left &= ParseShift();
+                var right = ParseShift();
+                left = (left.Value & right.Value, $"{left.Text} & {right.Text}");
             }
 
             return left;
         }
 
-        private long ParseShift()
+        private (long Value, string Text) ParseShift()
         {
             var left = ParseUnary();
             while (true)
             {
+                // The shift count must stay an `int` in C# (`uint << uint` does not exist), so the right
+                // operand is rendered without any conversion or suffix.
                 if (Consume("<<"))
                 {
-                    left <<= (int)ParseUnary();
+                    var right = ParseCount();
+                    left = (left.Value << (int)right.Value, $"{left.Text} << {right.Text}");
                 }
                 else if (Consume(">>"))
                 {
-                    left >>= (int)ParseUnary();
+                    var right = ParseCount();
+                    left = (left.Value >> (int)right.Value, $"{left.Text} >> {right.Text}");
                 }
                 else
                 {
@@ -76,15 +126,39 @@ internal static class ExpressionEvaluator
             }
         }
 
-        private long ParseUnary()
+        /// <summary>Parses a shift count: a plain integer, with neither a suffix nor an identifier cast.</summary>
+        private (long Value, string Text) ParseCount()
         {
-            if (Consume('~')) return ~ParseUnary();
-            if (Consume('-')) return -ParseUnary();
-            if (Consume('+')) return ParseUnary();
-            return ParsePrimary();
+            SkipWhitespace();
+            var start = _pos;
+            while (_pos < text.Length && char.IsDigit(text[_pos])) _pos++;
+            if (_pos == start) throw Error("expected a numeric shift count");
+
+            var token = text[start.._pos];
+            return (long.Parse(token, System.Globalization.CultureInfo.InvariantCulture), token);
         }
 
-        private long ParsePrimary()
+        private (long Value, string Text) ParseUnary(bool allowSuffix = true)
+        {
+            if (Consume('~'))
+            {
+                var operand = ParseUnary(allowSuffix);
+                return (~operand.Value, $"~{operand.Text}");
+            }
+
+            if (Consume('-'))
+            {
+                // A negative literal must stay signed so the caller can wrap it in `unchecked((uint)…)`.
+                var operand = ParseUnary(allowSuffix: false);
+                return (-operand.Value, $"-{operand.Text}");
+            }
+
+            if (Consume('+')) return ParseUnary(allowSuffix);
+
+            return ParsePrimary(allowSuffix);
+        }
+
+        private (long Value, string Text) ParsePrimary(bool allowSuffix)
         {
             SkipWhitespace();
 
@@ -92,7 +166,7 @@ internal static class ExpressionEvaluator
             {
                 var inner = ParseOr();
                 if (!Consume(')')) throw Error("expected ')'");
-                return inner;
+                return (inner.Value, $"({inner.Text})");
             }
 
             var start = _pos;
@@ -104,13 +178,18 @@ internal static class ExpressionEvaluator
             if (_pos == start) throw Error("expected a literal or identifier");
 
             var token = text[start.._pos];
-            if (char.IsDigit(token[0])) return ParseNumber(token);
+            if (char.IsDigit(token[0]))
+            {
+                var number = ParseNumber(token);
+                return (number, allowSuffix ? token + Suffix : token);
+            }
+
             if (!members.TryGetValue(token, out var value))
             {
                 throw Error($"unknown identifier '{token}' (only members of the same enum are known)");
             }
 
-            return value;
+            return (value, castIdentifiers ? $"({underlyingType}){token}" : token);
         }
 
         private static long ParseNumber(string token)
@@ -169,6 +248,6 @@ internal static class ExpressionEvaluator
         }
 
         private InvalidOperationException Error(string message)
-            => new($"while evaluating `{text}`: {message} (at offset {_pos})");
+            => new($"while reading `{text}`: {message} (at offset {_pos})");
     }
 }

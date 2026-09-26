@@ -12,73 +12,73 @@ namespace TypeScript.Compiler;
 [Flags]
 internal enum SymbolFlags : uint
 {
-    None = 0,
-    FunctionScopedVariable = 0x00000001,  // TS: 1 << 0  |  Variable (var) or parameter
-    BlockScopedVariable = 0x00000002,  // TS: 1 << 1  |  A block-scoped variable (let or const)
-    Property = 0x00000004,  // TS: 1 << 2  |  Property or enum member
-    EnumMember = 0x00000008,  // TS: 1 << 3  |  Enum member
-    Function = 0x00000010,  // TS: 1 << 4  |  Function
-    Class = 0x00000020,  // TS: 1 << 5  |  Class
-    Interface = 0x00000040,  // TS: 1 << 6  |  Interface
-    ConstEnum = 0x00000080,  // TS: 1 << 7  |  Const enum
-    RegularEnum = 0x00000100,  // TS: 1 << 8  |  Enum
-    ValueModule = 0x00000200,  // TS: 1 << 9  |  Instantiated module
-    NamespaceModule = 0x00000400,  // TS: 1 << 10  |  Uninstantiated module
-    TypeLiteral = 0x00000800,  // TS: 1 << 11  |  Type Literal or mapped type
-    ObjectLiteral = 0x00001000,  // TS: 1 << 12  |  Object Literal
-    Method = 0x00002000,  // TS: 1 << 13  |  Method
-    Constructor = 0x00004000,  // TS: 1 << 14  |  Constructor
-    GetAccessor = 0x00008000,  // TS: 1 << 15  |  Get accessor
-    SetAccessor = 0x00010000,  // TS: 1 << 16  |  Set accessor
-    Signature = 0x00020000,  // TS: 1 << 17  |  Call, construct, or index signature
-    TypeParameter = 0x00040000,  // TS: 1 << 18  |  Type parameter
-    TypeAlias = 0x00080000,  // TS: 1 << 19  |  Type alias
-    ExportValue = 0x00100000,  // TS: 1 << 20  |  Exported value marker (see comment in declareModuleMember in binder)
-    Alias = 0x00200000,  // TS: 1 << 21  |  An alias for another symbol (see comment in isAliasSymbolDeclaration in checker)
-    Prototype = 0x00400000,  // TS: 1 << 22  |  Prototype property (no source representation)
-    ExportStar = 0x00800000,  // TS: 1 << 23  |  Export * declaration
-    Optional = 0x01000000,  // TS: 1 << 24  |  Optional property
-    Transient = 0x02000000,  // TS: 1 << 25  |  Transient symbol (created during type check)
-    Assignment = 0x04000000,  // TS: 1 << 26  |  Assignment treated as declaration (eg `this.prop = 1`)
-    ModuleExports = 0x08000000,  // TS: 1 << 27  |  Symbol for CommonJS `module` of `module.exports`
-    All = 0xFFFFFFFF,  // TS: -1
-    Enum = 0x00000180,  // TS: RegularEnum | ConstEnum
-    Variable = 0x00000003,  // TS: FunctionScopedVariable | BlockScopedVariable
-    Value = 0x0001B3BF,  // TS: Variable | Property | EnumMember | ObjectLiteral | Function | Class | Enum | ValueModule | Method | GetAccessor | SetAccessor
-    Type = 0x000C09E8,  // TS: Class | Interface | Enum | EnumMember | TypeLiteral | TypeParameter | TypeAlias
-    Namespace = 0x00000780,  // TS: ValueModule | NamespaceModule | Enum
-    Module = 0x00000600,  // TS: ValueModule | NamespaceModule
-    Accessor = 0x00018000,  // TS: GetAccessor | SetAccessor
-    FunctionScopedVariableExcludes = 0x0001B3BE,  // TS: Value & ~FunctionScopedVariable
-    BlockScopedVariableExcludes = 0x0001B3BF,  // TS: BlockScopedVariableExcludes = Value
-    ParameterExcludes = 0x0001B3BF,  // TS: ParameterExcludes = Value
-    PropertyExcludes = 0,  // TS: PropertyExcludes = None
-    EnumMemberExcludes = 0x000DBBFF,  // TS: Value | Type
-    FunctionExcludes = 0x0001B18F,  // TS: Value & ~(Function | ValueModule | Class)
-    ClassExcludes = 0x000DB9AF,  // TS: (Value | Type) & ~(ValueModule | Interface | Function)  |  class-interface mergability done in checker.ts
-    InterfaceExcludes = 0x000C0988,  // TS: Type & ~(Interface | Class)
-    RegularEnumExcludes = 0x000DB8FF,  // TS: (Value | Type) & ~(RegularEnum | ValueModule)  |  regular enums merge only with regular enums and modules
-    ConstEnumExcludes = 0x000DBB7F,  // TS: (Value | Type) & ~ConstEnum  |  const enums merge only with const enums
-    ValueModuleExcludes = 0x0001B08F,  // TS: Value & ~(Function | Class | RegularEnum | ValueModule)
-    NamespaceModuleExcludes = 0,
-    MethodExcludes = 0x000193BF,  // TS: Value & ~Method
-    GetAccessorExcludes = 0x0000B3BF,  // TS: Value & ~SetAccessor
-    SetAccessorExcludes = 0x000133BF,  // TS: Value & ~GetAccessor
-    AccessorExcludes = 0x000033BF,  // TS: Value & ~Accessor
-    TypeParameterExcludes = 0x000809E8,  // TS: Type & ~TypeParameter
-    TypeAliasExcludes = 0x000C09E8,  // TS: TypeAliasExcludes = Type
-    AliasExcludes = 0x00200000,  // TS: AliasExcludes = Alias
-    ModuleMember = 0x002807F3,  // TS: Variable | Function | Class | Interface | Enum | Module | TypeAlias | Alias
-    ExportHasLocal = 0x000003B0,  // TS: Function | Class | Enum | ValueModule
-    BlockScoped = 0x000001A2,  // TS: BlockScopedVariable | Class | Enum
-    PropertyOrAccessor = 0x00018004,  // TS: Property | Accessor
-    ClassMember = 0x0001A004,  // TS: Method | Accessor | Property
+    None = 0u,
+    FunctionScopedVariable = 1u << 0,  // Variable (var) or parameter
+    BlockScopedVariable = 1u << 1,  // A block-scoped variable (let or const)
+    Property = 1u << 2,  // Property or enum member
+    EnumMember = 1u << 3,  // Enum member
+    Function = 1u << 4,  // Function
+    Class = 1u << 5,  // Class
+    Interface = 1u << 6,  // Interface
+    ConstEnum = 1u << 7,  // Const enum
+    RegularEnum = 1u << 8,  // Enum
+    ValueModule = 1u << 9,  // Instantiated module
+    NamespaceModule = 1u << 10,  // Uninstantiated module
+    TypeLiteral = 1u << 11,  // Type Literal or mapped type
+    ObjectLiteral = 1u << 12,  // Object Literal
+    Method = 1u << 13,  // Method
+    Constructor = 1u << 14,  // Constructor
+    GetAccessor = 1u << 15,  // Get accessor
+    SetAccessor = 1u << 16,  // Set accessor
+    Signature = 1u << 17,  // Call, construct, or index signature
+    TypeParameter = 1u << 18,  // Type parameter
+    TypeAlias = 1u << 19,  // Type alias
+    ExportValue = 1u << 20,  // Exported value marker (see comment in declareModuleMember in binder)
+    Alias = 1u << 21,  // An alias for another symbol (see comment in isAliasSymbolDeclaration in checker)
+    Prototype = 1u << 22,  // Prototype property (no source representation)
+    ExportStar = 1u << 23,  // Export * declaration
+    Optional = 1u << 24,  // Optional property
+    Transient = 1u << 25,  // Transient symbol (created during type check)
+    Assignment = 1u << 26,  // Assignment treated as declaration (eg `this.prop = 1`)
+    ModuleExports = 1u << 27,  // Symbol for CommonJS `module` of `module.exports`
+    All = unchecked((uint)-1),
+    Enum = RegularEnum | ConstEnum,
+    Variable = FunctionScopedVariable | BlockScopedVariable,
+    Value = Variable | Property | EnumMember | ObjectLiteral | Function | Class | Enum | ValueModule | Method | GetAccessor | SetAccessor,
+    Type = Class | Interface | Enum | EnumMember | TypeLiteral | TypeParameter | TypeAlias,
+    Namespace = ValueModule | NamespaceModule | Enum,
+    Module = ValueModule | NamespaceModule,
+    Accessor = GetAccessor | SetAccessor,
+    FunctionScopedVariableExcludes = (uint)Value & ~(uint)FunctionScopedVariable,
+    BlockScopedVariableExcludes = Value,
+    ParameterExcludes = Value,
+    PropertyExcludes = None,
+    EnumMemberExcludes = Value | Type,
+    FunctionExcludes = (uint)Value & ~((uint)Function | (uint)ValueModule | (uint)Class),
+    ClassExcludes = ((uint)Value | (uint)Type) & ~((uint)ValueModule | (uint)Interface | (uint)Function),  // class-interface mergability done in checker.ts
+    InterfaceExcludes = (uint)Type & ~((uint)Interface | (uint)Class),
+    RegularEnumExcludes = ((uint)Value | (uint)Type) & ~((uint)RegularEnum | (uint)ValueModule),  // regular enums merge only with regular enums and modules
+    ConstEnumExcludes = ((uint)Value | (uint)Type) & ~(uint)ConstEnum,  // const enums merge only with const enums
+    ValueModuleExcludes = (uint)Value & ~((uint)Function | (uint)Class | (uint)RegularEnum | (uint)ValueModule),
+    NamespaceModuleExcludes = 0u,
+    MethodExcludes = (uint)Value & ~(uint)Method,
+    GetAccessorExcludes = (uint)Value & ~(uint)SetAccessor,
+    SetAccessorExcludes = (uint)Value & ~(uint)GetAccessor,
+    AccessorExcludes = (uint)Value & ~(uint)Accessor,
+    TypeParameterExcludes = (uint)Type & ~(uint)TypeParameter,
+    TypeAliasExcludes = Type,
+    AliasExcludes = Alias,
+    ModuleMember = Variable | Function | Class | Interface | Enum | Module | TypeAlias | Alias,
+    ExportHasLocal = Function | Class | Enum | ValueModule,
+    BlockScoped = BlockScopedVariable | Class | Enum,
+    PropertyOrAccessor = Property | Accessor,
+    ClassMember = Method | Accessor | Property,
     /// <summary>@internal</summary>
-    ExportSupportsDefaultModifier = 0x00000070,  // TS: Class | Function | Interface
+    ExportSupportsDefaultModifier = Class | Function | Interface,
     /// <summary>@internal</summary>
-    ExportDoesNotSupportDefaultModifier = 0xFFFFFF8F,  // TS: ~ExportSupportsDefaultModifier
+    ExportDoesNotSupportDefaultModifier = unchecked((uint)~(uint)ExportSupportsDefaultModifier),
     /// <summary>@internal</summary>
-    Classifiable = 0x002C07E0,  // TS: Class | Enum | TypeAlias | Interface | TypeParameter | Module | Alias
+    Classifiable = Class | Enum | TypeAlias | Interface | TypeParameter | Module | Alias,
     /// <summary>@internal</summary>
-    LateBindingContainer = 0x00001870,  // TS: Class | Interface | TypeLiteral | ObjectLiteral | Function
+    LateBindingContainer = Class | Interface | TypeLiteral | ObjectLiteral | Function,
 }
