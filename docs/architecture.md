@@ -307,8 +307,8 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 | **M1** | Layer 0：`Core`（容器、字符码、断言、比较器） | 单测覆盖 core 等价语义 |
 | **M1b** | Layer 0 其余：`Paths`（`path.ts`）、`Semver`（`semver.ts`）、`PerformanceCore` | 路径与 semver 语义单测（含 TS 文档中的路径表格） |
 | **M2** | Layer 1：`types.ts` 的枚举与标志（`SyntaxKind` 全量、`Extension`、`ScriptTarget`…）+ `Node` 类型层级 | 枚举值与 TS 逐项校验（`tools/gen` 脚本比对） |
-| **M2b** | 节点模型：`types.ts` 的接口/类型别名 → 268 个类 + 255 个接口（见 §12） | 生成物编译通过；继承链与能力接口单测 |
-| **M2c** | Layer 0 其余：`sys.ts` 的宿主接口与纯逻辑、`performance.ts`（见 §13） | 宿主抽象与计时埋点单测 |
+| **M2b** | 节点模型：`types.ts` 的接口/类型别名 → 268 个类 + 269 个接口（见 §12） | 生成物编译通过；继承链与能力接口单测 |
+| **M2c** | Layer 0 其余：`sys.ts` 的宿主接口与纯逻辑（`getNodeSystem` 除外，见 §13）、`performance.ts` | 宿主抽象与计时埋点单测 |
 | **M3** | Layer 2：`Scanner` 全量 | 单测：token 流、trivia、错误恢复、关键字表 |
 | **M4** | Layer 3：`Parser` + `NodeFactory` | 能对 conformance 用例产出 AST；语法诊断 baseline 对齐 |
 | **M5** | Layer 4：`Binder` | `.symbols` baseline 对齐（作用域/符号） |
@@ -343,6 +343,10 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 | `EqualityComparer<T>` / `Comparer<T>`（TS 委托） | 同名 C# 委托 | 会遮蔽 BCL 的 `EqualityComparer<T>` / `Comparer<T>`；需要 BCL 版本时在该处写全限定名（见 `Core.EquateValues`） |
 | `Queue<T>`（TS 接口） | `TsQueue<T>` | 避免与 `System.Collections.Generic.Queue<T>` 混淆 |
 | `MultiMap<K,V>`（挂在 Map 实例上） | 组合式 `MultiMap<K,V>` 类 | C# 不能给实例加成员；继承 `Dictionary` 又会与 `Add(TKey,TValue)`（仅返回类型不同）冲突 |
+| `System`（`sys.ts` 的宿主接口） | `ISystem` | `System` 是 C# 的根命名空间 |
+| `WatchOptions`（接口） | `IWatchOptions`（生成）+ `SysWatch.WatchOptions`（具体实现） | 生成器给接口加 `I` 前缀（D1）；TS 到处写对象字面量，需要一个可构造的具体类型 |
+| `FsWatchCallback` 的 `eventName: "rename" \| "change"` | `SysWatch.FsWatchEventName` | 字面量联合做比较容易写错，而且它是宿主边界（宿主自己映射原生事件） |
+| `sys.ts` 里 `{ getModifiedTime }` / `{ getModifiedTime, setTimeout }` 这类结构化 host 参数 | `IModifiedTimeHost` / `IPollingWatchFileHost` | TS 靠结构兼容，C# 要求具名 |
 
 ### 10.2 语义映射（有意为之的等价改写）
 
@@ -355,6 +359,12 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 - **"返回同一实例"的优化**：`filter`/`compact` 等在 TS 中可能返回入参实例本身。C# 因输入为 `IReadOnlyList<T>`、输出为 `List<T>` 而无法共享实例，这些函数改为返回新列表（`sameMap`/`concatenate`/`compact` 则通过返回 `IReadOnlyList<T>` 保留该契约）。
 - **断言分级**：TS 通过把 `Debug` 上的断言函数替换成 `noop` 并缓存来实现分级；C# 不能在运行时替换自身方法，改为每个受分级控制的断言在入口处判断 `ShouldAssert`。调用点契约不变。
 - **JS 位运算 + 双精度混合算术**：`generateDjb2Hash` 的三行代码里，`acc << 5` 每步把 `acc` 强制成 int32，而随后的 `+` 是**双精度加法、不再截断**，于是 `acc` 又离开 int32 区间（2000 字符输入下 2000 步里有 1894 步如此）。用 `int` 累加会在这些步骤上截断，用 `long` 会在超过 2^53 后与 JS 分歧，因此移植版用 `double` 累加，并新增 `Js.ToInt32`（JS `ToInt32` 精确语义：`NaN`/无穷 → `0`，否则按 2^32 取模再落回有符号区间）与 `Js.NumberToString`（JS `Number#toString()` 对整数值输出十进制整数，而 C# 的默认格式早得多就切到科学计数法）。
+- **truthy 的 `string` 重载**：`Js.IsTruthy` 有 `object?` 与 `T? where T : class` 两个重载，而对 `string` 参数**泛型那个会胜出**，答的是"非 null"——于是 TS 的 `if (spec)` 被译成"非 null"，空串成了 truthy，`flatMap` 的 wildcard 规格就是这么错的（下一条）。现在有 `IsTruthy(string?)` 专用重载（带 `[NotNullWhen(true)]`），泛型重载上写明了它的适用边界。
+- **`flatMap` 丢弃 falsy**：TS 的 `flatMap` 判的是 `if (v)`，`""`/`0` 都会被丢掉；移植版原本写成 `v != null`，空规格于是变成"永远匹配"的一个分支。已改为 `Js.IsTruthy`。
+- **正则**：JS 的 `/i` 不参考环境 culture，`getRegexFromPattern` 因此固定加 `RegexOptions.CultureInvariant`；字符类里的 `\w` 是 ASCII-only 而 .NET 的是 Unicode-aware，所以 `[^\w\s/]` 写成 `[^A-Za-z0-9_\s/]`（否则 `é` 之类不会被转义）。
+- **`missingFileModifiedTime` 的比较**：TS 比的是**引用**（`existingTime === missingFileModifiedTime`），C# 里是 `DateTimeOffset` 的**值**比较。两者只在"文件确实存在于 epoch 0"时分歧；`getModifiedTime` 的兜底返回的正是那个值，所以保持等价。
+- **`Number(text)`**：JS 对不可解析的输入得到 `NaN`，而 `NaN` 是 falsy，后续 `customLevels[level] || levels[level]` 会退回默认值；移植版的 `Number` 直接退化为 `0`，与 `Levels` 里"0 表示未设置"一致。
+- **"watcher 数量耗尽"**：TS 判 `e.code === "ENOSPC"`；C# 里是 `SysCore.IsSystemWatcherLimitExceeded`（`HResult == 28`，或消息里出现 `ENOSPC` 作为兜底）。
 
 ### 10.3 有意复刻的上游行为（看起来像 bug，但必须保持一致）
 
@@ -372,7 +382,7 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 | `core.ts`: `singleOrMany`、`combine` | M5（`T \| T[]` 联合类型在 C# 无直接对应） |
 | `core.ts`: `isNodeLikeSystem` | 已实现为常量 `false`（CLR 上永远不是 Node） |
 | `core.ts`: `toArray` | 已实现，但需由调用方给出元素类型参数（`T \| T[]` 无法在运行时区分） |
-| `sys.ts`: `sys` 实例（`getNodeSystem`）、`createSystemWatchFunctions`、`getModifiedTime` 的 443 行轮询稳定逻辑、`patchWriteFileEnsuringDirectory` | M2c 之后（见 §13.3）—— 前者是被 `System.IO` 替换的 Node 宿主实现，`patchWriteFileEnsuringDirectory` 是 JS 猴子补丁，在 C# 里应改为装饰器 |
+| `sys.ts`: `getNodeSystem` 及其 Node 绑定（`readDirectory`/`require` 依赖 Layer 5，CPU profiler 在 CLR 无对应） | M8（见 §13.2）—— 策略层已全部移植，缺的是 `ISystem` 的 .NET 实现 |
 
 ---
 
@@ -425,6 +435,12 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 - `System`（sys.ts）、`CompilerHost`、`ModuleResolutionHost` 等按 TS 定义照搬，不做简化版。
 - 好处：可以用虚拟文件系统做测试，且将来能逐项核对 host 语义；简化版会在 M5/M6 逐个暴露缺口。
 
+**D10 — `sys.ts`：策略逐行移植，原语由 .NET 承接。**
+
+- `sys.ts` 分成两半：**策略**（什么时候算"变了"——轮询队列、优先级、递归目录、原生 watcher 失败后的回退）与**原语**（读文件、stat、OS watcher、计时器）。策略进 `Core/SysWatch*.cs`，对着源码逐行核；原语只留契约（`ISystem` 等），实现交给 .NET。
+- 理由：`getNodeSystem` 的每一行都是 Node API 绑定，翻译它既不能增强可对照性，也没有 baseline 可验；而策略那半是真正的编译器行为，必须一字不差。
+- 划界标准是"有没有验收手段"：能对着 `sys.ts` 逐行核对的进 `Core`，只能靠集成测试验证的推迟到 M8（`SystemHost`）。对照表见 §13.2。
+
 ### 11.2 待定（到相应里程碑再决策）
 
 | # | 决策 | 何时需要 | 影响 |
@@ -476,7 +492,7 @@ dotnet run --project tools/Gen -- --check    # 只校验不写入（CI / 本地�
 |---|---|
 | 提取 | `tools/Gen/extract.cjs`（用 TS 编译器）→ `TsModel`；76 个枚举 / 537 个接口 / 276 个别名（三个源文件合并） |
 | 映射 | `TsTypeMapper`：TS 类型 → C# |
-| 分类 | 268 个类（继承链）/ 255 个接口（mixin） |
+| 分类 | 268 个类（继承链）/ 269 个接口（mixin），`tools/Gen --stats` 口径 |
 | 生成物 | `Model/NodeInterfaces.cs`（1839 行）、`Model/NodeClasses.cs`（2273 行），以及全部枚举 |
 | 手工 | `Node.cs`（抽象根 + `abstract Kind`）、`NodeArray.cs`、`Token.cs`（token 家族） |
 | 验收 | `NodeModelTests` + `GeneratedTablesTests`（逐字节比对生成物） |
@@ -511,3 +527,58 @@ TS 允许子接口**收窄**成员类型 —— `FunctionDeclaration.body` 是 `
    - 与之相关：生成器**不照抄**字符串字面量。JS 的 `\x` 是定长两位、`\0`/`\'` 的规则也与 C# 不同，所以字面量先解码成实际字符，再按 C# 规则重新编码；遇到不认识的转义会中止生成而不是猜。
    - `default(T)` 在 C# 里总是存在（TS 没有这个概念），struct 的 `Value` 对 `default` 返回空串而不抛异常，且与任何真实成员都不相等。
 4. 另外还有一类**字符串字面量联合类型**（`TypeOfTag`、`BufferEncoding`、`OrganizeImportsTypeOrder`）。它们没有成员名，C# 中直接用 `string` 表示、值在调用点内联；到实际用到时（`TypeOfTag` 在 checker，`BufferEncoding` 在 `sys.ts`）再评估是否需要命名常量。
+
+---
+
+## 13. 宿主替换：`sys.ts` 的 Node 绑定（M2c，已完成）
+
+### 13.1 交付
+
+| 项 | 结果 |
+|---|---|
+| `sys.ts` 纯逻辑 | `Core/SysWatch.cs` + `Core/SysWatch.System.cs`：轮询队列、动态/固定优先级轮询、按名字复用 watcher、原生 watcher 与轮询之间的回退、递归目录 watcher、由 `IWatchOptions` 选择策略的 `createSystemWatchFunctions` |
+| 宿主契约 | `Core/Sys.cs`：`ISystem`、`IModifiedTimeHost`、`HostWatchFile`/`HostWatchDirectory`、`FileWatcherCallback`/`DirectoryWatcherCallback` |
+| 计时埋点 | `Core/Performance.cs`（`performance.ts` 全量） |
+| 常量与纯函数 | `Core/SysCore.cs`：djb2、`getFileWatcherEventKind`、`getModifiedTime` 兜底、`sysLog`、`ignoredPaths`、`missingFileModifiedTime`、`IsSystemWatcherLimitExceeded` |
+| 写文件 | `Core/Files.cs`：`ensureDirectoriesExist`、`writeFileEnsuringDirectories` |
+| 拉前依赖 | `Core/Wildcard.cs`（`matchesExclude` 链路，见 §10.2） |
+| 验收 | 全套单测通过，其中 21 个针对 watch 与写文件；时间与计时器全部由测试驱动（`FakePollingWatchFileHost`），不依赖真实时钟 |
+
+### 13.2 `getNodeSystem`（`sys.ts:1468-1953`）不逐行移植
+
+它是 Node 的绑定：`fs`/`path`/`os`/`crypto`/`inspector`/`process`/`__filename`。C# 侧由 `ISystem` 的一个实现承接（`System.IO`、`Environment`、`SHA256`、`FileSystemWatcher`），逐行翻译既没有意义也没有验收手段。逐项对照：
+
+| `getNodeSystem` 的成员 | 承接方式 |
+|---|---|
+| `readFile`/`writeFile` | `File.ReadAllBytes`/`WriteAllBytes`。**BOM 处理不必重写**：TS 手写 UTF-16 BE/LE 与 UTF-8 BOM 的识别与剥离，.NET 的 `StreamReader`（`detectEncodingFromByteOrderMarks`）做的就是这件事；唯一差别是 TS 对 UTF-16 BE 采取"翻转字节对当 LE 读"，而 .NET 直接支持 BE |
+| `getAccessibleFileSystemEntries` | `DirectoryInfo.EnumerateFileSystemInfos` + 排序。TS 里的 `.`/`..` 过滤与"符号链接再 stat 一次"是 Node 的怪癖，.NET 不返回 `.`/`..` |
+| `readDirectory` | 依赖 `utilities.ts` 的 `matchFiles`（Layer 5）→ M5 之后再接 |
+| `require` | 依赖 `resolveJSModule`（Layer 5）→ M5 之后再接；CLR 上对应 `AssemblyLoadContext`，且只在宿主插件路径（`source-map-support`）上需要 |
+| `enableCPUProfiler`/`disableCPUProfiler`/`cpuProfilingEnabled` | CLR 没有等价物（那是 Node inspector 协议）。保持 `ISystem` 的默认实现（返回 `false`）；真要剖析就用 EventPipe/`dotnet-trace`，与编译器无关 |
+| `realpath`/`getModifiedTime`/`setModifiedTime`/`deleteFile`/`statSync` 家族 | `File.ResolveLinkTarget`/`GetLastWriteTime`/`SetLastWriteTime`/`Delete` |
+| `createHash`/`createSHA256Hash` | `SHA256.HashData`。TS 的 `createHash` 会在 Node 缺 `crypto` 时退回 djb2，CLR 不缺 |
+| `isFileSystemCaseSensitive`/`swapCase` | 平台 API（`OperatingSystem.IsWindows()`）；`swapCase` 只是那个探测的实现细节 |
+| `fsWatchFileWorker`/`fsWatchWorker` | `FileSystemWatcher`（配 `NotifyFilter`/`IncludeSubdirectories`），即 `HostWatchFile`/`FsWatchWorker` 的实现 |
+| `getWidthOfTerminal`/`clearScreen`/`setBlocking`/`base64decode`/`base64encode`/`getMemoryUsage` | `Console.WindowWidth`、`GC.GetTotalMemory`、`Convert.ToBase64*`；终端控制序列按需内联 |
+
+该实现（暂称 `SystemHost`）排在 **M8**：它要等 Layer 5 的 `matchFiles`/`resolveJSModule` 才能完整。在此之前，策略层（`SysWatch`）已可用 `FakeSystem` 完整驱动。
+
+### 13.3 `patchWriteFileEnsuringDirectory` → 显式调用
+
+TS 在 `sys` 初始化时把 `sys.writeFile` 换成"先建目录再写"的包装（猴子补丁）。C# 不能替换活动对象上的接口成员，等价改写就得写一个转发全部 `ISystem` 成员的装饰器——纯样板，而且会让"这一处写文件的行为不同"变得不可见。
+
+移植做法：保留函数体（`Core/Files.cs` 的 `WriteFileEnsuringDirectories`），把调用点写成显式的 `Files.WriteFileEnsuringDirectories(system, path, data, bom)`。具体哪些调用点需要它，留到 M8（`executeCommandLine`/`builder`）落地时决定。
+
+### 13.4 `sys.ts` 里三处"改写运行时结构"的等价表达
+
+| TS 手法 | 位置 | C# 表达 |
+|---|---|---|
+| 给 `fsWatch` 返回的对象挂 `referenceCount` | `createUseFsEventsOnParentDirectoryWatchFile`、`createSystemWatchFunctions` | `ReferenceCountedWatcher` 包装 |
+| 用 `queue[i] = undefined` 打洞、用 `queue.length = n` 收缩 | `pollWatchedFileQueue` | `List<T?>` 的 `null` 洞 + `RemoveRange` |
+| `setCustomLevels(…, PollingInterval)` 直接改 enum 成员的值 | `setCustomPollingValues` | 时长存进 `Levels`，由 `PollingIntervalMilliseconds` 读；`PollingInterval` 本身保持不可变 |
+
+### 13.5 `sys` 全局单例与 `setSys` 不保留
+
+TS 的 `sys` 是模块级可变单例（`setSys` 负责替换它），其它模块直接 `import { sys }`。C# 里不保留这个单例：宿主由调用方显式传入（D9 已经规定 `System`/`CompilerHost` 照搬为接口），`setSys` 随之取消。好处是测试可以直接注入 `FakeSystem`，不必替换全局状态 —— `SysWatchTests` 驱动轮询用的就是这个方式。
+
+`sysLog`/`setSysLog` 是另一回事：它是日志钩子（`curSysLog`）而非宿主，模块级可变状态照原样保留在 `SysCore` 上。
