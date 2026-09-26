@@ -2661,4 +2661,245 @@ internal partial class NodeFactory
                 node)
             : node!;
     }
+
+    //
+    // Functions and classes (the hand-written half)
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:3177 — <c>createFunctionExpression</c>.</summary>
+    public FunctionExpression CreateFunctionExpression(
+        List<ModifierToken>? modifiers,
+        PunctuationToken? asteriskToken,
+        object? name,
+        List<TypeParameterDeclaration>? typeParameters,
+        List<ParameterDeclaration>? parameters,
+        ITypeNode? type,
+        Block? body)
+    {
+        var node = CreateBaseDeclaration<FunctionExpression>(SyntaxKind.FunctionExpression);
+        node.Modifiers = AsNodeArray(modifiers);
+        node.AsteriskToken = asteriskToken;
+        node.Name = AsName(name);
+        node.TypeParameters = AsNodeArray(typeParameters);
+        node.Parameters = CreateNodeArray(parameters, null);
+        node.Type = type;
+        node.Body = body;
+
+        var isAsync = (Utilities.ModifiersToFlags(node.Modifiers) & ModifierFlags.Async) != 0;
+        var isGenerator = node.AsteriskToken is not null;
+        var isAsyncGenerator = isAsync && isGenerator;
+
+        node.TransformFlags = PropagateChildrenFlags(node.Modifiers)
+            | PropagateChildFlags(node.AsteriskToken)
+            | PropagateNameFlags(node.Name)
+            | PropagateChildrenFlags(node.TypeParameters)
+            | PropagateChildrenFlags(node.Parameters)
+            | PropagateChildFlags(node.Type)
+            | (PropagateChildFlags(node.Body) & ~TransformFlags.ContainsPossibleTopLevelAwait)
+            | (isAsyncGenerator ? TransformFlags.ContainsES2018
+                : isAsync ? TransformFlags.ContainsES2017
+                : isGenerator ? TransformFlags.ContainsGenerator
+                : TransformFlags.None)
+            | (node.TypeParameters is not null || node.Type is not null
+                ? TransformFlags.ContainsTypeScript
+                : TransformFlags.None)
+            | TransformFlags.ContainsHoistedDeclarationOrCompletion;
+
+        node.TypeArguments = null; // used in quick info
+        node.JsDoc = null;         // initialized by parser (JsDocContainer)
+        node.Locals = null;        // initialized by binder (LocalsContainer)
+        node.NextContainer = null; // initialized by binder (LocalsContainer)
+        node.FlowNode = null;      // initialized by binder (FlowContainer)
+        node.EndFlowNode = null;
+        node.ReturnFlowNode = null;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3224 — <c>updateFunctionExpression</c>.</summary>
+    public FunctionExpression UpdateFunctionExpression(
+        FunctionExpression? node,
+        List<ModifierToken>? modifiers,
+        PunctuationToken? asteriskToken,
+        Identifier? name,
+        List<TypeParameterDeclaration>? typeParameters,
+        List<ParameterDeclaration>? parameters,
+        ITypeNode? type,
+        Block? body)
+    {
+        return node!.Name != name
+            || !ReferenceEquals(node!.Modifiers, modifiers)
+            || node!.AsteriskToken != asteriskToken
+            || !ReferenceEquals(node!.TypeParameters, typeParameters)
+            || !ReferenceEquals(node!.Parameters, parameters)
+            || node!.Type != type
+            || node!.Body != body
+            ? FinishUpdateBaseSignatureDeclaration(
+                CreateFunctionExpression(modifiers, asteriskToken, name, typeParameters, parameters, type, body),
+                node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3246 — <c>createArrowFunction</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS writes `equalsGreaterThanToken ?? createToken(SyntaxKind.EqualsGreaterThanToken)`, which resolves to
+    /// a `PunctuationToken`; the port's wide `CreateToken` answers `Node` (§16), so the class is named directly — a
+    /// punctuation token carries no transform flags of its own.
+    /// </remarks>
+    public ArrowFunction CreateArrowFunction(
+        List<ModifierToken>? modifiers,
+        List<TypeParameterDeclaration>? typeParameters,
+        List<ParameterDeclaration>? parameters,
+        ITypeNode? type,
+        PunctuationToken? equalsGreaterThanToken,
+        Node? body)
+    {
+        var node = CreateBaseDeclaration<ArrowFunction>(SyntaxKind.ArrowFunction);
+        node.Modifiers = AsNodeArray(modifiers);
+        node.TypeParameters = AsNodeArray(typeParameters);
+        node.Parameters = CreateNodeArray(parameters, null);
+        node.Type = type;
+        node.EqualsGreaterThanToken = equalsGreaterThanToken ?? new PunctuationToken(SyntaxKind.EqualsGreaterThanToken);
+        node.Body = Parenthesizer.ParenthesizeConciseBodyOfArrowFunction(body);
+
+        var isAsync = (Utilities.ModifiersToFlags(node.Modifiers) & ModifierFlags.Async) != 0;
+
+        node.TransformFlags = PropagateChildrenFlags(node.Modifiers)
+            | PropagateChildrenFlags(node.TypeParameters)
+            | PropagateChildrenFlags(node.Parameters)
+            | PropagateChildFlags(node.Type)
+            | PropagateChildFlags(node.EqualsGreaterThanToken)
+            | (PropagateChildFlags(node.Body) & ~TransformFlags.ContainsPossibleTopLevelAwait)
+            | (node.TypeParameters is not null || node.Type is not null
+                ? TransformFlags.ContainsTypeScript
+                : TransformFlags.None)
+            | (isAsync ? TransformFlags.ContainsES2017 | TransformFlags.ContainsLexicalThis : TransformFlags.None)
+            | TransformFlags.ContainsES2015;
+
+        node.TypeArguments = null; // used in quick info
+        node.JsDoc = null;         // initialized by parser (JsDocContainer)
+        node.Locals = null;        // initialized by binder (LocalsContainer)
+        node.NextContainer = null; // initialized by binder (LocalsContainer)
+        node.FlowNode = null;      // initialized by binder (FlowContainer)
+        node.EndFlowNode = null;
+        node.ReturnFlowNode = null;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3285 — <c>updateArrowFunction</c>.</summary>
+    public ArrowFunction UpdateArrowFunction(
+        ArrowFunction? node,
+        List<ModifierToken>? modifiers,
+        List<TypeParameterDeclaration>? typeParameters,
+        List<ParameterDeclaration>? parameters,
+        ITypeNode? type,
+        PunctuationToken? equalsGreaterThanToken,
+        Node? body)
+    {
+        return !ReferenceEquals(node!.Modifiers, modifiers)
+            || !ReferenceEquals(node!.TypeParameters, typeParameters)
+            || !ReferenceEquals(node!.Parameters, parameters)
+            || node!.Type != type
+            || node!.EqualsGreaterThanToken != equalsGreaterThanToken
+            || node!.Body != body
+            ? FinishUpdateBaseSignatureDeclaration(
+                CreateArrowFunction(modifiers, typeParameters, parameters, type, equalsGreaterThanToken, body),
+                node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:4300 — <c>createFunctionDeclaration</c>.</summary>
+    public FunctionDeclaration CreateFunctionDeclaration(
+        List<Node>? modifiers,
+        PunctuationToken? asteriskToken,
+        object? name,
+        List<TypeParameterDeclaration>? typeParameters,
+        List<ParameterDeclaration>? parameters,
+        ITypeNode? type,
+        Block? body)
+    {
+        var node = CreateBaseDeclaration<FunctionDeclaration>(SyntaxKind.FunctionDeclaration);
+        node.Modifiers = AsNodeArray(modifiers);
+        node.AsteriskToken = asteriskToken;
+        node.Name = AsName(name);
+        node.TypeParameters = AsNodeArray(typeParameters);
+        node.Parameters = CreateNodeArray(parameters, null);
+        node.Type = type;
+        node.Body = body;
+
+        if (node.Body is null || (Utilities.ModifiersToFlags(node.Modifiers) & ModifierFlags.Ambient) != 0)
+        {
+            node.TransformFlags = TransformFlags.ContainsTypeScript;
+        }
+        else
+        {
+            var isAsync = (Utilities.ModifiersToFlags(node.Modifiers) & ModifierFlags.Async) != 0;
+            var isGenerator = node.AsteriskToken is not null;
+            var isAsyncGenerator = isAsync && isGenerator;
+
+            node.TransformFlags = PropagateChildrenFlags(node.Modifiers)
+                | PropagateChildFlags(node.AsteriskToken)
+                | PropagateNameFlags(node.Name)
+                | PropagateChildrenFlags(node.TypeParameters)
+                | PropagateChildrenFlags(node.Parameters)
+                | PropagateChildFlags(node.Type)
+                | (PropagateChildFlags(node.Body) & ~TransformFlags.ContainsPossibleTopLevelAwait)
+                | (isAsyncGenerator ? TransformFlags.ContainsES2018
+                    : isAsync ? TransformFlags.ContainsES2017
+                    : isGenerator ? TransformFlags.ContainsGenerator
+                    : TransformFlags.None)
+                | (node.TypeParameters is not null || node.Type is not null
+                    ? TransformFlags.ContainsTypeScript
+                    : TransformFlags.None)
+                | TransformFlags.ContainsHoistedDeclarationOrCompletion;
+        }
+
+        node.TypeArguments = null; // used in quick info
+        node.JsDoc = null;         // initialized by parser (JsDocContainer)
+        node.Locals = null;        // initialized by binder (LocalsContainer)
+        node.NextContainer = null; // initialized by binder (LocalsContainer)
+        node.EndFlowNode = null;
+        node.ReturnFlowNode = null;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:4351 — <c>updateFunctionDeclaration</c>.</summary>
+    public FunctionDeclaration UpdateFunctionDeclaration(
+        FunctionDeclaration? node,
+        List<Node>? modifiers,
+        PunctuationToken? asteriskToken,
+        Identifier? name,
+        List<TypeParameterDeclaration>? typeParameters,
+        List<ParameterDeclaration>? parameters,
+        ITypeNode? type,
+        Block? body)
+    {
+        return !ReferenceEquals(node!.Modifiers, modifiers)
+            || node!.AsteriskToken != asteriskToken
+            || node!.Name != name
+            || !ReferenceEquals(node!.TypeParameters, typeParameters)
+            || !ReferenceEquals(node!.Parameters, parameters)
+            || node!.Type != type
+            || node!.Body != body
+            ? FinishUpdateFunctionDeclaration(
+                CreateFunctionDeclaration(modifiers, asteriskToken, name, typeParameters, parameters, type, body),
+                node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:4373 — <c>finishUpdateFunctionDeclaration</c>.</summary>
+    private FunctionDeclaration FinishUpdateFunctionDeclaration(
+        FunctionDeclaration updated,
+        FunctionDeclaration original)
+    {
+        if (!ReferenceEquals(updated, original))
+        {
+            // Copy the children TS keeps only for error reporting.
+            if (ReferenceEquals(updated.Modifiers, original.Modifiers))
+            {
+                updated.Modifiers = original.Modifiers;
+            }
+        }
+
+        return FinishUpdateBaseSignatureDeclaration(updated, original);
+    }
 }

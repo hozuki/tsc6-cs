@@ -113,10 +113,11 @@ internal static partial class Utilities
     /// <summary>ported from: src/compiler/utilities.ts:7353 — <c>modifiersToFlags</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: <c>utilities.ts</c> is a Layer 5 file, and this is the part the factory needs ahead of it — the same
-    /// arrangement as <see cref="IsParseTreeNode"/>. TS takes <c>readonly ModifierLike[]</c>, which is a
-    /// <c>List&lt;Node&gt;</c> here because <c>ModifierLike</c> collapses to <c>Node</c> (§12.5).
+    /// arrangement as <see cref="IsParseTreeNode"/>. TS takes <c>readonly ModifierLike[]</c>, which is an
+    /// <c>IEnumerable&lt;Node&gt;</c> here: <c>ModifierLike</c> collapses to <c>Node</c> (§12.5), and enumerating is what
+    /// lets a <c>NodeArray&lt;ModifierToken&gt;</c> be passed where TS relies on array covariance.
     /// </remarks>
-    public static ModifierFlags ModifiersToFlags(List<Node>? modifiers)
+    public static ModifierFlags ModifiersToFlags(IEnumerable<Node>? modifiers)
     {
         var flags = ModifierFlags.None;
         if (modifiers is not null)

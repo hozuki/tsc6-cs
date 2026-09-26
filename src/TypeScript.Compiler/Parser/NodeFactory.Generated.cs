@@ -2374,38 +2374,6 @@ internal partial class NodeFactory
         throw new NotImplementedException("the port has not reached `createUniquePrivateName` yet");
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createFunctionExpression</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateFunctionExpression(List<ModifierToken>? modifiers, PunctuationToken? asteriskToken, object? name, List<TypeParameterDeclaration>? typeParameters, List<ParameterDeclaration>? parameters, ITypeNode? type, Block? body)
-    {
-        throw new NotImplementedException("the port has not reached `createFunctionExpression` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateFunctionExpression</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? UpdateFunctionExpression(FunctionExpression? node, List<ModifierToken>? modifiers, PunctuationToken? asteriskToken, Identifier? name, List<TypeParameterDeclaration>? typeParameters, List<ParameterDeclaration>? parameters, ITypeNode? type, Block? body)
-    {
-        throw new NotImplementedException("the port has not reached `updateFunctionExpression` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createArrowFunction</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateArrowFunction(List<ModifierToken>? modifiers, List<TypeParameterDeclaration>? typeParameters, List<ParameterDeclaration>? parameters, ITypeNode? type, PunctuationToken? equalsGreaterThanToken, Node? body)
-    {
-        throw new NotImplementedException("the port has not reached `createArrowFunction` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateArrowFunction</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public ArrowFunction UpdateArrowFunction(ArrowFunction? node, List<ModifierToken>? modifiers, List<TypeParameterDeclaration>? typeParameters, List<ParameterDeclaration>? parameters, ITypeNode? type, PunctuationToken? equalsGreaterThanToken, Node? body)
-    {
-        throw new NotImplementedException("the port has not reached `updateArrowFunction` yet");
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBinaryExpression</c>.</summary>
     /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
     /// it yet (docs/architecture.md §15.7).</remarks>
@@ -2420,22 +2388,6 @@ internal partial class NodeFactory
     public BinaryExpression UpdateBinaryExpression(BinaryExpression? node, Expression? left, Token? @operator, Expression? right)
     {
         throw new NotImplementedException("the port has not reached `updateBinaryExpression` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createFunctionDeclaration</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateFunctionDeclaration(List<ModifierToken>? modifiers, PunctuationToken? asteriskToken, object? name, List<TypeParameterDeclaration>? typeParameters, List<ParameterDeclaration>? parameters, ITypeNode? type, Block? body)
-    {
-        throw new NotImplementedException("the port has not reached `createFunctionDeclaration` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateFunctionDeclaration</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? UpdateFunctionDeclaration(FunctionDeclaration? node, List<ModifierToken>? modifiers, PunctuationToken? asteriskToken, Identifier? name, List<TypeParameterDeclaration>? typeParameters, List<ParameterDeclaration>? parameters, ITypeNode? type, Block? body)
-    {
-        throw new NotImplementedException("the port has not reached `updateFunctionDeclaration` yet");
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createClassDeclaration</c>.</summary>
