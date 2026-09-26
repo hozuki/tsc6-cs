@@ -16,7 +16,7 @@ namespace TypeScript.Compiler;
 /// (<c>getPatternFromSpec</c>, <c>regExpEscape</c>, <c>getFileMatcherPatterns</c>, <c>matchFiles</c>) stay behind
 /// with their own layers.
 /// </remarks>
-internal static class Wildcard
+internal static partial class Wildcard
 {
     /// <summary>What a spec is being used for. TS spells this as the literal union
     /// <c>"files" | "directories" | "exclude"</c> and indexes a table with it.</summary>
@@ -50,11 +50,13 @@ internal static class Wildcard
     /// as written — the two definitions differ only on <c>\uFEFF</c> and <c>\u0085</c>, which do not occur in the
     /// paths this feeds.
     /// </remarks>
-    private static readonly Regex s_reservedCharacterPattern = new(@"[^A-Za-z0-9_\s/]", RegexOptions.Compiled);
+    [GeneratedRegex(@"[^A-Za-z0-9_\s/]")]
+    private static partial Regex ReservedCharacterPattern();
 
     // ported from: src/compiler/utilities.ts:9685
     /// <summary>Characters that make a path component a glob rather than a literal.</summary>
-    private static readonly Regex s_globCharacterPattern = new(@"[.*?]", RegexOptions.Compiled);
+    [GeneratedRegex(@"[.*?]")]
+    private static partial Regex GlobCharacterPattern();
 
     // ported from: src/compiler/utilities.ts:9607
     private static readonly string[] s_commonPackageFolders = ["node_modules", "bower_components", "jspm_packages"];
@@ -147,7 +149,7 @@ internal static class Wildcard
     /// An "includes" path "foo" is implicitly a glob "foo/**/*" if its last component has no extension, and
     /// does not contain any glob characters itself.
     /// </summary>
-    public static bool IsImplicitGlob(string lastPathComponent) => !s_globCharacterPattern.IsMatch(lastPathComponent);
+    public static bool IsImplicitGlob(string lastPathComponent) => !GlobCharacterPattern().IsMatch(lastPathComponent);
 
     // ported from: src/compiler/utilities.ts:9694-9774
     public static string? GetSubPatternFromSpec(string spec, string basePath, Usage usage, Matcher? matcher = null)
@@ -242,7 +244,7 @@ internal static class Wildcard
 
     /// <summary>Applies the matcher's replacement to every reserved character of <paramref name="component"/>.</summary>
     private static string EscapeReservedCharacters(string component, Matcher matcher)
-        => s_reservedCharacterPattern.Replace(component, match => matcher.ReplaceWildcardCharacter(match.Value));
+        => ReservedCharacterPattern().Replace(component, match => matcher.ReplaceWildcardCharacter(match.Value));
 
     // ported from: src/compiler/commandLineParser.ts:4055-4067
     /// <summary>Whether <paramref name="pathToCheck"/> is matched by one of the exclude specs.</summary>
@@ -278,6 +280,11 @@ internal static class Wildcard
     /// <see cref="RegexOptions.CultureInvariant"/> is added to match. The remaining gap is the one already
     /// logged for case folding in general (see docs/architecture.md §10.2): JS folds cases the way the Unicode
     /// simple-fold table does, .NET uses the invariant ones, and they disagree on a few characters such as ß.
+    /// <para>
+    /// PORT-NOTE: the pattern is computed at run time (it comes from the include/exclude specs), so this cannot
+    /// use the regular-expression source generator the rest of the port uses — <c>[GeneratedRegex]</c> requires
+    /// a compile-time constant.
+    /// </para>
     /// </remarks>
     public static Regex GetRegexFromPattern(string pattern, bool useCaseSensitiveFileNames)
         => new(pattern, RegexOptions.CultureInvariant |

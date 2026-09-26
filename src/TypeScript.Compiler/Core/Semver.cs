@@ -12,38 +12,44 @@ namespace TypeScript.Compiler;
 /// <c>Version</c> and the compiler never needs the BCL type, so the name is kept for call-site parity;
 /// spell out <c>System.Version</c> if a future need arises.
 /// </remarks>
-internal sealed class Version
+internal sealed partial class Version
 {
     // https://semver.org/#spec-item-2
     // > A normal version number MUST take the form X.Y.Z where X, Y, and Z are non-negative
     // > integers, and MUST NOT contain leading zeroes. [...]
     //
     // NOTE: We differ here in that we allow X and X.Y, with missing parts having the default value of `0`.
-    private static readonly Regex s_versionRegExp = new(
+    [GeneratedRegex(
         @"^(0|[1-9]\d*)(?:\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*)(?:-([a-z0-9-.]+))?(?:\+([a-z0-9-.]+))?)?)?$",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        RegexOptions.IgnoreCase)]
+    private static partial Regex VersionRegExp();
 
     // https://semver.org/#spec-item-9
-    private static readonly Regex s_prereleaseRegExp = new(
+    [GeneratedRegex(
         @"^(?:0|[1-9]\d*|[a-z-][a-z0-9-]*)(?:\.(?:0|[1-9]\d*|[a-z-][a-z0-9-]*))*$",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        RegexOptions.IgnoreCase)]
+    private static partial Regex PrereleaseRegExp();
 
-    private static readonly Regex s_prereleasePartRegExp = new(
+    [GeneratedRegex(
         @"^(?:0|[1-9]\d*|[a-z-][a-z0-9-]*)$",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        RegexOptions.IgnoreCase)]
+    private static partial Regex PrereleasePartRegExp();
 
     // https://semver.org/#spec-item-10
-    private static readonly Regex s_buildRegExp = new(
+    [GeneratedRegex(
         @"^[a-z0-9-]+(?:\.[a-z0-9-]+)*$",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        RegexOptions.IgnoreCase)]
+    private static partial Regex BuildRegExp();
 
-    private static readonly Regex s_buildPartRegExp = new(
+    [GeneratedRegex(
         @"^[a-z0-9-]+$",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        RegexOptions.IgnoreCase)]
+    private static partial Regex BuildPartRegExp();
 
     // https://semver.org/#spec-item-9
     // > Numeric identifiers MUST NOT include leading zeroes.
-    private static readonly Regex s_numericIdentifierRegExp = new(@"^(?:0|[1-9]\d*)$", RegexOptions.Compiled);
+    [GeneratedRegex(@"^(?:0|[1-9]\d*)$")]
+    private static partial Regex NumericIdentifierRegExp();
 
     public static readonly Version Zero = new(0, 0, 0, "0", null);
 
@@ -76,8 +82,8 @@ internal sealed class Version
         var prereleaseArray = prerelease is { Count: > 0 } ? prerelease : [];
         var buildArray = build is { Count: > 0 } ? build : [];
 
-        Debug.Assert(Core.Every(prereleaseArray, static (s, _) => s_prereleasePartRegExp.IsMatch(s)), "Invalid argument: prerelease");
-        Debug.Assert(Core.Every(buildArray, static (s, _) => s_buildPartRegExp.IsMatch(s)), "Invalid argument: build");
+        Debug.Assert(Core.Every(prereleaseArray, static (s, _) => PrereleasePartRegExp().IsMatch(s)), "Invalid argument: prerelease");
+        Debug.Assert(Core.Every(buildArray, static (s, _) => BuildPartRegExp().IsMatch(s)), "Invalid argument: build");
 
         Major = major;
         Minor = minor;
@@ -151,7 +157,7 @@ internal sealed class Version
 
     private static VersionComponents? TryParseComponents(string text)
     {
-        var match = s_versionRegExp.Match(text);
+        var match = VersionRegExp().Match(text);
         if (!match.Success) return null;
 
         var major = match.Groups[1].Value;
@@ -160,8 +166,8 @@ internal sealed class Version
         var prerelease = match.Groups[4].Success ? match.Groups[4].Value : "";
         var build = match.Groups[5].Success ? match.Groups[5].Value : "";
 
-        if (prerelease.Length != 0 && !s_prereleaseRegExp.IsMatch(prerelease)) return null;
-        if (build.Length != 0 && !s_buildRegExp.IsMatch(build)) return null;
+        if (prerelease.Length != 0 && !PrereleaseRegExp().IsMatch(prerelease)) return null;
+        if (build.Length != 0 && !BuildRegExp().IsMatch(build)) return null;
 
         return new VersionComponents(
             int.Parse(major, CultureInfo.InvariantCulture),
@@ -190,8 +196,8 @@ internal sealed class Version
             var rightIdentifier = right[i];
             if (leftIdentifier == rightIdentifier) continue;
 
-            var leftIsNumeric = s_numericIdentifierRegExp.IsMatch(leftIdentifier);
-            var rightIsNumeric = s_numericIdentifierRegExp.IsMatch(rightIdentifier);
+            var leftIsNumeric = NumericIdentifierRegExp().IsMatch(leftIdentifier);
+            var rightIsNumeric = NumericIdentifierRegExp().IsMatch(rightIdentifier);
             if (leftIsNumeric || rightIsNumeric)
             {
                 // > Numeric identifiers always have lower precedence than non-numeric identifiers.
@@ -232,12 +238,15 @@ internal enum VersionField
 /// <summary>
 /// A semantic version range, per https://github.com/npm/node-semver#ranges.
 /// </summary>
-internal sealed class VersionRange
+internal sealed partial class VersionRange
 {
     // https://github.com/npm/node-semver#range-grammar
     // range-set    ::= range ( logical-or range ) *
-    private static readonly Regex s_logicalOrRegExp = new(@"\|\|", RegexOptions.Compiled);
-    private static readonly Regex s_whitespaceRegExp = new(@"\s+", RegexOptions.Compiled);
+    [GeneratedRegex(@"\|\|")]
+    private static partial Regex LogicalOrRegExp();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegExp();
 
     // partial      ::= xr ( '.' xr ( '.' xr qualifier ? )? )?
     // xr           ::= 'x' | 'X' | '*' | nr
@@ -247,22 +256,25 @@ internal sealed class VersionRange
     // build        ::= parts
     // parts        ::= part ( '.' part ) *
     // part         ::= nr | [-0-9A-Za-z]+
-    private static readonly Regex s_partialRegExp = new(
+    [GeneratedRegex(
         @"^([x*0]|[1-9]\d*)(?:\.([x*0]|[1-9]\d*)(?:\.([x*0]|[1-9]\d*)(?:-([a-z0-9-.]+))?(?:\+([a-z0-9-.]+))?)?)?$",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        RegexOptions.IgnoreCase)]
+    private static partial Regex PartialRegExp();
 
     // hyphen       ::= partial ' - ' partial
-    private static readonly Regex s_hyphenRegExp = new(
+    [GeneratedRegex(
         @"^\s*([a-z0-9-+.*]+)\s+-\s+([a-z0-9-+.*]+)\s*$",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        RegexOptions.IgnoreCase)]
+    private static partial Regex HyphenRegExp();
 
     // simple       ::= primitive | partial | tilde | caret
     // primitive    ::= ( '<' | '>' | '>=' | '<=' | '=' ) partial
     // tilde        ::= '~' partial
     // caret        ::= '^' partial
-    private static readonly Regex s_rangeRegExp = new(
+    [GeneratedRegex(
         @"^([~^<>=]|<=|>=)?\s*([a-z0-9-+.*]+)$",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        RegexOptions.IgnoreCase)]
+    private static partial Regex RangeRegExp();
 
     private IReadOnlyList<IReadOnlyList<Comparator>> _alternatives;
 
@@ -294,23 +306,23 @@ internal sealed class VersionRange
     private static List<List<Comparator>>? ParseRange(string text)
     {
         var alternatives = new List<List<Comparator>>();
-        foreach (var rawRange in s_logicalOrRegExp.Split(text.Trim()))
+        foreach (var rawRange in LogicalOrRegExp().Split(text.Trim()))
         {
             var range = rawRange.Trim();
             if (range.Length == 0) continue;
 
             var comparators = new List<Comparator>();
-            var hyphenMatch = s_hyphenRegExp.Match(range);
+            var hyphenMatch = HyphenRegExp().Match(range);
             if (hyphenMatch.Success)
             {
                 if (!ParseHyphen(hyphenMatch.Groups[1].Value, hyphenMatch.Groups[2].Value, comparators)) return null;
             }
             else
             {
-                foreach (var rawSimple in s_whitespaceRegExp.Split(range))
+                foreach (var rawSimple in WhitespaceRegExp().Split(range))
                 {
                     var simple = rawSimple.Trim();
-                    var match = s_rangeRegExp.Match(simple);
+                    var match = RangeRegExp().Match(simple);
                     if (!match.Success) return null;
                     var op = match.Groups[1].Success ? match.Groups[1].Value : null;
                     if (!ParseComparator(op, match.Groups[2].Value, comparators)) return null;
@@ -325,7 +337,7 @@ internal sealed class VersionRange
 
     private static Partial? ParsePartial(string text)
     {
-        var match = s_partialRegExp.Match(text);
+        var match = PartialRegExp().Match(text);
         if (!match.Success) return null;
 
         var major = match.Groups[1].Value;

@@ -21,7 +21,8 @@ internal static partial class Core
     // need to handle special characters (e.g. \u0130, "I with dot above") so that a file name and its
     // lower-cased form can coexist. `a-z`, `0-9`, `\u0131`, `\u00DF`, `\`, `/`, `.`, `:` and space are
     // left alone to avoid string building in the common case.
-    private static readonly Regex s_fileNameLowerCaseRegExp = new(@"[^\u0130\u0131\u00DFa-z0-9\\/:\-_. ]+", RegexOptions.Compiled);
+    [GeneratedRegex(@"[^\u0130\u0131\u00DFa-z0-9\\/:\-_. ]+")]
+    private static partial Regex FileNameLowerCaseRegExp();
 
     // ported from: src/compiler/core.ts:1875-1879
     /// <summary>
@@ -29,8 +30,8 @@ internal static partial class Core
     /// case I with dot above, <c>\u0130</c>). This is the key-mangling function used on those systems.
     /// </summary>
     public static string ToFileNameLowerCase(string x)
-        => s_fileNameLowerCaseRegExp.IsMatch(x)
-            ? s_fileNameLowerCaseRegExp.Replace(x, static m => ToLowerCase(m.Value))
+        => FileNameLowerCaseRegExp().IsMatch(x)
+            ? FileNameLowerCaseRegExp().Replace(x, static m => ToLowerCase(m.Value))
             : x;
 
     // ported from: src/compiler/core.ts:2375-2379

@@ -17,7 +17,7 @@ namespace TypeScript.Compiler;
 /// separate overloads here, since C# has no union types.
 /// </para>
 /// </remarks>
-internal static class Paths
+internal static partial class Paths
 {
     // ported from: src/compiler/path.ts:28-32
     public const string DirectorySeparator = "/";
@@ -27,12 +27,15 @@ internal static class Paths
     private const string UrlSchemeSeparator = "://";
 
     /// <summary>The identity of <c>Path</c> at runtime: the branded type collapses to <see cref="string"/>.</summary>
-    private static readonly Regex s_backslashRegExp = new(@"\\", RegexOptions.Compiled);
+    [GeneratedRegex(@"\\")]
+    private static partial Regex BackslashRegExp();
 
     // check path for these segments: '', '.'. '..'
-    private static readonly Regex s_relativePathSegmentRegExp = new(@"//|(?:^|/)\.\.?(?:$|/)", RegexOptions.Compiled);
+    [GeneratedRegex(@"//|(?:^|/)\.\.?(?:$|/)")]
+    private static partial Regex RelativePathSegmentRegExp();
 
-    private static readonly Regex s_pathIsRelativeRegExp = new(@"^\.\.?(?:$|[\\/])", RegexOptions.Compiled);
+    [GeneratedRegex(@"^\.\.?(?:$|[\\/])")]
+    private static partial Regex PathIsRelativeRegExp();
 
     //// Path Tests
 
@@ -72,7 +75,7 @@ internal static class Paths
 
     // ported from: src/compiler/path.ts:100-102
     /// <summary>Determines whether a path starts with a relative path component (i.e. <c>.</c> or <c>..</c>).</summary>
-    public static bool PathIsRelative(string path) => s_pathIsRelativeRegExp.IsMatch(path);
+    public static bool PathIsRelative(string path) => PathIsRelativeRegExp().IsMatch(path);
 
     // ported from: src/compiler/path.ts:110-112
     /// <summary>
@@ -385,7 +388,7 @@ internal static class Paths
     // ported from: src/compiler/path.ts:526-530
     /// <summary>Normalize path separators, converting <c>\</c> into <c>/</c>.</summary>
     public static string NormalizeSlashes(string path)
-        => path.Contains('\\') ? s_backslashRegExp.Replace(path, DirectorySeparator) : path;
+        => path.Contains('\\') ? BackslashRegExp().Replace(path, DirectorySeparator) : path;
 
     // ported from: src/compiler/path.ts:538-557
     /// <summary>
@@ -602,7 +605,7 @@ internal static class Paths
     private static string? SimpleNormalizePath(string path)
     {
         // Most paths don't require normalization
-        if (!s_relativePathSegmentRegExp.IsMatch(path))
+        if (!RelativePathSegmentRegExp().IsMatch(path))
         {
             return path;
         }
@@ -617,7 +620,7 @@ internal static class Paths
         if (simplified != path)
         {
             path = simplified;
-            if (!s_relativePathSegmentRegExp.IsMatch(path))
+            if (!RelativePathSegmentRegExp().IsMatch(path))
             {
                 return path;
             }
@@ -731,7 +734,7 @@ internal static class Paths
         //       the non-root portion of the path
         var aRest = a[aRoot.Length..];
         var bRest = b[bRoot.Length..];
-        if (!s_relativePathSegmentRegExp.IsMatch(aRest) && !s_relativePathSegmentRegExp.IsMatch(bRest))
+        if (!RelativePathSegmentRegExp().IsMatch(aRest) && !RelativePathSegmentRegExp().IsMatch(bRest))
         {
             return componentComparer(aRest, bRest);
         }

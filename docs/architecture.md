@@ -326,6 +326,7 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 4. **遇到无法直接表达的 TS 构造**：在代码处用 `// PORT-NOTE:` 注释说明降级方案，并回写 §4/§5。
 5. **枚举与诊断表**：优先从 TS 源用脚本生成，避免手工抄写出错（`tools/gen`）。
 6. **热路径性能**：checker/emitter 的集合与字符串操作需注意分配；先保证正确，M6 后统一做性能剖析。
+7. **正则用源生成器**：编译期常量模式一律写成 `[GeneratedRegex]` 的 partial 方法（`private static partial Regex Xxx();`），不用 `new Regex(..., RegexOptions.Compiled)`。生成器会为每个模式生成专用的 `RegexRunner`，既没有首次使用的编译开销，也比 `Compiled` 的反射发射更快。模式在运行时才算出来的地方（`Wildcard.GetRegexFromPattern`）只能用 `new Regex`，并在代码处注明原因。
 
 ---
 
