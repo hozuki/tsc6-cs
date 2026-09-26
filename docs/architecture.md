@@ -654,6 +654,19 @@ StringLiteral → LiteralExpression → MemberExpression → LeftHandSideExpress
 
 `CallExpression` / `Identifier` / `ArrayLiteralExpression` 的链不受影响。**这份清单是维护点**：TS 增一个新的"能力基"时要补进来，否则那一族的链会静默失效 —— 它不会编译错，只会让下游的多态判断答错。
 
+### 12.9 分类接口的共同锚点：`INode`
+
+§12.4 的位置规则把一部分分类台阶留成了接口（`TypeNode`、`Statement`、`Declaration`、`JSDocContainer`…），因为它们在别处出现在非首位。于是这些"节点"在 C# 里没有共同类型：`Expression` 是类，`Statement` 是接口，而 C# 的接口继承不了类 —— 那条链到这里就断了。
+
+这层差距在 M4c 第一次把生成物纳入编译时集中爆发：`CreateNodeArray<T> where T : Node` 收不下一个 `List<ITypeNode>`，`PropagateChildFlags(Node?)` 也收不下 `ITypeNode`。TS 里没有这个问题，因为它的 `TypeNode` 是 `Node` 的**子类型**。
+
+修法是手写一个 `INode`（`Model/Node.cs`）：`Node` 实现它，生成器让**每一个能到达 `Node` 的接口**声明它为基（判据就是 §12.4 已有的 `ReachesNode`）。`INode` 只声明 `Kind`/`Flags`/`TransformFlags` —— 工厂对"任意节点"提出的全部要求。
+
+边界：
+- 接口因此继承 `INode` 的成员，而实现方是 `Node` 派生类，本来就有它们，没有额外负担。
+- 工厂里收"任意节点"的那几个辅助（`CreateNodeArray`/`AsNodeArray`/`PropagateChild*`/`AggregateChildrenFlags`）的约束从 `Node` 放宽到 `INode`。
+- `Node` 仍然是类：`Update`/`SetOriginalNode`/`CreateBase*` 的 `T : Node` 约束不变 —— 它们要访问的 `Original`/`EmitNode`/`Pos` 在类上，而不在 `INode` 里。
+
 ---
 
 ## 13. 宿主替换：`sys.ts` 的 Node 绑定（M2c，已完成）
@@ -721,7 +734,7 @@ M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质�
 |---|---|---|---|
 | M4a | `factory/nodeTests.ts` → `Parser/NodeTests.cs`（生成） | 1,201 | 已完成（§15.4） |
 | M4b | `factory/emitNode.ts` → `Parser/EmitNodes.cs`；`factory/nodeChildren.ts` → `Parser/NodeChildren.cs`；提前移植 `getSourceFileOfNode`/`isParseTreeNode`/`getParseTreeNode` | 442 + 3 个函数 | 已完成（§15.5） |
-| M4c | `factory/nodeFactory.ts` → `Parser/NodeFactory.cs`（最大单件，再按 create/update 家族细分） | 7,542 | |
+| M4c | `factory/nodeFactory.ts` → `Parser/NodeFactory.cs`（最大单件，再按 create/update 家族细分） | 7,542 | 进行中（§15.7/§15.8：生成物已纳入编译，137 个成员仍为存根） |
 | M4d | `factory/utilities.ts` + `nodeConverters.ts` + `parenthesizerRules.ts` | 2,656 | |
 | M4e | `parser.ts` → `Parser/*`（递归下降主体：声明 / 语句 / 表达式 / 类型 / JSDoc 各自成批） | 10,823 | |
 | M4f | `emitHelpers.ts` + `expressionToTypeNode.ts` | 2,821 | |
@@ -804,7 +817,34 @@ M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质�
 
 **第一批（已交付）**是其余一切的底座：`CreateNodeArray`、`AsNodeArray`、transformFlags 聚合的四个函数（`AggregateChildrenFlags`/`PropagateChildFlags`/`PropagatePropertyNameFlagsOfChild`/`GetTransformFlagsSubtreeExclusions`）、`NodeFactoryFlags`，以及 `Utilities` 里的 `setTextRange`/`isNamedDeclaration`/`isPropertyName`。`NodeFactory` 暂不声明实现 `INodeFactory`：接口有 503 个抽象成员，分批期间编译器分不清"漏了"与"还没写"，全部就位后再挂上它做逐成员自检。
 
+### 15.8 M4c：生成物纳入编译，手写半与存根机制
+
+转折点是**去掉 `Parser/NodeFactory.Generated.cs` 的 `<Compile Remove>`**（§15.7）。代价是先把"生成物自己过不了编译"的问题修干净 —— 它们全是映射规则问题，不是个别成员问题：
+
+| 症状 | 修法 |
+|---|---|
+| `List<ITypeNode>` 进不了 `CreateNodeArray<T> where T : Node` | 手写 `INode`，分类接口继承它，辅助与数组的约束改收 `INode`（§12.9） |
+| `a && b`、`x ? y : z`、`if (x)`、`!x` 直接落成 C# 运算符 | 条件位置走 `Js.IsTruthy`；值位置的 `a && b` 译成 `a is null ? null : b`（`nodeFactory.ts` 里它总是守着可选节点）；`!` 先求真值 |
+| `isIdentifier(…)`、`setTextRange(…)` 裸调用 | 谓词加 `NodeTests.`，辅助加 `Utilities.`/`Core.`；方法组引用（`sameFlatMap(x, flattenCommaElements)`）同样处理 |
+| `createBaseNode<NonNullChain>` 找不到类型 | 类型参数改按 kind 反查实际类；kind 别名（`AssertClause = ImportAttributes`）按**值**命中 |
+| `SyntaxKind.A \| SyntaxKind.B` 参数退成 `object?` | 全枚举成员的联合收敛成 `SyntaxKind`，也不再为它们生成窄化重载 |
+| `isExportEquals: boolean \| undefined` 退成 `bool`（丢可空） | `A \| undefined` 在必填位置也可空 —— 可空是类型的事实，不是参数可选性的副产品 |
+| `LiteralTypeNode["literal"]` 等索引访问类型未解析 | 兜底查模型里该成员的声明类型 |
+| 泛型类的成员 `NodeArray<T>` 退成 `NodeArray<object?>` | 类的类型参数进入成员映射的作用域 |
+
+**存根机制**：生成器看不到手写的那半个 partial class，所以它需要一份"哪些成员已经有主"的清单 —— `NodeFactoryEmitter.s_implemented`。不在清单里的成员，生成器要么按定形生成，要么出一个**签名来自同一套映射、body 直接 `throw`** 的存根；`update*` 若它转发的 `create*` 还不可用，自己也会变成存根（否则 `Update<T>(T, T?)` 的 `where T : Node` 会收到 `object?`）。**实现一个成员 = 把它的名字加进 `s_implemented` + 重跑生成器**，存根随之消失。
+
+代价是生成物里有一段明确会抛的代码。这是临时的：清单每长一条就短一条，全部就位后生成物里不再有 `NotImplementedException`。
+
+**进度**（第七批结束时）：428 个工厂成员中，137 个仍是存根。已手写的部分包括字面量与模板家族、标识符与 punctuation、parameter/property/method 声明、表达式家族（access / call / chain）、以及一批辅助（`asEmbeddedStatement`/`asVariableDeclaration`/`flattenCommaElements`/`getCookedText`…）。剩下的集中在四处：
+
+- **JSDoc 家族**（30 余个）：它们都经由 `createBaseJSDocTag`/`createBaseJSDocTagDeclaration` 这两个泛型辅助，而那两个的 `T["kind"]` 约束在 C# 里表达不了。
+- **声明家族**：class/module/import/export/function/variable 与 `createSourceFile`（含 `cloneSourceFileWithChanges`）。
+- **JSX 与 emit helper**：`createTypeCheck`/`createMethodCall`/`createReflectSetCall` 这一类，为的是 transformer 生成代码时用的表达式。
+- **标识符自动生成**：`createTempVariable`/`createLoopVariable`/`createUniqueName`，它们要 `GeneratedNamePart`（transformers 的类型，M7）。
+
 ---
+
 ## 16. `const enum` 成员作类型：typed enum
 
 ### 16.1 TS 的两条路径
