@@ -83,9 +83,10 @@
 |---|---|---|---|
 | `core.ts` | 2,368 | `Core/` | 容器（Map/Set/MultiMap/Queue）、数组与字符串工具、比较器、`Pattern` |
 | `debug.ts` | 1,139 | `Core/` | 断言、`Debug.assert*`、fail |
-| `performance.ts` / `performanceCore.ts` | 189/86 | `Core/` | 计时埋点，C# 用 `Stopwatch`/`Activity` 承接 |
+| `performanceCore.ts` | 86 | `Core/` | 计时钩子发现与时间戳；CLR 无 Web Performance API，`timestamp` 由 `Stopwatch` 承接 |
+| `performance.ts` | 189 | `Core/` | mark/measure 埋点。**依赖 `sys.ts` 的 `System` 实例**，随 `sys.ts` 顺延到 **M2b** |
 | `path.ts` | 1,024 | `Core/` | 路径规范化；C# 对照 `Path` 但**必须复刻 TS 语义**（大小写、`/` 分隔符） |
-| `sys.ts` | 1,826 | `Core/` | `System` 接口：文件读写、目录、环境、`CompilerHost` 的 OS 实现 |
+| `sys.ts` | 1,826 | `Core/` | `System` 接口：文件读写、目录、环境。**实现依赖上层**：`utilities.ts`（Layer 5）的 `matchFiles`/`resolveJSModule`/`writeFileEnsuringDirectories`、`watch.ts` 的 `closeFileWatcher`，以及 `types.ts` 的 `WatchOptions`/`PollingWatchKind`。顺延到 **M2b** |
 | `semver.ts` | 397 | `Core/` | 版本比较 |
 | `tracing.ts` | 322 | `Core/` | ETW/trace 埋点，可后置 |
 
@@ -304,7 +305,9 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 |---|---|---|
 | **M0** | 架构梳理（本文档）+ 解决方案骨架 | `dotnet build` / `dotnet test` 通过，空测试绿灯 |
 | **M1** | Layer 0：`Core`（容器、字符码、断言、比较器） | 单测覆盖 core 等价语义 |
-| **M2** | Layer 1：`SyntaxKind` 全量 + 标志 + `Node` 基类骨架 | 枚举值与 TS 逐项校验（脚本比对） |
+| **M1b** | Layer 0 其余：`Paths`（`path.ts`）、`Semver`（`semver.ts`）、`PerformanceCore` | 路径与 semver 语义单测（含 TS 文档中的路径表格） |
+| **M2** | Layer 1：`types.ts` 的枚举与标志（`SyntaxKind` 全量、`Extension`、`ScriptTarget`…）+ `Node` 类型层级 | 枚举值与 TS 逐项校验（`tools/gen` 脚本比对） |
+| **M2b** | `sys.ts` + `performance.ts`（Layer 0 中依赖 Layer 1/5 的部分） | 文件系统抽象与计时埋点单测 |
 | **M3** | Layer 2：`Scanner` 全量 | 单测：token 流、trivia、错误恢复、关键字表 |
 | **M4** | Layer 3：`Parser` + `NodeFactory` | 能对 conformance 用例产出 AST；语法诊断 baseline 对齐 |
 | **M5** | Layer 4：`Binder` | `.symbols` baseline 对齐（作用域/符号） |
@@ -345,6 +348,7 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 - **JS truthiness**：新增 `Js.IsTruthy`。TS 代码里 `if (v)`、`v ? … : …` 大量依赖 truthy，C# 只有 `bool`；凡是原样依赖 truthy 的位置都调用它，而不是偷懒写成 `!= null`。
 - **稳定排序**：TS 用 `Array.prototype.sort`（ES2019 起稳定），C# 的 `List.Sort`/`Array.Sort` 是内省排序、**不稳定**。`Core.StableSort` 用原始索引做 tiebreak 来恢复稳定性，所有排序入口（`toSorted`/`sortAndDeduplicate`/`deduplicate`）都经过它。
 - **字符串序**：JS 的 `<`/`>` 按 UTF-16 码元比较；C# 的 `string` 没有比较运算符，统一走 `string.CompareOrdinal`。
+- **字符串索引越界**：JS 的 `str.charCodeAt(i)` 越界返回 `NaN`，与任何字符码比较都为 `false`；C# 的 `s[i]` 越界**抛异常**。`Paths.CharCodeAt` 把越界读映射为 `-1`（落在 0..0xFFFF 之外，比较结果与 `NaN` 一致）；`path.ts` 的根长度解析（`//`、`c:`、`file:///`）依赖这一点，直接翻译会在 `"/"` 这类输入上崩溃。
 - **大小写折叠**：JS 的 `toUpperCase` 是 full case mapping（`"ß"` → `"SS"`），.NET 的 `ToUpperInvariant` 不是。因此 `equateStringsCaseInsensitive("ss", "ß")` 在 TS 中为 `true`、在移植版中为 `false`。影响面仅限含 ß 一类特殊字符的标识符/文件名比较。**已知差异，暂不补偿。**
 - **`StartsWith`**：TS 写 `str.lastIndexOf(prefix, 0) === 0`。.NET 的 `LastIndexOf(value, 0, Ordinal)` 在 `value` 长于 `startIndex + 1` 时返回 `-1`（实测 `"./foo".LastIndexOf("./", 0, Ordinal) == -1`），语义不同，因此改写为 `str.StartsWith(prefix, Ordinal)` 并补上 TS `slice` 的长度收敛行为。
 - **"返回同一实例"的优化**：`filter`/`compact` 等在 TS 中可能返回入参实例本身。C# 因输入为 `IReadOnlyList<T>`、输出为 `List<T>` 而无法共享实例，这些函数改为返回新列表（`sameMap`/`concatenate`/`compact` 则通过返回 `IReadOnlyList<T>` 保留该契约）。
@@ -366,3 +370,5 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 | `core.ts`: `singleOrMany`、`combine` | M5（`T \| T[]` 联合类型在 C# 无直接对应） |
 | `core.ts`: `isNodeLikeSystem` | 已实现为常量 `false`（CLR 上永远不是 Node） |
 | `core.ts`: `toArray` | 已实现，但需由调用方给出元素类型参数（`T \| T[]` 无法在运行时区分） |
+| `sys.ts`: `System` 接口、`sys` 实例、watch 函数 | M2b（依赖 Layer 1 的 `WatchOptions` 与 Layer 5 的 `matchFiles`/`resolveJSModule`） |
+| `performance.ts`: mark/measure 埋点 | M2b（依赖 `sys.ts` 的 `System` 实例） |
