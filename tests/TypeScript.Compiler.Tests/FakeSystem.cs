@@ -9,6 +9,8 @@ namespace TypeScript.Compiler.Tests;
 /// </remarks>
 internal sealed class FakeSystem : ISystem
 {
+    private readonly HashSet<string> _directories = new(StringComparer.Ordinal);
+
     public IReadOnlyList<string> Args { get; set; } = [];
 
     public string NewLine { get; set; } = "\n";
@@ -20,22 +22,39 @@ internal sealed class FakeSystem : ISystem
 
     public List<string> Written { get; } = [];
 
+    /// <summary>Directories <see cref="CreateDirectory"/> was asked for, in order.</summary>
+    public List<string> CreatedDirectories { get; } = [];
+
+    /// <summary>When set, <see cref="WriteFile"/> fails unless its directory already exists.</summary>
+    public bool RequireDirectoryBeforeWrite { get; set; }
+
+    /// <summary>Environment the host reports; a name that is absent reads as <c>null</c>.</summary>
+    public Dictionary<string, string> EnvironmentVariables { get; } = new(StringComparer.Ordinal);
+
     public void Write(string s) => Written.Add(s);
 
     public string? ReadFile(string path, string? encoding = null) => null;
 
     public void WriteFile(string path, string data, bool writeByteOrderMark = false)
     {
+        if (RequireDirectoryBeforeWrite && !DirectoryExists(Paths.GetDirectoryPath(path)))
+        {
+            throw new IOException("no such directory");
+        }
+
+        Written.Add(path);
     }
 
     public string ResolvePath(string path) => path;
 
     public bool FileExists(string path) => false;
 
-    public bool DirectoryExists(string path) => false;
+    public bool DirectoryExists(string path) => _directories.Contains(path);
 
     public void CreateDirectory(string path)
     {
+        CreatedDirectories.Add(path);
+        _directories.Add(path);
     }
 
     public string GetExecutingFilePath() => string.Empty;
@@ -55,7 +74,7 @@ internal sealed class FakeSystem : ISystem
     {
     }
 
-    public string? GetEnvironmentVariable(string name) => null;
+    public string? GetEnvironmentVariable(string name) => EnvironmentVariables.GetValueOrDefault(name);
 
     public DateTimeOffset? GetModifiedTime(string path) => ModifiedTime;
 }

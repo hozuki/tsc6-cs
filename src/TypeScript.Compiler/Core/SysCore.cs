@@ -79,7 +79,7 @@ internal static class SysCore
     /// Reads a file's modified time from <paramref name="host"/>, substituting
     /// <see cref="MissingFileModifiedTime"/> when the host cannot report one.
     /// </summary>
-    public static DateTimeOffset GetModifiedTime(ISystem host, string fileName)
+    public static DateTimeOffset GetModifiedTime(IModifiedTimeHost host, string fileName)
         => host.GetModifiedTime(fileName) ?? MissingFileModifiedTime;
 
     // ported from: src/compiler/sys.ts:567-569
@@ -88,4 +88,17 @@ internal static class SysCore
 
     // ported from: src/compiler/sys.ts:572-574
     public static void SetSysLog(Action<string> logger) => s_curSysLog = logger;
+
+    // ported from: src/compiler/sys.ts:1280
+    /// <summary>
+    /// Whether a failure to create a native watcher means the OS ran out of them.
+    /// </summary>
+    /// <remarks>
+    /// PORT-NOTE: TS tests Node's <c>e.code === "ENOSPC"</c> and falls back to polling when the OS reports it.
+    /// .NET surfaces the same condition as an IOException; on Unix the errno is preserved in
+    /// <see cref="Exception.HResult"/> (28 is ENOSPC), and the message is checked as a fallback because not every
+    /// BCL path preserves the code.
+    /// </remarks>
+    public static bool IsSystemWatcherLimitExceeded(Exception e)
+        => e.HResult == 28 || e.Message.Contains("ENOSPC", StringComparison.Ordinal);
 }

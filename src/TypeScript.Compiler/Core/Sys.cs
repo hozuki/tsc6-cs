@@ -29,6 +29,21 @@ internal delegate void FileWatcherCallback(string fileName, FileWatcherEventKind
 
 internal delegate void DirectoryWatcherCallback(string fileName);
 
+// ported from: src/compiler/sys.ts:101-104
+/// <summary>Watch one file. The host supplies this; <see cref="SysWatch"/> builds policy on top of it.</summary>
+internal delegate IFileWatcher HostWatchFile(
+    string fileName,
+    FileWatcherCallback callback,
+    PollingInterval pollingInterval,
+    IWatchOptions? options);
+
+/// <summary>Watch one directory. The host supplies this; <see cref="SysWatch"/> builds policy on top of it.</summary>
+internal delegate IFileWatcher HostWatchDirectory(
+    string directoryName,
+    DirectoryWatcherCallback callback,
+    bool recursive,
+    IWatchOptions? options);
+
 // ported from: src/compiler/sys.ts:1453-1455
 internal interface IFileWatcher
 {
@@ -58,6 +73,17 @@ internal interface IFileSystemEntries
     IReadOnlyList<string> Directories { get; }
 }
 
+// ported from: src/compiler/sys.ts:107-112
+/// <summary>A host that can report a file's modification time.</summary>
+/// <remarks>
+/// TS spells this as the structural type <c>{ getModifiedTime: NonNullable&lt;System["getModifiedTime"]&gt; }</c>
+/// and passes whatever happens to satisfy it; C# needs the shape named.
+/// </remarks>
+internal interface IModifiedTimeHost
+{
+    DateTimeOffset? GetModifiedTime(string fileName);
+}
+
 // ported from: src/compiler/sys.ts:1395-1451
 /// <summary>
 /// The host interface the compiler runs against — file system, environment and terminal.
@@ -72,7 +98,7 @@ internal interface IFileSystemEntries
 /// namespace; the port uses <see cref="ISystem"/> instead.
 /// </para>
 /// </remarks>
-internal interface ISystem
+internal interface ISystem : IModifiedTimeHost
 {
     /// <summary>Command-line arguments, excluding the executable.</summary>
     IReadOnlyList<string> Args { get; }
@@ -123,7 +149,7 @@ internal interface ISystem
     IFileWatcher? WatchFile(
         string path,
         FileWatcherCallback callback,
-        int pollingInterval = 0,
+        PollingInterval pollingInterval,
         IWatchOptions? options = null) => null;
 
     /// <returns><c>null</c> when the host cannot watch, mirroring TS's <c>sys.watchDirectory?.()</c>.</returns>
@@ -135,7 +161,11 @@ internal interface ISystem
 
     bool PreferNonRecursiveWatch => false;
 
-    DateTimeOffset? GetModifiedTime(string path) => null;
+    /// <summary>Reads a file's modified time, or <c>null</c> when the host cannot.</summary>
+    /// <remarks>Takes part in <see cref="IModifiedTimeHost"/>: TS declares <c>getModifiedTime?</c> optional and
+    /// callers guard for <c>undefined</c>, which C# expresses as a default implementation returning
+    /// <c>null</c>.</remarks>
+    new DateTimeOffset? GetModifiedTime(string path) => null;
 
     void SetModifiedTime(string path, DateTimeOffset time)
     {

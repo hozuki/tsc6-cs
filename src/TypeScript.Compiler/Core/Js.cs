@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
 namespace TypeScript.Compiler;
@@ -30,14 +31,21 @@ internal static class Js
         _ => true,
     };
 
+    /// <summary>Evaluates JavaScript truthiness for a string: the empty string is falsy.</summary>
+    /// <remarks>
+    /// This overload exists so that overload resolution for a <c>string</c> argument picks JS semantics rather
+    /// than the generic one below (see its note). It also tells the compiler that a true result means the string
+    /// is non-empty, which is what the ported <c>if (s)</c> guards rely on.
+    /// </remarks>
+    public static bool IsTruthy([NotNullWhen(true)] string? value) => !string.IsNullOrEmpty(value);
+
     /// <summary>Evaluates JavaScript truthiness for a reference value that is expected to be non-null.</summary>
     /// <remarks>
     /// PORT-NOTE: this overload answers "is not null", which is <em>not</em> JS truthiness for every type it can
     /// be bound to. It exists for call sites whose value is a reference the compiler cannot prove non-null. For
-    /// anything whose falsy-ness matters (<c>string</c> in particular) test the value directly, or pass an
-    /// explicit <c>(object?)</c> cast to <see cref="IsTruthy(object?)"/> — overload resolution prefers this
-    /// overload for a <c>string</c> argument, so a plain <c>IsTruthy(someString)</c> answers <c>true</c> for the
-    /// empty string.
+    /// anything whose falsy-ness matters, pass an explicit <c>(object?)</c> cast so that
+    /// <see cref="IsTruthy(object?)"/> is chosen instead — including for a <c>string</c>, which used to bind
+    /// here and made an empty string look truthy.
     /// </remarks>
     public static bool IsTruthy<T>(T? value)
         where T : class
