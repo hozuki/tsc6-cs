@@ -437,7 +437,7 @@ public class NodeFactoryFamilyTests
         var factory = Factory();
 
         var plain = factory.CreateNewExpression(Id("C"), null, null);
-        var withTypeArguments = factory.CreateNewExpression(Id("C"), [(ITypeNode)factory.CreateKeywordTypeNode(SyntaxKind.NumberKeyword)], null);
+        var withTypeArguments = factory.CreateNewExpression(Id("C"), [factory.CreateKeywordTypeNode(SyntaxKind.NumberKeyword)], null);
 
         Assert.NotEqual(TransformFlags.None, plain.TransformFlags & TransformFlags.ContainsES2020);
         Assert.Equal(TransformFlags.None, plain.TransformFlags & TransformFlags.ContainsTypeScript);
@@ -464,8 +464,8 @@ public class NodeFactoryFamilyTests
     public void UnionTypeNode_KeepsTheConstituentsItWasGiven()
     {
         var factory = Factory();
-        var number = (ITypeNode)factory.CreateKeywordTypeNode(SyntaxKind.NumberKeyword);
-        var text = (ITypeNode)factory.CreateKeywordTypeNode(SyntaxKind.StringKeyword);
+        var number = factory.CreateKeywordTypeNode(SyntaxKind.NumberKeyword);
+        var text = factory.CreateKeywordTypeNode(SyntaxKind.StringKeyword);
 
         var node = factory.CreateUnionTypeNode([number, text]);
 
@@ -483,7 +483,7 @@ public class NodeFactoryFamilyTests
     public void ImportTypeNode_DoesNotInventTheDeprecatedAssertionsContainer()
     {
         var factory = Factory();
-        var argument = (ITypeNode)factory.CreateKeywordTypeNode(SyntaxKind.StringKeyword);
+        var argument = factory.CreateKeywordTypeNode(SyntaxKind.StringKeyword);
         var attributes = factory.CreateImportAttributes(null, null, SyntaxKind.WithKeyword);
 
         var node = factory.CreateImportTypeNode(argument, attributes, null, null, isTypeOf: true);

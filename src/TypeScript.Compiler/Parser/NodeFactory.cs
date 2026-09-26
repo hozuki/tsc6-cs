@@ -1942,9 +1942,10 @@ internal partial class NodeFactory
     /// <remarks>
     /// PORT-NOTE: TS constrains its type parameter to <c>KeywordTypeSyntaxKind</c> and answers
     /// <c>KeywordTypeNode&lt;TKind&gt;</c>. A C# type parameter cannot be constrained to an enum, so the kind arrives as
-    /// the enum itself (§16) and a token is what comes back.
+    /// the enum itself (§16) and the answer is the type interface — which the token class implements (see
+    /// <see cref="KeywordTypeToken"/>).
     /// </remarks>
-    public Node CreateKeywordTypeNode(SyntaxKind kind) => CreateToken(kind);
+    public ITypeNode CreateKeywordTypeNode(SyntaxKind kind) => (ITypeNode)CreateToken(kind);
 
     /// <summary>ported from: factory/nodeFactory.ts:2546 — <c>createUnionOrIntersectionTypeNode</c>.</summary>
     /// <remarks>
