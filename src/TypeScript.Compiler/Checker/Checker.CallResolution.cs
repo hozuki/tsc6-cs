@@ -1079,8 +1079,8 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:36250-36255 — <c>createSyntheticExpression</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: <c>parseNodeFactory</c> is the checker's parenthesizer-free factory, which the port declares as
-    /// <c>FactoryUtilities.ParseNodeFactory</c> (<c>Checker.TypeOfSymbols.cs</c>'s precedent);
+    /// PORT-NOTE: <c>parseNodeFactory</c> (checker.ts:36251, parser.ts:441) is the checker's parenthesizer-free
+    /// factory, which the port declares as <c>FactoryUtilities.ParseNodeFactory</c>;
     /// <c>setTextRangeWorker</c> is the checker's alias of <c>setTextRange</c> (checker.ts:1010), i.e.
     /// <c>Utilities.SetTextRange</c>. <c>tupleNameSource</c> is TS's
     /// <c>ParameterDeclaration | NamedTupleMember</c>; both are <see cref="Node"/>s and the slot is written as
@@ -1365,7 +1365,8 @@ internal sealed partial class Checker
     /// PORT-NOTE: <c>DiagnosticAndArguments</c> is TS's <c>[DiagnosticMessage, ...DiagnosticArguments]</c> tuple; the
     /// port states it as an <c>object?[]</c> whose first element is the message, which is how
     /// <see cref="Utilities.CreateDiagnosticForNode"/> takes its <c>params</c> arguments. The too-long branch's
-    /// <c>factory.createNodeArray(args.slice(max))</c> relies on array covariance to reach
+    /// <c>factory.createNodeArray(args.slice(max))</c> (checker.ts:36481, factory/nodeFactory.ts:7407, i.e.
+    /// <see cref="NodeFactory.Factory"/>) relies on array covariance to reach
     /// <c>createDiagnosticForNodeArray(…, NodeArray&lt;Node&gt;, …)</c>; the port copies the excess arguments into a
     /// <c>NodeArray&lt;Node&gt;</c> because C# generics are invariant — only the array's range is read, so the copy is
     /// unobservable (the reference's array is a fresh copy too).
@@ -1464,7 +1465,7 @@ internal sealed partial class Checker
             {
                 excessArguments.Add(args[i]);
             }
-            var errorSpan = FactoryUtilities.ParseNodeFactory.CreateNodeArray(excessArguments, /*hasTrailingComma*/ null);
+            var errorSpan = NodeFactory.Factory.CreateNodeArray(excessArguments, /*hasTrailingComma*/ null);
             var pos = Core.First(errorSpan).Pos;
             var end = Core.Last(errorSpan).End;
             if (end == pos)

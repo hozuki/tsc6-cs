@@ -35,10 +35,12 @@
 /// ones TS gets for free and each is called out on its member.
 /// </para>
 /// <para>
-/// PORT-NOTE: the reference's <c>factory</c> (checker.ts's import of the module-level <c>factory</c> object from
-/// factory/nodeFactory.ts) is reached through <see cref="FactoryUtilities.ParseNodeFactory"/>, the one
-/// <see cref="NodeFactory"/> instance the port gives the checker and the parser (parser.ts:441). The two instances
-/// differ only in <c>NodeFactoryFlags.NoParenthesizerRules</c>, which no <c>create*</c> member used here reads.
+/// PORT-NOTE: the reference reaches two factories from <c>checker.ts</c>: the module-level <c>factory</c>
+/// (factory/nodeFactory.ts:7407), which the port reaches as <see cref="NodeFactory.Factory"/>, and
+/// <c>parseNodeFactory</c> (parser.ts:441), which is <see cref="FactoryUtilities.ParseNodeFactory"/>. The
+/// flow-analysis sites below (:12022-:12073) are <c>factory</c> sites, and the one <c>parseNodeFactory</c> site is
+/// <c>getSyntheticElementAccess</c> (:11694-:11696). The two instances differ only in
+/// <c>NodeFactoryFlags.NoParenthesizerRules</c>, which no <c>create*</c> member used here reads.
 /// </para>
 /// <para>
 /// PORT-NOTE: six <c>utilities.ts</c>/<c>utilitiesPublic.ts</c> members this file calls are not declared anywhere in
@@ -181,8 +183,9 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:11689-11706 — <c>getSyntheticElementAccess</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS's <c>setTextRangeWorker</c> is <see cref="Utilities.SetTextRange"/> (utilities.ts:71) and its
-    /// <c>factory</c> is <see cref="FactoryUtilities.ParseNodeFactory"/> (see the file header). The <c>flowNode</c>
+    /// PORT-NOTE: TS's <c>setTextRangeWorker</c> is <see cref="Utilities.SetTextRange"/> (utilities.ts:71) and the
+    /// <c>parseNodeFactory</c> all three calls read (checker.ts:11694-11696, parser.ts:441) is
+    /// <see cref="FactoryUtilities.ParseNodeFactory"/>. The <c>flowNode</c>
     /// read and write go through <see cref="IFlowContainer"/> because the reference's <c>canHaveFlowNode</c> guard is
     /// what proves the slot exists.
     /// </remarks>
@@ -719,7 +722,8 @@ internal sealed partial class Checker
     /// <para>
     /// PORT-NOTE: TS's <c>isAccessExpression(d) &amp;&amp; isModuleExportsAccessExpression(d.expression)</c> reads the
     /// access expression's <c>expression</c> slot, which the port spells with one switch over the two concrete
-    /// classes; the <c>factory</c> is <see cref="FactoryUtilities.ParseNodeFactory"/> (see the file header).
+    /// classes; the reference's <c>factory</c> (checker.ts:12026-12028, factory/nodeFactory.ts:7407) is
+    /// <see cref="NodeFactory.Factory"/>.
     /// </para>
     /// </remarks>
     private IType GetFlowTypeFromCommonJSExport(ISymbol symbol)
@@ -733,13 +737,13 @@ internal sealed partial class Checker
                 declarationNode is PropertyAccessExpression access ? access.Expression! : ((ElementAccessExpression)declarationNode).Expression!);
         });
         var reference = areAllModuleExports
-            ? FactoryUtilities.ParseNodeFactory.CreatePropertyAccessExpression(
-                FactoryUtilities.ParseNodeFactory.CreatePropertyAccessExpression(
-                    FactoryUtilities.ParseNodeFactory.CreateIdentifier("module"),
-                    FactoryUtilities.ParseNodeFactory.CreateIdentifier("exports")),
+            ? NodeFactory.Factory.CreatePropertyAccessExpression(
+                NodeFactory.Factory.CreatePropertyAccessExpression(
+                    NodeFactory.Factory.CreateIdentifier("module"),
+                    NodeFactory.Factory.CreateIdentifier("exports")),
                 accessName)
-            : FactoryUtilities.ParseNodeFactory.CreatePropertyAccessExpression(
-                FactoryUtilities.ParseNodeFactory.CreateIdentifier("exports"),
+            : NodeFactory.Factory.CreatePropertyAccessExpression(
+                NodeFactory.Factory.CreateIdentifier("exports"),
                 accessName);
         if (areAllModuleExports)
         {
@@ -758,18 +762,18 @@ internal sealed partial class Checker
     /// <c>members</c> slot is the union face <c>NodeArray&lt;IClassElement&gt;</c> in the port, so the parameter keeps
     /// that element type and each surviving element is cast to the class the filter selected
     /// (<c>isClassStaticBlockDeclaration</c>).
-    /// The <c>factory</c> is <see cref="FactoryUtilities.ParseNodeFactory"/> (see the file header).
+    /// The reference's <c>factory</c> (checker.ts:12039, :12043) is <see cref="NodeFactory.Factory"/>.
     /// </remarks>
     private IType? GetFlowTypeInStaticBlocks(ISymbol symbol, IList<IClassElement> staticBlocks)
     {
         object accessName = Core.StartsWith(symbol.EscapedName!, "__#")
-            ? FactoryUtilities.ParseNodeFactory.CreatePrivateIdentifier(symbol.EscapedName!.Split("@")[1])
+            ? NodeFactory.Factory.CreatePrivateIdentifier(symbol.EscapedName!.Split("@")[1])
             : Utilities.UnescapeLeadingUnderscores(symbol.EscapedName!);
         foreach (var staticBlockNode in staticBlocks)
         {
             var staticBlock = (ClassStaticBlockDeclaration)staticBlockNode;
-            var reference = FactoryUtilities.ParseNodeFactory.CreatePropertyAccessExpression(
-                FactoryUtilities.ParseNodeFactory.CreateThis(),
+            var reference = NodeFactory.Factory.CreatePropertyAccessExpression(
+                NodeFactory.Factory.CreateThis(),
                 accessName);
             Utilities.SetParent(reference.Expression, reference);
             Utilities.SetParent(reference, staticBlock);
@@ -801,15 +805,15 @@ internal sealed partial class Checker
     /// JS constructor (<c>FunctionDeclaration</c>/<c>FunctionExpression</c>). The port therefore takes
     /// <see cref="IFunctionLikeDeclarationBase"/> — the face all three declare and the one holding
     /// <c>returnFlowNode</c> (types.ts:2071) — rather than the one concrete class, whose cast is what threw.
-    /// The <c>factory</c> is <see cref="FactoryUtilities.ParseNodeFactory"/> (see the file header).
+    /// The reference's <c>factory</c> (checker.ts:12060, :12063) is <see cref="NodeFactory.Factory"/>.
     /// </remarks>
     private IType? GetFlowTypeInConstructor(ISymbol symbol, IFunctionLikeDeclarationBase constructor)
     {
         object accessName = Core.StartsWith(symbol.EscapedName!, "__#")
-            ? FactoryUtilities.ParseNodeFactory.CreatePrivateIdentifier(symbol.EscapedName!.Split("@")[1])
+            ? NodeFactory.Factory.CreatePrivateIdentifier(symbol.EscapedName!.Split("@")[1])
             : Utilities.UnescapeLeadingUnderscores(symbol.EscapedName!);
-        var reference = FactoryUtilities.ParseNodeFactory.CreatePropertyAccessExpression(
-            FactoryUtilities.ParseNodeFactory.CreateThis(),
+        var reference = NodeFactory.Factory.CreatePropertyAccessExpression(
+            NodeFactory.Factory.CreateThis(),
             accessName);
         Utilities.SetParent(reference.Expression, reference);
         Utilities.SetParent(reference, (Node)constructor);

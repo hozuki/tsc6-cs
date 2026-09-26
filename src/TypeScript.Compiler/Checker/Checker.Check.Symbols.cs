@@ -1337,10 +1337,16 @@ internal sealed partial class Checker
     }
 
     /// <summary>Creates a synthetic `Signature` corresponding to a call signature.</summary>
-    /// <remarks>ported from: src/compiler/checker.ts:44059-44072 — <c>createCallSignature</c>.</remarks>
+    /// <remarks>
+    /// ported from: src/compiler/checker.ts:44059-44072 — <c>createCallSignature</c>.
+    /// <para>
+    /// PORT-NOTE: both nodes are the reference's <c>factory</c> (checker.ts:44068, factory/nodeFactory.ts:7407), i.e.
+    /// <see cref="NodeFactory.Factory"/>.
+    /// </para>
+    /// </remarks>
     internal Signature CreateCallSignature(List<ITypeParameter>? typeParameters, ISymbol? thisParameter, List<ISymbol> parameters, IType returnType, ITypePredicateBase? typePredicate = null, int? minArgumentCount = null, SignatureFlags flags = SignatureFlags.None)
     {
-        var decl = FactoryUtilities.ParseNodeFactory.CreateFunctionTypeNode(/*typeParameters*/ null, [], FactoryUtilities.ParseNodeFactory.CreateKeywordTypeNode(SyntaxKind.AnyKeyword));
+        var decl = NodeFactory.Factory.CreateFunctionTypeNode(/*typeParameters*/ null, [], NodeFactory.Factory.CreateKeywordTypeNode(SyntaxKind.AnyKeyword));
         return CreateSignature(decl, typeParameters, thisParameter, parameters, returnType, typePredicate, minArgumentCount ?? parameters.Count, flags);
     }
 

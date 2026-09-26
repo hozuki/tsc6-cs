@@ -16,10 +16,13 @@ namespace TypeScript.Compiler;
 /// <para>
 /// PORT-NOTE: the reference's <c>factory</c> (imported at checker.ts:196 from <c>factory/nodeFactory.ts</c>) is the
 /// port's <see cref="_factory"/> (<c>NodeFactory.Factory</c>), the singleton the node-builder slice declares on this
-/// partial class and creates every serialized node through. <c>Checker.TypeOfSymbols.cs</c> reaches the same singleton
-/// as <see cref="FactoryUtilities.ParseNodeFactory"/>; the two instances differ only in the
-/// <c>NoParenthesizerRules</c>/<c>NoIndentationOnFreshPropertyAccess</c> flags, which none of the <c>create*</c> members
-/// used here reads.
+/// partial class and creates every serialized node through. The checker's <c>factory</c> sites reach that same
+/// singleton directly (the flow-analysis sites in <c>Checker.TypeOfSymbols.cs</c>, checker.ts:12026-12063, and
+/// <c>Checker.Check.Symbols.cs</c>'s <c>createCallSignature</c>, checker.ts:44068); the checker's other factory,
+/// <see cref="FactoryUtilities.ParseNodeFactory"/> (the reference's <c>parseNodeFactory</c>, parser.ts:441), is used
+/// only at the three reference sites that use it (checker.ts:10209, :11694-11696, :36251). The two instances differ
+/// only in the <c>NoParenthesizerRules</c>/<c>NoIndentationOnFreshPropertyAccess</c> flags, which none of the
+/// <c>create*</c> members used here reads.
 /// </para>
 /// <para>
 /// PORT-NOTE: TS's <c>LazyNodeCheckFlags</c> (types.ts:5881-5895) is a union of thirteen <c>NodeCheckFlags</c> members

@@ -42,8 +42,8 @@ namespace TypeScript.Compiler;
 /// <para>
 /// PORT-NOTE: <c>factory</c> (factory/nodeFactory.ts:7407) is the module-level singleton the checker imports; the port
 /// keeps one instance (<c>NodeFactory.Factory</c>) and reads it through the <c>_factory</c> field, the same shape
-/// <c>Parser</c>/<c>Binder</c> use for their own factory. It must NOT be <c>FactoryUtilities.ParseNodeFactory</c>,
-/// which is configured with <c>NodeFactoryFlags.NoParenthesizerRules</c>.
+/// <c>Parser</c>/<c>Binder</c> use for their own factory. It must NOT be <c>FactoryUtilities.ParseNodeFactory</c> —
+/// the reference's <c>parseNodeFactory</c> (parser.ts:441), used at checker.ts:10209, :11694-11696, :36251.
 /// </para>
 /// </remarks>
 internal sealed partial class Checker

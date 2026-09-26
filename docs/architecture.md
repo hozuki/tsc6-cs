@@ -1240,7 +1240,7 @@ SourceFile(0,131) symbol=ValueModule:"/p" locals=[C=Class:C:1,a=BlockScopedVaria
 
 | 项 | 内容 | 处置 |
 |---|---|---|
-| **AST 形状风险** | `Checker/Checker.TypeOfSymbols.cs` 用 `FactoryUtilities.ParseNodeFactory`（`NoParenthesizerRules`）造节点，而其 PORT-NOTE 声称那就是 TS 的 `factory` —— 参考实现用的是带括号化规则的 `factory`，所以该文件可能产出与真编译器不同的 AST（编译器不会报错） | 收口时改为 `NodeFactory.Factory`（M6-6 的文件用的是它），并与 `nodeFactory.ts:7407` 的 `factory` 对齐 |
+| **AST 形状风险** | `Checker/Checker.TypeOfSymbols.cs` 用 `FactoryUtilities.ParseNodeFactory`（`NoParenthesizerRules`）造节点，而其 PORT-NOTE 声称那就是 TS 的 `factory` —— 参考实现用的是带括号化规则的 `factory`，所以该文件可能产出与真编译器不同的 AST（编译器不会报错） | **已收口（第六轮后）**：20 处 checker 侧代码用途逐条对着参考核过 —— 6 处参考用 `factory`（`nodeFactory.ts:7407`）的改回 `NodeFactory.Factory`（`getFlowTypeFromCommonJSExport` checker.ts:12026-12028、`getFlowTypeInStaticBlocks` :12039/:12043、`getFlowTypeInConstructor` :12060/:12063、`getArgumentArityError` :36481、JSX children 假属性声明 :33927、`createCallSignature` :44068），3 处参考自己就用 `parseNodeFactory`（`getSyntheticElementAccess` :11694-11696、`createSyntheticExpression` :36251、`serializeAsNamespaceDeclaration` :10209 的 ModuleDeclaration 半与 `factory` 的 ModuleBlock 半混用）保持原样，其余 11 处仅是注释提及；`types/**`（845 文件）与 `classes/**`（466 文件）前后 `SUMMARY` 完全一致，无回归 |
 | **生成器缺陷** | `Model/NodeInterfaces.cs:3526` 的 `GetIndexInfosOfIndexSymbol` 生成成了损坏的属性，而参考 `types.ts:5083` 是函数类型 | 已用命名响亮阻断 + 反射测试钉住；生成器修正归 `tools/Gen`（M6 后的housekeeping） |
 | **测试侧缺口** | `FakeTypeCheckerHost` 缺 8 个 `ITypeCheckerHost` 成员 | 集成时由我补齐（切片级报告都指了它） |
 | **工具风险（自动限定器）** | 一次自动化限定把 `// LanguageFeatureMinimumTarget.X` 注释插到闭括号**之前**，`//` 吞掉 `)`，产生 6 处 `CS1026` → 掩蔽全编译 | 两侧已各自修好；后续批量脚本改动前后必须查声明级集合 |
@@ -1539,6 +1539,10 @@ printer 门控的 `TypeToString`/`SymbolToString`/`SignatureToString`/`TypePredi
 2. `GetTypeNamesForErrorDisplay`（`Checker/Checker.Stringify.cs:576-586`）：参考返回前要**比较**两个渲染名并据此回退到全限定名，`ReportRelationError`（`Checker.Relations.Structured.cs:500`）还再比较一次 ⇒ 无法用实参级延迟消除，属 M7 边界（`types/mapped/*` 等多文件即因此崩溃）。
 
 **排障要点（写入纪律）：** 本轮出现过一次 `same=4781 / port-crash=558` 的"in-flight"读数，它是某个切片临时把门控改成不抛（`// TEMP-PRINTER-STUB`）的树上测得的，**不可用作进度**——任何测量都必须在工作树静止、`git diff tools/` 为空、无临时插桩时重跑（本轮最终读数即 (d)）。同理，`Take(24)` 这类为了取更深栈帧的一次性工具改动会改变工具输出，测量前必须确认已还原。
+
+### M6-late 第七轮：检查器侧 factory 形状审计（§15.15 的 AST 形状风险收口）
+
+`Checker/**` 合成节点用的 factory 逐条对着参考核过（20 处代码用途）：**6 处改回 `NodeFactory.Factory`**（参考在 `getFlowTypeFromCommonJSExport` checker.ts:12026-12028、`getFlowTypeInStaticBlocks` :12039/:12043、`getFlowTypeInConstructor` :12060/:12063、`getArgumentArityError` :36481、JSX children 假属性声明 :33927、`createCallSignature` :44068 用的就是带括号化规则的 `factory`，即 `nodeFactory.ts:7407`），**3 处保持 `FactoryUtilities.ParseNodeFactory`**（`getSyntheticElementAccess` :11694-11696、`createSyntheticExpression` :36251、`serializeAsNamespaceDeclaration` :10209 —— 参考在同一行里混用两者：ModuleDeclaration 用 `parseNodeFactory`、ModuleBlock 用 `factory`），其余为注释修正。§15.15 的"AST 形状风险"一行据此标记为**已收口**；`types/**`（845 文件）与 `classes/**`（466 文件）前后 `SUMMARY` 完全一致，全语料复测仍是 **`same=3637 diverged=80 port-crash=2191`**（合成节点形状不进 dump，故读数不变——这一项是形状正确性，不是 dump 可见项），build 0/0、测试 1,049/1,049。
 
 ## 16. `const enum` 成员作类型：typed enum
 

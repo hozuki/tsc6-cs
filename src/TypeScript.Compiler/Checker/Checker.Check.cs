@@ -818,6 +818,8 @@ internal sealed partial class Checker
     /// block-scoped shadowing, so the inner one is named <c>jsxAttributesContextualType</c>.
     /// PORT-NOTE: <c>createJsxAttributesTypeHelper</c> is a nested function declared after its uses; C# local functions
     /// are bound the same way, so the position is kept.
+    /// PORT-NOTE: the fabricated children property is the reference's <c>factory.createPropertySignature</c>
+    /// (checker.ts:33927, factory/nodeFactory.ts:7407), i.e. <see cref="NodeFactory.Factory"/>.
     /// </remarks>
     internal IType CreateJsxAttributesTypeFromAttributesProperty(Node openingLikeElement, CheckMode? checkMode = null)
     {
@@ -951,7 +953,7 @@ internal sealed partial class Checker
                     childrenContextualType is not null && SomeType(childrenContextualType, IsTupleLikeType) ? CreateTupleType(childrenTypes) :
                     CreateArrayType(GetUnionType(childrenTypes));
                 // Fake up a property declaration for the children
-                var childrenPropDecl = FactoryUtilities.ParseNodeFactory.CreatePropertySignature(/*modifiers*/ null, Utilities.UnescapeLeadingUnderscores(jsxChildrenPropertyName), /*questionToken*/ null, /*type*/ null);
+                var childrenPropDecl = NodeFactory.Factory.CreatePropertySignature(/*modifiers*/ null, Utilities.UnescapeLeadingUnderscores(jsxChildrenPropertyName), /*questionToken*/ null, /*type*/ null);
                 childrenPropSymbol.ValueDeclaration = childrenPropDecl;
                 Utilities.SetParent(childrenPropDecl, attributeParent);
                 childrenPropDecl.Symbol = childrenPropSymbol;

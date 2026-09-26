@@ -559,9 +559,13 @@ internal sealed partial class Checker
     /// <c>visitSymbolTable</c> gets the sub-context, the fresh results list and <c>addingDeclare = false</c>.
     /// </para>
     /// <para>
-    /// PORT-NOTE: <c>parseNodeFactory</c> (checker.ts:10212) is <see cref="FactoryUtilities.ParseNodeFactory"/> — the
-    /// port's parse tree factory (its class remarks record that this is the instance TS means here, not the synthetic
-    /// <c>_factory</c>). PORT-NOTE: the port's <c>ModuleDeclaration.Name</c> is a <c>MemberExpression?</c>, while TS's
+    /// PORT-NOTE: <c>parseNodeFactory</c> (checker.ts:10209, parser.ts:441) is
+    /// <see cref="FactoryUtilities.ParseNodeFactory"/> — the port's parse tree factory (its class remarks record that
+    /// this is the instance TS means here, not the synthetic <c>_factory</c>); the <c>factory.createModuleBlock([])</c>
+    /// argument on that same reference line is the synthetic factory, i.e. <c>_factory</c>.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: the port's <c>ModuleDeclaration.Name</c> is a <c>MemberExpression?</c>, while TS's
     /// <c>ModuleName</c> is <c>Identifier | QualifiedName</c>; the cast below is the port's only way to store the
     /// qualified-name case, which its factory signature cannot express.
     /// </para>
