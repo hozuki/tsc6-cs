@@ -1077,7 +1077,7 @@ dotnet run --project tools/AstDiff -- --cases <dir> [--filter <glob>] [--out art
 ### 遗留
 
 - **P1b**（`.errors.txt` + `.js` 的官方 baseline）仍等发射器；`tests/TypeScript.Baselines`（§6）会在那时建立。
-- §15.10 的 4 个命名残留（`convertToJson` → M8、`IsJSDocTypeAssertion` → M5、`NodeCount` 不移植、`SupportedDeclarationExtensions` → M5）不变。
+- §15.10 的 4 个命名残留（`convertToJson` → M8、`IsJSDocTypeAssertion` → M5、`NodeCount` 不移植、`SupportedDeclarationExtensions` → M5）不变。（**后续状态**：`IsJSDocTypeAssertion` 与 `SupportedDeclarationExtensions` 已在 M5/M6 期间落地，见 §15.15 残留账。）
 - `Join`/`NumberToString` 这类 JS 语义函数现在有了单测，但它们只覆盖用例列表；真正的证据是 19,585 个用例的全量一致。
 
 ---
@@ -1169,7 +1169,7 @@ SourceFile(0,131) symbol=ValueModule:"/p" locals=[C=Class:C:1,a=BlockScopedVaria
 - **`bindWorker` 未做成真正的"注册表 + 各切片自注册"**：现在是一张表加四个分段注册方法（`AddCoreWorkerHandlers` 等），仍在同一批文件里。若 M6 之后还有切片要加 kind，应该把注册点拆到各自文件。
 - **flow 节点 id 是进程级的**（与参考一致）：`BindDiff` 的 dump 因此不能跨文件比较 id，工具只比较同一次运行内的相对编号。
 - **`.symbols` baseline 仍属 §7 的 P2**：`BindDiff` 比的是 binder 写下的槽，不含 checker 的符号解析结果。
-- M5-0 已记的 `TransientSymbol`/`SymbolLinks` 属 M6；`convertToJson`（M8）、`IsJSDocTypeAssertion` 的 JSDoc 归属家族、`SupportedDeclarationExtensions` 三处 M4e 残留不变。
+- M5-0 已记的 `TransientSymbol`/`SymbolLinks` 属 M6；`convertToJson`（M8）、`IsJSDocTypeAssertion` 的 JSDoc 归属家族、`SupportedDeclarationExtensions` 三处 M4e 残留不变。（**后续状态**：后两条已在 M5/M6 期间落地，见 §15.15 残留账。）
 
 ---
 
@@ -1327,7 +1327,7 @@ M6 期间报出的每一个"有调用者但无人声明"或"有意不移植"的�
 | `tryGetClassExtendingExpressionWithTypeArguments` / `tryGetClassImplementingOrExtendingExpressionWithTypeArguments` | utilities.ts:7444-7447 / 7455-7468 | 登记不移植 | 无调用者（留给 checker.ts:50042/50392 的切片） |
 | `_globalRegExpType` / `_globalThisType` | checker.ts:2265 / 2266 | 登记不移植 | 无读者（赋值随 M6-5 的 `initializeTypeChecker`） |
 | `ICancellationToken` 无任何实现 | — | 记录为假设：`Program` 的 `runWithCancellationToken` 以 `OperationCanceledException` 过滤 | 实现属 M8 的 CLI/host；测试可用 fake |
-| `Utilities.SupportedDeclarationExtensions`、`FactoryUtilities.IsJSDocTypeAssertion` | §15.10 / §15.9 | 见各自小节 | M4e/M4d 记的残留 |
+| ~~`Utilities.SupportedDeclarationExtensions`、`FactoryUtilities.IsJSDocTypeAssertion`~~ | §15.10 / §15.9 | **已关闭（M5/M6 期间落地）**：`Utilities/Utilities.Parser.cs:363`（`readonly IList<string>`，三个声明后缀）与 `Parser/FactoryUtilities.cs:509`（`IsParenthesizedExpression && IsInJSFile && GetJSDocTypeTag is not null`，其依赖 `getJSDocTypeTag` 随 `Utilities/Utilities.JSDoc.cs` 落地），两者都在 `ported from` 注释里记了这段历史 | M4e/M4d 记的残留（已清） |
 
 已**关闭**（曾报为缺口、实测已落地或系取证假象）：`ElaborateNeverIntersection`（`Checker.Members.cs:933`）、`GetSignatureInstantiation`（`Checker.TypeSupport.cs:1847`）、`GetSignatureInstantiationWithoutFillingInTypeArguments`（`:1877`）、`isArrayOrTupleSymbol`/`isReadonlyArraySymbol`（`Checker.TypeSupport.cs:1407/1419`）、`Utilities.IsTypeDeclaration`（`Checker/Utilities.Checker.cs:465`）、`Utilities.GetInterfaceBaseTypeNodes`（`Utilities/Utilities.Checker.cs:400`，参数 `InterfaceDeclaration`）、`Utilities.GetEffectiveImplementsTypeNodes`（同文件 `:381`，参数 `IClassLikeDeclarationBase`）、`15871`/`15799` 段、`16577-16674` 段。
 
