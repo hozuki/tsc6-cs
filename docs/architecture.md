@@ -1215,6 +1215,8 @@ SourceFile(0,131) symbol=ValueModule:"/p" locals=[C=Class:C:1,a=BlockScopedVaria
 | **M6-6** 节点构建器 + EmitResolver + 字符串化 | `typeToTypeNode`/`symbolToNode` 家族、`createResolver`、`NodeBuilderContext`/`SymbolTrackerImpl`；`typeToString` 等受 printer 门控 | M6-2/3/5 | 与 M6-5 的声明半边 |
 | **M6-7** 外环差分 + 文档 | 新建 `tools/TypeDiff`（形制照 `tools/BindDiff`：FNV-1a 哈希、只落盘分歧、node 分批、自报峰值、256 MiB 栈线程）；把 §15.12 的符号 dump 探针扩成类型 dump | M6-1/2 | 与 M6-3…6 |
 
+**M6-0 已落地**（`f98a201` + 本次提交）：类型系统具体类、链接表与保序 `SymbolTable` 的全量迁移、`TransientSymbol`、`Checker` 枚举与状态骨架。验证：build 0/0、test 892/892、`Gen --check` 无漂移、`AstDiff` 19,585/19,585、`BindDiff` 19,230/19,230（迁移未扰动解析与绑定）。
+
 ### 侦察揪出的静默高危项
 
 `SymbolTable` 在端口里是 `Dictionary<string, ISymbol>`（**无序**），而 TS 的 `SymbolTable = Map<__String, Symbol>` 按插入序迭代 —— checker 的属性列表、联合归约与显示字符串都从它派生。`tools/BindDiff` 看不见这个差异，因为它的 dump 对 key 排了序。因此 M6-0 必须先把 `SymbolTable` 换成保序形态并迁移全部槽位与调用点，**在 checker 开始写 members 之前**。这条与 M5 的教训同类：缺失/错误的模型槽会晚爆，而这次它连差分都躲得过。
