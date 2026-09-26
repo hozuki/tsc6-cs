@@ -709,3 +709,83 @@ M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质�
 4. **补两个模型外的泛型映射**：`MultiMap<K, V>` → `Dictionary<K, List<V>>`（`core.ts` 的实现就是 `Map<K, V[]>`）、`IterableIterator<T>` → `IEnumerable<T>`（返回 `IEnumerator` 会丢掉 TS 迭代器可重复枚举的性质）。另外 `RoleOf` 现在把 `s_forcedClasses` 视为类，`NodeArray`/`ModeAwareCache` 这类手写类型不会再被加 `I` 前缀。
 
 参数名撞上 C# 关键字（`createTypeOperatorNode(operator, type)`）时加 `@` 转义，而不是改名。
+
+---
+
+## 16. `const enum` 成员作类型：typed enum
+
+### 16.1 TS 的构造
+
+`NodeFactory` 有一批方法用 **enum 成员的字面量类型**做参数，靠它区分重载：
+
+```ts
+createToken(token: SyntaxKind.EndOfFileToken): EndOfFileToken;
+createToken(token: SyntaxKind.Unknown): UnknownToken;
+createToken(token: SyntaxKind.CommaToken): CommaToken;
+```
+
+`SyntaxKind.EndOfFileToken` 在这里不是"一个 `SyntaxKind` 值"，而是一个**只含该值的类型**。于是调用点能静态确定返回哪种节点：`factory.createToken(SyntaxKind.EndOfFileToken)` 的静态类型就是 `EndOfFileToken`，不需要断言，也不需要 switch。parser 里这类调用很多。
+
+C# 的 enum 成员是常量而不是类型，表达不了这一点。§15.6 的"合并 + 共同基类"是**兜底**：能用，但把 `EndOfFileToken` 降成了 `Token`，精度丢了。
+
+### 16.2 映射：每个成员一个类型
+
+用 static abstract interface member，把每个 enum 成员映射成一个**类型**。参数类型因此各不相同，C# 的重载重新可用：
+
+```cs
+public interface ITypedEnum
+{
+    SyntaxKind SyntaxKind { get; }
+}
+
+public interface ITypedEnum<TSelf> : ITypedEnum
+    where TSelf : ITypedEnum<TSelf>
+{
+    /// <summary>供直接查询（`TypedEnum.CommaToken.StaticSyntaxKind`），不必经 Instance。</summary>
+    static abstract SyntaxKind StaticSyntaxKind { get; }
+
+    static abstract TSelf Instance { get; }
+}
+
+public abstract class TypedEnum<T>
+    where T : TypedEnum<T>, ITypedEnum<T>
+{
+    private protected TypedEnum() { }
+}
+
+public static partial class TypedEnum
+{
+    public sealed class EndOfFileToken : TypedEnum<EndOfFileToken>, ITypedEnum<EndOfFileToken>
+    {
+        public static EndOfFileToken Instance { get; } = new();
+        public static SyntaxKind StaticSyntaxKind => SyntaxKind.EndOfFileToken;
+        public SyntaxKind SyntaxKind => SyntaxKind.EndOfFileToken;
+
+        // 私有构造让 Instance 成为唯一实例；单例语义靠它，而不是靠类型系统。
+        private EndOfFileToken() { }
+    }
+}
+```
+
+`TypedEnum.EndOfFileToken`（嵌套在静态类 `TypedEnum` 里）与节点类型 `EndOfFileToken`（顶层）不在同一作用域，不冲突。
+
+工厂方法于是照 TS 写：
+
+```cs
+EndOfFileToken CreateToken(TypedEnum.EndOfFileToken token);
+UnknownToken CreateToken(TypedEnum.Unknown token);
+```
+
+调用点写 `factory.CreateToken(TypedEnum.EndOfFileToken.Instance)`，比 TS 多一个 `.Instance`。
+
+`StaticSyntaxKind` 是静态的，于是直接查询 kind 不必经过 `Instance`：`TypedEnum.CommaToken.StaticSyntaxKind`。实例属性 `SyntaxKind` 则给"拿到某个实例"的场合用（接口 `ITypedEnum` 上只有它）。
+
+这个形态已用独立探针验证过可编译可运行：重载按参数类型区分；两个静态抽象成员在
+`where TToken : ITypedEnum<TToken>` 的泛型上下文里都可用（`TToken.Instance`、`TToken.StaticSyntaxKind`）。
+
+### 16.3 取舍与时机
+
+- **量必须生成**：`SyntaxKind` 约 360 个成员 → 约 360 个嵌套类。手写不可行，由 `tools/Gen` 产出 —— 与谓词表、数据表同样的处理：形态固定就交给生成器，形态不符则报错。
+- **调用点更啰嗦**（多一个 `.Instance`），换回 TS 的静态精度。
+- **只在需要处推广**：关键字与 `TextToToken` 等也能受益，但成本与收益要逐个看，不预先铺开。
+- **时机是 M4c 的第一件事**：工厂签名一旦按 §15.6 的合并版落地，后面全部调用点都要返工。
