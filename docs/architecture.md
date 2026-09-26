@@ -1234,6 +1234,17 @@ SourceFile(0,131) symbol=ValueModule:"/p" locals=[C=Class:C:1,a=BlockScopedVaria
 
 另有三个**声明在 emitter.ts/utilities.ts、但本质是 program 状态**的辅助，M6-1 不得不先落在 `Program.EmitBoundary.cs`（各带 PORT-NOTE）：`Program.GetCommonSourceDirectoryFromOptions`（emitter.ts:636）、`GetCommonSourceDirectoryOfConfig`（:685）、`GetComputedCommonSourceDirectory`（utilities.ts:10261）。**M7 必须调用它们而不是再声明一份**——这与 `formatMessage` 家族同一条规则。
 
+### 实现偏差清单（M6，成对登记）
+
+一处**有意**偏离参考实现"声明位置"的地方：七个 `utilities.ts` 成员被声明在 `Checker` 类上而不是 `Utilities` 类上——
+
+| 成员 | 参考位置 | 端口位置 |
+|---|---|---|
+| `IsPartOfTypeNode` / `IsPartOfTypeExpressionWithTypeArguments` / `IsNodeDescendantOf` / `IsExpressionWithTypeArgumentsInClassExtendsClause` / `GetFirstIdentifier` / `IsNumericLiteralName` | `utilities.ts`（逐个核过：`checker.ts` 声明数为 0） | `Checker/Checker.Support.cs`（`Checker` 成员） |
+| `GetCheckFlags` | `utilities.ts:8040-8042` | `Checker/Checker.Symbols.cs:452`（`Checker` 成员） |
+
+裁定是**接受现状**：我的规则管的是"一个名字只有一处声明"，而现在恰好满足（`Checker/Utilities.Checker.cs` 已不再声明它们）——放弃的只是归档约定，不是正确性（同程序集内都 `internal`，绑定不变）。在 27 个代理并发时跨文件搬迁七个已落地成员与约 28 处调用点，换来的是整齐、付出的是碰撞与重复验证。因此这七条进这份偏差清单，并由集成期新增的反射守卫（"`Utilities` 与 `Checker` 不得声明同名成员"）以**显式允许清单**钉住——被测试钉住的偏差是决定，没登记的偏差才是漂移。**M6-3 起规则收紧**：参考声明在 `utilities.ts`/`utilitiesPublic.ts` 的成员一律落 `Utilities/**`，调用点带限定。
+
 ### 生成器缺口（M6 期间修掉）
 
 `MapUnion` 的公共基只看 C# 的**类**链，而对没到达 `Node` 的联合会退化成 `Node`——两处显形：`IProgram.getFileProcessingDiagnostics()` 生成为 `List<Node>?`，`getFileIncludeReasons()` 生成为 `Dictionary<string, List<Node>>`，而端口的值分别是 `List<IFilePreprocessingDiagnostics>` 与 `List<IFileIncludeReason>`（TS 的 `readonly FilePreprocessingDiagnostics[]` 与 `Map<string, FileIncludeReason[]>`）。修法与 M5-0 的 `FlowNode`、M6-0b 的 `SymbolTable` 同一机制：两条 `s_overrides`。容器形状不动（§12.3 的 `Map`→`Dictionary` 本就是对的），`Program` 在边界上构造它。
