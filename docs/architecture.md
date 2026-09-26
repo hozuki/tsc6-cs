@@ -307,7 +307,7 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 | **M1** | Layer 0：`Core`（容器、字符码、断言、比较器） | 单测覆盖 core 等价语义 |
 | **M1b** | Layer 0 其余：`Paths`（`path.ts`）、`Semver`（`semver.ts`）、`PerformanceCore` | 路径与 semver 语义单测（含 TS 文档中的路径表格） |
 | **M2** | Layer 1：`types.ts` 的枚举与标志（`SyntaxKind` 全量、`Extension`、`ScriptTarget`…）+ `Node` 类型层级 | 枚举值与 TS 逐项校验（`tools/gen` 脚本比对） |
-| **M2b** | 节点模型：`types.ts` 的接口/类型别名 → 268 个类 + 269 个接口（见 §12） | 生成物编译通过；继承链与能力接口单测 |
+| **M2b** | 节点模型：`types.ts` 的接口/类型别名 → 235 个类 + 302 个接口（见 §12） | 生成物编译通过；继承链与能力接口单测 |
 | **M2c** | Layer 0 其余：`sys.ts` 的宿主接口与纯逻辑（`getNodeSystem` 除外，见 §13）、`performance.ts` | 宿主抽象与计时埋点单测 |
 | **M3a** | Layer 1 补充：诊断基础设施 —— 全量诊断表由 `tools/Gen` 从 `diagnosticMessages.json` 生成（2,130 条），加 `DiagnosticMessage` | 生成物编译通过；名字改写规则与全表不变量单测 |
 | **M3** | Layer 2：`Scanner` 全量 | 单测：token 流、trivia、错误恢复、关键字表 |
@@ -479,7 +479,7 @@ dotnet run --project tools/Gen -- --check    # 只校验不写入（CI / 本地�
 5. **`types.ts` 的接口分两类生成：链上的 → C# 类，分类接口与 mixin → C# 接口。** 判据是**位置**而非形状：TS 把节点的分类链写在 `extends` 首位、mixin 写在后面（`CallExpression extends LeftHandSideExpression, Declaration`）。
    - 只在首位出现过的接口 → 类：`Expression`、`LeftHandSideExpression`、`LiteralLikeNode`、`BinaryExpression`…
    - 出现过非首位的接口 → 接口：`Declaration`（`SourceFile` 放首位、`Identifier` 放次位）、`JSDocContainer`、`LocalsContainer`、`FlowContainer`，以及 `PrimaryExpression`（`Identifier` 放首位，但 `LiteralExpression extends LiteralLikeNode, PrimaryExpression` 放次位）。
-   - 结果：**268 个类 / 269 个接口**，`CallExpression` 的链解析为 `CallExpression → LeftHandSideExpression → UpdateExpression → UnaryExpression → Expression → Node` ✓
+   - 结果：**235 个类 / 302 个接口**（修正见 §12.4），`CallExpression` 的链解析为 `CallExpression → LeftHandSideExpression → UpdateExpression → UnaryExpression → Expression → Node` ✓
    - 代价：`Identifier` 的 C# 基类因此是 `Node` 而非 `PrimaryExpression`（后者降为接口）。分类接口本身没有实字段（只有 brand），所以类型关系通过接口完整保留，不丢信息。
    - `PunctuationToken`/`KeywordToken`/`ModifierToken`/`NodeArray` 只经**类型别名**到达（`type DotToken = PunctuationToken<SyntaxKind.DotToken>`），位置规则看不到，用显式清单标为类。这也是 token 家族只需要少数几个类、而不是 187 个空类的原因。
    - 泛型参数在比较基名时必须剥离（`PunctuationToken<TKind>` → `PunctuationToken`），否则继承图与角色判定全线失配。
@@ -503,8 +503,8 @@ dotnet run --project tools/Gen -- --check    # 只校验不写入（CI / 本地�
 |---|---|
 | 提取 | `tools/Gen/extract.cjs`（用 TS 编译器）→ `TsModel`；76 个枚举 / 537 个接口 / 276 个别名（三个源文件合并） |
 | 映射 | `TsTypeMapper`：TS 类型 → C# |
-| 分类 | 268 个类（继承链）/ 269 个接口（mixin），`tools/Gen --stats` 口径 |
-| 生成物 | `Model/NodeInterfaces.cs`（1839 行）、`Model/NodeClasses.cs`（2273 行），以及全部枚举 |
+| 分类 | 235 个类（继承链）/ 302 个接口（mixin），`tools/Gen --stats` 口径（修正见 §12.4） |
+| 生成物 | `Model/NodeInterfaces.cs`、`Model/NodeClasses.cs`，以及全部枚举 |
 | 手工 | `Node.cs`（抽象根 + `abstract Kind`）、`NodeArray.cs`、`Token.cs`（token 家族） |
 | 验收 | `NodeModelTests` + `GeneratedTablesTests`（逐字节比对生成物） |
 
@@ -516,6 +516,14 @@ TS 允许子接口**收窄**成员类型 —— `FunctionDeclaration.body` 是 `
 - 类型不同的接口用**显式接口实现**桥接：`Node? IFunctionLikeDeclarationBase.Body => Body;`
 
 这样读取永远走协变方向（安全），类的精确类型也不丢。可写成员的 setter 会向下 cast，安全性由 TS 侧保证（这些字段只由 parser/factory 写入，且 TS 里多为 `readonly`）。
+
+### 12.4 分类规则的修正（M3 期间）
+
+§12.1 的位置规则单独用会**高估**节点集合。`Symbol` 只被 `TransientSymbol` 首位继承、`Type` 只被它的子类型首位继承、`CommentRange` 只被 `SynthesizedComment` 首位继承 —— 形状与 `Expression` → `LeftHandSideExpression` 这类分类台阶一模一样，但它们与语法无关。它们此前被生成为 `Node` 的派生类（`abstract class Symbol : Node`），而 `CommentRange` 还挡住了 M3 的 `getLeadingCommentRanges`：那里需要一个**可构造**的注释范围值。
+
+修正：位置规则之上再加一条**必要条件** —— 该接口的 `extends` 链必须能到达 `Node`（`NodeArray`/`MutableNodeArray` 是显式强制的类，不走这条路径）。于是 268 类 / 269 接口 → **235 类 / 302 接口**，节点链不受影响（`CallExpression → LeftHandSideExpression → UpdateExpression → UnaryExpression → Expression → Node` 依旧）。
+
+代价：`MapUnion` 的 `CommonBase` 对"到不了 `Node`"的成员会落到 `Node`，于是这类 union 的映射从"某个具体类"退化成 `Node`。这些 union 本来也只能降级（C# 里它们没有共同基类），M4/M5 真正用到时再收紧。
 
 ### 12.3 其他映射规则（都由生成器自动应用）
 

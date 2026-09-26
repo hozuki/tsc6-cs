@@ -207,6 +207,19 @@ internal sealed class TsTypeModel
             if (!_roles.ContainsKey(iface.Name)) _roles[iface.Name] = TypeRole.Interface;
         }
 
+        // The position rule on its own also reads "inherited first by exactly one interface" as a chain step, but
+        // that shape is just as common for types that have nothing to do with syntax: `Symbol` is inherited first
+        // only by `TransientSymbol`, `Type` by its subtypes, `CommentRange` by `SynthesizedComment`. What actually
+        // marks a node is that its categorisation chain reaches `Node`, so anything that does not is demoted here
+        // (`NodeArray`/`MutableNodeArray` are forced classes and never come through this path).
+        foreach (var iface in _interfaces.Values)
+        {
+            if (RoleOf(iface.Name) == TypeRole.Class && !ReachesNode(iface.Name))
+            {
+                _roles[iface.Name] = TypeRole.Interface;
+            }
+        }
+
         foreach (var iface in _interfaces.Values)
         {
             if (RoleOf(iface.Name) != TypeRole.Class || iface.Name == "Node") continue;
@@ -231,5 +244,22 @@ internal sealed class TsTypeModel
                 if (RoleOf(bare) == TypeRole.Class) _dualRole.Add(bare);
             }
         }
+    }
+
+    /// <summary>Whether an interface sits on a categorisation chain that reaches <c>Node</c>.</summary>
+    private bool ReachesNode(string name, HashSet<string>? seen = null)
+    {
+        if (name == "Node") return true;
+
+        seen ??= new HashSet<string>(StringComparer.Ordinal);
+        if (!seen.Add(name)) return false;
+        if (!_interfaces.TryGetValue(name, out var iface)) return false;
+
+        foreach (var baseName in iface.Extends)
+        {
+            if (ReachesNode(BareName(baseName), seen)) return true;
+        }
+
+        return false;
     }
 }
