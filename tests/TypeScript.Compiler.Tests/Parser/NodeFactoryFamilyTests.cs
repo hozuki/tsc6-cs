@@ -327,4 +327,25 @@ public class NodeFactoryFamilyTests
         Assert.Same(tag, factory.UpdateJSDocEnumTag(tag, null, tag.TypeExpression, null));
         Assert.NotSame(tag, factory.UpdateJSDocEnumTag(tag, Id("other"), tag.TypeExpression, null));
     }
+
+    // ---------------------------------------------------------------------------------------------
+    // The stubs
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// The 11 members whose dependencies belong to later batches are generated as stubs. This is the promise §15.8 makes
+    /// about them: a caller that reaches one fails loudly, rather than seeing a half-built node.
+    /// </summary>
+    [Fact]
+    public void MembersWaitingOnLaterBatches_ThrowInsteadOfBuildingSomethingPartial()
+    {
+        var factory = Factory();
+
+        Assert.Throws<NotImplementedException>(
+            () => factory.CreateBinaryExpression(Id("a"), SyntaxKind.PlusToken, Id("b")));
+        Assert.Throws<NotImplementedException>(
+            () => factory.CreateTempVariable(null, null, null, null));
+        Assert.Throws<NotImplementedException>(
+            () => factory.CreateCallBinding(Id("a"), null, null, null));
+    }
 }
