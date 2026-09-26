@@ -467,27 +467,41 @@ dotnet run --project tools/Gen -- --check    # 只校验不写入（CI / 本地�
 
 ---
 
-## 12. M2b 现状（节点模型，进行中）
+## 12. 节点模型（M2b，已完成）
 
-### 12.1 已完成
+### 12.1 交付
 
 | 项 | 结果 |
 |---|---|
-| 类型模型提取 | `tools/Gen/extract.cjs` + `TsModel`；75 个枚举 / 537 个接口 / 276 个别名（三个源文件合并） |
-| 类型映射器 | `TsTypeMapper`：联合降级为共同基类、`~`、泛型、数组、函数类型、`Map`→`Dictionary` 等 |
-| 角色分类 | 268 个类（继承链）/ 255 个接口（mixin）；`CallExpression → LeftHandSideExpression → UpdateExpression → UnaryExpression → Expression → Node` |
-| 生成物 | `Model/NodeInterfaces.cs`、`Model/NodeClasses.cs`，以及全部 73 个枚举 |
-| 一致性校验 | `GeneratedTablesTests` 直接用生成器重跑并逐字节比对（走 TS 解析器路径） |
+| 提取 | `tools/Gen/extract.cjs`（用 TS 编译器）→ `TsModel`；76 个枚举 / 537 个接口 / 276 个别名（三个源文件合并） |
+| 映射 | `TsTypeMapper`：TS 类型 → C# |
+| 分类 | 268 个类（继承链）/ 255 个接口（mixin） |
+| 生成物 | `Model/NodeInterfaces.cs`（1839 行）、`Model/NodeClasses.cs`（2273 行），以及全部枚举 |
+| 手工 | `Node.cs`（抽象根 + `abstract Kind`）、`NodeArray.cs`、`Token.cs`（token 家族） |
+| 验收 | `NodeModelTests` + `GeneratedTablesTests`（逐字节比对生成物） |
 
-### 12.2 未完成
+### 12.2 关键设计：成员类型沿接口链收窄
 
-**生成的节点层尚未编译通过**（约 50 个 `CS0738`），问题集中在一类：
+TS 允许子接口**收窄**成员类型 —— `FunctionDeclaration.body` 是 `Block`，而 `FunctionLikeDeclarationBase.body` 是 `ConciseBody`。C# 要求**隐式**实现与每一个接口精确匹配，而**协变返回只适用于 `override`，不适用于接口实现**。解法是两者组合：
 
-> TS 允许子接口**收窄**成员类型 —— `FunctionDeclaration.body` 是 `Block`，而 `FunctionLikeDeclarationBase.body` 是 `ConciseBody`。C# 要求实现成员与**每一个**接口精确匹配，于是同一个名字在不同接口上各有一个类型时就没有单一合法答案。
+- 类保留**自己的精确类型**：`public Block? Body { get; set; }`
+- 类型不同的接口用**显式接口实现**桥接：`Node? IFunctionLikeDeclarationBase.Body => Body;`
 
-已按「同名成员取最宽类型（多候选时降为 `object?`）」处理，基类链与接口链的组合仍有约 50 处遗漏。
+这样读取永远走协变方向（安全），类的精确类型也不丢。可写成员的 setter 会向下 cast，安全性由 TS 侧保证（这些字段只由 parser/factory 写入，且 TS 里多为 `readonly`）。
 
-因此在 `TypeScript.Compiler.csproj` 里暂时 `Compile Remove` 了这组文件（`NodeInterfaces.cs`、`NodeClasses.cs`、`Node.cs`、`NodeArray.cs`、`Token.cs`），**仓库保持全绿**。解决后删掉那段 `ItemGroup` 即可启用。
+### 12.3 其他映射规则（都由生成器自动应用）
+
+| TS | C# | 说明 |
+|---|---|---|
+| 联合类型 | 共同基类 / `object?` | `CommonBase` 求最派生公共祖先 |
+| 交叉类型 | 第一个成员 | `EmitNode & { … }` 的主体总是第一个 |
+| 泛型基类引用 | 连同实参一起映射 | `ObjectLiteralExpressionBase<ObjectLiteralElementLike>` |
+| 裸引用泛型 | 参数补 `object?` | TS 有类型参数默认值，C# 没有 |
+| `Pick`/`Record`/`Partial`… | `object?` | TS 内置工具类型无对应 |
+| `Map`/`Set` | `Dictionary`/`HashSet` | key 去掉可空（`notnull` 约束） |
+| 引用类型成员 | 补 `?` | 生成物跑在 `#nullable enable` 下，而这些字段由 parser/factory 填充 |
+| 字符串字面量键（`"amd-dependency"`） | 跳过 | 无合法 C# 拼写，属内部管线 |
+| `_xxxBrand` | 跳过 | 只为让 TS 的结构类型名义化 |
 3. **字符串值枚举生成为 `readonly struct` 包装，而不是 C# enum，也不是裸 `const string`。** TS 里有 4 个这样的枚举（`Extension`、`InternalSymbolName`、`PrivateIdentifierKind`、`ForegroundColorEscapeSequences`）。
    - C# enum 不能携带字符串值 —— 无法表示 `"__call"`、`"export="`、`"\u001b[90m"`。
    - 裸 `const string` 会丢掉名义类型，`fileExtensionIs` 这类函数的签名就退化成 `string, string`，没有任何东西能区分 `Extension` 与随手写的字面量。

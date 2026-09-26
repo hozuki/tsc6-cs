@@ -60,8 +60,15 @@ internal sealed class TsTypeModel
 
     public bool IsKnown(string name) => _interfaces.ContainsKey(name) || _aliases.ContainsKey(name);
 
-    /// <summary>The C# base class of a generated class, or <c>null</c> when it derives straight from <c>Node</c>.</summary>
+    /// <summary>
+    /// The C# base class reference of a generated class, including generic arguments, or <c>null</c> when
+    /// it derives straight from <c>Node</c>.
+    /// </summary>
     public string? ClassBaseOf(string name) => _classBase.GetValueOrDefault(name);
+
+    /// <summary>The bare base class name, for ancestry comparisons.</summary>
+    public string? BareClassBaseOf(string name)
+        => _classBase.TryGetValue(name, out var reference) && reference is not null ? BareName(reference) : null;
 
     /// <summary>The mixin interfaces a generated class must implement (transitively closed, de-duplicated).</summary>
     public List<string> InterfaceClosureOf(string name, bool transitive = false)
@@ -110,7 +117,7 @@ internal sealed class TsTypeModel
         while (current is not null && guard++ < 64)
         {
             if (!chain.Contains(current)) chain.Add(current);
-            current = _classBase.GetValueOrDefault(current);
+            current = BareClassBaseOf(current);
         }
 
         if (!chain.Contains("Node")) chain.Add("Node");
@@ -204,14 +211,15 @@ internal sealed class TsTypeModel
         {
             if (RoleOf(iface.Name) != TypeRole.Class || iface.Name == "Node") continue;
 
-            string? baseName = null;
+            // Keep the generic arguments: a base such as ObjectLiteralExpressionBase<T> must be spelled
+            // with them at the use site, and the bare name is only needed for comparisons.
+            string? baseReference = null;
             foreach (var candidate in iface.Extends)
             {
-                var bare = BareName(candidate);
-                if (RoleOf(bare) == TypeRole.Class) { baseName = bare; break; }
+                if (RoleOf(BareName(candidate)) == TypeRole.Class) { baseReference = candidate.Trim(); break; }
             }
 
-            _classBase[iface.Name] = baseName ?? "Node";
+            _classBase[iface.Name] = baseReference ?? "Node";
         }
 
         // A class step inherited in a non-first position needs a companion interface (see DualRoleClasses).

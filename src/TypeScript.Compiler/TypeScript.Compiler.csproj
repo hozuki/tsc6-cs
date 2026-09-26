@@ -1,26 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <RootNamespace>TypeScript.Compiler</RootNamespace>
   </PropertyGroup>
 
-  <!--
-    M2b 进行中：生成的节点模型（Node 层）尚未编译通过。
-
-    生成器与类型映射器已经就位（tools/Gen），分类结果也已验证（268 个类 / 255 个接口，
-    CallExpression 的继承链正确）。剩余问题集中在「同一成员在不同接口里类型不同」这一类：
-    TS 允许子接口收窄成员类型（FunctionDeclaration.body 是 Block，FunctionLikeDeclarationBase.body
-    是 ConciseBody），而 C# 要求实现成员与每个接口精确匹配。约 50 处。
-
-    在解决之前先排除编译，避免把编译不过的代码留在仓库里。详见 docs/architecture.md §11.4。
-    启用时删掉这个 ItemGroup 即可。
-  -->
-  <ItemGroup>
-    <Compile Remove="Model\NodeInterfaces.cs" />
-    <Compile Remove="Model\NodeClasses.cs" />
-    <Compile Remove="Model\Node.cs" />
-    <Compile Remove="Model\NodeArray.cs" />
-    <Compile Remove="Model\Token.cs" />
-  </ItemGroup>
 
 </Project>

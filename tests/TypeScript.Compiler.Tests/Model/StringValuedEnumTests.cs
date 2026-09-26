@@ -64,7 +64,8 @@ public class StringValuedEnumTests
     [Fact]
     public void StringEnums_AreReadonlyStructsImplementingIEquatable()
     {
-        Type[] types =
+        // 显式写 System.Type：TypeScript.Compiler.Type 现在是被移植的类型之一。
+        System.Type[] types =
         [
             typeof(Extension),
             typeof(InternalSymbolName),

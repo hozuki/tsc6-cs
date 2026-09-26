@@ -101,7 +101,7 @@ internal static class Generator
         }
 
         var typeModel = new TsTypeModel(model.Interfaces, model.Aliases);
-        var mapper = new TsTypeMapper(typeModel);
+        var mapper = new TsTypeMapper(typeModel, model.Enums.Select(static e => e.Name));
         var (interfaceSource, classSource) = NodeEmitter.Emit(typeModel, mapper);
 
         files.Add(new GeneratedFile($"{outputRoot}/Model/NodeInterfaces.cs", interfaceSource));

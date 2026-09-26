@@ -41,7 +41,31 @@ internal sealed class TsTypeMapper
 
     private readonly TsTypeModel _model;
 
-    public TsTypeMapper(TsTypeModel model) => _model = model;
+    /// <summary>Types that are C# value types, so they never take a <c>?</c> nullability annotation.</summary>
+    private readonly HashSet<string> _valueTypes = new(StringComparer.Ordinal)
+    {
+        "byte", "sbyte", "short", "ushort", "int", "uint", "long", "ulong",
+        "float", "double", "decimal", "bool", "char", "void",
+        // The port keeps `number` as int and `string` as a reference type (nullable), so only the generated
+        // enums remain to be added.
+    };
+
+    /// <param name="valueTypeNames">
+    /// Names that are C# value types on the generated side — the enums. Passing them in keeps this class
+    /// from having to know about the extracted model's enum list.
+    /// </param>
+    public TsTypeMapper(TsTypeModel model, IEnumerable<string> valueTypeNames)
+    {
+        _model = model;
+        foreach (var name in valueTypeNames) _valueTypes.Add(name);
+    }
+
+    /// <summary>Whether a mapped C# type is a value type (and therefore must not be nullable-annotated).</summary>
+    public bool IsValueType(string type)
+    {
+        var bare = type.TrimEnd('?');
+        return !bare.Contains('<') && _valueTypes.Contains(bare);
+    }
 
     /// <summary>Maps a TS type expression, appending <c>?</c> when the member is optional.</summary>
     public string MapMember(string tsType, bool optional)
@@ -171,6 +195,11 @@ internal sealed class TsTypeMapper
         if (lt > 0 && text.EndsWith('>'))
         {
             var name = text[..lt].Trim();
+
+            // An alias wins over a type reference: TS writes generic aliases such as
+            // `TransformerFactory<T>` whose C# shape is a delegate, not a generic type.
+            if (_model.AliasOf(name) is { } genericAlias) return Map(genericAlias.Value);
+
             var arguments = SplitTopLevel(text[(lt + 1)..^1], ',').Select(Map).ToList();
             return ConvertGeneric(name, arguments);
         }
@@ -210,7 +239,19 @@ internal sealed class TsTypeMapper
         // (TransformerFactory<T>, …), which milestone M7 will give real C# shapes.
         if (_model.AliasOf(text) is not null) return "object?";
 
-        if (_model.IsKnown(text)) return TypeName(text);
+        if (_model.IsKnown(text))
+        {
+            // TS allows a bare reference to a generic type, falling back to its declared defaults
+            // (`EvaluatorResult<T = string | number | undefined>`). C# has no type-parameter defaults, so the
+            // arguments are supplied explicitly.
+            if (_model.Interfaces.TryGetValue(text, out var generic) && generic.TypeParameters.Count > 0)
+            {
+                var arguments = string.Join(", ", Enumerable.Repeat("object?", generic.TypeParameters.Count));
+                return $"{TypeName(text)}<{arguments}>";
+            }
+
+            return TypeName(text);
+        }
 
         // Unknown name: something declared outside the extracted files. Degrading to object keeps the
         // generated code compiling instead of referencing a type nothing declares.
@@ -219,12 +260,19 @@ internal sealed class TsTypeMapper
 
     private static string ConvertGeneric(string name, List<string> arguments) => name switch
     {
-        "Map" or "ReadonlyMap" => $"Dictionary<{arguments[0]}, {arguments[1]}>",
-        "Set" or "ReadonlySet" => $"HashSet<{arguments[0]}>",
+        // A Dictionary key cannot be null, while the TS key type may be nullable.
+        "Map" or "ReadonlyMap" => $"Dictionary<{arguments[0].TrimEnd('?')}, {arguments[1]}>",
+        "Set" or "ReadonlySet" => $"HashSet<{arguments[0].TrimEnd('?')}>",
         "Array" => $"List<{arguments[0]}>",
         // The token family has a runtime `SyntaxKind` rather than a type parameter (see Token.cs), so the
         // argument is dropped: `PunctuationToken<SyntaxKind.CommaToken>` is just a PunctuationToken.
         "Token" or "PunctuationToken" or "KeywordToken" or "ModifierToken" => name,
+        // TS's built-in utility types have no C# counterpart worth generating.
+        "Required" or "Readonly" or "Partial" or "Pick" or "Omit" or "Record" or "Exclude" or "Extract" => "object?",
+        // `MapLike<T>` is declared in corePublic.ts as a string-keyed object; that is a Dictionary here.
+        "MapLike" => $"Dictionary<string, {arguments[0]}>",
+        // Declared outside the extracted files; see MapReference for why unknown generics degrade.
+        "ResolutionNameAndModeGetter" => "object?",
         _ => $"{name}<{string.Join(", ", arguments)}>",
     };
 

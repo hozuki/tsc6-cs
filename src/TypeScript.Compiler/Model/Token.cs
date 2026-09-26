@@ -15,7 +15,7 @@ namespace TypeScript.Compiler;
 /// every use site switches on <see cref="Node.Kind"/> anyway.
 /// </para>
 /// </remarks>
-internal class Token : Node, IJsDocContainer
+internal class Token : Node
 {
     private readonly SyntaxKind _kind;
 
@@ -23,8 +23,9 @@ internal class Token : Node, IJsDocContainer
 
     public override SyntaxKind Kind => _kind;
 
-    // ported from: types.ts:957-960 (JSDocContainer)
-    public JSDocArray? JsDoc { get; set; }
+    // ported from: types.ts:957-960 (JSDocContainer). The container is a mixin interface, but a token needs
+    // no other capability, so the slot is declared directly rather than pulling in the interface.
+    public List<JSDoc>? JsDoc { get; set; }
 }
 
 /// <summary>ported from: src/compiler/types.ts:1602-1603 — TS: <c>PunctuationToken&lt;TKind&gt;</c>.</summary>
