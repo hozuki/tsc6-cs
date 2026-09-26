@@ -31,7 +31,7 @@ public class JsTypesTests
         Assert.Contains(typeof(IJsType), typeof(JsNever).GetInterfaces());
     }
 
-    private static ConstructorInfo[] PublicConstructors(Type type)
+    private static ConstructorInfo[] PublicConstructors(System.Type type)
         => type.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
 
     [Fact]

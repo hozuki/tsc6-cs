@@ -163,7 +163,7 @@ internal static partial class Debug
     /// reflection is asked about. The lock is defensive — TS's <c>Map</c> is only ever touched on one thread, but a
     /// debug entry point in the port is callable from any.
     /// </remarks>
-    private static readonly Dictionary<Type, IList<EnumMember>> s_enumMemberCache = new();
+    private static readonly Dictionary<System.Type, IList<EnumMember>> s_enumMemberCache = new();
 
     /// <summary>ported from: src/compiler/debug.ts:422-442 — <c>getEnumMembers</c>.</summary>
     /// <remarks>
@@ -184,7 +184,7 @@ internal static partial class Debug
     /// stores rather than overflowing.
     /// </para>
     /// </remarks>
-    private static IList<EnumMember> GetEnumMembers(Type enumType)
+    private static IList<EnumMember> GetEnumMembers(System.Type enumType)
     {
         lock (s_enumMemberCache)
         {

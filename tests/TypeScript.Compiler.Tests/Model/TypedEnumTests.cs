@@ -8,7 +8,7 @@ namespace TypeScript.Compiler.Tests;
 public class TypedEnumTests
 {
     /// <summary>Every <c>SyntaxKind</c> member that is not an alias or the <c>Count</c> sentinel has a type.</summary>
-    private static List<Type> MemberTypes() =>
+    private static List<System.Type> MemberTypes() =>
         [.. typeof(TypedEnum).GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic)
             .Where(t => t.IsClass && !t.IsAbstract && typeof(ITypedEnum).IsAssignableFrom(t))];
 

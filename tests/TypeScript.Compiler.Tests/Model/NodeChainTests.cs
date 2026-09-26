@@ -125,10 +125,10 @@ public class NodeChainTests
     }
 
     /// <summary>Every concrete node class the model declares, one instance each.</summary>
-    private static IEnumerable<Type> ConcreteNodeTypes()
+    private static IEnumerable<System.Type> ConcreteNodeTypes()
         => typeof(Node).Assembly.GetTypes()
             .Where(type => type is { IsAbstract: false, IsClass: true } && typeof(Node).IsAssignableFrom(type))
-            .Where(type => type.GetConstructor(Type.EmptyTypes) is not null);
+            .Where(type => type.GetConstructor(System.Type.EmptyTypes) is not null);
 
     [Fact]
     public void EveryTokenKindTheFactoryBuilds_AgreesWithTheExpressionPredicates()
