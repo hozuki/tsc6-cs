@@ -119,6 +119,12 @@ internal partial class NodeFactory
         return node;
     }
 
+    /// <summary>ported from: factory/nodeFactory.ts:1251 — <c>createBaseStringLiteral</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: 这一份是**临时**的。tools/Gen 也生成同名方法（它的 body 是定形），而生成物目前以
+    /// <c>&lt;Compile Remove&gt;</c> 排除在编译外，所以这里必须先有一份。生成物纳入编译时删掉这个方法 ——
+    /// 重复定义是 CS0111 硬错误，不会漏掉（docs/architecture.md §15.7）。
+    /// </remarks>
     private StringLiteral CreateBaseStringLiteral(string? text, bool? isSingleQuote)
     {
         var node = CreateBaseDeclaration<StringLiteral>(SyntaxKind.StringLiteral);
@@ -141,14 +147,6 @@ internal partial class NodeFactory
     {
         var node = CreateBaseStringLiteral(Utilities.GetTextOfIdentifierOrLiteral(sourceNode!), isSingleQuote);
         node.TextSourceNode = sourceNode;
-        return node;
-    }
-
-    /// <summary>ported from: factory/nodeFactory.ts:1274 — <c>createRegularExpressionLiteral</c>.</summary>
-    public RegularExpressionLiteral CreateRegularExpressionLiteral(string? text)
-    {
-        var node = CreateBaseToken<RegularExpressionLiteral>(SyntaxKind.RegularExpressionLiteral);
-        node.Text = text;
         return node;
     }
 
@@ -354,9 +352,15 @@ internal partial class NodeFactory
         where T : Node => children is null ? TransformFlags.None : children.TransformFlags;
 
     /// <summary>ported from: factory/nodeFactory.ts:7290 — <c>propagateIdentifierNameFlags</c>.</summary>
-    /// <remarks>An identifier name is allowed to be <c>await</c>, so it does not make its subtree contain one.</remarks>
-    private static TransformFlags PropagateIdentifierNameFlags(Node node)
-        => CoreFlags.Clear(PropagateChildFlags(node), TransformFlags.ContainsPossibleTopLevelAwait);
+    /// <remarks>
+    /// An identifier name is allowed to be <c>await</c>, so it does not make its subtree contain one.
+    /// PORT-NOTE: TS declares the parameter non-null; a generated call site can pass a nullable member
+    /// (<c>QualifiedName.right</c>), so an absent node answers "no flags" rather than throwing.
+    /// </remarks>
+    private static TransformFlags PropagateIdentifierNameFlags(Node? node)
+        => node is null
+            ? TransformFlags.None
+            : CoreFlags.Clear(PropagateChildFlags(node), TransformFlags.ContainsPossibleTopLevelAwait);
 
     /// <summary>ported from: factory/nodeFactory.ts:7286 — <c>propagateNameFlags</c>.</summary>
     private static TransformFlags PropagateNameFlags(Node? node)

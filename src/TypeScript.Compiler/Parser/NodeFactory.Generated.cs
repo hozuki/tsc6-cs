@@ -8,35 +8,35 @@
 // assignments, or a single comparison chain forwarding to `update`. The other half of this partial class is
 // the hand-written Parser/NodeFactory.cs.
 
-// 133 members are not a fixed shape in the TS source, so they are hand-written:
-//   createNodeArray, createBaseNode, createNumericLiteral, createStringLiteral, createLiteralLikeNode, createBaseIdentifier
-//   createBaseGeneratedIdentifier, createIdentifier, createTempVariable, createLoopVariable, createUniqueName, createBasePrivateIdentifier
-//   createPrivateIdentifier, createBaseGeneratedPrivateIdentifier, createUniquePrivateName, createBaseToken, createToken, createSuper
-//   createThis, createNull, createTrue, createFalse, createModifier, createModifiersFromModifierFlags
-//   createParameterDeclaration, updatePropertySignature, createPropertyDeclaration, updateMethodSignature, createMethodDeclaration, updateMethodDeclaration
-//   updateClassStaticBlockDeclaration, createConstructorDeclaration, updateConstructorDeclaration, createGetAccessorDeclaration, updateGetAccessorDeclaration, createSetAccessorDeclaration
-//   updateSetAccessorDeclaration, updateCallSignature, updateConstructSignature, updateIndexSignature, createKeywordTypeNode, updateFunctionTypeNode
-//   createConstructorTypeNode, createConstructorTypeNode2, updateConstructorTypeNode, updateConstructorTypeNode1, updateConstructorTypeNode2, updateUnionOrIntersectionTypeNode
-//   createUnionTypeNode, updateUnionTypeNode, createIntersectionTypeNode, updateIntersectionTypeNode, createImportTypeNode, createObjectBindingPattern
-//   createArrayLiteralExpression, createPropertyAccessExpression, updatePropertyAccessExpression, createPropertyAccessChain, updatePropertyAccessChain, createElementAccessExpression
-//   updateElementAccessExpression, createElementAccessChain, updateElementAccessChain, createBaseCallExpression, createCallExpression, updateCallExpression
-//   createCallChain, updateCallChain, createNewExpression, createTaggedTemplateExpression, createFunctionExpression, updateFunctionExpression
-//   createArrowFunction, updateArrowFunction, createPrefixUnaryExpression, createPostfixUnaryExpression, createBinaryExpression, createTemplateLiteralLikeNode
-//   createTemplateHead, createTemplateMiddle, createTemplateTail, createNoSubstitutionTemplateLiteral, createYieldExpression, createOmittedExpression
-//   updateNonNullExpression, updateNonNullChain, createMetaProperty, createVariableStatement, createForOfStatement, createVariableDeclarationList
-//   createFunctionDeclaration, updateFunctionDeclaration, createClassDeclaration, createModuleDeclaration, updateNamespaceExportDeclaration, createImportEqualsDeclaration
-//   createImportClause, updateImportClause, updateExportDeclaration, createJSDocPrimaryTypeWorker, createJSDocPrePostfixUnaryTypeWorker, createJsxSelfClosingElement
-//   createJsxOpeningElement, createHeritageClause, updatePropertyAssignment, updateShorthandPropertyAssignment, createSourceFile, createRedirectedSourceFile
-//   createNotEmittedTypeElement, createImmediatelyInvokedFunctionExpression, createImmediatelyInvokedArrowFunction, createVoidZero, createExportDefault, createExternalModuleExport
-//   createTypeCheck, createIsNotTypeCheck, createMethodCall, createFunctionBindCall, createFunctionCallCall, createFunctionApplyCall
-//   createGlobalMethodCall, createArraySliceCall, createArrayConcatCall, createObjectDefinePropertyCall, createObjectGetOwnPropertyDescriptorCall, createReflectGetCall
-//   createReflectSetCall, createPropertyDescriptor, updateOuterExpression, createCallBinding, createAssignmentTargetWrapper, createUseStrictPrologue
-//   update
+// 131 members are not a fixed shape in the TS source, so they are hand-written:
+//   createNodeArray, createBaseNode, createNumericLiteral, createLiteralLikeNode, createBaseIdentifier, createBaseGeneratedIdentifier
+//   createIdentifier, createTempVariable, createLoopVariable, createUniqueName, createBasePrivateIdentifier, createPrivateIdentifier
+//   createBaseGeneratedPrivateIdentifier, createUniquePrivateName, createBaseToken, createToken, createSuper, createThis
+//   createNull, createTrue, createFalse, createModifier, createModifiersFromModifierFlags, createParameterDeclaration
+//   updatePropertySignature, createPropertyDeclaration, updateMethodSignature, createMethodDeclaration, updateMethodDeclaration, updateClassStaticBlockDeclaration
+//   createConstructorDeclaration, updateConstructorDeclaration, createGetAccessorDeclaration, updateGetAccessorDeclaration, createSetAccessorDeclaration, updateSetAccessorDeclaration
+//   updateCallSignature, updateConstructSignature, updateIndexSignature, createKeywordTypeNode, updateFunctionTypeNode, createConstructorTypeNode
+//   createConstructorTypeNode2, updateConstructorTypeNode, updateConstructorTypeNode1, updateConstructorTypeNode2, updateUnionOrIntersectionTypeNode, createUnionTypeNode
+//   updateUnionTypeNode, createIntersectionTypeNode, updateIntersectionTypeNode, createImportTypeNode, createObjectBindingPattern, createArrayLiteralExpression
+//   createPropertyAccessExpression, updatePropertyAccessExpression, createPropertyAccessChain, updatePropertyAccessChain, createElementAccessExpression, updateElementAccessExpression
+//   createElementAccessChain, updateElementAccessChain, createBaseCallExpression, createCallExpression, updateCallExpression, createCallChain
+//   updateCallChain, createNewExpression, createTaggedTemplateExpression, createFunctionExpression, updateFunctionExpression, createArrowFunction
+//   updateArrowFunction, createPrefixUnaryExpression, createPostfixUnaryExpression, createBinaryExpression, createTemplateLiteralLikeNode, createTemplateHead
+//   createTemplateMiddle, createTemplateTail, createNoSubstitutionTemplateLiteral, createYieldExpression, createOmittedExpression, updateNonNullExpression
+//   updateNonNullChain, createMetaProperty, createVariableStatement, createVariableDeclarationList, createFunctionDeclaration, updateFunctionDeclaration
+//   createClassDeclaration, createModuleDeclaration, updateNamespaceExportDeclaration, createImportEqualsDeclaration, createImportClause, updateImportClause
+//   updateExportDeclaration, createJSDocPrimaryTypeWorker, createJSDocPrePostfixUnaryTypeWorker, createJsxSelfClosingElement, createJsxOpeningElement, createHeritageClause
+//   updatePropertyAssignment, updateShorthandPropertyAssignment, createSourceFile, createRedirectedSourceFile, createNotEmittedTypeElement, createImmediatelyInvokedFunctionExpression
+//   createImmediatelyInvokedArrowFunction, createVoidZero, createExportDefault, createExternalModuleExport, createTypeCheck, createIsNotTypeCheck
+//   createMethodCall, createFunctionBindCall, createFunctionCallCall, createFunctionApplyCall, createGlobalMethodCall, createArraySliceCall
+//   createArrayConcatCall, createObjectDefinePropertyCall, createObjectGetOwnPropertyDescriptorCall, createReflectGetCall, createReflectSetCall, createPropertyDescriptor
+//   updateOuterExpression, createCallBinding, createAssignmentTargetWrapper, createUseStrictPrologue, update
 
-// 20 members have a fixed shape but an expression with no translation, so they are
+// 21 members have a fixed shape but an expression with no translation, so they are
 // hand-written as well:
 //   createBaseDeclaration: missing type argument
 //   createBigIntLiteral: no translation for `unsupported` (typeof value)
+//   createStringLiteral: unknown base `createBaseStringLiteral`
 //   createStringLiteralFromNode: unknown base `createBaseStringLiteral`
 //   createUnionOrIntersectionTypeNode: no translation for `unsupported` (factory.createNodeArray(parenthesize(types)))
 //   createImportDeclaration: no translation for the binary operator `=`
@@ -65,7 +65,7 @@ namespace TypeScript.Compiler;
 internal partial class NodeFactory
 {
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBaseStringLiteral</c>.</summary>
-    public object? CreateBaseStringLiteral(string? text, bool? isSingleQuote)
+    public StringLiteral CreateBaseStringLiteral(string? text, bool? isSingleQuote)
     {
         var node = CreateBaseDeclaration<StringLiteral>(SyntaxKind.StringLiteral);
         node.Text = text;
@@ -82,7 +82,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createQualifiedName</c>.</summary>
-    public object? CreateQualifiedName(Node? left, object? right)
+    public QualifiedName CreateQualifiedName(Node? left, object? right)
     {
         var node = CreateBaseNode<QualifiedName>(SyntaxKind.QualifiedName);
         node.Left = left;
@@ -102,7 +102,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createComputedPropertyName</c>.</summary>
-    public object? CreateComputedPropertyName(Expression? expression)
+    public ComputedPropertyName CreateComputedPropertyName(Expression? expression)
     {
         var node = CreateBaseNode<ComputedPropertyName>(SyntaxKind.ComputedPropertyName);
         node.Expression = Parenthesizer.ParenthesizeExpressionOfComputedPropertyName(expression);
@@ -157,7 +157,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createDecorator</c>.</summary>
-    public object? CreateDecorator(Expression? expression)
+    public Decorator CreateDecorator(Expression? expression)
     {
         var node = CreateBaseNode<Decorator>(SyntaxKind.Decorator);
         node.Expression = Parenthesizer.ParenthesizeLeftSideOfAccess(expression, false);
@@ -201,7 +201,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createMethodSignature</c>.</summary>
-    public object? CreateMethodSignature(List<ModifierToken>? modifiers, object? name, PunctuationToken? questionToken, List<TypeParameterDeclaration>? typeParameters, List<ParameterDeclaration>? parameters, ITypeNode? type)
+    public MethodSignature CreateMethodSignature(List<ModifierToken>? modifiers, object? name, PunctuationToken? questionToken, List<TypeParameterDeclaration>? typeParameters, List<ParameterDeclaration>? parameters, ITypeNode? type)
     {
         var node = CreateBaseDeclaration<MethodSignature>(SyntaxKind.MethodSignature);
         node.Modifiers = AsNodeArray(modifiers);
@@ -279,7 +279,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTemplateLiteralTypeSpan</c>.</summary>
-    public object? CreateTemplateLiteralTypeSpan(ITypeNode? type, Node? literal)
+    public TemplateLiteralTypeSpan CreateTemplateLiteralTypeSpan(ITypeNode? type, Node? literal)
     {
         var node = CreateBaseNode<TemplateLiteralTypeSpan>(SyntaxKind.TemplateLiteralTypeSpan);
         node.Type = type;
@@ -298,7 +298,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTypePredicateNode</c>.</summary>
-    public object? CreateTypePredicateNode(KeywordToken? assertsModifier, object? parameterName, ITypeNode? type)
+    public TypePredicateNode CreateTypePredicateNode(KeywordToken? assertsModifier, object? parameterName, ITypeNode? type)
     {
         var node = CreateBaseNode<TypePredicateNode>(SyntaxKind.TypePredicate);
         node.AssertsModifier = assertsModifier;
@@ -319,7 +319,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTypeReferenceNode</c>.</summary>
-    public object? CreateTypeReferenceNode(object? typeName, List<ITypeNode>? typeArguments)
+    public TypeReferenceNode CreateTypeReferenceNode(object? typeName, List<ITypeNode>? typeArguments)
     {
         var node = CreateBaseNode<TypeReferenceNode>(SyntaxKind.TypeReference);
         node.TypeName = AsName(typeName);
@@ -370,7 +370,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTypeQueryNode</c>.</summary>
-    public object? CreateTypeQueryNode(Node? exprName, List<ITypeNode>? typeArguments)
+    public TypeQueryNode CreateTypeQueryNode(Node? exprName, List<ITypeNode>? typeArguments)
     {
         var node = CreateBaseNode<TypeQueryNode>(SyntaxKind.TypeQuery);
         node.ExprName = exprName;
@@ -389,7 +389,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTypeLiteralNode</c>.</summary>
-    public object? CreateTypeLiteralNode(List<ITypeElement>? members)
+    public TypeLiteralNode CreateTypeLiteralNode(List<ITypeElement>? members)
     {
         var node = CreateBaseDeclaration<TypeLiteralNode>(SyntaxKind.TypeLiteral);
         node.Members = CreateNodeArray(members, null);
@@ -406,7 +406,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createArrayTypeNode</c>.</summary>
-    public object? CreateArrayTypeNode(ITypeNode? elementType)
+    public ArrayTypeNode CreateArrayTypeNode(ITypeNode? elementType)
     {
         var node = CreateBaseNode<ArrayTypeNode>(SyntaxKind.ArrayType);
         node.ElementType = Parenthesizer.ParenthesizeNonArrayTypeOfPostfixType(elementType);
@@ -423,7 +423,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTupleTypeNode</c>.</summary>
-    public object? CreateTupleTypeNode(List<Node>? elements)
+    public TupleTypeNode CreateTupleTypeNode(List<Node>? elements)
     {
         var node = CreateBaseNode<TupleTypeNode>(SyntaxKind.TupleType);
         node.Elements = CreateNodeArray(Parenthesizer.ParenthesizeElementTypesOfTupleType(elements), null);
@@ -440,7 +440,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createNamedTupleMember</c>.</summary>
-    public object? CreateNamedTupleMember(PunctuationToken? dotDotDotToken, Identifier? name, PunctuationToken? questionToken, ITypeNode? type)
+    public NamedTupleMember CreateNamedTupleMember(PunctuationToken? dotDotDotToken, Identifier? name, PunctuationToken? questionToken, ITypeNode? type)
     {
         var node = CreateBaseDeclaration<NamedTupleMember>(SyntaxKind.NamedTupleMember);
         node.DotDotDotToken = dotDotDotToken;
@@ -464,7 +464,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createOptionalTypeNode</c>.</summary>
-    public object? CreateOptionalTypeNode(ITypeNode? type)
+    public OptionalTypeNode CreateOptionalTypeNode(ITypeNode? type)
     {
         var node = CreateBaseNode<OptionalTypeNode>(SyntaxKind.OptionalType);
         node.Type = Parenthesizer.ParenthesizeTypeOfOptionalType(type);
@@ -481,7 +481,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createRestTypeNode</c>.</summary>
-    public object? CreateRestTypeNode(ITypeNode? type)
+    public RestTypeNode CreateRestTypeNode(ITypeNode? type)
     {
         var node = CreateBaseNode<RestTypeNode>(SyntaxKind.RestType);
         node.Type = type;
@@ -498,7 +498,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createConditionalTypeNode</c>.</summary>
-    public object? CreateConditionalTypeNode(ITypeNode? checkType, ITypeNode? extendsType, ITypeNode? trueType, ITypeNode? falseType)
+    public ConditionalTypeNode CreateConditionalTypeNode(ITypeNode? checkType, ITypeNode? extendsType, ITypeNode? trueType, ITypeNode? falseType)
     {
         var node = CreateBaseNode<ConditionalTypeNode>(SyntaxKind.ConditionalType);
         node.CheckType = Parenthesizer.ParenthesizeCheckTypeOfConditionalType(checkType);
@@ -523,7 +523,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createInferTypeNode</c>.</summary>
-    public object? CreateInferTypeNode(TypeParameterDeclaration? typeParameter)
+    public InferTypeNode CreateInferTypeNode(TypeParameterDeclaration? typeParameter)
     {
         var node = CreateBaseNode<InferTypeNode>(SyntaxKind.InferType);
         node.TypeParameter = typeParameter;
@@ -540,7 +540,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTemplateLiteralType</c>.</summary>
-    public object? CreateTemplateLiteralType(TemplateHead? head, List<TemplateLiteralTypeSpan>? templateSpans)
+    public TemplateLiteralTypeNode CreateTemplateLiteralType(TemplateHead? head, List<TemplateLiteralTypeSpan>? templateSpans)
     {
         var node = CreateBaseNode<TemplateLiteralTypeNode>(SyntaxKind.TemplateLiteralType);
         node.Head = head;
@@ -571,7 +571,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createParenthesizedType</c>.</summary>
-    public object? CreateParenthesizedType(ITypeNode? type)
+    public ParenthesizedTypeNode CreateParenthesizedType(ITypeNode? type)
     {
         var node = CreateBaseNode<ParenthesizedTypeNode>(SyntaxKind.ParenthesizedType);
         node.Type = type;
@@ -588,7 +588,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createThisTypeNode</c>.</summary>
-    public object? CreateThisTypeNode()
+    public ThisTypeNode CreateThisTypeNode()
     {
         var node = CreateBaseNode<ThisTypeNode>(SyntaxKind.ThisType);
         node.TransformFlags = TransformFlags.ContainsTypeScript;
@@ -614,7 +614,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createIndexedAccessTypeNode</c>.</summary>
-    public object? CreateIndexedAccessTypeNode(ITypeNode? objectType, ITypeNode? indexType)
+    public IndexedAccessTypeNode CreateIndexedAccessTypeNode(ITypeNode? objectType, ITypeNode? indexType)
     {
         var node = CreateBaseNode<IndexedAccessTypeNode>(SyntaxKind.IndexedAccessType);
         node.ObjectType = Parenthesizer.ParenthesizeNonArrayTypeOfPostfixType(objectType);
@@ -662,7 +662,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createLiteralTypeNode</c>.</summary>
-    public object? CreateLiteralTypeNode(object? literal)
+    public LiteralTypeNode CreateLiteralTypeNode(object? literal)
     {
         var node = CreateBaseNode<LiteralTypeNode>(SyntaxKind.LiteralType);
         node.Literal = literal;
@@ -687,7 +687,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createArrayBindingPattern</c>.</summary>
-    public object? CreateArrayBindingPattern(List<Node>? elements)
+    public ArrayBindingPattern CreateArrayBindingPattern(List<Node>? elements)
     {
         var node = CreateBaseNode<ArrayBindingPattern>(SyntaxKind.ArrayBindingPattern);
         node.Elements = CreateNodeArray(elements, null);
@@ -704,7 +704,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBindingElement</c>.</summary>
-    public object? CreateBindingElement(PunctuationToken? dotDotDotToken, object? propertyName, object? name, Expression? initializer)
+    public BindingElement CreateBindingElement(PunctuationToken? dotDotDotToken, object? propertyName, object? name, Expression? initializer)
     {
         var node = CreateBaseDeclaration<BindingElement>(SyntaxKind.BindingElement);
         node.DotDotDotToken = dotDotDotToken;
@@ -736,7 +736,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createObjectLiteralExpression</c>.</summary>
-    public object? CreateObjectLiteralExpression(List<Node>? properties, bool? multiLine)
+    public ObjectLiteralExpression CreateObjectLiteralExpression(List<Node>? properties, bool? multiLine)
     {
         var node = CreateBaseDeclaration<ObjectLiteralExpression>(SyntaxKind.ObjectLiteralExpression);
         node.Properties = CreateNodeArray(properties, null);
@@ -755,7 +755,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBasePropertyAccessExpression</c>.</summary>
-    public object? CreateBasePropertyAccessExpression(LeftHandSideExpression? expression, PunctuationToken? questionDotToken, MemberExpression? name)
+    public PropertyAccessExpression CreateBasePropertyAccessExpression(LeftHandSideExpression? expression, PunctuationToken? questionDotToken, MemberExpression? name)
     {
         var node = CreateBaseDeclaration<PropertyAccessExpression>(SyntaxKind.PropertyAccessExpression);
         node.Expression = expression;
@@ -768,7 +768,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBaseElementAccessExpression</c>.</summary>
-    public object? CreateBaseElementAccessExpression(LeftHandSideExpression? expression, PunctuationToken? questionDotToken, Expression? argumentExpression)
+    public ElementAccessExpression CreateBaseElementAccessExpression(LeftHandSideExpression? expression, PunctuationToken? questionDotToken, Expression? argumentExpression)
     {
         var node = CreateBaseDeclaration<ElementAccessExpression>(SyntaxKind.ElementAccessExpression);
         node.Expression = expression;
@@ -801,7 +801,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTypeAssertion</c>.</summary>
-    public object? CreateTypeAssertion(ITypeNode? type, Expression? expression)
+    public TypeAssertion CreateTypeAssertion(ITypeNode? type, Expression? expression)
     {
         var node = CreateBaseNode<TypeAssertion>(SyntaxKind.TypeAssertionExpression);
         node.Expression = Parenthesizer.ParenthesizeOperandOfPrefixUnary(expression);
@@ -820,7 +820,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createParenthesizedExpression</c>.</summary>
-    public object? CreateParenthesizedExpression(Expression? expression)
+    public ParenthesizedExpression CreateParenthesizedExpression(Expression? expression)
     {
         var node = CreateBaseNode<ParenthesizedExpression>(SyntaxKind.ParenthesizedExpression);
         node.Expression = expression;
@@ -838,7 +838,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createDeleteExpression</c>.</summary>
-    public object? CreateDeleteExpression(Expression? expression)
+    public DeleteExpression CreateDeleteExpression(Expression? expression)
     {
         var node = CreateBaseNode<DeleteExpression>(SyntaxKind.DeleteExpression);
         node.Expression = Parenthesizer.ParenthesizeOperandOfPrefixUnary(expression);
@@ -855,7 +855,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTypeOfExpression</c>.</summary>
-    public object? CreateTypeOfExpression(Expression? expression)
+    public TypeOfExpression CreateTypeOfExpression(Expression? expression)
     {
         var node = CreateBaseNode<TypeOfExpression>(SyntaxKind.TypeOfExpression);
         node.Expression = Parenthesizer.ParenthesizeOperandOfPrefixUnary(expression);
@@ -872,7 +872,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createVoidExpression</c>.</summary>
-    public object? CreateVoidExpression(Expression? expression)
+    public VoidExpression CreateVoidExpression(Expression? expression)
     {
         var node = CreateBaseNode<VoidExpression>(SyntaxKind.VoidExpression);
         node.Expression = Parenthesizer.ParenthesizeOperandOfPrefixUnary(expression);
@@ -889,7 +889,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createAwaitExpression</c>.</summary>
-    public object? CreateAwaitExpression(Expression? expression)
+    public AwaitExpression CreateAwaitExpression(Expression? expression)
     {
         var node = CreateBaseNode<AwaitExpression>(SyntaxKind.AwaitExpression);
         node.Expression = Parenthesizer.ParenthesizeOperandOfPrefixUnary(expression);
@@ -932,7 +932,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createConditionalExpression</c>.</summary>
-    public object? CreateConditionalExpression(Expression? condition, PunctuationToken? questionToken, Expression? whenTrue, PunctuationToken? colonToken, Expression? whenFalse)
+    public ConditionalExpression CreateConditionalExpression(Expression? condition, PunctuationToken? questionToken, Expression? whenTrue, PunctuationToken? colonToken, Expression? whenFalse)
     {
         var node = CreateBaseNode<ConditionalExpression>(SyntaxKind.ConditionalExpression);
         node.Condition = Parenthesizer.ParenthesizeConditionOfConditionalExpression(condition);
@@ -959,7 +959,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTemplateExpression</c>.</summary>
-    public object? CreateTemplateExpression(TemplateHead? head, List<TemplateSpan>? templateSpans)
+    public TemplateExpression CreateTemplateExpression(TemplateHead? head, List<TemplateSpan>? templateSpans)
     {
         var node = CreateBaseNode<TemplateExpression>(SyntaxKind.TemplateExpression);
         node.Head = head;
@@ -978,7 +978,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTemplateLiteralLikeToken</c>.</summary>
-    public object? CreateTemplateLiteralLikeToken(object? kind, string? text, string? rawText, TokenFlags templateFlags)
+    public ITemplateLiteralLikeNode CreateTemplateLiteralLikeToken(object? kind, string? text, string? rawText, TokenFlags templateFlags)
     {
         var node = CreateBaseToken<TemplateLiteralLikeNode>(kind);
         node.Text = text;
@@ -989,7 +989,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTemplateLiteralLikeDeclaration</c>.</summary>
-    public object? CreateTemplateLiteralLikeDeclaration(TypedEnum.NoSubstitutionTemplateLiteral? kind, string? text, string? rawText, TokenFlags templateFlags)
+    public NoSubstitutionTemplateLiteral CreateTemplateLiteralLikeDeclaration(TypedEnum.NoSubstitutionTemplateLiteral? kind, string? text, string? rawText, TokenFlags templateFlags)
     {
         var node = CreateBaseDeclaration<NoSubstitutionTemplateLiteral>(kind);
         node.Text = text;
@@ -1009,7 +1009,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createSpreadElement</c>.</summary>
-    public object? CreateSpreadElement(Expression? expression)
+    public SpreadElement CreateSpreadElement(Expression? expression)
     {
         var node = CreateBaseNode<SpreadElement>(SyntaxKind.SpreadElement);
         node.Expression = Parenthesizer.ParenthesizeExpressionForDisallowedComma(expression);
@@ -1026,7 +1026,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createClassExpression</c>.</summary>
-    public object? CreateClassExpression(List<Node>? modifiers, object? name, List<TypeParameterDeclaration>? typeParameters, List<HeritageClause>? heritageClauses, List<IClassElement>? members)
+    public ClassExpression CreateClassExpression(List<Node>? modifiers, object? name, List<TypeParameterDeclaration>? typeParameters, List<HeritageClause>? heritageClauses, List<IClassElement>? members)
     {
         var node = CreateBaseDeclaration<ClassExpression>(SyntaxKind.ClassExpression);
         node.Modifiers = AsNodeArray(modifiers);
@@ -1052,7 +1052,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createExpressionWithTypeArguments</c>.</summary>
-    public object? CreateExpressionWithTypeArguments(Expression? expression, List<ITypeNode>? typeArguments)
+    public ExpressionWithTypeArguments CreateExpressionWithTypeArguments(Expression? expression, List<ITypeNode>? typeArguments)
     {
         var node = CreateBaseNode<ExpressionWithTypeArguments>(SyntaxKind.ExpressionWithTypeArguments);
         node.Expression = Parenthesizer.ParenthesizeLeftSideOfAccess(expression, false);
@@ -1071,7 +1071,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createAsExpression</c>.</summary>
-    public object? CreateAsExpression(Expression? expression, ITypeNode? type)
+    public AsExpression CreateAsExpression(Expression? expression, ITypeNode? type)
     {
         var node = CreateBaseNode<AsExpression>(SyntaxKind.AsExpression);
         node.Expression = expression;
@@ -1090,7 +1090,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createNonNullExpression</c>.</summary>
-    public object? CreateNonNullExpression(Expression? expression)
+    public NonNullExpression CreateNonNullExpression(Expression? expression)
     {
         var node = CreateBaseNode<NonNullExpression>(SyntaxKind.NonNullExpression);
         node.Expression = Parenthesizer.ParenthesizeLeftSideOfAccess(expression, false);
@@ -1099,7 +1099,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createSatisfiesExpression</c>.</summary>
-    public object? CreateSatisfiesExpression(Expression? expression, ITypeNode? type)
+    public SatisfiesExpression CreateSatisfiesExpression(Expression? expression, ITypeNode? type)
     {
         var node = CreateBaseNode<SatisfiesExpression>(SyntaxKind.SatisfiesExpression);
         node.Expression = expression;
@@ -1118,7 +1118,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createNonNullChain</c>.</summary>
-    public object? CreateNonNullChain(Expression? expression)
+    public INonNullChain CreateNonNullChain(Expression? expression)
     {
         var node = CreateBaseNode<NonNullChain>(SyntaxKind.NonNullExpression);
         node.Flags |= NodeFlags.OptionalChain;
@@ -1136,7 +1136,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTemplateSpan</c>.</summary>
-    public object? CreateTemplateSpan(Expression? expression, Node? literal)
+    public TemplateSpan CreateTemplateSpan(Expression? expression, Node? literal)
     {
         var node = CreateBaseNode<TemplateSpan>(SyntaxKind.TemplateSpan);
         node.Expression = expression;
@@ -1155,7 +1155,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createSemicolonClassElement</c>.</summary>
-    public object? CreateSemicolonClassElement()
+    public SemicolonClassElement CreateSemicolonClassElement()
     {
         var node = CreateBaseNode<SemicolonClassElement>(SyntaxKind.SemicolonClassElement);
         node.TransformFlags |= TransformFlags.ContainsES2015;
@@ -1193,7 +1193,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createEmptyStatement</c>.</summary>
-    public object? CreateEmptyStatement()
+    public EmptyStatement CreateEmptyStatement()
     {
         var node = CreateBaseNode<EmptyStatement>(SyntaxKind.EmptyStatement);
         node.JsDoc = null;
@@ -1220,7 +1220,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createIfStatement</c>.</summary>
-    public object? CreateIfStatement(Expression? expression, IStatement? thenStatement, IStatement? elseStatement)
+    public IfStatement CreateIfStatement(Expression? expression, IStatement? thenStatement, IStatement? elseStatement)
     {
         var node = CreateBaseNode<IfStatement>(SyntaxKind.IfStatement);
         node.Expression = expression;
@@ -1243,7 +1243,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createDoStatement</c>.</summary>
-    public object? CreateDoStatement(IStatement? statement, Expression? expression)
+    public DoStatement CreateDoStatement(IStatement? statement, Expression? expression)
     {
         var node = CreateBaseNode<DoStatement>(SyntaxKind.DoStatement);
         node.Statement = AsEmbeddedStatement(statement);
@@ -1264,7 +1264,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createWhileStatement</c>.</summary>
-    public object? CreateWhileStatement(Expression? expression, IStatement? statement)
+    public WhileStatement CreateWhileStatement(Expression? expression, IStatement? statement)
     {
         var node = CreateBaseNode<WhileStatement>(SyntaxKind.WhileStatement);
         node.Expression = expression;
@@ -1285,7 +1285,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createForStatement</c>.</summary>
-    public object? CreateForStatement(Node? initializer, Expression? condition, Expression? incrementor, IStatement? statement)
+    public ForStatement CreateForStatement(Node? initializer, Expression? condition, Expression? incrementor, IStatement? statement)
     {
         var node = CreateBaseNode<ForStatement>(SyntaxKind.ForStatement);
         node.Initializer = initializer;
@@ -1312,7 +1312,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createForInStatement</c>.</summary>
-    public object? CreateForInStatement(Node? initializer, Expression? expression, IStatement? statement)
+    public ForInStatement CreateForInStatement(Node? initializer, Expression? expression, IStatement? statement)
     {
         var node = CreateBaseNode<ForInStatement>(SyntaxKind.ForInStatement);
         node.Initializer = initializer;
@@ -1334,6 +1334,23 @@ internal partial class NodeFactory
             || node!.Statement != statement
             ? Update(CreateForInStatement(initializer, expression, statement), node)
             : node!;
+    }
+
+    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createForOfStatement</c>.</summary>
+    public ForOfStatement CreateForOfStatement(KeywordToken? awaitModifier, Node? initializer, Expression? expression, IStatement? statement)
+    {
+        var node = CreateBaseNode<ForOfStatement>(SyntaxKind.ForOfStatement);
+        node.AwaitModifier = awaitModifier;
+        node.Initializer = initializer;
+        node.Expression = Parenthesizer.ParenthesizeExpressionForDisallowedComma(expression);
+        node.Statement = AsEmbeddedStatement(statement);
+        node.TransformFlags |= ((((PropagateChildFlags(node.AwaitModifier) | PropagateChildFlags(node.Initializer)) | PropagateChildFlags(node.Expression)) | PropagateChildFlags(node.Statement)) | TransformFlags.ContainsES2015);
+        if (awaitModifier) node.TransformFlags |= TransformFlags.ContainsES2018;
+        node.JsDoc = null;
+        node.Locals = null;
+        node.NextContainer = null;
+        node.FlowNode = null;
+        return node;
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateForOfStatement</c>.</summary>
@@ -1405,7 +1422,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createWithStatement</c>.</summary>
-    public object? CreateWithStatement(Expression? expression, IStatement? statement)
+    public WithStatement CreateWithStatement(Expression? expression, IStatement? statement)
     {
         var node = CreateBaseNode<WithStatement>(SyntaxKind.WithStatement);
         node.Expression = expression;
@@ -1448,7 +1465,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createLabeledStatement</c>.</summary>
-    public object? CreateLabeledStatement(object? label, IStatement? statement)
+    public LabeledStatement CreateLabeledStatement(object? label, IStatement? statement)
     {
         var node = CreateBaseNode<LabeledStatement>(SyntaxKind.LabeledStatement);
         node.Label = AsName(label);
@@ -1469,7 +1486,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createThrowStatement</c>.</summary>
-    public object? CreateThrowStatement(Expression? expression)
+    public ThrowStatement CreateThrowStatement(Expression? expression)
     {
         var node = CreateBaseNode<ThrowStatement>(SyntaxKind.ThrowStatement);
         node.Expression = expression;
@@ -1488,7 +1505,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTryStatement</c>.</summary>
-    public object? CreateTryStatement(Block? tryBlock, CatchClause? catchClause, Block? finallyBlock)
+    public TryStatement CreateTryStatement(Block? tryBlock, CatchClause? catchClause, Block? finallyBlock)
     {
         var node = CreateBaseNode<TryStatement>(SyntaxKind.TryStatement);
         node.TryBlock = tryBlock;
@@ -1511,7 +1528,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createDebuggerStatement</c>.</summary>
-    public object? CreateDebuggerStatement()
+    public DebuggerStatement CreateDebuggerStatement()
     {
         var node = CreateBaseNode<DebuggerStatement>(SyntaxKind.DebuggerStatement);
         node.JsDoc = null;
@@ -1520,7 +1537,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createVariableDeclaration</c>.</summary>
-    public object? CreateVariableDeclaration(object? name, PunctuationToken? exclamationToken, ITypeNode? type, Expression? initializer)
+    public VariableDeclaration CreateVariableDeclaration(object? name, PunctuationToken? exclamationToken, ITypeNode? type, Expression? initializer)
     {
         var node = CreateBaseDeclaration<VariableDeclaration>(SyntaxKind.VariableDeclaration);
         node.Name = AsName(name);
@@ -1564,7 +1581,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createInterfaceDeclaration</c>.</summary>
-    public object? CreateInterfaceDeclaration(List<Node>? modifiers, object? name, List<TypeParameterDeclaration>? typeParameters, List<HeritageClause>? heritageClauses, List<ITypeElement>? members)
+    public InterfaceDeclaration CreateInterfaceDeclaration(List<Node>? modifiers, object? name, List<TypeParameterDeclaration>? typeParameters, List<HeritageClause>? heritageClauses, List<ITypeElement>? members)
     {
         var node = CreateBaseDeclaration<InterfaceDeclaration>(SyntaxKind.InterfaceDeclaration);
         node.Modifiers = AsNodeArray(modifiers);
@@ -1590,7 +1607,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTypeAliasDeclaration</c>.</summary>
-    public object? CreateTypeAliasDeclaration(List<Node>? modifiers, object? name, List<TypeParameterDeclaration>? typeParameters, ITypeNode? type)
+    public TypeAliasDeclaration CreateTypeAliasDeclaration(List<Node>? modifiers, object? name, List<TypeParameterDeclaration>? typeParameters, ITypeNode? type)
     {
         var node = CreateBaseDeclaration<TypeAliasDeclaration>(SyntaxKind.TypeAliasDeclaration);
         node.Modifiers = AsNodeArray(modifiers);
@@ -1616,7 +1633,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createEnumDeclaration</c>.</summary>
-    public object? CreateEnumDeclaration(List<Node>? modifiers, object? name, List<EnumMember>? members)
+    public EnumDeclaration CreateEnumDeclaration(List<Node>? modifiers, object? name, List<EnumMember>? members)
     {
         var node = CreateBaseDeclaration<EnumDeclaration>(SyntaxKind.EnumDeclaration);
         node.Modifiers = AsNodeArray(modifiers);
@@ -1649,7 +1666,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createModuleBlock</c>.</summary>
-    public object? CreateModuleBlock(List<IStatement>? statements)
+    public ModuleBlock CreateModuleBlock(List<IStatement>? statements)
     {
         var node = CreateBaseNode<ModuleBlock>(SyntaxKind.ModuleBlock);
         node.Statements = CreateNodeArray(statements, null);
@@ -1686,7 +1703,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createNamespaceExportDeclaration</c>.</summary>
-    public object? CreateNamespaceExportDeclaration(object? name)
+    public NamespaceExportDeclaration CreateNamespaceExportDeclaration(object? name)
     {
         var node = CreateBaseDeclaration<NamespaceExportDeclaration>(SyntaxKind.NamespaceExportDeclaration);
         node.Name = AsName(name);
@@ -1869,7 +1886,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createImportSpecifier</c>.</summary>
-    public object? CreateImportSpecifier(bool isTypeOnly, MemberExpression? propertyName, Identifier? name)
+    public ImportSpecifier CreateImportSpecifier(bool isTypeOnly, MemberExpression? propertyName, Identifier? name)
     {
         var node = CreateBaseDeclaration<ImportSpecifier>(SyntaxKind.ImportSpecifier);
         node.IsTypeOnly = isTypeOnly;
@@ -1891,7 +1908,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createExportAssignment</c>.</summary>
-    public object? CreateExportAssignment(List<Node>? modifiers, bool isExportEquals, Expression? expression)
+    public ExportAssignment CreateExportAssignment(List<Node>? modifiers, bool isExportEquals, Expression? expression)
     {
         var node = CreateBaseDeclaration<ExportAssignment>(SyntaxKind.ExportAssignment);
         node.Modifiers = AsNodeArray(modifiers);
@@ -1913,7 +1930,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createNamedExports</c>.</summary>
-    public object? CreateNamedExports(List<ExportSpecifier>? elements)
+    public NamedExports CreateNamedExports(List<ExportSpecifier>? elements)
     {
         var node = CreateBaseNode<NamedExports>(SyntaxKind.NamedExports);
         node.Elements = CreateNodeArray(elements, null);
@@ -1931,7 +1948,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createExportSpecifier</c>.</summary>
-    public object? CreateExportSpecifier(bool isTypeOnly, object? propertyName, object? name)
+    public ExportSpecifier CreateExportSpecifier(bool isTypeOnly, object? propertyName, object? name)
     {
         var node = CreateBaseNode<ExportSpecifier>(SyntaxKind.ExportSpecifier);
         node.IsTypeOnly = isTypeOnly;
@@ -1962,7 +1979,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createExternalModuleReference</c>.</summary>
-    public object? CreateExternalModuleReference(Expression? expression)
+    public ExternalModuleReference CreateExternalModuleReference(Expression? expression)
     {
         var node = CreateBaseNode<ExternalModuleReference>(SyntaxKind.ExternalModuleReference);
         node.Expression = expression;
@@ -2084,7 +2101,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBaseJSDocTag</c>.</summary>
-    public object? CreateBaseJSDocTag<T>(object? kind, Identifier? tagName, object? comment) where T : JSDocTag
+    public T CreateBaseJSDocTag<T>(object? kind, Identifier? tagName, object? comment) where T : JSDocTag
     {
         var node = CreateBaseNode<T>(kind);
         node.TagName = tagName;
@@ -2093,7 +2110,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBaseJSDocTagDeclaration</c>.</summary>
-    public object? CreateBaseJSDocTagDeclaration<T>(object? kind, Identifier? tagName, object? comment) where T : JSDocTag
+    public T CreateBaseJSDocTagDeclaration<T>(object? kind, Identifier? tagName, object? comment) where T : JSDocTag
     {
         var node = CreateBaseDeclaration<T>(kind);
         node.TagName = tagName;
@@ -2207,7 +2224,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocMemberName</c>.</summary>
-    public object? CreateJSDocMemberName(Node? left, Identifier? right)
+    public JSDocMemberName CreateJSDocMemberName(Node? left, Identifier? right)
     {
         var node = CreateBaseNode<JSDocMemberName>(SyntaxKind.JSDocMemberName);
         node.Left = left;
@@ -2353,7 +2370,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocComment</c>.</summary>
-    public object? CreateJSDocComment(object? comment, List<JSDocTag>? tags)
+    public JSDoc CreateJSDocComment(object? comment, List<JSDocTag>? tags)
     {
         var node = CreateBaseNode<JSDoc>(SyntaxKind.JSDoc);
         node.Comment = comment;
@@ -2371,7 +2388,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJsxElement</c>.</summary>
-    public object? CreateJsxElement(JsxOpeningElement? openingElement, List<Node>? children, JsxClosingElement? closingElement)
+    public JsxElement CreateJsxElement(JsxOpeningElement? openingElement, List<Node>? children, JsxClosingElement? closingElement)
     {
         var node = CreateBaseNode<JsxElement>(SyntaxKind.JsxElement);
         node.OpeningElement = openingElement;
@@ -2412,7 +2429,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJsxClosingElement</c>.</summary>
-    public object? CreateJsxClosingElement(Node? tagName)
+    public JsxClosingElement CreateJsxClosingElement(Node? tagName)
     {
         var node = CreateBaseNode<JsxClosingElement>(SyntaxKind.JsxClosingElement);
         node.TagName = tagName;
@@ -2429,7 +2446,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJsxFragment</c>.</summary>
-    public object? CreateJsxFragment(JsxOpeningFragment? openingFragment, List<Node>? children, JsxClosingFragment? closingFragment)
+    public JsxFragment CreateJsxFragment(JsxOpeningFragment? openingFragment, List<Node>? children, JsxClosingFragment? closingFragment)
     {
         var node = CreateBaseNode<JsxFragment>(SyntaxKind.JsxFragment);
         node.OpeningFragment = openingFragment;
@@ -2450,7 +2467,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJsxText</c>.</summary>
-    public object? CreateJsxText(string? text, bool? containsOnlyTriviaWhiteSpaces)
+    public JsxText CreateJsxText(string? text, bool? containsOnlyTriviaWhiteSpaces)
     {
         var node = CreateBaseNode<JsxText>(SyntaxKind.JsxText);
         node.Text = text;
@@ -2469,7 +2486,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJsxOpeningFragment</c>.</summary>
-    public object? CreateJsxOpeningFragment()
+    public JsxOpeningFragment CreateJsxOpeningFragment()
     {
         var node = CreateBaseNode<JsxOpeningFragment>(SyntaxKind.JsxOpeningFragment);
         node.TransformFlags |= TransformFlags.ContainsJsx;
@@ -2477,7 +2494,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJsxJsxClosingFragment</c>.</summary>
-    public object? CreateJsxJsxClosingFragment()
+    public JsxClosingFragment CreateJsxJsxClosingFragment()
     {
         var node = CreateBaseNode<JsxClosingFragment>(SyntaxKind.JsxClosingFragment);
         node.TransformFlags |= TransformFlags.ContainsJsx;
@@ -2485,7 +2502,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJsxAttribute</c>.</summary>
-    public object? CreateJsxAttribute(Node? name, Expression? initializer)
+    public JsxAttribute CreateJsxAttribute(Node? name, Expression? initializer)
     {
         var node = CreateBaseDeclaration<JsxAttribute>(SyntaxKind.JsxAttribute);
         node.Name = name;
@@ -2504,7 +2521,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJsxAttributes</c>.</summary>
-    public object? CreateJsxAttributes(List<Node>? properties)
+    public JsxAttributes CreateJsxAttributes(List<Node>? properties)
     {
         var node = CreateBaseDeclaration<JsxAttributes>(SyntaxKind.JsxAttributes);
         node.Properties = CreateNodeArray(properties, null);
@@ -2521,7 +2538,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJsxSpreadAttribute</c>.</summary>
-    public object? CreateJsxSpreadAttribute(Expression? expression)
+    public JsxSpreadAttribute CreateJsxSpreadAttribute(Expression? expression)
     {
         var node = CreateBaseNode<JsxSpreadAttribute>(SyntaxKind.JsxSpreadAttribute);
         node.Expression = expression;
@@ -2538,7 +2555,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJsxExpression</c>.</summary>
-    public object? CreateJsxExpression(PunctuationToken? dotDotDotToken, Expression? expression)
+    public JsxExpression CreateJsxExpression(PunctuationToken? dotDotDotToken, Expression? expression)
     {
         var node = CreateBaseNode<JsxExpression>(SyntaxKind.JsxExpression);
         node.DotDotDotToken = dotDotDotToken;
@@ -2556,7 +2573,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJsxNamespacedName</c>.</summary>
-    public object? CreateJsxNamespacedName(Identifier? @namespace, Identifier? name)
+    public JsxNamespacedName CreateJsxNamespacedName(Identifier? @namespace, Identifier? name)
     {
         var node = CreateBaseNode<JsxNamespacedName>(SyntaxKind.JsxNamespacedName);
         node.Namespace = @namespace;
@@ -2575,7 +2592,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createCaseClause</c>.</summary>
-    public object? CreateCaseClause(Expression? expression, List<IStatement>? statements)
+    public CaseClause CreateCaseClause(Expression? expression, List<IStatement>? statements)
     {
         var node = CreateBaseNode<CaseClause>(SyntaxKind.CaseClause);
         node.Expression = Parenthesizer.ParenthesizeExpressionForDisallowedComma(expression);
@@ -2595,7 +2612,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createDefaultClause</c>.</summary>
-    public object? CreateDefaultClause(List<IStatement>? statements)
+    public DefaultClause CreateDefaultClause(List<IStatement>? statements)
     {
         var node = CreateBaseNode<DefaultClause>(SyntaxKind.DefaultClause);
         node.Statements = CreateNodeArray(statements, null);
@@ -2620,7 +2637,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createCatchClause</c>.</summary>
-    public object? CreateCatchClause(object? variableDeclaration, Block? block)
+    public CatchClause CreateCatchClause(object? variableDeclaration, Block? block)
     {
         var node = CreateBaseNode<CatchClause>(SyntaxKind.CatchClause);
         node.VariableDeclaration = AsVariableDeclaration(variableDeclaration);
@@ -2641,7 +2658,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createPropertyAssignment</c>.</summary>
-    public object? CreatePropertyAssignment(object? name, Expression? initializer)
+    public PropertyAssignment CreatePropertyAssignment(object? name, Expression? initializer)
     {
         var node = CreateBaseDeclaration<PropertyAssignment>(SyntaxKind.PropertyAssignment);
         node.Name = AsName(name);
@@ -2655,7 +2672,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createShorthandPropertyAssignment</c>.</summary>
-    public object? CreateShorthandPropertyAssignment(object? name, Expression? objectAssignmentInitializer)
+    public ShorthandPropertyAssignment CreateShorthandPropertyAssignment(object? name, Expression? objectAssignmentInitializer)
     {
         var node = CreateBaseDeclaration<ShorthandPropertyAssignment>(SyntaxKind.ShorthandPropertyAssignment);
         node.Name = AsName(name);
@@ -2670,7 +2687,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createSpreadAssignment</c>.</summary>
-    public object? CreateSpreadAssignment(Expression? expression)
+    public SpreadAssignment CreateSpreadAssignment(Expression? expression)
     {
         var node = CreateBaseDeclaration<SpreadAssignment>(SyntaxKind.SpreadAssignment);
         node.Expression = Parenthesizer.ParenthesizeExpressionForDisallowedComma(expression);
@@ -2688,7 +2705,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createEnumMember</c>.</summary>
-    public object? CreateEnumMember(object? name, Expression? initializer)
+    public EnumMember CreateEnumMember(object? name, Expression? initializer)
     {
         var node = CreateBaseDeclaration<EnumMember>(SyntaxKind.EnumMember);
         node.Name = AsName(name);
@@ -2720,7 +2737,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBundle</c>.</summary>
-    public object? CreateBundle(List<SourceFile>? sourceFiles)
+    public Bundle CreateBundle(List<SourceFile>? sourceFiles)
     {
         var node = CreateBaseNode<Bundle>(SyntaxKind.Bundle);
         node.SourceFiles = sourceFiles;
@@ -2739,7 +2756,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createSyntheticExpression</c>.</summary>
-    public object? CreateSyntheticExpression(IType? type, object? isSpread, Node? tupleNameSource)
+    public SyntheticExpression CreateSyntheticExpression(IType? type, object? isSpread, Node? tupleNameSource)
     {
         var node = CreateBaseNode<SyntheticExpression>(SyntaxKind.SyntheticExpression);
         node.Type = type;
@@ -2749,7 +2766,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createSyntaxList</c>.</summary>
-    public object? CreateSyntaxList(List<Node>? children)
+    public SyntaxList CreateSyntaxList(List<Node>? children)
     {
         var node = CreateBaseNode<SyntaxList>(SyntaxKind.SyntaxList);
         node._children = children;
@@ -2757,7 +2774,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createNotEmittedStatement</c>.</summary>
-    public object? CreateNotEmittedStatement(Node? original)
+    public NotEmittedStatement CreateNotEmittedStatement(Node? original)
     {
         var node = CreateBaseNode<NotEmittedStatement>(SyntaxKind.NotEmittedStatement);
         node.Original = original;
@@ -2766,7 +2783,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createPartiallyEmittedExpression</c>.</summary>
-    public object? CreatePartiallyEmittedExpression(Expression? expression, Node? original)
+    public PartiallyEmittedExpression CreatePartiallyEmittedExpression(Expression? expression, Node? original)
     {
         var node = CreateBaseNode<PartiallyEmittedExpression>(SyntaxKind.PartiallyEmittedExpression);
         node.Expression = expression;
@@ -2785,7 +2802,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createCommaListExpression</c>.</summary>
-    public object? CreateCommaListExpression(List<Expression>? elements)
+    public CommaListExpression CreateCommaListExpression(List<Expression>? elements)
     {
         var node = CreateBaseNode<CommaListExpression>(SyntaxKind.CommaListExpression);
         node.Elements = CreateNodeArray(SameFlatMap(elements, flattenCommaElements), null);
@@ -2802,7 +2819,7 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createSyntheticReferenceExpression</c>.</summary>
-    public object? CreateSyntheticReferenceExpression(Expression? expression, Expression? thisArg)
+    public SyntheticReferenceExpression CreateSyntheticReferenceExpression(Expression? expression, Expression? thisArg)
     {
         var node = CreateBaseNode<SyntheticReferenceExpression>(SyntaxKind.SyntheticReferenceExpression);
         node.Expression = expression;

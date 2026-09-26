@@ -244,6 +244,9 @@ internal sealed class TsFactoryAssignment
     public string Op { get; set; } = "=";
 
     public TsExpression? Value { get; set; }
+
+    /// <summary>The guard when TS wrote <c>if (condition) node.field = value</c>, otherwise <c>null</c>.</summary>
+    public TsExpression? Condition { get; set; }
 }
 
 /// <summary>One <c>node.field !== value</c> test in an <c>update*</c> member's comparison chain.</summary>

@@ -567,7 +567,28 @@ function collectFactory() {
         const assignments = [];
         const calls = [];
         for (const statement of body.slice(1, body.length - 1)) {
-            if (!ts.isExpressionStatement(statement)) return unsupported(`not an expression statement: ${text(statement)}`);
+            if (!ts.isExpressionStatement(statement)) {
+                // The one other shape a fixed-body member may contain: `if (condition) node.flags |= X` — a single
+                // statement, no else, and an assignment to the node. It keeps its place in the sequence.
+                if (ts.isIfStatement(statement)) {
+                    const inner = statement.thenStatement;
+                    if (statement.elseStatement || !ts.isExpressionStatement(inner)
+                        || !ts.isBinaryExpression(inner.expression) || !ts.isPropertyAccessExpression(inner.expression.left)
+                        || text(inner.expression.left.expression) !== "node") {
+                        return unsupported(`unsupported if statement: ${text(statement)}`);
+                    }
+
+                    assignments.push({
+                        target: inner.expression.left.name.getText(source),
+                        op: inner.expression.operatorToken.getText(source),
+                        value: encodeExpression(inner.expression.right, source),
+                        condition: encodeExpression(statement.expression, source),
+                    });
+                    continue;
+                }
+
+                return unsupported(`not an expression statement: ${text(statement)}`);
+            }
 
             const expression = statement.expression;
             if (ts.isCallExpression(expression)) {
@@ -590,6 +611,7 @@ function collectFactory() {
                 target: expression.left.name.getText(source),
                 op,
                 value: encodeExpression(expression.right, source),
+                condition: null,
             });
         }
 

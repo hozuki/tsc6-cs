@@ -10,8 +10,9 @@
   <ItemGroup>
     <!-- tools/Gen 生成的定形 create*/update*（264 个）。它引用一批还没手写的成员 —— as* 辅助、Parenthesizer、
          以及生成器跳过的 create*（有真逻辑的那些）—— 所以在补齐之前不参与编译。补完后删掉这一项即可
-         （docs/architecture.md §15.7）。生成物本身仍然提交入库，GeneratedTablesTests 照常比对它。 -->
-    <Compile Remove="Parser/NodeFactory.Generated.cs" />
+         （docs/architecture.md §15.7）。生成物本身仍然提交入库，GeneratedTablesTests 照常比对它。
+         临时纳入编译（用来收集还缺哪些成员）：dotnet build -p:IncludeGeneratedFactory=true -->
+    <Compile Remove="Parser/NodeFactory.Generated.cs" Condition="'$(IncludeGeneratedFactory)' != 'true'" />
   </ItemGroup>
 
 </Project>

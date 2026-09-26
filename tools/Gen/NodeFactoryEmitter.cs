@@ -110,7 +110,10 @@ internal static class NodeFactoryEmitter
 
         foreach (var assignment in member.Assignments)
         {
-            sb.AppendLine($"        node.{PascalCase(assignment.Target)} {assignment.Op} {Translate(Required(assignment.Value))};");
+            var line = $"node.{PascalCase(assignment.Target)} {assignment.Op} {Translate(Required(assignment.Value))};";
+            sb.AppendLine(assignment.Condition is { } condition
+                ? $"        if ({Translate(condition)}) {line}"
+                : $"        {line}");
         }
 
         foreach (var call in member.Calls) sb.AppendLine($"        {TranslateCall(call)};");
@@ -173,7 +176,13 @@ internal static class NodeFactoryEmitter
     }
 
     private static string ReturnType(TsFactoryMember member, TsTypeMapper mapper)
-        => mapper.MapSlot(member.ReturnType, optional: false, member.TypeParameters).Type;
+    {
+        // TS leaves the return type off its internal helpers (`createBaseStringLiteral` has none), and in that case the
+        // generic argument of the `createBase*` call is what says which node is being built.
+        var declared = member.ReturnType == "any" && member.TypeArgument is { } typeArgument ? typeArgument : member.ReturnType;
+
+        return mapper.MapSlot(declared, optional: false, member.TypeParameters).Type;
+    }
 
     private static string ParameterType(TsFactoryMember member, TsParameter parameter, TsTypeMapper mapper)
     {
