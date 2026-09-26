@@ -232,7 +232,11 @@ internal sealed partial class ModuleTransformer
             var importDeclaration = _resolver.GetReferencedImportDeclaration(name);
             if (importDeclaration is not null)
             {
-                var importBindings = Core.ElementAt(_currentModuleInfo!.ExportedBindings, TransformationUtilities.GetOriginalNodeId((Node)importDeclaration));
+                // PORT-NOTE: the reference writes `currentModuleInfo?.exportedBindings[…]` (module.ts:2464) — the module
+                // info is absent when the substitution hook runs outside the module transform's file scope (the es5
+                // downlevel path reaches here), and the reference answers `undefined` then. The port's `!` threw an NRE.
+                if (_currentModuleInfo is null) return null;
+                var importBindings = Core.ElementAt(_currentModuleInfo.ExportedBindings, TransformationUtilities.GetOriginalNodeId((Node)importDeclaration));
                 return importBindings is null ? null : [.. importBindings.Cast<Node>()];
             }
 
@@ -244,7 +248,9 @@ internal sealed partial class ModuleTransformer
             {
                 foreach (var declaration in declarations)
                 {
-                    var bindings = Core.ElementAt(_currentModuleInfo!.ExportedBindings, TransformationUtilities.GetOriginalNodeId((Node)declaration));
+                    var bindings = _currentModuleInfo is null
+                        ? null
+                        : Core.ElementAt(_currentModuleInfo.ExportedBindings, TransformationUtilities.GetOriginalNodeId((Node)declaration));
                     if (bindings is not null)
                     {
                         foreach (var binding in bindings)
@@ -261,7 +267,7 @@ internal sealed partial class ModuleTransformer
         }
         else if (ModuleTransformSupport.IsFileLevelReservedGeneratedIdentifier(name))
         {
-            var exportSpecifiers = _currentModuleInfo!.ExportSpecifiers.Get(name);
+            var exportSpecifiers = _currentModuleInfo?.ExportSpecifiers.Get(name);
             if (exportSpecifiers is not null)
             {
                 var exportedNames = new List<Node>();
