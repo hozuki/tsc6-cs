@@ -316,7 +316,11 @@ internal sealed partial class Checker
         bool IsExpressionNodeOrShorthandPropertyAssignmentName(Identifier identifier)
         {
             // TODO(jakebailey): Just use isExpressionNode once that considers these identifiers to be expressions.
-            var shorthandParent = (ShorthandPropertyAssignment?)identifier.Parent;
+            // CHECKER-FIX: the reference's `isShorthandPropertyAssignment(node.parent)` is a *predicate*, and the second
+            // operand of `||` reads `node.parent.objectAssignmentInitializer ?? node.parent.name` only when it holds;
+            // the port spelled the guard as an unconditional cast, which throws on every other parent kind (a
+            // ClassDeclaration reaches here through CalculateNodeCheckFlagWorker's ForEachChildRecursively walk).
+            var shorthandParent = identifier.Parent as ShorthandPropertyAssignment;
             return Utilities.IsExpressionNode(identifier)
                 || NodeTests.IsShorthandPropertyAssignment(identifier.Parent!)
                     && ReferenceEquals(shorthandParent!.ObjectAssignmentInitializer ?? (object?)shorthandParent.Name, identifier);
