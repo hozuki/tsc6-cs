@@ -42,13 +42,12 @@ public class CoreComparisonTests
         Assert.False(Core.EquateStringsCaseInsensitive(null, "a"));
 
         // PORT-NOTE: TS 用“转大写”而非“转小写”正是为了这个用例 —— "ẞ"(U+1E9E) 的大写是自身，
-        // 不会与 "ß" 折叠到一起。.NET 的 ToUpperInvariant 在这里与之行为一致。
+        // 不会与 "ß" 折叠到一起。
         Assert.False(Core.EquateStringsCaseInsensitive("ẞ", "ß"));
 
-        // PORT-NOTE: 已知差异。JS 的 toUpperCase 对 "ß" 做 full case mapping（"SS"），.NET 的
-        // ToUpperInvariant 不做，所以 TS 中 "ss" == "ß" 成立、移植版中不成立。
-        // 影响面仅限含 ß 一类特殊字符的标识符/文件名比较。
-        Assert.False(Core.EquateStringsCaseInsensitive("ss", "ß"));
+        // JS 的 toUpperCase 对 "ß" 做 full case mapping（"SS"），所以 TS 里 "ss" == "ß" 成立。移植版通过
+        // ICU 拿同一张表；ICU 不可用时回退到 .NET 的 invariant 映射，这一条就会变成 false（见 IcuCaseFolding）。
+        Assert.Equal(IcuCaseFolding.IsAvailable, Core.EquateStringsCaseInsensitive("ss", "ß"));
     }
 
     [Fact]

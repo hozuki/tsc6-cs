@@ -11,8 +11,10 @@ namespace TypeScript.Compiler;
 /// comparison operators on <see cref="string"/>, so every ordinal string comparison goes through
 /// <see cref="string.CompareOrdinal(string, string)"/>, which has the same code-unit semantics.
 /// <para>
-/// PORT-NOTE: JS's <c>toUpperCase</c>/<c>toLowerCase</c> are locale-independent. The port uses
-/// <see cref="string.ToUpperInvariant"/> / <see cref="string.ToLowerInvariant"/> for that reason.
+/// PORT-NOTE: JS's <c>toUpperCase</c>/<c>toLowerCase</c> are locale-independent, and V8 applies the Unicode
+/// <em>full</em> case mapping. The port therefore goes through <see cref="IcuCaseFolding"/>, which asks ICU for
+/// that mapping and only falls back to .NET's invariant one when ICU cannot be reached — the fallback is where
+/// ß-style characters start to differ from the reference.
 /// </para>
 /// </remarks>
 internal static partial class Core
@@ -35,7 +37,7 @@ internal static partial class Core
         => a == b
             || (a is not null
                 && b is not null
-                && a.ToUpperInvariant() == b.ToUpperInvariant());
+                && IcuCaseFolding.ToUpper(a) == IcuCaseFolding.ToUpper(b));
 
     // ported from: src/compiler/core.ts:1966-1968
     public static bool EquateStringsCaseSensitive(string? a, string? b) => a == b;
@@ -61,7 +63,7 @@ internal static partial class Core
     public static Comparison CompareValues(int? a, int? b) => CompareComparableValues(a, b);
 
     // ported from: src/compiler/core.ts:2002-2007
-    public static double MaxBy<T>(IReadOnlyList<T> arr, double init, Func<T, double> mapper)
+    public static double MaxBy<T>(IList<T> arr, double init, Func<T, double> mapper)
     {
         for (var i = 0; i < arr.Count; i++)
         {
@@ -72,7 +74,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:2010-2016
-    public static T? Min<T>(IReadOnlyList<T> items, Comparer<T> compare)
+    public static T? Min<T>(IList<T> items, Comparer<T> compare)
         where T : class
         => ReduceLeft(items, (x, y, _) => compare(x, y) == Comparison.LessThan ? x : y);
 
@@ -85,7 +87,7 @@ internal static partial class Core
         if (a == b) return Comparison.EqualTo;
         if (a is null) return Comparison.LessThan;
         if (b is null) return Comparison.GreaterThan;
-        return CompareStringsOrdinal(a.ToUpperInvariant(), b.ToUpperInvariant());
+        return CompareStringsOrdinal(IcuCaseFolding.ToUpper(a), IcuCaseFolding.ToUpper(b));
     }
 
     // ported from: src/compiler/core.ts:2053-2060
@@ -98,7 +100,7 @@ internal static partial class Core
         if (a == b) return Comparison.EqualTo;
         if (a is null) return Comparison.LessThan;
         if (b is null) return Comparison.GreaterThan;
-        return CompareStringsOrdinal(a.ToLowerInvariant(), b.ToLowerInvariant());
+        return CompareStringsOrdinal(IcuCaseFolding.ToLower(a), IcuCaseFolding.ToLower(b));
     }
 
     // ported from: src/compiler/core.ts:2074-2076
@@ -195,7 +197,7 @@ internal static partial class Core
 
                 // Only consider candidates less than 3 characters long when they differ by case.
                 // Otherwise, don't bother, since a user would usually notice differences of a 2-character name.
-                if (candidateName.Length < 3 && candidateName.ToLowerInvariant() != name.ToLowerInvariant())
+                if (candidateName.Length < 3 && IcuCaseFolding.ToLower(candidateName) != IcuCaseFolding.ToLower(name))
                 {
                     continue;
                 }
@@ -244,7 +246,7 @@ internal static partial class Core
             for (var j = minJ; j <= maxJ; j++)
             {
                 // case difference should be significantly cheaper than other differences
-                var substitutionDistance = char.ToLowerInvariant(s1[i - 1]) == char.ToLowerInvariant(s2[j - 1])
+                var substitutionDistance = IcuCaseFolding.ToLower(s1[i - 1].ToString()) == IcuCaseFolding.ToLower(s2[j - 1].ToString())
                     ? previous[j - 1] + 0.1
                     : previous[j - 1] + 2;
                 var dist = c1 == s2[j - 1]

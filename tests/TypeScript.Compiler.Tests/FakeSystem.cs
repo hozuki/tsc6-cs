@@ -11,7 +11,7 @@ internal sealed class FakeSystem : ISystem
 {
     private readonly HashSet<string> _directories = new(StringComparer.Ordinal);
 
-    public IReadOnlyList<string> Args { get; set; } = [];
+    public IList<string> Args { get; set; } = [];
 
     public string NewLine { get; set; } = "\n";
 
@@ -61,13 +61,13 @@ internal sealed class FakeSystem : ISystem
 
     public string GetCurrentDirectory() => string.Empty;
 
-    public IReadOnlyList<string> GetDirectories(string path) => [];
+    public IList<string> GetDirectories(string path) => [];
 
-    public IReadOnlyList<string> ReadDirectory(
+    public IList<string> ReadDirectory(
         string path,
-        IReadOnlyList<string>? extensions = null,
-        IReadOnlyList<string>? exclude = null,
-        IReadOnlyList<string>? include = null,
+        IList<string>? extensions = null,
+        IList<string>? exclude = null,
+        IList<string>? include = null,
         int? depth = null) => [];
 
     public void Exit(int exitCode = 0)

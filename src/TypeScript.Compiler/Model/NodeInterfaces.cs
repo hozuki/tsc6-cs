@@ -23,7 +23,7 @@ internal interface IAllAccessorDeclarations
 internal interface IAllDecorators
 {
     List<Decorator>? Decorators { get; set; }
-    IReadOnlyList<List<Decorator>>? Parameters { get; set; }
+    List<List<Decorator>>? Parameters { get; set; }
     List<Decorator>? GetDecorators { get; set; }
     List<Decorator>? SetDecorators { get; set; }
 }
@@ -196,7 +196,7 @@ internal interface ICommentDirectivesMap
 /// <summary>ported from types.ts: <c>CompilerHost</c>.</summary>
 internal interface ICompilerHost
 {
-    Action<string, string, bool, Action<string>, IReadOnlyList<SourceFile>, IWriteFileCallbackData, object?>? WriteFile { get; set; }
+    Action<string, string, bool, Action<string>, List<SourceFile>, IWriteFileCallbackData, object?>? WriteFile { get; set; }
     Func<bool>? HasChangedAutomaticTypeDirectiveNames { get; set; }
     bool? StoreSignatureInfo { get; set; }
     JSDocParsingMode? JsDocParsingMode { get; set; }
@@ -205,7 +205,7 @@ internal interface ICompilerHost
 /// <summary>ported from types.ts: <c>CompilerHostLikeForCache</c>.</summary>
 internal interface ICompilerHostLikeForCache
 {
-    Action<string, string, bool, Action<string>, IReadOnlyList<SourceFile>, IWriteFileCallbackData, object?>? WriteFile { get; set; }
+    Action<string, string, bool, Action<string>, List<SourceFile>, IWriteFileCallbackData, object?>? WriteFile { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>CompilerHostLikeWithCache</c>.</summary>
@@ -215,7 +215,7 @@ internal interface ICompilerHostLikeWithCache
     Func<string, bool>? OriginalFileExists { get; set; }
     Func<string, bool>? OriginalDirectoryExists { get; set; }
     Action<string>? OriginalCreateDirectory { get; set; }
-    Action<string, string, bool, Action<string>, IReadOnlyList<SourceFile>, IWriteFileCallbackData, object?>? OriginalWriteFile { get; set; }
+    Action<string, string, bool, Action<string>, List<SourceFile>, IWriteFileCallbackData, object?>? OriginalWriteFile { get; set; }
     Func<string, object?, Action<string>, bool, SourceFile>? GetSourceFileWithCache { get; set; }
     Func<string, string>? ReadFileWithCache { get; set; }
 }
@@ -419,12 +419,12 @@ internal interface IConfigFileSpecs
 /// <summary>ported from types.ts: <c>CreateProgramOptions</c>.</summary>
 internal interface ICreateProgramOptions
 {
-    IReadOnlyList<string>? RootNames { get; set; }
+    List<string>? RootNames { get; set; }
     ICompilerOptions? Options { get; set; }
-    IReadOnlyList<IProjectReference>? ProjectReferences { get; set; }
+    List<IProjectReference>? ProjectReferences { get; set; }
     ICompilerHost? Host { get; set; }
     IProgram? OldProgram { get; set; }
-    IReadOnlyList<Diagnostic>? ConfigFileParsingDiagnostics { get; set; }
+    List<Diagnostic>? ConfigFileParsingDiagnostics { get; set; }
     string? TypeScriptVersion { get; set; }
 }
 
@@ -560,7 +560,7 @@ internal interface IEmitHelperFactory
 /// <summary>ported from types.ts: <c>EmitHost</c>.</summary>
 internal interface IEmitHost : IModuleSpecifierResolutionHost, ISourceFileMayBeEmittedHost
 {
-    Action<string, string, bool, Action<string>, IReadOnlyList<SourceFile>, IWriteFileCallbackData, object?>? WriteFile { get; set; }
+    Action<string, string, bool, Action<string>, List<SourceFile>, IWriteFileCallbackData, object?>? WriteFile { get; set; }
     object? GetSourceFileFromReference { get; set; }
 }
 
@@ -597,7 +597,7 @@ internal interface IEmitResolver
 internal interface IEmitResult
 {
     bool EmitSkipped { get; set; }
-    IReadOnlyList<Diagnostic>? Diagnostics { get; set; }
+    List<Diagnostic>? Diagnostics { get; set; }
     List<string>? EmittedFiles { get; set; }
     List<ISourceMapEmitResult>? SourceMaps { get; set; }
 }
@@ -610,8 +610,8 @@ internal interface IEmitTextWriter
 /// <summary>ported from types.ts: <c>EmitTransformers</c>.</summary>
 internal interface IEmitTransformers
 {
-    IReadOnlyList<Func<ITransformationContext, Func<object?, object?>>>? ScriptTransformers { get; set; }
-    IReadOnlyList<Func<ITransformationContext, Func<object?, object?>>>? DeclarationTransformers { get; set; }
+    List<Func<ITransformationContext, Func<object?, object?>>>? ScriptTransformers { get; set; }
+    List<Func<ITransformationContext, Func<object?, object?>>>? DeclarationTransformers { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>EnumType</c>.</summary>
@@ -780,8 +780,8 @@ internal interface IFutureSourceFile
     object? PackageJsonScope { get; }
     bool? ExternalModuleIndicator { get; }
     bool? CommonJsModuleIndicator { get; }
-    IReadOnlyList<object?>? Statements { get; }
-    IReadOnlyList<object?>? Imports { get; }
+    List<object?>? Statements { get; }
+    List<object?>? Imports { get; }
 }
 
 /// <summary>ported from types.ts: <c>GeneratedIdentifier</c>.</summary>
@@ -886,7 +886,7 @@ internal interface IInferenceContext
     object? NonFixingMapper { get; set; }
     object? ReturnMapper { get; set; }
     object? OuterReturnMapper { get; set; }
-    IReadOnlyList<ITypeParameter>? InferredTypeParameters { get; set; }
+    List<ITypeParameter>? InferredTypeParameters { get; set; }
     List<IIntraExpressionInferenceSite>? IntraExpressionInferenceSites { get; set; }
 }
 
@@ -968,7 +968,7 @@ internal interface IIterationTypes
 /// <summary>ported from types.ts: <c>JSDocArray</c>.</summary>
 internal interface IJSDocArray
 {
-    IReadOnlyList<JSDocTag>? JsDocCache { get; set; }
+    List<JSDocTag>? JsDocCache { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>JSDocContainer</c>.</summary>
@@ -1106,7 +1106,7 @@ internal interface IModuleSpecifierOptions
 /// <summary>ported from types.ts: <c>ModuleSpecifierResolutionHost</c>.</summary>
 internal interface IModuleSpecifierResolutionHost
 {
-    Dictionary<string, IReadOnlyList<string>>? RedirectTargetsMap { get; }
+    Dictionary<string, List<string>>? RedirectTargetsMap { get; }
 }
 
 /// <summary>ported from types.ts: <c>NamedDeclaration</c>.</summary>
@@ -1241,7 +1241,7 @@ internal interface IParsedCommandLine
     ICompilerOptions? Options { get; set; }
     ITypeAcquisition? TypeAcquisition { get; set; }
     List<string>? FileNames { get; set; }
-    IReadOnlyList<IProjectReference>? ProjectReferences { get; set; }
+    List<IProjectReference>? ProjectReferences { get; set; }
     IWatchOptions? WatchOptions { get; set; }
     object? Raw { get; set; }
     List<Diagnostic>? Errors { get; set; }
@@ -1499,7 +1499,7 @@ internal interface IRequireVariableStatement
 /// <summary>ported from types.ts: <c>ResolutionDiagnostics</c>.</summary>
 internal interface IResolutionDiagnostics
 {
-    IReadOnlyList<Diagnostic>? Diagnostics { get; set; }
+    List<Diagnostic>? Diagnostics { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ResolutionLoader</c>.</summary>
@@ -1552,7 +1552,7 @@ internal interface IResolvedProjectReference
 {
     IParsedCommandLine? CommandLine { get; set; }
     SourceFile? SourceFile { get; set; }
-    IReadOnlyList<IResolvedProjectReference>? References { get; set; }
+    List<IResolvedProjectReference>? References { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ResolvedRefAndOutputDts</c>.</summary>
@@ -1634,8 +1634,8 @@ internal interface ISignature
 {
     ITypeChecker? Checker { get; set; }
     Node? Declaration { get; set; }
-    IReadOnlyList<ITypeParameter>? TypeParameters { get; set; }
-    IReadOnlyList<Symbol>? Parameters { get; set; }
+    List<ITypeParameter>? TypeParameters { get; set; }
+    List<Symbol>? Parameters { get; set; }
     Symbol? ThisParameter { get; set; }
     Type? ResolvedReturnType { get; set; }
     Node? ResolvedTypePredicate { get; set; }
@@ -1676,7 +1676,7 @@ internal interface ISourceFileImportsList
 internal interface ISourceFileLike
 {
     string? Text { get; }
-    IReadOnlyList<int>? LineMap { get; set; }
+    List<int>? LineMap { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SourceFileMayBeEmittedHost</c>.</summary>
@@ -1688,7 +1688,7 @@ internal interface ISourceFileMayBeEmittedHost
 /// <summary>ported from types.ts: <c>SourceMapEmitResult</c>.</summary>
 internal interface ISourceMapEmitResult
 {
-    IReadOnlyList<string>? InputSourceFileNames { get; set; }
+    List<string>? InputSourceFileNames { get; set; }
     IRawSourceMap? SourceMap { get; set; }
 }
 
@@ -1708,7 +1708,7 @@ internal interface ISourceMapSource
 {
     string? FileName { get; set; }
     string? Text { get; set; }
-    IReadOnlyList<int>? LineMap { get; set; }
+    List<int>? LineMap { get; set; }
     Func<int, int>? SkipTrivia { get; set; }
 }
 
@@ -1843,8 +1843,8 @@ internal interface ITemplateLiteralLikeNode
 /// <summary>ported from types.ts: <c>TemplateLiteralType</c>.</summary>
 internal interface ITemplateLiteralType
 {
-    IReadOnlyList<string>? Texts { get; set; }
-    IReadOnlyList<Type>? Types { get; set; }
+    List<string>? Texts { get; set; }
+    List<Type>? Types { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TextChangeRange</c>.</summary>
@@ -1910,13 +1910,13 @@ internal interface ITsConfigSourceFile
 /// <summary>ported from types.ts: <c>TupleType</c>.</summary>
 internal interface ITupleType
 {
-    IReadOnlyList<ElementFlags>? ElementFlags { get; set; }
+    List<ElementFlags>? ElementFlags { get; set; }
     int MinLength { get; set; }
     int FixedLength { get; set; }
     bool HasRestElement { get; set; }
     ElementFlags CombinedFlags { get; set; }
     bool Readonly { get; set; }
-    IReadOnlyList<Node>? LabeledElementDeclarations { get; set; }
+    List<Node>? LabeledElementDeclarations { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TupleTypeReference</c>.</summary>
@@ -1967,7 +1967,7 @@ internal interface ITypeReference
     GenericType? Target { get; set; }
     Node? Node { get; set; }
     object? Mapper { get; set; }
-    IReadOnlyList<Type>? ResolvedTypeArguments { get; set; }
+    List<Type>? ResolvedTypeArguments { get; set; }
     ITypeReference? LiteralType { get; set; }
     Type? CachedEquivalentBaseType { get; set; }
 }
@@ -1993,7 +1993,7 @@ internal interface IUnionType : IUnionOrIntersectionType
     Type? Origin { get; set; }
     string? KeyPropertyName { get; set; }
     Dictionary<int, Type>? ConstituentMap { get; set; }
-    IReadOnlyList<ISignature>? ArrayFallbackSignatures { get; set; }
+    List<ISignature>? ArrayFallbackSignatures { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>UniqueESSymbolType</c>.</summary>
@@ -2096,7 +2096,7 @@ internal interface IWriteFileCallbackData
 {
     int? SourceMapUrlPos { get; set; }
     IBuildInfo? BuildInfo { get; set; }
-    IReadOnlyList<IDiagnosticWithLocation>? Diagnostics { get; set; }
+    List<IDiagnosticWithLocation>? Diagnostics { get; set; }
     bool? DiffersOnlyInMap { get; set; }
     bool? SkippedDtsWrite { get; set; }
 }

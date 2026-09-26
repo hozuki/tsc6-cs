@@ -121,7 +121,7 @@ internal static class ScannerUtilities
 
     // ported from: src/compiler/scanner.ts:475-500
     public static int ComputePositionOfLineAndCharacter(
-        IReadOnlyList<int> lineStarts,
+        IList<int> lineStarts,
         int line,
         int character,
         string? debugText = null,
@@ -165,11 +165,11 @@ internal static class ScannerUtilities
     }
 
     // ported from: src/compiler/scanner.ts:503-505
-    public static IReadOnlyList<int> GetLineStarts(ISourceFileLike sourceFile)
+    public static IList<int> GetLineStarts(ISourceFileLike sourceFile)
         => sourceFile.LineMap ?? (sourceFile.LineMap = ComputeLineStarts(sourceFile.Text ?? string.Empty));
 
     // ported from: src/compiler/scanner.ts:508-514
-    public static LineAndCharacter ComputeLineAndCharacterOfPosition(IReadOnlyList<int> lineStarts, int position)
+    public static LineAndCharacter ComputeLineAndCharacterOfPosition(IList<int> lineStarts, int position)
     {
         var lineNumber = ComputeLineOfPosition(lineStarts, position);
         return new LineAndCharacter { Line = lineNumber, Character = position - lineStarts[lineNumber] };
@@ -178,7 +178,7 @@ internal static class ScannerUtilities
     // ported from: src/compiler/scanner.ts:520-534
     /// <summary>The line a position belongs to.</summary>
     /// <remarks>Assumes the first line starts at 0 and that <paramref name="position"/> is non-negative.</remarks>
-    public static int ComputeLineOfPosition(IReadOnlyList<int> lineStarts, int position, int? lowerBound = null)
+    public static int ComputeLineOfPosition(IList<int> lineStarts, int position, int? lowerBound = null)
     {
         var lineNumber = Core.BinarySearch(
             lineStarts,
@@ -342,7 +342,7 @@ internal static class ScannerUtilities
 
     // ported from: src/compiler/scanner.ts:358-385
     /// <summary>Searches a range table (pairs of inclusive bounds) for a code point.</summary>
-    private static bool LookupInUnicodeMap(int code, IReadOnlyList<int> map)
+    private static bool LookupInUnicodeMap(int code, IList<int> map)
     {
         // Bail out quickly if it could not possibly be in the map.
         if (code < map[0]) return false;

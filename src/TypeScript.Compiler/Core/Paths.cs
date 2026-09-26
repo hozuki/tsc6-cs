@@ -92,7 +92,7 @@ internal static partial class Paths
         => path.Length > extension.Length && Core.EndsWith(path, extension);
 
     // ported from: src/compiler/path.ts:125-133
-    public static bool FileExtensionIsOneOf(string path, IReadOnlyList<string> extensions)
+    public static bool FileExtensionIsOneOf(string path, IList<string> extensions)
     {
         for (var i = 0; i < extensions.Count; i++)
         {
@@ -259,10 +259,10 @@ internal static partial class Paths
     public static string GetBaseFileName(string path, string extension, bool ignoreCase)
         => GetBaseFileNameWorker(path, [extension], ignoreCase);
 
-    public static string GetBaseFileName(string path, IReadOnlyList<string>? extensions, bool? ignoreCase)
+    public static string GetBaseFileName(string path, IList<string>? extensions, bool? ignoreCase)
         => GetBaseFileNameWorker(path, extensions, ignoreCase);
 
-    private static string GetBaseFileNameWorker(string path, IReadOnlyList<string>? extensions, bool? ignoreCase)
+    private static string GetBaseFileNameWorker(string path, IList<string>? extensions, bool? ignoreCase)
     {
         path = NormalizeSlashes(path);
 
@@ -297,7 +297,7 @@ internal static partial class Paths
     }
 
     // ported from: src/compiler/path.ts:398-407
-    private static string GetAnyExtensionFromPathWorker(string path, IReadOnlyList<string> extensions, EqualityComparer<string?> stringEqualityComparer)
+    private static string GetAnyExtensionFromPathWorker(string path, IList<string> extensions, EqualityComparer<string?> stringEqualityComparer)
     {
         for (var i = 0; i < extensions.Count; i++)
         {
@@ -333,7 +333,7 @@ internal static partial class Paths
     public static string GetAnyExtensionFromPath(string path, string extension, bool ignoreCase)
         => GetAnyExtensionFromPath(path, [extension], ignoreCase);
 
-    public static string GetAnyExtensionFromPath(string path, IReadOnlyList<string> extensions, bool ignoreCase)
+    public static string GetAnyExtensionFromPath(string path, IList<string> extensions, bool ignoreCase)
         => GetAnyExtensionFromPathWorker(
             RemoveTrailingDirectorySeparator(path),
             extensions,
@@ -368,7 +368,7 @@ internal static partial class Paths
     /// Formats a parsed path consisting of a root component (at index 0) and zero or more path segments
     /// (at indices &gt; 0).
     /// </summary>
-    public static string GetPathFromPathComponents(IReadOnlyList<string> pathComponents, int? length = null)
+    public static string GetPathFromPathComponents(IList<string> pathComponents, int? length = null)
     {
         if (pathComponents.Count == 0) return "";
 
@@ -395,7 +395,7 @@ internal static partial class Paths
     /// Reduce an array of path components to a more simplified path by navigating any <c>"."</c> or
     /// <c>".."</c> entries in the path.
     /// </summary>
-    public static List<string> ReducePathComponents(IReadOnlyList<string> components)
+    public static List<string> ReducePathComponents(IList<string> components)
     {
         if (!Core.Some(components)) return [];
         var reduced = new List<string> { components[0] };
@@ -630,7 +630,7 @@ internal static partial class Paths
     }
 
     // ported from: src/compiler/path.ts:751-754
-    private static string GetPathWithoutRoot(IReadOnlyList<string> pathComponents)
+    private static string GetPathWithoutRoot(IList<string> pathComponents)
         => pathComponents.Count == 0 ? "" : string.Join(DirectorySeparator, pathComponents.Skip(1));
 
     // ported from: src/compiler/path.ts:757-759
@@ -682,7 +682,7 @@ internal static partial class Paths
     public static string ChangeAnyExtension(string path, string ext, string extension, bool ignoreCase)
         => ChangeAnyExtension(path, ext, [extension], ignoreCase);
 
-    public static string ChangeAnyExtension(string path, string ext, IReadOnlyList<string> extensions, bool ignoreCase)
+    public static string ChangeAnyExtension(string path, string ext, IList<string> extensions, bool ignoreCase)
     {
         var pathext = GetAnyExtensionFromPath(path, extensions, ignoreCase);
         return pathext.Length != 0

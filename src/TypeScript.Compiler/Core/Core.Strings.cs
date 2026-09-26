@@ -14,7 +14,7 @@ internal static partial class Core
     public static T Identity<T>(T x) => x;
 
     // ported from: src/compiler/core.ts:1835-1837 — JS's non-locale-aware `toLowerCase`.
-    private static string ToLowerCase(string x) => x.ToLowerInvariant();
+    private static string ToLowerCase(string x) => IcuCaseFolding.ToLower(x);
 
     // ported from: src/compiler/core.ts:1861
     // We convert file names to lower case as a key on case-insensitive file systems. While doing so we
@@ -166,7 +166,7 @@ internal static partial class Core
     }
 
     /// <summary>Return the object corresponding to the best pattern to match <paramref name="candidate"/>.</summary>
-    public static T? FindBestPatternMatch<T>(IReadOnlyList<T> values, Func<T, Pattern> getPattern, string candidate)
+    public static T? FindBestPatternMatch<T>(IList<T> values, Func<T, Pattern> getPattern, string candidate)
         where T : class
     {
         T? matchedValue = null;

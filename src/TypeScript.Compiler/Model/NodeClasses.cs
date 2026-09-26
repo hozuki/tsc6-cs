@@ -163,10 +163,10 @@ internal sealed class Bundle : Node, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.Bundle;
 
-    public IReadOnlyList<SourceFile>? SourceFiles { get; }
-    public IReadOnlyList<IFileReference>? SyntheticFileReferences { get; set; }
-    public IReadOnlyList<IFileReference>? SyntheticTypeReferences { get; set; }
-    public IReadOnlyList<IFileReference>? SyntheticLibReferences { get; set; }
+    public List<SourceFile>? SourceFiles { get; }
+    public List<IFileReference>? SyntheticFileReferences { get; set; }
+    public List<IFileReference>? SyntheticTypeReferences { get; set; }
+    public List<IFileReference>? SyntheticLibReferences { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>CallChain</c>.</summary>
@@ -821,7 +821,7 @@ internal abstract class GenericType : InterfaceType, ITypeReference
     public GenericType? Target { get; set; }
     public Node? Node { get; set; }
     public object? Mapper { get; set; }
-    public IReadOnlyList<Type>? ResolvedTypeArguments { get; set; }
+    public List<Type>? ResolvedTypeArguments { get; set; }
     public ITypeReference? LiteralType { get; set; }
     public Type? CachedEquivalentBaseType { get; set; }
 }
@@ -1372,8 +1372,8 @@ internal sealed class JSDocSignature : JSDocType, IDeclaration, IJSDocContainer,
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocSignature;
 
-    public IReadOnlyList<JSDocTemplateTag>? TypeParameters { get; }
-    public IReadOnlyList<JSDocParameterTag>? Parameters { get; }
+    public List<JSDocTemplateTag>? TypeParameters { get; }
+    public List<JSDocParameterTag>? Parameters { get; }
     public JSDocReturnTag? Type { get; }
     public Symbol? Symbol { get; set; }
     public Symbol? LocalSymbol { get; set; }
@@ -1440,7 +1440,7 @@ internal sealed class JSDocTypeLiteral : JSDocType, IDeclaration, IReadonlyTextR
 {
     public override SyntaxKind Kind => SyntaxKind.JSDocTypeLiteral;
 
-    public IReadOnlyList<JSDocPropertyLikeTag>? JsDocPropertyTags { get; }
+    public List<JSDocPropertyLikeTag>? JsDocPropertyTags { get; }
     public bool IsArrayType { get; }
     public Symbol? Symbol { get; set; }
     public Symbol? LocalSymbol { get; set; }
@@ -1962,9 +1962,9 @@ internal abstract class ObjectType : Type
     public ObjectFlags ObjectFlags { get; set; }
     public Dictionary<string, Symbol>? Members { get; set; }
     public List<Symbol>? Properties { get; set; }
-    public IReadOnlyList<ISignature>? CallSignatures { get; set; }
-    public IReadOnlyList<ISignature>? ConstructSignatures { get; set; }
-    public IReadOnlyList<IIndexInfo>? IndexInfos { get; set; }
+    public List<ISignature>? CallSignatures { get; set; }
+    public List<ISignature>? ConstructSignatures { get; set; }
+    public List<IIndexInfo>? IndexInfos { get; set; }
     public ObjectType? ObjectTypeWithoutAbstractConstructSignatures { get; set; }
 }
 
@@ -2137,10 +2137,10 @@ internal abstract class ReadonlyPragmaContext : Node
     public ScriptTarget LanguageVersion { get; set; }
     public IReadonlyPragmaMap? Pragmas { get; set; }
     public ICheckJsDirective? CheckJsDirective { get; set; }
-    public IReadOnlyList<IFileReference>? ReferencedFiles { get; set; }
-    public IReadOnlyList<IFileReference>? TypeReferenceDirectives { get; set; }
-    public IReadOnlyList<IFileReference>? LibReferenceDirectives { get; set; }
-    public IReadOnlyList<IAmdDependency>? AmdDependencies { get; set; }
+    public List<IFileReference>? ReferencedFiles { get; set; }
+    public List<IFileReference>? TypeReferenceDirectives { get; set; }
+    public List<IFileReference>? LibReferenceDirectives { get; set; }
+    public List<IAmdDependency>? AmdDependencies { get; set; }
     public string? ModuleName { get; set; }
 }
 
@@ -2566,7 +2566,7 @@ internal abstract class Type : Node
     public Symbol? Symbol { get; set; }
     public Node? Pattern { get; set; }
     public Symbol? AliasSymbol { get; set; }
-    public IReadOnlyList<Type>? AliasTypeArguments { get; set; }
+    public List<Type>? AliasTypeArguments { get; set; }
     public Type? PermissiveInstantiation { get; set; }
     public Type? RestrictiveInstantiation { get; set; }
     public Type? ImmediateBaseConstraint { get; set; }
@@ -2604,7 +2604,7 @@ internal sealed class TypeAssertion : UnaryExpression, IReadonlyTextRange
 /// <summary>ported from types.ts: <c>TypeCheckerHost</c>.</summary>
 internal abstract class TypeCheckerHost : Node, IModuleSpecifierResolutionHost, ISourceFileMayBeEmittedHost
 {
-    public Dictionary<string, IReadOnlyList<string>>? RedirectTargetsMap { get; }
+    public Dictionary<string, List<string>>? RedirectTargetsMap { get; }
     public object? GetCanonicalFileName { get; set; }
 }
 

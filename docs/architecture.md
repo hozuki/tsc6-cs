@@ -356,9 +356,12 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 - **稳定排序**：TS 用 `Array.prototype.sort`（ES2019 起稳定），C# 的 `List.Sort`/`Array.Sort` 是内省排序、**不稳定**。`Core.StableSort` 用原始索引做 tiebreak 来恢复稳定性，所有排序入口（`toSorted`/`sortAndDeduplicate`/`deduplicate`）都经过它。
 - **字符串序**：JS 的 `<`/`>` 按 UTF-16 码元比较；C# 的 `string` 没有比较运算符，统一走 `string.CompareOrdinal`。
 - **字符串索引越界**：JS 的 `str.charCodeAt(i)` 越界返回 `NaN`，与任何字符码比较都为 `false`；C# 的 `s[i]` 越界**抛异常**。`Paths.CharCodeAt` 把越界读映射为 `-1`（落在 0..0xFFFF 之外，比较结果与 `NaN` 一致）；`path.ts` 的根长度解析（`//`、`c:`、`file:///`）依赖这一点，直接翻译会在 `"/"` 这类输入上崩溃。
-- **大小写折叠**：JS 的 `toUpperCase` 是 full case mapping（`"ß"` → `"SS"`），.NET 的 `ToUpperInvariant` 不是。因此 `equateStringsCaseInsensitive("ss", "ß")` 在 TS 中为 `true`、在移植版中为 `false`。影响面仅限含 ß 一类特殊字符的标识符/文件名比较。**已知差异，暂不补偿。**
+- **大小写折叠**：JS 的 `toUpperCase`/`toLowerCase` 是 **full case mapping**（`"ß"` → `"SS"`），.NET 的 `ToUpperInvariant`/`ToLowerInvariant` 是保持长度的 simple mapping，两者在 ß、İ 这类字符上不一致：TS 的 `equateStringsCaseInsensitive("ss", "ß")` 为 `true`，只用 .NET 的映射会得到 `false`。移植版因此走 **ICU** —— `Core/IcuCaseFolding` 探测并加载 `u_strToUpper`/`u_strToLower`（UTF-16 接口、root locale，即 V8 用的那张表），原来所有 `ToUpperInvariant`/`ToLowerInvariant` 调用点都改成它。
+  - ICU 不可得时回退到 .NET 的 invariant 映射，并在 stderr 上**打印一次警告** —— 降级必须可见，否则一条行为差异会变成谜团。
+  - 探测形态：Windows 的 `icuuc.dll` 用未加后缀的符号名，Unix 构建按 ICU 主版本重命名符号（`u_strToUpper_74`）并把版本写进文件名，两种都试（版本 60..80 逐个探测）。
+  - `Wildcard.GetRegexFromPattern` 的 `RegexOptions.IgnoreCase` 不走这条路径：那是正则引擎自己的折叠，与 V8 的差异单独记在该方法处。
 - **`StartsWith`**：TS 写 `str.lastIndexOf(prefix, 0) === 0`。.NET 的 `LastIndexOf(value, 0, Ordinal)` 在 `value` 长于 `startIndex + 1` 时返回 `-1`（实测 `"./foo".LastIndexOf("./", 0, Ordinal) == -1`），语义不同，因此改写为 `str.StartsWith(prefix, Ordinal)` 并补上 TS `slice` 的长度收敛行为。
-- **"返回同一实例"的优化**：`filter`/`compact` 等在 TS 中可能返回入参实例本身。C# 因输入为 `IReadOnlyList<T>`、输出为 `List<T>` 而无法共享实例，这些函数改为返回新列表（`sameMap`/`concatenate`/`compact` 则通过返回 `IReadOnlyList<T>` 保留该契约）。
+- **"返回同一实例"的优化**：`filter`/`sameMap`/`compact`/`concatenate`/`appendIfUnique` 在 TS 里会把**入参本人**返回（"什么都没变"时），checker 依赖这个优化。移植版把这类数组工具的参数与返回类型统一成 `IList<T>` —— JS `Array` 在 C# 里的对应物 —— 于是那一份实例可以真的交回去；生成物里 `readonly T[]` 的映射也随之从 `IReadOnlyList<T>` 改成 `List<T>`（见 §12.3）。只有实现内部（`new List<T>(…)`、计数用的局部变量）才出现具体类型；`IList<T>` 没有 `RemoveRange` 这类成员，那里展开成等价的循环。
 - **断言分级**：TS 通过把 `Debug` 上的断言函数替换成 `noop` 并缓存来实现分级；C# 不能在运行时替换自身方法，改为每个受分级控制的断言在入口处判断 `ShouldAssert`。调用点契约不变。
 - **JS 位运算 + 双精度混合算术**：`generateDjb2Hash` 的三行代码里，`acc << 5` 每步把 `acc` 强制成 int32，而随后的 `+` 是**双精度加法、不再截断**，于是 `acc` 又离开 int32 区间（2000 字符输入下 2000 步里有 1894 步如此）。用 `int` 累加会在这些步骤上截断，用 `long` 会在超过 2^53 后与 JS 分歧，因此移植版用 `double` 累加，并新增 `Js.ToInt32`（JS `ToInt32` 精确语义：`NaN`/无穷 → `0`，否则按 2^32 取模再落回有符号区间）与 `Js.NumberToString`（JS `Number#toString()` 对整数值输出十进制整数，而 C# 的默认格式早得多就切到科学计数法）。
 - **truthy 的 `string` 重载**：`Js.IsTruthy` 有 `object?` 与 `T? where T : class` 两个重载，而对 `string` 参数**泛型那个会胜出**，答的是"非 null"——于是 TS 的 `if (spec)` 被译成"非 null"，空串成了 truthy，`flatMap` 的 wildcard 规格就是这么错的（下一条）。现在有 `IsTruthy(string?)` 专用重载（带 `[NotNullWhen(true)]`），泛型重载上写明了它的适用边界。
@@ -523,6 +526,7 @@ TS 允许子接口**收窄**成员类型 —— `FunctionDeclaration.body` 是 `
 | 裸引用泛型 | 参数补 `object?` | TS 有类型参数默认值，C# 没有 |
 | `Pick`/`Record`/`Partial`… | `object?` | TS 内置工具类型无对应 |
 | `Map`/`Set` | `Dictionary`/`HashSet` | key 去掉可空（`notnull` 约束） |
+| `readonly T[]` / `ReadonlyArray<T>` | `List<T>`（与 `T[]` 相同） | TS 的 `readonly` 只是编译期约束，运行时就是可变的 `Array`；映射成只读视图会与收 `IList<T>` 的数组工具不兼容（§10.2） |
 | 引用类型成员 | 补 `?` | 生成物跑在 `#nullable enable` 下，而这些字段由 parser/factory 填充 |
 | 字符串字面量键（`"amd-dependency"`） | 跳过 | 无合法 C# 拼写，属内部管线 |
 | `_xxxBrand` | 跳过 | 只为让 TS 的结构类型名义化 |

@@ -393,7 +393,7 @@ public class SysWatchTests
     [Fact]
     public void RecursiveDirectoryWatcher_WatchesEveryChildDirectory()
     {
-        var children = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
+        var children = new Dictionary<string, IList<string>>(StringComparer.Ordinal)
         {
             ["/project"] = ["/project/src"],
             ["/project/src"] = [],

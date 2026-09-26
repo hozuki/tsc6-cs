@@ -68,9 +68,9 @@ internal enum FileSystemEntryKind
 /// <summary>The files and subdirectories directly inside one directory.</summary>
 internal interface IFileSystemEntries
 {
-    IReadOnlyList<string> Files { get; }
+    IList<string> Files { get; }
 
-    IReadOnlyList<string> Directories { get; }
+    IList<string> Directories { get; }
 }
 
 // ported from: src/compiler/sys.ts:107-112
@@ -101,7 +101,7 @@ internal interface IModifiedTimeHost
 internal interface ISystem : IModifiedTimeHost
 {
     /// <summary>Command-line arguments, excluding the executable.</summary>
-    IReadOnlyList<string> Args { get; }
+    IList<string> Args { get; }
 
     string NewLine { get; }
 
@@ -126,13 +126,13 @@ internal interface ISystem : IModifiedTimeHost
 
     string GetCurrentDirectory();
 
-    IReadOnlyList<string> GetDirectories(string path);
+    IList<string> GetDirectories(string path);
 
-    IReadOnlyList<string> ReadDirectory(
+    IList<string> ReadDirectory(
         string path,
-        IReadOnlyList<string>? extensions = null,
-        IReadOnlyList<string>? exclude = null,
-        IReadOnlyList<string>? include = null,
+        IList<string>? extensions = null,
+        IList<string>? exclude = null,
+        IList<string>? include = null,
         int? depth = null);
 
     void Exit(int exitCode = 0);

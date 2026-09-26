@@ -104,7 +104,7 @@ public class WildcardTests
     [InlineData("/project/SRC/a.ts", "src", true, false)]
     public void MatchesExclude_ReproducesUpstream(string pathToCheck, string? spec, bool useCaseSensitiveFileNames, bool expected)
     {
-        IReadOnlyList<string>? specs = spec is null ? null : [spec];
+        IList<string>? specs = spec is null ? null : [spec];
         Assert.Equal(expected, Wildcard.MatchesExclude(pathToCheck, specs, useCaseSensitiveFileNames, "/project"));
     }
 

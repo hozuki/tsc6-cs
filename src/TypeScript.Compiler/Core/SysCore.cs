@@ -22,7 +22,7 @@ internal static class SysCore
 
     // ported from: src/compiler/sys.ts:562
     /// <summary>Paths a recursive directory watcher never descends into.</summary>
-    public static readonly IReadOnlyList<string> IgnoredPaths = ["/node_modules/.", "/.git", "/.#"];
+    public static readonly IList<string> IgnoredPaths = ["/node_modules/.", "/.git", "/.#"];
 
     private static Action<string> s_curSysLog = static _ => { };
 

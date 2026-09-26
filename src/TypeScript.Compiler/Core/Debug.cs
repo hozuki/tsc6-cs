@@ -197,7 +197,7 @@ internal static class Debug
 
     // ported from: src/compiler/debug.ts:260-271
 
-    public static void AssertEachIsDefined<T>(IReadOnlyList<T> value, string? message = null)
+    public static void AssertEachIsDefined<T>(IList<T> value, string? message = null)
     {
         foreach (var v in value)
         {
@@ -205,7 +205,7 @@ internal static class Debug
         }
     }
 
-    public static IReadOnlyList<T> CheckEachDefined<T>(IReadOnlyList<T> value, string? message = null)
+    public static IList<T> CheckEachDefined<T>(IList<T> value, string? message = null)
     {
         AssertEachIsDefined(value, message);
         return value;

@@ -217,7 +217,7 @@ public class CoreArraysTests
     [Fact]
     public void CartesianProduct_MatchesExpectedOrder()
     {
-        var arrays = new List<IReadOnlyList<int>>
+        var arrays = new List<IList<int>>
         {
             new List<int> { 1, 2 },
             new List<int> { 7, 8 },

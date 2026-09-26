@@ -107,8 +107,13 @@ internal sealed class TsTypeMapper
         if (text.StartsWith("readonly ", StringComparison.Ordinal))
         {
             var inner = text["readonly ".Length..].Trim();
+
+            // `readonly T[]` maps to List<T>, the same as `T[]`: TS's readonly modifier is a compile-time
+            // constraint and the value is an ordinary mutable array at run time. A read-only C# view would also
+            // be unusable with the Core array helpers, which take IList<T> for exactly this reason
+            // (docs/architecture.md §12.3).
             return inner.EndsWith("[]", StringComparison.Ordinal)
-                ? $"IReadOnlyList<{Map(inner[..^2])}>"
+                ? $"List<{Map(inner[..^2])}>"
                 : Map(inner);
         }
 
@@ -280,7 +285,7 @@ internal sealed class TsTypeMapper
         // A Dictionary key cannot be null, while the TS key type may be nullable.
         "Map" or "ReadonlyMap" => $"Dictionary<{arguments[0].TrimEnd('?')}, {arguments[1]}>",
         "Set" or "ReadonlySet" => $"HashSet<{arguments[0].TrimEnd('?')}>",
-        "Array" => $"List<{arguments[0]}>",
+        "Array" or "ReadonlyArray" => $"List<{arguments[0]}>",
         // The token family has a runtime `SyntaxKind` rather than a type parameter (see Token.cs), so the
         // argument is dropped: `PunctuationToken<SyntaxKind.CommaToken>` is just a PunctuationToken.
         "Token" or "PunctuationToken" or "KeywordToken" or "ModifierToken" => name,

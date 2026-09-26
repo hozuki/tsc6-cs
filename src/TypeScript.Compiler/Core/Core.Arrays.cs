@@ -6,13 +6,14 @@ namespace TypeScript.Compiler;
 /// <c>core.ts</c> module.
 /// </summary>
 /// <remarks>
-/// PORT-NOTE: TS distinguishes <c>T[]</c> from <c>readonly T[]</c> in the type system only. The port maps
-/// inputs to <see cref="IReadOnlyList{T}"/> and freshly-built outputs to <see cref="List{T}"/>. Functions
-/// that TS documents as "returns the same array instance" (<c>sameMap</c>, <c>combine</c>, <c>compact</c>, ...)
-/// keep that contract via <see cref="IReadOnlyList{T}"/> returns.
+/// PORT-NOTE: TS distinguishes <c>T[]</c> from <c>readonly T[]</c> in the type system only — at run time both are
+/// a mutable <c>Array</c>. The port therefore maps both sides to <see cref="IList{T}"/>, with freshly-built
+/// values being <see cref="List{T}"/>. That is what lets the functions TS documents as "returns the same array
+/// instance" (<c>filter</c>, <c>sameMap</c>, <c>compact</c>, <c>concatenate</c>, …) hand the input back
+/// (see docs/architecture.md §10.2).
 /// <para>
 /// PORT-NOTE: <c>undefined</c> becomes <c>null</c>; nullable reference types make this explicit.
-/// Functions whose TS signature is <c>readonly T[] | undefined</c> take an <see cref="IReadOnlyList{T}"/>?
+/// Functions whose TS signature is <c>readonly T[] | undefined</c> take an <see cref="IList{T}"/>?
 /// and return <c>null</c> for the <c>undefined</c> case.
 /// </para>
 /// <para>
@@ -24,10 +25,10 @@ namespace TypeScript.Compiler;
 internal static partial class Core
 {
     // ported from: src/compiler/core.ts:22-24
-    public static int Length<T>(IReadOnlyList<T>? array) => array?.Count ?? 0;
+    public static int Length<T>(IList<T>? array) => array?.Count ?? 0;
 
     // ported from: src/compiler/core.ts:33-43
-    public static TU? ForEach<T, TU>(IReadOnlyList<T>? array, Func<T, int, TU?> callback)
+    public static TU? ForEach<T, TU>(IList<T>? array, Func<T, int, TU?> callback)
         where TU : class
     {
         if (array is not null)
@@ -46,7 +47,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:50-60
-    public static TU? ForEachRight<T, TU>(IReadOnlyList<T>? array, Func<T, int, TU?> callback)
+    public static TU? ForEachRight<T, TU>(IList<T>? array, Func<T, int, TU?> callback)
         where TU : class
     {
         if (array is not null)
@@ -65,7 +66,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:67-79
-    public static TU? FirstDefined<T, TU>(IReadOnlyList<T>? array, Func<T, int, TU?> callback)
+    public static TU? FirstDefined<T, TU>(IList<T>? array, Func<T, int, TU?> callback)
         where TU : class
     {
         if (array is null)
@@ -119,7 +120,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:106-113
-    public static List<TV> ZipWith<T, TU, TV>(IReadOnlyList<T> arrayA, IReadOnlyList<TU> arrayB, Func<T, TU, int, TV> callback)
+    public static List<TV> ZipWith<T, TU, TV>(IList<T> arrayA, IList<TU> arrayB, Func<T, TU, int, TV> callback)
     {
         Debug.AssertEqual(arrayA.Count, arrayB.Count);
         var result = new List<TV>(arrayA.Count);
@@ -132,7 +133,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:121-131
-    public static List<T> Intersperse<T>(IReadOnlyList<T> input, T element)
+    public static IList<T> Intersperse<T>(IList<T> input, T element)
     {
         if (input.Count <= 1)
         {
@@ -150,7 +151,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:145-155
-    public static bool Every<T>(IReadOnlyList<T>? array, Func<T, int, bool> callback)
+    public static bool Every<T>(IList<T>? array, Func<T, int, bool> callback)
     {
         if (array is not null)
         {
@@ -167,7 +168,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:166-175
-    public static T? Find<T>(IReadOnlyList<T>? array, Func<T, int, bool> predicate, int startIndex = 0)
+    public static T? Find<T>(IList<T>? array, Func<T, int, bool> predicate, int startIndex = 0)
         where T : class
     {
         if (array is null) return null;
@@ -184,7 +185,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:182-191
-    public static T? FindLast<T>(IReadOnlyList<T>? array, Func<T, int, bool> predicate, int? startIndex = null)
+    public static T? FindLast<T>(IList<T>? array, Func<T, int, bool> predicate, int? startIndex = null)
         where T : class
     {
         if (array is null) return null;
@@ -201,7 +202,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:198-206
-    public static int FindIndex<T>(IReadOnlyList<T>? array, Func<T, int, bool> predicate, int startIndex = 0)
+    public static int FindIndex<T>(IList<T>? array, Func<T, int, bool> predicate, int startIndex = 0)
     {
         if (array is null) return -1;
         for (var i = startIndex; i < array.Count; i++)
@@ -216,7 +217,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:209-217
-    public static int FindLastIndex<T>(IReadOnlyList<T>? array, Func<T, int, bool> predicate, int? startIndex = null)
+    public static int FindLastIndex<T>(IList<T>? array, Func<T, int, bool> predicate, int? startIndex = null)
     {
         if (array is null) return -1;
         for (var i = startIndex ?? array.Count - 1; i >= 0; i--)
@@ -231,7 +232,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:220-229
-    public static bool Contains<T>(IReadOnlyList<T>? array, T value, EqualityComparer<T>? equalityComparer = null)
+    public static bool Contains<T>(IList<T>? array, T value, EqualityComparer<T>? equalityComparer = null)
     {
         var comparer = equalityComparer ?? EquateValues;
         if (array is not null)
@@ -249,7 +250,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:232-239
-    public static int IndexOfAnyCharCode(string text, IReadOnlyList<int> charCodes, int start = 0)
+    public static int IndexOfAnyCharCode(string text, IList<int> charCodes, int start = 0)
     {
         for (var i = start; i < text.Length; i++)
         {
@@ -263,7 +264,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:242-253
-    public static int CountWhere<T>(IReadOnlyList<T>? array, Func<T, int, bool> predicate)
+    public static int CountWhere<T>(IList<T>? array, Func<T, int, bool> predicate)
     {
         var count = 0;
         if (array is not null)
@@ -281,16 +282,16 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:277-296
-    public static List<T>? Filter<T>(IReadOnlyList<T>? array, Func<T, bool> f)
+    public static IList<T>? Filter<T>(IList<T>? array, Func<T, bool> f)
     {
         if (array is null)
         {
             return null;
         }
 
-        // PORT-NOTE: TS returns the *same* array instance when every element passes. Since the port's
-        // input contract is IReadOnlyList<T> and the output is List<T>, the instance cannot be shared;
-        // callers in TS never mutate the (readonly) result, so a copy is observationally equivalent.
+        // TS builds the whole result and then returns the *input* when nothing was filtered out. Both sides are
+        // IList<T> here — the counterpart of JS's mutable array — so that instance can be handed back as-is
+        // (docs/architecture.md §10.2).
         var result = new List<T>(array.Count);
         for (var i = 0; i < array.Count; i++)
         {
@@ -301,11 +302,11 @@ internal static partial class Core
             }
         }
 
-        return result;
+        return result.Count != array.Count ? result : array;
     }
 
     // ported from: src/compiler/core.ts:299-308
-    public static void FilterMutate<T>(List<T> array, Func<T, int, List<T>, bool> f)
+    public static void FilterMutate<T>(IList<T> array, Func<T, int, IList<T>, bool> f)
     {
         var outIndex = 0;
         for (var i = 0; i < array.Count; i++)
@@ -317,14 +318,16 @@ internal static partial class Core
             }
         }
 
-        array.RemoveRange(outIndex, array.Count - outIndex);
+        // PORT-NOTE: IList<T> has no RemoveRange, so the tail is trimmed one item at a time — same effect, and
+        // the parameter stays an interface (docs/architecture.md §10.2).
+        while (array.Count > outIndex) array.RemoveAt(array.Count - 1);
     }
 
     // ported from: src/compiler/core.ts:311-313
-    public static void Clear<T>(List<T> array) => array.Clear();
+    public static void Clear<T>(IList<T> array) => array.Clear();
 
     // ported from: src/compiler/core.ts:320-329
-    public static List<TU>? Map<T, TU>(IReadOnlyList<T>? array, Func<T, int, TU> f)
+    public static List<TU>? Map<T, TU>(IList<T>? array, Func<T, int, TU> f)
     {
         if (array is null)
         {
@@ -350,7 +353,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:350-366
-    public static IReadOnlyList<T>? SameMap<T>(IReadOnlyList<T>? array, Func<T, int, T> f)
+    public static IList<T>? SameMap<T>(IList<T>? array, Func<T, int, T> f)
     {
         if (array is not null)
         {
@@ -382,7 +385,7 @@ internal static partial class Core
 
     // ported from: src/compiler/core.ts:375-389
     // PORT-NOTE: TS's `flatten` tests `if (v)` (JS truthiness); Js.IsTruthy keeps that semantic.
-    public static List<T> Flatten<T>(IReadOnlyList<object?> array)
+    public static IList<T> Flatten<T>(IList<object?> array)
     {
         var result = new List<T>();
         for (var i = 0; i < array.Count; i++)
@@ -411,7 +414,7 @@ internal static partial class Core
     /// PORT-NOTE: the test is JS <em>truthiness</em>, not "is not undefined": TS drops a mapped value that is
     /// falsy, so an empty string produced by the mapper never reaches the result (wildcard specs rely on this).
     /// </remarks>
-    public static IReadOnlyList<TU> FlatMap<T, TU>(IReadOnlyList<T>? array, Func<T, int, object?> mapfn)
+    public static IList<TU> FlatMap<T, TU>(IList<T>? array, Func<T, int, object?> mapfn)
     {
         var result = new List<TU>();
         if (array is not null)
@@ -435,8 +438,8 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:418-434
-    /// <inheritdoc cref="FlatMap{T,TU}(IReadOnlyList{T}?,Func{T,int,object}?)"/>
-    public static List<TU> FlatMapToMutable<T, TU>(IReadOnlyList<T>? array, Func<T, int, object?> mapfn)
+    /// <inheritdoc cref="FlatMap{T,TU}(IList{T}?,Func{T,int,object}?)"/>
+    public static List<TU> FlatMapToMutable<T, TU>(IList<T>? array, Func<T, int, object?> mapfn)
     {
         var result = new List<TU>();
         if (array is not null)
@@ -474,9 +477,9 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:458-478
-    public static IReadOnlyList<T> SameFlatMap<T>(IReadOnlyList<T> array, Func<T, int, object> mapfn)
+    public static IList<T> SameFlatMap<T>(IList<T> array, Func<T, int, object> mapfn)
     {
-        List<T>? result = null;
+        IList<T>? result = null;
         for (var i = 0; i < array.Count; i++)
         {
             var item = array[i];
@@ -486,7 +489,7 @@ internal static partial class Core
                 result ??= Slice(array, 0, i);
                 if (mapped is IEnumerable<T> many)
                 {
-                    result.AddRange(many);
+                    foreach (var value in many) result.Add(value);
                 }
                 else
                 {
@@ -499,7 +502,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:481-491
-    public static List<TU>? MapAllOrFail<T, TU>(IReadOnlyList<T> array, Func<T, int, TU?> mapFn)
+    public static List<TU>? MapAllOrFail<T, TU>(IList<T> array, Func<T, int, TU?> mapFn)
         where TU : class
     {
         var result = new List<TU>(array.Count);
@@ -518,7 +521,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:494-505
-    public static List<TU> MapDefined<T, TU>(IReadOnlyList<T>? array, Func<T, int, TU?> mapFn)
+    public static List<TU> MapDefined<T, TU>(IList<T>? array, Func<T, int, TU?> mapFn)
         where TU : class
     {
         var result = new List<TU>();
@@ -576,7 +579,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:555-593
-    public static List<TU>? SpanMap<T, TK, TU>(IReadOnlyList<T>? array, Func<T, int, TK> keyfn, Func<List<T>, TK, int, int, TU?> mapfn)
+    public static List<TU>? SpanMap<T, TK, TU>(IList<T>? array, Func<T, int, TK> keyfn, Func<IList<T>, TK, int, int, TU?> mapfn)
     {
         List<TU>? result = null;
         if (array is not null)
@@ -647,7 +650,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:618-632
-    public static bool Some<T>(IReadOnlyList<T>? array, Func<T, bool>? predicate = null)
+    public static bool Some<T>(IList<T>? array, Func<T, bool>? predicate = null)
     {
         if (array is not null)
         {
@@ -671,7 +674,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:639-653
-    public static void GetRangesWhere<T>(IReadOnlyList<T> arr, Func<T, bool> pred, Action<int, int> cb)
+    public static void GetRangesWhere<T>(IList<T> arr, Func<T, bool> pred, Action<int, int> cb)
     {
         int? start = null;
         for (var i = 0; i < arr.Count; i++)
@@ -694,7 +697,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:672-676
-    public static IReadOnlyList<T>? Concatenate<T>(IReadOnlyList<T>? array1, IReadOnlyList<T>? array2)
+    public static IList<T>? Concatenate<T>(IList<T>? array1, IList<T>? array2)
     {
         if (array2 is null || array2.Count == 0) return array1;
         if (array1 is null || array1.Count == 0) return array2;
@@ -705,7 +708,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:678-685
-    public static List<int> IndicesOf<T>(IReadOnlyList<T> array)
+    public static List<int> IndicesOf<T>(IList<T> array)
     {
         var result = new List<int>(array.Count);
         for (var i = 0; i < array.Count; i++)
@@ -717,7 +720,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:725-730
-    public static List<T> Deduplicate<T>(IReadOnlyList<T> array, EqualityComparer<T> equalityComparer, Comparer<T>? comparer = null)
+    public static IList<T> Deduplicate<T>(IList<T> array, EqualityComparer<T> equalityComparer, Comparer<T>? comparer = null)
     {
         if (array.Count == 0)
         {
@@ -735,7 +738,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:687-707
-    private static List<T> DeduplicateRelational<T>(IReadOnlyList<T> array, EqualityComparer<T> equalityComparer, Comparer<T> comparer)
+    private static IList<T> DeduplicateRelational<T>(IList<T> array, EqualityComparer<T> equalityComparer, Comparer<T> comparer)
     {
         // Perform a stable sort of the array. This ensures the first entry in a list of
         // duplicates remains the first entry in the result.
@@ -767,7 +770,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:709-715
-    private static List<T> DeduplicateEquality<T>(IReadOnlyList<T> array, EqualityComparer<T> equalityComparer)
+    private static IList<T> DeduplicateEquality<T>(IList<T> array, EqualityComparer<T> equalityComparer)
     {
         var result = new List<T>();
         for (var i = 0; i < array.Count; i++)
@@ -779,7 +782,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:735-760
-    internal static IReadOnlyList<T> DeduplicateSorted<T>(IReadOnlyList<T> array, EqualityComparer<T> comparer)
+    internal static IList<T> DeduplicateSorted<T>(IList<T> array, EqualityComparer<T> comparer)
     {
         if (array.Count == 0) return array;
 
@@ -803,7 +806,7 @@ internal static partial class Core
     // ported from: src/compiler/core.ts:763-765
     // PORT-NOTE: TS's SortedArray<T> brand type has no runtime representation in C#; a sorted array
     // is simply a List<T> that the caller keeps sorted.
-    public static List<T> CreateSortedArray<T>() => new();
+    public static IList<T> CreateSortedArray<T>() => new List<T>();
 
     // ported from: src/compiler/core.ts:768-802
     public static bool InsertSorted<T>(
@@ -853,10 +856,10 @@ internal static partial class Core
     // ported from: src/compiler/core.ts:805-811
     // PORT-NOTE: the TS string overload defaults its comparer to compareStringsCaseSensitive; in C# that
     // becomes an explicit overload so the generic version can keep comparer mandatory.
-    public static IReadOnlyList<string> SortAndDeduplicate(IReadOnlyList<string> array)
+    public static IList<string> SortAndDeduplicate(IList<string> array)
         => SortAndDeduplicate(array, Core.CompareStringsCaseSensitive, Core.EquateStringsCaseSensitive);
 
-    public static IReadOnlyList<T> SortAndDeduplicate<T>(IReadOnlyList<T> array, Comparer<T> comparer, EqualityComparer<T>? equalityComparer = null)
+    public static IList<T> SortAndDeduplicate<T>(IList<T> array, Comparer<T> comparer, EqualityComparer<T>? equalityComparer = null)
     {
         var equality = equalityComparer ?? ((a, b) => comparer(a, b) == Comparison.EqualTo);
         return DeduplicateSorted(ToSorted(array, comparer), equality);
@@ -864,8 +867,8 @@ internal static partial class Core
 
     // ported from: src/compiler/core.ts:814-830
     public static bool ArrayIsEqualTo<T>(
-        IReadOnlyList<T>? array1,
-        IReadOnlyList<T>? array2,
+        IList<T>? array1,
+        IList<T>? array2,
         Func<T, T, int, bool>? equalityComparer = null)
     {
         var comparer = equalityComparer ?? ((a, b, _) => EquateValues(a, b));
@@ -891,10 +894,10 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:846-862
-    public static IReadOnlyList<T>? Compact<T>(IReadOnlyList<T>? array)
+    public static IList<T>? Compact<T>(IList<T>? array)
         where T : class
     {
-        List<T>? result = null;
+        IList<T>? result = null;
         if (array is not null)
         {
             for (var i = 0; i < array.Count; i++)
@@ -918,7 +921,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:871-909
-    public static List<T>? RelativeComplement<T>(List<T>? arrayA, List<T>? arrayB, Comparer<T> comparer)
+    public static IList<T>? RelativeComplement<T>(IList<T>? arrayA, IList<T>? arrayB, Comparer<T> comparer)
     {
         if (arrayB is null || arrayA is null || arrayB.Count == 0 || arrayA.Count == 0) return arrayB;
         var result = new List<T>();
@@ -960,7 +963,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:926-931
-    public static List<T>? Append<T>(List<T>? to, T? value)
+    public static IList<T>? Append<T>(IList<T>? to, T? value)
         where T : class
     {
         if (value is null) return to;
@@ -973,7 +976,7 @@ internal static partial class Core
     private static int ToOffset(int length, int offset) => offset < 0 ? length + offset : offset;
 
     // ported from: src/compiler/core.ts:985-996
-    public static List<T>? AddRange<T>(List<T>? to, IReadOnlyList<T>? from, int? start = null, int? end = null)
+    public static IList<T>? AddRange<T>(IList<T>? to, IList<T>? from, int? start = null, int? end = null)
     {
         if (from is null || from.Count == 0) return to;
         if (to is null) return Slice(from, start ?? 0, end ?? from.Count);
@@ -988,7 +991,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:1003-1011
-    public static bool PushIfUnique<T>(List<T> array, T toAdd, EqualityComparer<T>? equalityComparer = null)
+    public static bool PushIfUnique<T>(IList<T> array, T toAdd, EqualityComparer<T>? equalityComparer = null)
     {
         if (Contains(array, toAdd, equalityComparer))
         {
@@ -1000,7 +1003,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:1018-1026
-    public static List<T> AppendIfUnique<T>(List<T>? array, T toAdd, EqualityComparer<T>? equalityComparer = null)
+    public static IList<T> AppendIfUnique<T>(IList<T>? array, T toAdd, EqualityComparer<T>? equalityComparer = null)
     {
         if (array is not null)
         {
@@ -1012,7 +1015,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:1028-1031
-    private static void StableSortIndices<T>(IReadOnlyList<T> array, List<int> indices, Comparer<T> comparer)
+    private static void StableSortIndices<T>(IList<T> array, List<int> indices, Comparer<T> comparer)
     {
         // sort indices by value then position
         StableSort(indices, (x, y) =>
@@ -1023,7 +1026,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:1038-1040
-    public static IReadOnlyList<T> ToSorted<T>(IReadOnlyList<T> array, Comparer<T>? comparer = null)
+    public static IList<T> ToSorted<T>(IList<T> array, Comparer<T>? comparer = null)
     {
         var result = new List<T>(array);
         if (comparer is not null)
@@ -1040,7 +1043,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:1043-1047
-    public static IEnumerable<T> ArrayReverseIterator<T>(IReadOnlyList<T> array)
+    public static IEnumerable<T> ArrayReverseIterator<T>(IList<T> array)
     {
         for (var i = array.Count - 1; i >= 0; i--)
         {
@@ -1049,7 +1052,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:1050-1058
-    public static bool RangeEquals<T>(IReadOnlyList<T> array1, IReadOnlyList<T> array2, int pos, int end)
+    public static bool RangeEquals<T>(IList<T> array1, IList<T> array2, int pos, int end)
     {
         while (pos < end)
         {
@@ -1065,7 +1068,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:1066-1076
-    public static T? ElementAt<T>(IReadOnlyList<T>? array, int offset)
+    public static T? ElementAt<T>(IList<T>? array, int offset)
         where T : class
     {
         if (array is not null)
@@ -1081,7 +1084,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:1083-1095
-    public static T? FirstOrUndefined<T>(IReadOnlyList<T>? array)
+    public static T? FirstOrUndefined<T>(IList<T>? array)
         where T : class
         => array is null || array.Count == 0 ? null : array[0];
 
@@ -1100,7 +1103,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:1098-1109
-    public static T First<T>(IReadOnlyList<T> array)
+    public static T First<T>(IList<T> array)
     {
         Debug.Assert(array.Count != 0);
         return array[0];
@@ -1117,27 +1120,27 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:1116-1124
-    public static T? LastOrUndefined<T>(IReadOnlyList<T>? array)
+    public static T? LastOrUndefined<T>(IList<T>? array)
         where T : class
         => array is null || array.Count == 0 ? null : array[array.Count - 1];
 
-    public static T Last<T>(IReadOnlyList<T> array)
+    public static T Last<T>(IList<T> array)
     {
         Debug.Assert(array.Count != 0);
         return array[array.Count - 1];
     }
 
     // ported from: src/compiler/core.ts:1131-1144
-    public static T? SingleOrUndefined<T>(IReadOnlyList<T>? array)
+    public static T? SingleOrUndefined<T>(IList<T>? array)
         where T : class
         => array is not null && array.Count == 1 ? array[0] : null;
 
-    public static T Single<T>(IReadOnlyList<T> array)
+    public static T Single<T>(IList<T> array)
         where T : class
         => Debug.CheckDefined(SingleOrUndefined(array));
 
     // ported from: src/compiler/core.ts:1167-1171
-    public static List<T> ReplaceElement<T>(IReadOnlyList<T> array, int index, T value)
+    public static IList<T> ReplaceElement<T>(IList<T> array, int index, T value)
     {
         var result = new List<T>(array);
         result[index] = value;
@@ -1145,11 +1148,11 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:1186-1188
-    public static int BinarySearch<T, TU>(IReadOnlyList<T> array, T value, Func<T, TU> keySelector, Comparer<TU> keyComparer, int offset = 0)
+    public static int BinarySearch<T, TU>(IList<T> array, T value, Func<T, TU> keySelector, Comparer<TU> keyComparer, int offset = 0)
         => BinarySearchKey(array, keySelector(value), (v, _) => keySelector(v), keyComparer, offset);
 
     // ported from: src/compiler/core.ts:1202-1225
-    public static int BinarySearchKey<T, TU>(IReadOnlyList<T> array, TU key, Func<T, int, TU> keySelector, Comparer<TU> keyComparer, int offset = 0)
+    public static int BinarySearchKey<T, TU>(IList<T> array, TU key, Func<T, int, TU> keySelector, Comparer<TU> keyComparer, int offset = 0)
     {
         if (!Some(array))
         {
@@ -1181,7 +1184,7 @@ internal static partial class Core
     // ported from: src/compiler/core.ts:1228-1254
     // PORT-NOTE: TS distinguishes "no initial value" via `arguments.length <= 2`; C# expresses that with
     // two overloads instead of a runtime arity check.
-    public static TU ReduceLeft<T, TU>(IReadOnlyList<T>? array, Func<TU, T, int, TU> f, TU initial, int? start = null, int? count = null)
+    public static TU ReduceLeft<T, TU>(IList<T>? array, Func<TU, T, int, TU> f, TU initial, int? start = null, int? count = null)
     {
         if (array is { Count: > 0 })
         {
@@ -1201,7 +1204,7 @@ internal static partial class Core
         return initial;
     }
 
-    public static T? ReduceLeft<T>(IReadOnlyList<T>? array, Func<T, T, int, T> f, int? start = null, int? count = null)
+    public static T? ReduceLeft<T>(IList<T>? array, Func<T, T, int, T> f, int? start = null, int? count = null)
         where T : class
     {
         if (array is { Count: > 0 })
@@ -1224,7 +1227,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:1324-1330
-    public static List<T> ArrayOf<T>(int count, Func<int, T> f)
+    public static IList<T> ArrayOf<T>(int count, Func<int, T> f)
     {
         var result = new List<T>(count);
         for (var i = 0; i < count; i++)
@@ -1247,7 +1250,7 @@ internal static partial class Core
         return result;
     }
 
-    public static List<T> ArrayFrom<T>(IEnumerable<T> iterator)
+    public static IList<T> ArrayFrom<T>(IEnumerable<T> iterator)
     {
         var result = new List<T>();
         foreach (var value in iterator)
@@ -1259,7 +1262,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:1409-1417
-    public static Dictionary<TK, TV> ArrayToMap<T, TK, TV>(IReadOnlyList<T> array, Func<T, TK?> makeKey, Func<T, TV> makeValue)
+    public static Dictionary<TK, TV> ArrayToMap<T, TK, TV>(IList<T> array, Func<T, TK?> makeKey, Func<T, TV> makeValue)
         where TK : class
     {
         var result = new Dictionary<TK, TV>();
@@ -1274,7 +1277,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:1438-1445
-    public static MultiMap<TK, TU> ArrayToMultiMap<T, TK, TU>(IReadOnlyList<T> values, Func<T, TK> makeKey, Func<T, TU> makeValue)
+    public static MultiMap<TK, TU> ArrayToMultiMap<T, TK, TU>(IList<T> values, Func<T, TK> makeKey, Func<T, TU> makeValue)
         where TK : notnull
     {
         var result = CreateMultiMap<TK, TU>();
@@ -1288,7 +1291,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:1456-1458
-    public static List<R> Group<T, TK, R>(IReadOnlyList<T> values, Func<T, TK> getGroupId, Func<IReadOnlyList<T>, R> resultSelector)
+    public static List<R> Group<T, TK, R>(IList<T> values, Func<T, TK> getGroupId, Func<IList<T>, R> resultSelector)
         where TK : notnull
     {
         var multiMap = ArrayToMultiMap(values, getGroupId, static v => v);
@@ -1302,10 +1305,10 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:1464-1475
-    public static Dictionary<string, List<T>> GroupBy<T, TK>(IReadOnlyList<T>? values, Func<T, TK> keySelector)
+    public static Dictionary<string, IList<T>> GroupBy<T, TK>(IList<T>? values, Func<T, TK> keySelector)
         where TK : notnull
     {
-        var result = new Dictionary<string, List<T>>();
+        var result = new Dictionary<string, IList<T>>();
         if (values is not null)
         {
             for (var i = 0; i < values.Count; i++)
@@ -1323,7 +1326,7 @@ internal static partial class Core
     // ported from: src/compiler/core.ts:2325-2333
     // PORT-NOTE: TS uses `===` (reference equality for objects); EqualityComparer<T>.Default is the C#
     // equivalent for value types and matches it for types that do not override Equals.
-    public static bool OrderedRemoveItem<T>(List<T> array, T item)
+    public static bool OrderedRemoveItem<T>(IList<T> array, T item)
     {
         for (var i = 0; i < array.Count; i++)
         {
@@ -1338,7 +1341,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:2340-2348
-    public static void OrderedRemoveItemAt<T>(List<T> array, int index)
+    public static void OrderedRemoveItemAt<T>(IList<T> array, int index)
     {
         for (var i = index; i < array.Count - 1; i++)
         {
@@ -1349,7 +1352,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:2359-2372
-    public static bool UnorderedRemoveItem<T>(List<T> array, T item)
+    public static bool UnorderedRemoveItem<T>(IList<T> array, T item)
     {
         for (var i = 0; i < array.Count; i++)
         {
@@ -1373,14 +1376,14 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:2487-2489
-    public static List<T>? SingleElementArray<T>(T? t)
+    public static IList<T>? SingleElementArray<T>(T? t)
         where T : class
         => t is null ? null : [t];
 
     // ported from: src/compiler/core.ts:2492-2528
     public static bool EnumerateInsertsAndDeletes<T, TU>(
-        IReadOnlyList<T> newItems,
-        IReadOnlyList<TU> oldItems,
+        IList<T> newItems,
+        IList<TU> oldItems,
         Func<T, TU, Comparison> comparer,
         Action<T> inserted,
         Action<TU> deleted,
@@ -1432,14 +1435,14 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:2531-2554
-    public static List<List<T>> CartesianProduct<T>(IReadOnlyList<IReadOnlyList<T>> arrays)
+    public static List<IList<T>> CartesianProduct<T>(IList<IList<T>> arrays)
     {
-        var result = new List<List<T>>();
+        var result = new List<IList<T>>();
         CartesianProductWorker(arrays, result, null, 0);
         return result;
     }
 
-    private static void CartesianProductWorker<T>(IReadOnlyList<IReadOnlyList<T>> arrays, List<List<T>> result, IReadOnlyList<T>? outer, int index)
+    private static void CartesianProductWorker<T>(IList<IList<T>> arrays, List<IList<T>> result, IList<T>? outer, int index)
     {
         foreach (var element in arrays[index])
         {
@@ -1465,7 +1468,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:2560-2585
-    public static List<T>? TakeWhile<T>(IReadOnlyList<T>? array, Func<T, bool> predicate)
+    public static IList<T>? TakeWhile<T>(IList<T>? array, Func<T, bool> predicate)
     {
         if (array is not null)
         {
@@ -1482,7 +1485,7 @@ internal static partial class Core
         return null;
     }
 
-    public static List<T>? SkipWhile<T>(IReadOnlyList<T>? array, Func<T, bool> predicate)
+    public static IList<T>? SkipWhile<T>(IList<T>? array, Func<T, bool> predicate)
     {
         if (array is not null)
         {
@@ -1502,7 +1505,7 @@ internal static partial class Core
     // ---- shared helpers ----
 
     /// <summary>Shared helper: TS expresses this as <c>array.slice(start, end)</c>.</summary>
-    internal static List<T> Slice<T>(IReadOnlyList<T> array, int start, int end)
+    internal static IList<T> Slice<T>(IList<T> array, int start, int end)
     {
         var result = new List<T>(Math.Max(0, end - start));
         for (var i = start; i < end; i++)
@@ -1518,7 +1521,7 @@ internal static partial class Core
     /// <c>List.Sort</c>/<c>Array.Sort</c> are introspective and *not* stable, so ordering is made
     /// stable explicitly by breaking ties on the original index.
     /// </summary>
-    internal static void StableSort<T>(List<T> list, Comparer<T> comparer)
+    internal static void StableSort<T>(IList<T> list, Comparer<T> comparer)
     {
         var count = list.Count;
         var items = new T[count];

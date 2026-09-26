@@ -51,7 +51,7 @@ internal static class ScannerTablesEmitter
         // Keyword text → token kind. The object's insertion order is the source order.
         sb.AppendLine(Comment(keywordTable, "textToKeywordObj"));
         sb.AppendLine("    /// <summary>The reserved words, in source order.</summary>");
-        sb.AppendLine("    public static readonly IReadOnlyList<(string Text, SyntaxKind Kind)> TextToKeyword =");
+        sb.AppendLine("    public static readonly IList<(string Text, SyntaxKind Kind)> TextToKeyword =");
         sb.AppendLine("    [");
         foreach (var property in keywordTable.Value.EnumerateObject())
         {
@@ -65,7 +65,7 @@ internal static class ScannerTablesEmitter
         var tokenTable = Table(model, "textToToken");
         sb.AppendLine(Comment(tokenTable, "textToToken"));
         sb.AppendLine("    /// <summary>The keywords followed by the punctuators — every multi-character token spelling.</summary>");
-        sb.AppendLine("    public static readonly IReadOnlyList<(string Text, SyntaxKind Kind)> TextToToken =");
+        sb.AppendLine("    public static readonly IList<(string Text, SyntaxKind Kind)> TextToToken =");
         sb.AppendLine("    [");
         foreach (var entry in tokenTable.Value.EnumerateArray())
         {
@@ -79,7 +79,7 @@ internal static class ScannerTablesEmitter
         // Regular-expression flag character → flag.
         sb.AppendLine(Comment(Table(model, "charCodeToRegExpFlag"), "charCodeToRegExpFlag"));
         sb.AppendLine("    /// <summary>The character that spells a regular-expression flag.</summary>");
-        sb.AppendLine("    public static readonly IReadOnlyList<(int CharCode, RegularExpressionFlags Flag)> CharCodeToRegExpFlag =");
+        sb.AppendLine("    public static readonly IList<(int CharCode, RegularExpressionFlags Flag)> CharCodeToRegExpFlag =");
         sb.AppendLine("    [");
         foreach (var entry in Table(model, "charCodeToRegExpFlag").Value.EnumerateArray())
         {
@@ -94,7 +94,7 @@ internal static class ScannerTablesEmitter
         // LanguageFeatureMinimumTarget, a table in types.ts that nothing else needs, so it is resolved here.
         sb.AppendLine(Comment(Table(model, "regExpFlagToFirstAvailableLanguageVersion"), "regExpFlagToFirstAvailableLanguageVersion"));
         sb.AppendLine("    /// <summary>The earliest target a regular-expression flag can be used with.</summary>");
-        sb.AppendLine("    public static readonly IReadOnlyList<(RegularExpressionFlags Flag, ScriptTarget Target)> RegExpFlagToFirstAvailableTarget =");
+        sb.AppendLine("    public static readonly IList<(RegularExpressionFlags Flag, ScriptTarget Target)> RegExpFlagToFirstAvailableTarget =");
         sb.AppendLine("    [");
         var features = Table(model, "LanguageFeatureMinimumTarget").Value;
         foreach (var entry in Table(model, "regExpFlagToFirstAvailableLanguageVersion").Value.EnumerateArray())
@@ -118,7 +118,7 @@ internal static class ScannerTablesEmitter
         // Unicode property name tables, used to validate `\p{…}` in a `u`/`v` regular expression.
         sb.AppendLine(Comment(Table(model, "nonBinaryUnicodeProperties"), "nonBinaryUnicodeProperties"));
         sb.AppendLine("    /// <summary>Non-binary Unicode property aliases → their canonical names.</summary>");
-        sb.AppendLine("    public static readonly IReadOnlyList<(string Alias, string CanonicalName)> NonBinaryUnicodeProperties =");
+        sb.AppendLine("    public static readonly IList<(string Alias, string CanonicalName)> NonBinaryUnicodeProperties =");
         sb.AppendLine("    [");
         foreach (var entry in Table(model, "nonBinaryUnicodeProperties").Value.EnumerateArray())
         {
@@ -134,7 +134,7 @@ internal static class ScannerTablesEmitter
 
         sb.AppendLine(Comment(Table(model, "valuesOfNonBinaryUnicodeProperties"), "valuesOfNonBinaryUnicodeProperties"));
         sb.AppendLine("    /// <summary>The value of each non-binary Unicode property.</summary>");
-        sb.AppendLine("    public static readonly IReadOnlyList<(string Property, IReadOnlyList<string> Values)> ValuesOfNonBinaryUnicodeProperties =");
+        sb.AppendLine("    public static readonly IList<(string Property, IList<string> Values)> ValuesOfNonBinaryUnicodeProperties =");
         sb.AppendLine("    [");
         foreach (var property in Table(model, "valuesOfNonBinaryUnicodeProperties").Value.EnumerateObject())
         {
@@ -154,7 +154,7 @@ internal static class ScannerTablesEmitter
         var table = Table(model, tableName);
         sb.AppendLine(Comment(table, tableName));
         sb.AppendLine($"    /// <summary>{summary}</summary>");
-        sb.AppendLine($"    public static readonly IReadOnlyList<int> {csharpName} =");
+        sb.AppendLine($"    public static readonly IList<int> {csharpName} =");
         sb.AppendLine("    [");
 
         var numbers = table.Value.EnumerateArray().Select(static e => e.GetInt32()).ToList();
@@ -173,7 +173,7 @@ internal static class ScannerTablesEmitter
         var table = Table(model, tableName);
         sb.AppendLine(Comment(table, tableName));
         sb.AppendLine($"    /// <summary>{summary}</summary>");
-        sb.AppendLine($"    public static readonly IReadOnlyList<string> {csharpName} =");
+        sb.AppendLine($"    public static readonly IList<string> {csharpName} =");
         sb.AppendLine("    [");
         foreach (var element in table.Value.EnumerateArray())
         {

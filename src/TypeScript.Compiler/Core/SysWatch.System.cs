@@ -38,7 +38,7 @@ internal static partial class SysWatch
 
         public required Func<string> GetCurrentDirectory { get; init; }
 
-        public required Func<string, IReadOnlyList<string>> GetAccessibleSortedChildDirectories { get; init; }
+        public required Func<string, IList<string>> GetAccessibleSortedChildDirectories { get; init; }
 
         public required FileSystemEntryExists FileSystemEntryExists { get; init; }
 
@@ -571,7 +571,7 @@ internal static partial class SysWatch
 
         public required bool FsSupportsRecursiveFsWatch { get; init; }
 
-        public required Func<string, IReadOnlyList<string>> GetAccessibleSortedChildDirectories { get; init; }
+        public required Func<string, IList<string>> GetAccessibleSortedChildDirectories { get; init; }
 
         public required Func<string, string> Realpath { get; init; }
 

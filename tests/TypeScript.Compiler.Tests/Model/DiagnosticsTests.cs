@@ -12,7 +12,7 @@ namespace TypeScript.Compiler.Tests;
 /// </remarks>
 public class DiagnosticsTests
 {
-    private static IReadOnlyList<(string Name, DiagnosticMessage Message)> All()
+    private static IList<(string Name, DiagnosticMessage Message)> All()
         => typeof(Diagnostics)
             .GetFields(BindingFlags.Public | BindingFlags.Static)
             .Where(static field => field.FieldType == typeof(DiagnosticMessage))

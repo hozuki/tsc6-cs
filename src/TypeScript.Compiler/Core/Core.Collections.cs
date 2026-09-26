@@ -85,7 +85,7 @@ internal static partial class Core
     {
         private readonly Queue<T> _queue;
 
-        public TsQueue(IReadOnlyList<T>? items = null)
+        public TsQueue(IList<T>? items = null)
         {
             _queue = items is null ? new Queue<T>() : new Queue<T>(items);
         }
@@ -109,7 +109,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:1569-1571
-    public static TsQueue<T> CreateQueue<T>(IReadOnlyList<T>? items = null) => new(items);
+    public static TsQueue<T> CreateQueue<T>(IList<T>? items = null) => new(items);
 
     // ported from: src/compiler/core.ts:1622-1743
     /// <summary>
@@ -167,8 +167,8 @@ internal static partial class Core
     // ported from: src/compiler/core.ts:1760-1762
     // PORT-NOTE: TS relies on the runtime shape of `T | T[]`; C# cannot distinguish those from a type
     // parameter, so the element type is supplied by the caller via the generic argument.
-    public static IReadOnlyList<T> ToArray<T>(object? value)
-        => value is IReadOnlyList<T> list ? list : [(T)value!];
+    public static IList<T> ToArray<T>(object? value)
+        => value is IList<T> list ? list : [(T)value!];
 
     // ported from: src/compiler/core.ts:1769-1775
     public static bool IsString(object? text) => text is string;

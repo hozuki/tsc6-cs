@@ -59,9 +59,9 @@ internal sealed partial class Version
 
     public int Patch { get; }
 
-    public IReadOnlyList<string> Prerelease { get; }
+    public IList<string> Prerelease { get; }
 
-    public IReadOnlyList<string> Build { get; }
+    public IList<string> Build { get; }
 
     public Version(string text)
         : this(Debug.CheckDefined(TryParseComponents(text), "Invalid version"))
@@ -73,7 +73,7 @@ internal sealed partial class Version
     {
     }
 
-    public Version(int major, int minor = 0, int patch = 0, IReadOnlyList<string>? prerelease = null, IReadOnlyList<string>? build = null)
+    public Version(int major, int minor = 0, int patch = 0, IList<string>? prerelease = null, IList<string>? build = null)
     {
         Debug.Assert(major >= 0, "Invalid argument: major");
         Debug.Assert(minor >= 0, "Invalid argument: minor");
@@ -98,7 +98,7 @@ internal sealed partial class Version
     {
     }
 
-    private static IReadOnlyList<string> SplitOrEmpty(string? parts)
+    private static IList<string> SplitOrEmpty(string? parts)
         => string.IsNullOrEmpty(parts) ? [] : parts.Split('.');
 
     public static Version? TryParse(string text)
@@ -180,7 +180,7 @@ internal sealed partial class Version
     // https://semver.org/#spec-item-11
     // > When major, minor, and patch are equal, a pre-release version has lower precedence than a
     // > normal version.
-    private static Comparison ComparePrereleaseIdentifiers(IReadOnlyList<string> left, IReadOnlyList<string> right)
+    private static Comparison ComparePrereleaseIdentifiers(IList<string> left, IList<string> right)
     {
         if (ReferenceEquals(left, right)) return Comparison.EqualTo;
         if (left.Count == 0) return right.Count == 0 ? Comparison.EqualTo : Comparison.GreaterThan;
@@ -276,7 +276,7 @@ internal sealed partial class VersionRange
         RegexOptions.IgnoreCase)]
     private static partial Regex RangeRegExp();
 
-    private IReadOnlyList<IReadOnlyList<Comparator>> _alternatives;
+    private List<List<Comparator>> _alternatives;
 
     public VersionRange(string spec)
     {
@@ -448,7 +448,7 @@ internal sealed partial class VersionRange
 
     private static bool IsWildcard(string part) => part is "*" or "x" or "X";
 
-    private static bool TestDisjunction(Version version, IReadOnlyList<IReadOnlyList<Comparator>> alternatives)
+    private static bool TestDisjunction(Version version, List<List<Comparator>> alternatives)
     {
         // an empty disjunction is treated as "*" (all versions)
         if (alternatives.Count == 0) return true;
@@ -460,7 +460,7 @@ internal sealed partial class VersionRange
         return false;
     }
 
-    private static bool TestAlternative(Version version, IReadOnlyList<Comparator> comparators)
+    private static bool TestAlternative(Version version, IList<Comparator> comparators)
     {
         for (var i = 0; i < comparators.Count; i++)
         {
@@ -485,13 +485,13 @@ internal sealed partial class VersionRange
         };
     }
 
-    private static string FormatDisjunction(IReadOnlyList<IReadOnlyList<Comparator>> alternatives)
+    private static string FormatDisjunction(List<List<Comparator>> alternatives)
     {
         var result = string.Join(" || ", alternatives.Select(FormatAlternative));
         return result.Length != 0 ? result : "*";
     }
 
-    private static string FormatAlternative(IReadOnlyList<Comparator> comparators)
+    private static string FormatAlternative(IList<Comparator> comparators)
         => string.Join(" ", comparators.Select(static c => $"{c.Operator}{c.Operand}"));
 
     private readonly record struct Comparator(string Operator, Version Operand);

@@ -120,7 +120,7 @@ internal static partial class Wildcard
     };
 
     // ported from: src/compiler/utilities.ts:9656-9667
-    public static string? GetRegularExpressionForWildcard(IReadOnlyList<string>? specs, string basePath, Usage usage)
+    public static string? GetRegularExpressionForWildcard(IList<string>? specs, string basePath, Usage usage)
     {
         var patterns = GetRegularExpressionsForWildcards(specs, basePath, usage);
         if (patterns is null || patterns.Count == 0) return null;
@@ -132,7 +132,7 @@ internal static partial class Wildcard
     }
 
     // ported from: src/compiler/utilities.ts:9669-9676
-    public static IReadOnlyList<string>? GetRegularExpressionsForWildcards(IReadOnlyList<string>? specs, string basePath, Usage usage)
+    public static IList<string>? GetRegularExpressionsForWildcards(IList<string>? specs, string basePath, Usage usage)
     {
         if (specs is null || specs.Count == 0) return null;
 
@@ -248,7 +248,7 @@ internal static partial class Wildcard
 
     // ported from: src/compiler/commandLineParser.ts:4055-4067
     /// <summary>Whether <paramref name="pathToCheck"/> is matched by one of the exclude specs.</summary>
-    public static bool MatchesExclude(string pathToCheck, IReadOnlyList<string>? excludeSpecs, bool useCaseSensitiveFileNames, string currentDirectory)
+    public static bool MatchesExclude(string pathToCheck, IList<string>? excludeSpecs, bool useCaseSensitiveFileNames, string currentDirectory)
         => MatchesExcludeWorker(
             pathToCheck,
             Core.Filter(excludeSpecs, static spec => !InvalidDotDotAfterRecursiveWildcard(spec)),
@@ -258,7 +258,7 @@ internal static partial class Wildcard
     // ported from: src/compiler/commandLineParser.ts:4070-4078
     public static bool MatchesExcludeWorker(
         string pathToCheck,
-        IReadOnlyList<string>? excludeSpecs,
+        IList<string>? excludeSpecs,
         bool useCaseSensitiveFileNames,
         string currentDirectory,
         string? basePath = null)

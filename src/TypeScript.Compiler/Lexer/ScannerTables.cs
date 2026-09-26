@@ -20,7 +20,7 @@ internal static class ScannerTables
 {
     // ported from: src/compiler/scanner.ts:135 — TS: `textToKeywordObj`.
     /// <summary>The reserved words, in source order.</summary>
-    public static readonly IReadOnlyList<(string Text, SyntaxKind Kind)> TextToKeyword =
+    public static readonly IList<(string Text, SyntaxKind Kind)> TextToKeyword =
     [
         ("abstract", SyntaxKind.AbstractKeyword),
         ("accessor", SyntaxKind.AccessorKeyword),
@@ -110,7 +110,7 @@ internal static class ScannerTables
 
     // ported from: src/compiler/scanner.ts:224 — TS: `textToToken`.
     /// <summary>The keywords followed by the punctuators — every multi-character token spelling.</summary>
-    public static readonly IReadOnlyList<(string Text, SyntaxKind Kind)> TextToToken =
+    public static readonly IList<(string Text, SyntaxKind Kind)> TextToToken =
     [
         ("abstract", SyntaxKind.AbstractKeyword),
         ("accessor", SyntaxKind.AccessorKeyword),
@@ -261,7 +261,7 @@ internal static class ScannerTables
 
     // ported from: src/compiler/scanner.ts:289 — TS: `charCodeToRegExpFlag`.
     /// <summary>The character that spells a regular-expression flag.</summary>
-    public static readonly IReadOnlyList<(int CharCode, RegularExpressionFlags Flag)> CharCodeToRegExpFlag =
+    public static readonly IList<(int CharCode, RegularExpressionFlags Flag)> CharCodeToRegExpFlag =
     [
         (CharacterCodes.d, RegularExpressionFlags.HasIndices),
         (CharacterCodes.g, RegularExpressionFlags.Global),
@@ -275,7 +275,7 @@ internal static class ScannerTables
 
     // ported from: src/compiler/scanner.ts:300 — TS: `regExpFlagToFirstAvailableLanguageVersion`.
     /// <summary>The earliest target a regular-expression flag can be used with.</summary>
-    public static readonly IReadOnlyList<(RegularExpressionFlags Flag, ScriptTarget Target)> RegExpFlagToFirstAvailableTarget =
+    public static readonly IList<(RegularExpressionFlags Flag, ScriptTarget Target)> RegExpFlagToFirstAvailableTarget =
     [
         (RegularExpressionFlags.HasIndices, ScriptTarget.ES2022),
         (RegularExpressionFlags.DotAll, ScriptTarget.ES2018),
@@ -286,7 +286,7 @@ internal static class ScannerTables
 
     // ported from: src/compiler/scanner.ts:331 — TS: `unicodeES5IdentifierStart`.
     /// <summary>Inclusive code point bounds of ES5 identifier starts (scanner.ts:331).</summary>
-    public static readonly IReadOnlyList<int> UnicodeES5IdentifierStart =
+    public static readonly IList<int> UnicodeES5IdentifierStart =
     [
         170, 170, 181, 181, 186, 186, 192, 214, 216, 246,
         248, 705, 710, 721, 736, 740, 748, 748, 750, 750,
@@ -366,7 +366,7 @@ internal static class ScannerTables
 
     // ported from: src/compiler/scanner.ts:333 — TS: `unicodeES5IdentifierPart`.
     /// <summary>Inclusive code point bounds of ES5 identifier parts (scanner.ts:333).</summary>
-    public static readonly IReadOnlyList<int> UnicodeES5IdentifierPart =
+    public static readonly IList<int> UnicodeES5IdentifierPart =
     [
         170, 170, 181, 181, 186, 186, 192, 214, 216, 246,
         248, 705, 710, 721, 736, 740, 748, 748, 750, 750,
@@ -458,7 +458,7 @@ internal static class ScannerTables
 
     // ported from: src/compiler/scanner.ts:342 — TS: `unicodeESNextIdentifierStart`.
     /// <summary>Inclusive code point bounds of ES2015+ identifier starts (scanner.ts:342).</summary>
-    public static readonly IReadOnlyList<int> UnicodeESNextIdentifierStart =
+    public static readonly IList<int> UnicodeESNextIdentifierStart =
     [
         65, 90, 97, 122, 170, 170, 181, 181, 186, 186,
         192, 214, 216, 246, 248, 705, 710, 721, 736, 740,
@@ -596,7 +596,7 @@ internal static class ScannerTables
 
     // ported from: src/compiler/scanner.ts:344 — TS: `unicodeESNextIdentifierPart`.
     /// <summary>Inclusive code point bounds of ES2015+ identifier parts (scanner.ts:344).</summary>
-    public static readonly IReadOnlyList<int> UnicodeESNextIdentifierPart =
+    public static readonly IList<int> UnicodeESNextIdentifierPart =
     [
         48, 57, 65, 90, 95, 95, 97, 122, 170, 170,
         181, 181, 183, 183, 186, 186, 192, 214, 216, 246,
@@ -756,7 +756,7 @@ internal static class ScannerTables
 
     // ported from: src/compiler/scanner.ts:4073 — TS: `nonBinaryUnicodeProperties`.
     /// <summary>Non-binary Unicode property aliases → their canonical names.</summary>
-    public static readonly IReadOnlyList<(string Alias, string CanonicalName)> NonBinaryUnicodeProperties =
+    public static readonly IList<(string Alias, string CanonicalName)> NonBinaryUnicodeProperties =
     [
         ("General_Category", "General_Category"),
         ("gc", "General_Category"),
@@ -768,7 +768,7 @@ internal static class ScannerTables
 
     // ported from: src/compiler/scanner.ts:4085 — TS: `binaryUnicodeProperties`.
     /// <summary>Binary Unicode property names (scanner.ts:4085).</summary>
-    public static readonly IReadOnlyList<string> BinaryUnicodeProperties =
+    public static readonly IList<string> BinaryUnicodeProperties =
     [
         "ASCII",
         "ASCII_Hex_Digit",
@@ -872,7 +872,7 @@ internal static class ScannerTables
 
     // ported from: src/compiler/scanner.ts:4090 — TS: `binaryUnicodePropertiesOfStrings`.
     /// <summary>Binary Unicode properties of strings (scanner.ts:4090).</summary>
-    public static readonly IReadOnlyList<string> BinaryUnicodePropertiesOfStrings =
+    public static readonly IList<string> BinaryUnicodePropertiesOfStrings =
     [
         "Basic_Emoji",
         "Emoji_Keycap_Sequence",
@@ -885,7 +885,7 @@ internal static class ScannerTables
 
     // ported from: src/compiler/scanner.ts:4094 — TS: `valuesOfNonBinaryUnicodeProperties`.
     /// <summary>The value of each non-binary Unicode property.</summary>
-    public static readonly IReadOnlyList<(string Property, IReadOnlyList<string> Values)> ValuesOfNonBinaryUnicodeProperties =
+    public static readonly IList<(string Property, IList<string> Values)> ValuesOfNonBinaryUnicodeProperties =
     [
         ("General_Category", ["C", "Other", "Cc", "Control", "cntrl", "Cf", "Format", "Cn", "Unassigned", "Co", "Private_Use", "Cs", "Surrogate", "L", "Letter", "LC", "Cased_Letter", "Ll", "Lowercase_Letter", "Lm", "Modifier_Letter", "Lo", "Other_Letter", "Lt", "Titlecase_Letter", "Lu", "Uppercase_Letter", "M", "Mark", "Combining_Mark", "Mc", "Spacing_Mark", "Me", "Enclosing_Mark", "Mn", "Nonspacing_Mark", "N", "Number", "Nd", "Decimal_Number", "digit", "Nl", "Letter_Number", "No", "Other_Number", "P", "Punctuation", "punct", "Pc", "Connector_Punctuation", "Pd", "Dash_Punctuation", "Pe", "Close_Punctuation", "Pf", "Final_Punctuation", "Pi", "Initial_Punctuation", "Po", "Other_Punctuation", "Ps", "Open_Punctuation", "S", "Symbol", "Sc", "Currency_Symbol", "Sk", "Modifier_Symbol", "Sm", "Math_Symbol", "So", "Other_Symbol", "Z", "Separator", "Zl", "Line_Separator", "Zp", "Paragraph_Separator", "Zs", "Space_Separator"]),
         ("Script", ["Adlm", "Adlam", "Aghb", "Caucasian_Albanian", "Ahom", "Arab", "Arabic", "Armi", "Imperial_Aramaic", "Armn", "Armenian", "Avst", "Avestan", "Bali", "Balinese", "Bamu", "Bamum", "Bass", "Bassa_Vah", "Batk", "Batak", "Beng", "Bengali", "Bhks", "Bhaiksuki", "Bopo", "Bopomofo", "Brah", "Brahmi", "Brai", "Braille", "Bugi", "Buginese", "Buhd", "Buhid", "Cakm", "Chakma", "Cans", "Canadian_Aboriginal", "Cari", "Carian", "Cham", "Cher", "Cherokee", "Chrs", "Chorasmian", "Copt", "Coptic", "Qaac", "Cpmn", "Cypro_Minoan", "Cprt", "Cypriot", "Cyrl", "Cyrillic", "Deva", "Devanagari", "Diak", "Dives_Akuru", "Dogr", "Dogra", "Dsrt", "Deseret", "Dupl", "Duployan", "Egyp", "Egyptian_Hieroglyphs", "Elba", "Elbasan", "Elym", "Elymaic", "Ethi", "Ethiopic", "Geor", "Georgian", "Glag", "Glagolitic", "Gong", "Gunjala_Gondi", "Gonm", "Masaram_Gondi", "Goth", "Gothic", "Gran", "Grantha", "Grek", "Greek", "Gujr", "Gujarati", "Guru", "Gurmukhi", "Hang", "Hangul", "Hani", "Han", "Hano", "Hanunoo", "Hatr", "Hatran", "Hebr", "Hebrew", "Hira", "Hiragana", "Hluw", "Anatolian_Hieroglyphs", "Hmng", "Pahawh_Hmong", "Hmnp", "Nyiakeng_Puachue_Hmong", "Hrkt", "Katakana_Or_Hiragana", "Hung", "Old_Hungarian", "Ital", "Old_Italic", "Java", "Javanese", "Kali", "Kayah_Li", "Kana", "Katakana", "Kawi", "Khar", "Kharoshthi", "Khmr", "Khmer", "Khoj", "Khojki", "Kits", "Khitan_Small_Script", "Knda", "Kannada", "Kthi", "Kaithi", "Lana", "Tai_Tham", "Laoo", "Lao", "Latn", "Latin", "Lepc", "Lepcha", "Limb", "Limbu", "Lina", "Linear_A", "Linb", "Linear_B", "Lisu", "Lyci", "Lycian", "Lydi", "Lydian", "Mahj", "Mahajani", "Maka", "Makasar", "Mand", "Mandaic", "Mani", "Manichaean", "Marc", "Marchen", "Medf", "Medefaidrin", "Mend", "Mende_Kikakui", "Merc", "Meroitic_Cursive", "Mero", "Meroitic_Hieroglyphs", "Mlym", "Malayalam", "Modi", "Mong", "Mongolian", "Mroo", "Mro", "Mtei", "Meetei_Mayek", "Mult", "Multani", "Mymr", "Myanmar", "Nagm", "Nag_Mundari", "Nand", "Nandinagari", "Narb", "Old_North_Arabian", "Nbat", "Nabataean", "Newa", "Nkoo", "Nko", "Nshu", "Nushu", "Ogam", "Ogham", "Olck", "Ol_Chiki", "Orkh", "Old_Turkic", "Orya", "Oriya", "Osge", "Osage", "Osma", "Osmanya", "Ougr", "Old_Uyghur", "Palm", "Palmyrene", "Pauc", "Pau_Cin_Hau", "Perm", "Old_Permic", "Phag", "Phags_Pa", "Phli", "Inscriptional_Pahlavi", "Phlp", "Psalter_Pahlavi", "Phnx", "Phoenician", "Plrd", "Miao", "Prti", "Inscriptional_Parthian", "Rjng", "Rejang", "Rohg", "Hanifi_Rohingya", "Runr", "Runic", "Samr", "Samaritan", "Sarb", "Old_South_Arabian", "Saur", "Saurashtra", "Sgnw", "SignWriting", "Shaw", "Shavian", "Shrd", "Sharada", "Sidd", "Siddham", "Sind", "Khudawadi", "Sinh", "Sinhala", "Sogd", "Sogdian", "Sogo", "Old_Sogdian", "Sora", "Sora_Sompeng", "Soyo", "Soyombo", "Sund", "Sundanese", "Sylo", "Syloti_Nagri", "Syrc", "Syriac", "Tagb", "Tagbanwa", "Takr", "Takri", "Tale", "Tai_Le", "Talu", "New_Tai_Lue", "Taml", "Tamil", "Tang", "Tangut", "Tavt", "Tai_Viet", "Telu", "Telugu", "Tfng", "Tifinagh", "Tglg", "Tagalog", "Thaa", "Thaana", "Thai", "Tibt", "Tibetan", "Tirh", "Tirhuta", "Tnsa", "Tangsa", "Toto", "Ugar", "Ugaritic", "Vaii", "Vai", "Vith", "Vithkuqi", "Wara", "Warang_Citi", "Wcho", "Wancho", "Xpeo", "Old_Persian", "Xsux", "Cuneiform", "Yezi", "Yezidi", "Yiii", "Yi", "Zanb", "Zanabazar_Square", "Zinh", "Inherited", "Qaai", "Zyyy", "Common", "Zzzz", "Unknown"]),
