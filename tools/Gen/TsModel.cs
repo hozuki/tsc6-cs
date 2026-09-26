@@ -109,6 +109,28 @@ internal sealed class TsTypeAlias
 }
 
 /// <summary>
+/// A data table lifted out of the TS source.
+/// </summary>
+/// <remarks>
+/// The scanner needs several tables that are plain literals in <c>scanner.ts</c> — 4,454 Unicode range
+/// endpoints among them — and copying them by hand would be both huge and easy to get subtly wrong. The
+/// extractor evaluates them with the compiler's AST (see <c>tableSources</c> in extract.cjs); the value stays a
+/// <see cref="JsonElement"/> here so the emitter can walk the shape each table has.
+/// </remarks>
+internal sealed class TsTable
+{
+    public string Name { get; set; } = "";
+
+    public string? Source { get; set; }
+
+    public int StartLine { get; set; }
+
+    public int EndLine { get; set; }
+
+    public JsonElement Value { get; set; }
+}
+
+/// <summary>
 /// The type model of a TS source file, obtained from the TypeScript compiler's own parser.
 /// </summary>
 /// <remarks>
@@ -130,6 +152,10 @@ internal sealed class TsModel
     public List<TsInterface> Interfaces { get; set; } = [];
 
     public List<TsTypeAlias> Aliases { get; set; } = [];
+
+    /// <summary>Data tables extracted alongside the type model, in the order the extractor evaluated them.
+    /// </summary>
+    public List<TsTable> Tables { get; set; } = [];
 
     private static readonly JsonSerializerOptions s_jsonOptions = new()
     {

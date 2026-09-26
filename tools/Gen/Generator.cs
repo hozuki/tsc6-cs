@@ -112,9 +112,11 @@ internal static class Generator
         files.Add(new GeneratedFile($"{outputRoot}/Model/NodeInterfaces.cs", interfaceSource));
         files.Add(new GeneratedFile($"{outputRoot}/Model/NodeClasses.cs", classSource));
 
-        // The diagnostic table has its own source (a JSON table rather than type declarations), but it is
-        // generated and checked in the same way, so it belongs in the same list.
+        // The diagnostic table and the scanner tables have their own sources (a JSON table and literals in
+        // scanner.ts rather than type declarations), but they are generated and checked in the same way, so
+        // they belong in the same list.
         files.Add(DiagnosticEmitter.Emit(tsRoot, outputRoot));
+        files.Add(ScannerTablesEmitter.Emit(model, outputRoot));
 
         return files;
     }

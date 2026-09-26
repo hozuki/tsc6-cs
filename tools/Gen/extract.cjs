@@ -20,6 +20,25 @@ if (!tsRoot || !outPath || sources.length === 0) {
     process.exit(2);
 }
 
+// Data tables the scanner needs. They are plain literals in the TS source, but there are 4,454 Unicode range
+// endpoints among them plus the keyword/token/flag tables, so they are evaluated here rather than copied by
+// hand. Order matters: `textToToken` spreads `textToKeywordObj`, so the latter must come first.
+const tableSources = [
+    ["src/compiler/types.ts", "LanguageFeatureMinimumTarget"],
+    ["src/compiler/scanner.ts", "textToKeywordObj"],
+    ["src/compiler/scanner.ts", "textToToken"],
+    ["src/compiler/scanner.ts", "charCodeToRegExpFlag"],
+    ["src/compiler/scanner.ts", "regExpFlagToFirstAvailableLanguageVersion"],
+    ["src/compiler/scanner.ts", "unicodeES5IdentifierStart"],
+    ["src/compiler/scanner.ts", "unicodeES5IdentifierPart"],
+    ["src/compiler/scanner.ts", "unicodeESNextIdentifierStart"],
+    ["src/compiler/scanner.ts", "unicodeESNextIdentifierPart"],
+    ["src/compiler/scanner.ts", "nonBinaryUnicodeProperties"],
+    ["src/compiler/scanner.ts", "binaryUnicodeProperties"],
+    ["src/compiler/scanner.ts", "binaryUnicodePropertiesOfStrings"],
+    ["src/compiler/scanner.ts", "valuesOfNonBinaryUnicodeProperties"],
+];
+
 const ts = require(path.join(tsRoot, "lib", "typescript.js"));
 
 const enums = [];
@@ -33,13 +52,18 @@ for (const sourceRelative of sources) {
     collect(source, sourceRelative);
 }
 
+const tables = [];
+for (const [sourceRelative, name] of tableSources) {
+    tables.push(collectTable(sourceRelative, name));
+}
+
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(
     outPath,
-    JSON.stringify({ source: sources.join(", "), enums, interfaces, aliases }, null, 1),
+    JSON.stringify({ source: sources.join(", "), enums, interfaces, aliases, tables }, null, 1),
     "utf8");
 
-console.log(`extract: ${enums.length} enums, ${interfaces.length} interfaces, ${aliases.length} aliases -> ${outPath}`);
+console.log(`extract: ${enums.length} enums, ${interfaces.length} interfaces, ${aliases.length} aliases, ${tables.length} tables -> ${outPath}`);
 
 function collect(source, sourceRelative) {
     const text = source.text;
@@ -131,5 +155,177 @@ function collect(source, sourceRelative) {
         if (!ranges || ranges.length === 0) return null;
 
         return text.slice(ranges[0].pos, ranges[0].end).replace(/^\/\/\s*/, "").trim() || null;
+    }
+}
+
+// -----------------------------------------------------------------------------------------------
+// Data tables
+// -----------------------------------------------------------------------------------------------
+
+// A table value is plain JSON, with one addition: a reference to an exported enum member
+// (`SyntaxKind.X`, `CharacterCodes.a`, `LanguageFeatureMinimumTarget.Y`) is emitted as
+// { "@ref": "SyntaxKind.X" }, so the C# side can look the member up in the generated enum instead of
+// hard-coding the number. An unset value (`undefined! as Set<string>`) becomes { "@undefined": true }.
+function collectTable(sourceRelative, name) {
+    const filePath = path.join(tsRoot, sourceRelative);
+    const text = fs.readFileSync(filePath, "utf8");
+    const source = ts.createSourceFile(filePath, text, ts.ScriptTarget.Latest, /* setParentNodes */ true, ts.ScriptKind.TS);
+
+    const known = new Map(tables.map(table => [table.name, table.value]));
+
+    let declaration;
+    for (const statement of source.statements) {
+        if (!ts.isVariableStatement(statement)) continue;
+        for (const candidate of statement.declarationList.declarations) {
+            if (ts.isIdentifier(candidate.name) && candidate.name.text === name) declaration = candidate;
+        }
+    }
+
+    if (!declaration || !declaration.initializer) {
+        throw new Error(`table '${name}' not found in ${sourceRelative}`);
+    }
+
+    const value = evaluate(declaration.initializer);
+
+    // TS assigns one property of a table after its literal
+    // (`valuesOfNonBinaryUnicodeProperties.Script_Extensions = …Script;`); follow those assignments.
+    for (const statement of source.statements) {
+        if (!ts.isExpressionStatement(statement)) continue;
+        const expression = statement.expression;
+        if (!ts.isBinaryExpression(expression) || expression.operatorToken.kind !== ts.SyntaxKind.EqualsToken) continue;
+        if (!ts.isPropertyAccessExpression(expression.left) || !ts.isPropertyAccessExpression(expression.right)) continue;
+        if (expression.left.expression.getText(source) !== name || expression.right.expression.getText(source) !== name) continue;
+
+        value[expression.left.name.text] = value[expression.right.name.text];
+    }
+
+    return {
+        name,
+        source: sourceRelative,
+        startLine: lineAt(declaration.getStart(source)),
+        endLine: lineAt(declaration.end),
+        value,
+    };
+
+    function lineAt(pos) {
+        return source.getLineAndCharacterOfPosition(pos).line + 1;
+    }
+
+    function evaluate(node) {
+        switch (node.kind) {
+            case ts.SyntaxKind.NumericLiteral:
+                return Number(node.text);
+            case ts.SyntaxKind.StringLiteral:
+            case ts.SyntaxKind.NoSubstitutionTemplateLiteral:
+                return node.text;
+            case ts.SyntaxKind.TrueKeyword:
+                return true;
+            case ts.SyntaxKind.FalseKeyword:
+                return false;
+            case ts.SyntaxKind.Identifier:
+                if (node.text === "undefined") return { "@undefined": true };
+                if (known.has(node.text)) return known.get(node.text);
+                throw new Error(`table '${name}': unsupported identifier '${node.text}'`);
+            case ts.SyntaxKind.PropertyAccessExpression:
+                return { "@ref": node.getText(source) };
+            case ts.SyntaxKind.PrefixUnaryExpression: {
+                const operand = evaluate(node.operand);
+                if (typeof operand !== "number") throw new Error(`table '${name}': unary operand is not a number`);
+                return node.operator === ts.SyntaxKind.MinusToken ? -operand : operand;
+            }
+            case ts.SyntaxKind.BinaryExpression: {
+                // Only string concatenation occurs (the computed `constructor` key).
+                if (node.operatorToken.kind !== ts.SyntaxKind.PlusToken) {
+                    throw new Error(`table '${name}': unsupported operator '${node.operatorToken.getText(source)}'`);
+                }
+
+                const left = evaluate(node.left);
+                const right = evaluate(node.right);
+                if (typeof left !== "string" || typeof right !== "string") {
+                    throw new Error(`table '${name}': '+' is only supported on strings`);
+                }
+
+                return left + right;
+            }
+            case ts.SyntaxKind.ParenthesizedExpression:
+            case ts.SyntaxKind.AsExpression:
+            // `undefined! as Set<string>` — the value TS fills in afterwards.
+            case ts.SyntaxKind.NonNullExpression:
+                return evaluate(node.expression);
+            case ts.SyntaxKind.ArrayLiteralExpression:
+                return evaluateArray(node);
+            case ts.SyntaxKind.ObjectLiteralExpression:
+                return evaluateObject(node);
+            case ts.SyntaxKind.NewExpression:
+                return evaluateNew(node);
+            case ts.SyntaxKind.CallExpression:
+                return evaluateCall(node);
+            default:
+                throw new Error(`table '${name}': unsupported expression '${ts.SyntaxKind[node.kind]}'`);
+        }
+    }
+
+    function evaluateArray(node) {
+        const result = [];
+        for (const element of node.elements) {
+            // `...otherTable` spreads another table in place.
+            if (ts.isSpreadElement(element)) {
+                const spread = evaluate(element.expression);
+                if (!Array.isArray(spread)) throw new Error(`table '${name}': only arrays can be spread`);
+                result.push(...spread);
+                continue;
+            }
+
+            result.push(evaluate(element));
+        }
+
+        return result;
+    }
+
+    function evaluateObject(node) {
+        const result = {};
+        for (const property of node.properties) {
+            // `...textToKeywordObj` — the spread of another table.
+            if (ts.isSpreadAssignment(property)) {
+                Object.assign(result, evaluate(property.expression));
+                continue;
+            }
+
+            if (!ts.isPropertyAssignment(property)) {
+                throw new Error(`table '${name}': unsupported property '${ts.SyntaxKind[property.kind]}'`);
+            }
+
+            result[propertyNameOf(property)] = evaluate(property.initializer);
+        }
+
+        return result;
+    }
+
+    function propertyNameOf(property) {
+        const propertyName = property.name;
+
+        // `["" + "constructor"]: …` — TS computes the name to keep `constructor` off the object's prototype.
+        if (ts.isComputedPropertyName(propertyName)) {
+            const value = evaluate(propertyName.expression);
+            if (typeof value !== "string") throw new Error(`table '${name}': computed property name is not a string`);
+            return value;
+        }
+
+        if (ts.isIdentifier(propertyName) || ts.isStringLiteral(propertyName)) return propertyName.text;
+
+        throw new Error(`table '${name}': unsupported property name '${propertyName.getText(source)}'`);
+    }
+
+    function evaluateNew(node) {
+        const callee = node.expression.getText(source);
+        if (callee === "Map") return evaluate(node.arguments[0]);
+        if (callee === "Set") return evaluate(node.arguments[0]);
+        throw new Error(`table '${name}': unsupported constructor '${callee}'`);
+    }
+
+    function evaluateCall(node) {
+        const callee = node.expression.getText(source);
+        if (callee === "Object.entries") return Object.entries(evaluate(node.arguments[0]));
+        throw new Error(`table '${name}': unsupported call '${callee}'`);
     }
 }
