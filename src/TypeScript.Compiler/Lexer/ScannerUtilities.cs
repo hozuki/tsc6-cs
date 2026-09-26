@@ -372,11 +372,15 @@ internal static partial class ScannerUtilities
     // ported from: src/compiler/scanner.ts:4034-4037
     /// <summary>The code point starting at <paramref name="i"/>.</summary>
     /// <remarks>
-    /// JS's <c>String.prototype.codePointAt</c> returns the value of an unpaired surrogate as-is; .NET's
-    /// <c>char.ConvertToUtf32</c> throws for that input, so the pair is detected here.
+    /// PORT-NOTE: JS's <c>String.prototype.codePointAt</c> returns <c>undefined</c> past the end of the string and
+    /// the value of an unpaired surrogate as-is; .NET's <c>char.ConvertToUtf32</c> throws for that input, so the
+    /// pair is detected here and an out-of-range read yields <see cref="CharacterCodes.EOF"/> — the same
+    /// "matches no character" role it plays for <c>charCodeAt</c>.
     /// </remarks>
     public static int CodePointAt(string s, int i)
     {
+        if (i < 0 || i >= s.Length) return CharacterCodes.EOF;
+
         var first = s[i];
         if (char.IsHighSurrogate(first) && i + 1 < s.Length && char.IsLowSurrogate(s[i + 1]))
         {

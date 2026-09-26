@@ -83,6 +83,21 @@ internal sealed partial class Scanner
     private JSDocParsingMode _jsDocParsingMode = JSDocParsingMode.ParseAll;
     private ErrorCallback? _onError;
 
+    // State of a regular-expression scan in progress (scanRegularExpressionWorker's closure variables). They are
+    // fields rather than locals because the grammar helpers below are methods, not nested functions.
+    private bool _regExpUnicodeSetsMode;
+    private bool _regExpAnyUnicodeMode;
+    private bool _regExpAnyUnicodeModeOrNonAnnexB;
+    private bool _regExpAnnexB;
+    private bool _regExpNamedCaptureGroups;
+    private bool _regExpMayContainStrings;
+    private int _regExpNumberOfCapturingGroups;
+    private HashSet<string>? _regExpGroupSpecifiers;
+    private IList<GroupNameReference>? _regExpGroupNameReferences;
+    private IList<DecimalEscape>? _regExpDecimalEscapes;
+    private Stack<HashSet<string>?> _regExpNamedCapturingGroupsScopeStack = [];
+    private HashSet<string>? _regExpTopNamedCapturingGroupsScope;
+
     private Scanner(ScriptTarget languageVersion, bool skipTrivia, LanguageVariant languageVariant, ErrorCallback? onError)
     {
         _languageVersion = languageVersion;
@@ -2264,6 +2279,1516 @@ internal sealed partial class Scanner
         _commentDirectives = saveCommentDirectives;
 
         return result;
+    }
+
+    // ported from: src/compiler/scanner.ts:2467-2611
+    public SyntaxKind ReScanSlashToken(bool reportErrors = false)
+    {
+        if (_token != SyntaxKind.SlashToken && _token != SyntaxKind.SlashEqualsToken) return _token;
+
+        // Quickly get to the end of the regex so that we know the flags.
+        var startOfRegExpBody = _tokenStart + 1;
+        _pos = startOfRegExpBody;
+        var inEscape = false;
+        var namedCaptureGroups = false;
+
+        // Although nested character classes are allowed in Unicode Sets mode, an unescaped slash is nevertheless
+        // invalid even in a character class in any Unicode mode — Section 12.9.5 of the spec does not consider
+        // nested classes at all (a `[` does nothing there, and a `]` always closes the class). Parsing nested
+        // classes here would also misread `/[[]/` as unterminated and consume text past the slash, so the first
+        // pass must not handle them.
+        var inCharacterClass = false;
+        while (true)
+        {
+            // A line break or the end of the file means the regex is unterminated: report and keep what we have.
+            var ch = CharCodeChecked(_pos);
+            if (ch == CharacterCodes.EOF || ScannerUtilities.IsLineBreak(ch))
+            {
+                _tokenFlags |= TokenFlags.Unterminated;
+                break;
+            }
+
+            if (inEscape)
+            {
+                // Parsing an escape character: reset the flag and just advance to the next char.
+                inEscape = false;
+            }
+            else if (ch == CharacterCodes.Slash && !inCharacterClass)
+            {
+                // A slash within a character class is permissible, but in general it ends the regex literal.
+                break;
+            }
+            else if (ch == CharacterCodes.OpenBracket)
+            {
+                inCharacterClass = true;
+            }
+            else if (ch == CharacterCodes.Backslash)
+            {
+                inEscape = true;
+            }
+            else if (ch == CharacterCodes.CloseBracket)
+            {
+                inCharacterClass = false;
+            }
+            else if (!inCharacterClass &&
+                ch == CharacterCodes.OpenParen &&
+                CharCodeChecked(_pos + 1) == CharacterCodes.Question &&
+                CharCodeChecked(_pos + 2) == CharacterCodes.LessThan &&
+                CharCodeChecked(_pos + 3) != CharacterCodes.EqualsSign &&
+                CharCodeChecked(_pos + 3) != CharacterCodes.Exclamation)
+            {
+                namedCaptureGroups = true;
+            }
+
+            _pos++;
+        }
+
+        var endOfRegExpBody = _pos;
+        if ((_tokenFlags & TokenFlags.Unterminated) != 0)
+        {
+            // Search for the nearest unbalanced bracket, for better recovery. Since the expression is invalid
+            // anyway, nested square brackets are taken into consideration for the best guess.
+            _pos = startOfRegExpBody;
+            inEscape = false;
+            var characterClassDepth = 0;
+            var inDecimalQuantifier = false;
+            var groupDepth = 0;
+            while (_pos < endOfRegExpBody)
+            {
+                var ch = CharCodeUnchecked(_pos);
+                if (inEscape)
+                {
+                    inEscape = false;
+                }
+                else if (ch == CharacterCodes.Backslash)
+                {
+                    inEscape = true;
+                }
+                else if (ch == CharacterCodes.OpenBracket)
+                {
+                    characterClassDepth++;
+                }
+                else if (ch == CharacterCodes.CloseBracket && characterClassDepth != 0)
+                {
+                    characterClassDepth--;
+                }
+                else if (characterClassDepth == 0)
+                {
+                    if (ch == CharacterCodes.OpenBrace)
+                    {
+                        inDecimalQuantifier = true;
+                    }
+                    else if (ch == CharacterCodes.CloseBrace && inDecimalQuantifier)
+                    {
+                        inDecimalQuantifier = false;
+                    }
+                    else if (!inDecimalQuantifier)
+                    {
+                        if (ch == CharacterCodes.OpenParen)
+                        {
+                            groupDepth++;
+                        }
+                        else if (ch == CharacterCodes.CloseParen && groupDepth != 0)
+                        {
+                            groupDepth--;
+                        }
+                        else if (ch == CharacterCodes.CloseParen ||
+                            ch == CharacterCodes.CloseBracket ||
+                            ch == CharacterCodes.CloseBrace)
+                        {
+                            // An unbalanced bracket outside a character class: treat this position as the end.
+                            break;
+                        }
+                    }
+                }
+
+                _pos++;
+            }
+
+            // Whitespace and semicolons at the end are unlikely to be part of the regex.
+            while (ScannerUtilities.IsWhiteSpaceLike(CharCodeChecked(_pos - 1)) ||
+                CharCodeChecked(_pos - 1) == CharacterCodes.Semicolon)
+            {
+                _pos--;
+            }
+
+            Error(Diagnostics.Unterminated_regular_expression_literal, _tokenStart, _pos - _tokenStart);
+        }
+        else
+        {
+            // Consume the slash character
+            _pos++;
+            var regExpFlags = RegularExpressionFlags.None;
+            while (true)
+            {
+                var ch = CodePointChecked(_pos);
+                if (ch == CharacterCodes.EOF || !ScannerUtilities.IsIdentifierPart(ch, _languageVersion)) break;
+
+                var size = ScannerUtilities.CharSize(ch);
+                if (reportErrors)
+                {
+                    var flag = ScannerUtilities.CharacterCodeToRegularExpressionFlag(ch);
+                    if (flag is null)
+                    {
+                        Error(Diagnostics.Unknown_regular_expression_flag, _pos, size);
+                    }
+                    else if ((regExpFlags & flag.Value) != 0)
+                    {
+                        Error(Diagnostics.Duplicate_regular_expression_flag, _pos, size);
+                    }
+                    else if (((regExpFlags | flag.Value) & RegularExpressionFlags.AnyUnicodeMode) ==
+                        RegularExpressionFlags.AnyUnicodeMode)
+                    {
+                        Error(Diagnostics.The_Unicode_u_flag_and_the_Unicode_Sets_v_flag_cannot_be_set_simultaneously, _pos, size);
+                    }
+                    else
+                    {
+                        regExpFlags |= flag.Value;
+                        CheckRegularExpressionFlagAvailability(flag.Value, size);
+                    }
+                }
+
+                _pos += size;
+            }
+
+            if (reportErrors)
+            {
+                var flags = regExpFlags;
+                ScanRange(startOfRegExpBody, endOfRegExpBody - startOfRegExpBody, () =>
+                {
+                    ScanRegularExpressionWorker(flags, annexB: true, namedCaptureGroups);
+                    return 0;
+                });
+            }
+        }
+
+        _tokenValue = _text[_tokenStart.._pos];
+        _token = SyntaxKind.RegularExpressionLiteral;
+        return _token;
+    }
+
+    // ported from: src/compiler/scanner.ts:3611-3616
+    private void CheckRegularExpressionFlagAvailability(RegularExpressionFlags flag, int size)
+    {
+        var availableFrom = ScannerTables.RegExpFlagToFirstAvailableTarget
+            .FirstOrDefault(entry => entry.Flag == flag);
+
+        if (availableFrom.Target != default && _languageVersion < availableFrom.Target)
+        {
+            Error(
+                Diagnostics.This_regular_expression_flag_is_only_available_when_targeting_0_or_later,
+                _pos,
+                size,
+                ScriptTargets.GetNameOfScriptTarget(availableFrom.Target));
+        }
+    }
+
+    /// <summary>A named capturing group reference, as collected while scanning a regex.</summary>
+    /// <remarks>Classes rather than records: <c>Core.Append</c> is constrained to reference types.</remarks>
+    private sealed record GroupNameReference(int Pos, int End, string Name);
+
+    /// <summary>A numeric backreference, as collected while scanning a regex.</summary>
+    private sealed record DecimalEscape(int Pos, int End, int Value);
+
+    // ported from: src/compiler/scanner.ts:2613-3609
+    /// <summary>
+    /// Walks a regular-expression literal body, reporting everything TS reports about it.
+    /// </summary>
+    /// <remarks>
+    /// This is TS's grammar walk: <c>scanDisjunction</c> → <c>scanAlternative</c> → atoms, with the two character
+    /// class grammars (<c>ClassRanges</c> for non-Unicode mode, <c>ClassSetExpression</c> for Unicode Sets mode).
+    /// The nested functions are methods of the scanner rather than locals of this one, because C# local functions
+    /// cannot be grouped across a 1,000-line body without hurting readability.
+    /// </remarks>
+    private void ScanRegularExpressionWorker(RegularExpressionFlags regExpFlags, bool annexB, bool namedCaptureGroups)
+    {
+        _regExpUnicodeSetsMode = (regExpFlags & RegularExpressionFlags.UnicodeSets) != 0;
+        _regExpAnyUnicodeMode = (regExpFlags & RegularExpressionFlags.AnyUnicodeMode) != 0;
+
+        // Regular expressions are checked more strictly in 'u'/'v' mode, or when not using the looser reading of
+        // the syntax from Annex B.
+        _regExpAnyUnicodeModeOrNonAnnexB = _regExpAnyUnicodeMode || !annexB;
+        _regExpAnnexB = annexB;
+        _regExpNamedCaptureGroups = namedCaptureGroups;
+
+        _regExpMayContainStrings = false;
+        _regExpNumberOfCapturingGroups = 0;
+        _regExpGroupSpecifiers = null;
+        _regExpGroupNameReferences = null;
+        _regExpDecimalEscapes = null;
+        _regExpNamedCapturingGroupsScopeStack = [];
+        _regExpTopNamedCapturingGroupsScope = null;
+
+        ScanDisjunction(isInGroup: false);
+
+        foreach (var reference in _regExpGroupNameReferences ?? [])
+        {
+            if (_regExpGroupSpecifiers?.Contains(reference.Name) != true)
+            {
+                Error(
+                    Diagnostics.There_is_no_capturing_group_named_0_in_this_regular_expression,
+                    reference.Pos,
+                    reference.End - reference.Pos,
+                    reference.Name);
+
+                if (_regExpGroupSpecifiers is not null)
+                {
+                    var suggestion = Core.GetSpellingSuggestion(reference.Name, _regExpGroupSpecifiers, Core.Identity);
+                    if (suggestion is not null)
+                    {
+                        Error(Diagnostics.Did_you_mean_0, reference.Pos, reference.End - reference.Pos, suggestion);
+                    }
+                }
+            }
+        }
+
+        foreach (var escape in _regExpDecimalEscapes ?? [])
+        {
+            // Although a DecimalEscape with a value greater than the number of capturing groups is treated as
+            // either a LegacyOctalEscapeSequence or an IdentityEscape in Annex B, an error is reported anyway
+            // since it is most likely a mistake.
+            if (escape.Value <= _regExpNumberOfCapturingGroups) continue;
+
+            if (_regExpNumberOfCapturingGroups != 0)
+            {
+                Error(
+                    Diagnostics.This_backreference_refers_to_a_group_that_does_not_exist_There_are_only_0_capturing_groups_in_this_regular_expression,
+                    escape.Pos,
+                    escape.End - escape.Pos,
+                    _regExpNumberOfCapturingGroups);
+            }
+            else
+            {
+                Error(
+                    Diagnostics.This_backreference_refers_to_a_group_that_does_not_exist_There_are_no_capturing_groups_in_this_regular_expression,
+                    escape.Pos,
+                    escape.End - escape.Pos);
+            }
+        }
+    }
+
+    // ---- The regex grammar walk (scanner.ts:2642-3583). ----
+
+    // Disjunction ::= Alternative ('|' Alternative)*
+    private void ScanDisjunction(bool isInGroup)
+    {
+        while (true)
+        {
+            _regExpNamedCapturingGroupsScopeStack.Push(_regExpTopNamedCapturingGroupsScope);
+            _regExpTopNamedCapturingGroupsScope = null;
+            ScanAlternative(isInGroup);
+            _regExpTopNamedCapturingGroupsScope = _regExpNamedCapturingGroupsScopeStack.Pop();
+            if (CharCodeChecked(_pos) != CharacterCodes.Bar) return;
+            _pos++;
+        }
+    }
+
+    // Alternative ::= Term*
+    //   Term ::= Assertion | Atom Quantifier?
+    //   Assertion ::= '^' | '$' | '\b' | '\B' | '(?=' Disjunction ')' | '(?!' Disjunction ')'
+    //               | '(?<=' Disjunction ')' | '(?<!' Disjunction ')'
+    //   Quantifier ::= QuantifierPrefix '?'?
+    //   QuantifierPrefix ::= '*' | '+' | '?' | '{' DecimalDigits (',' DecimalDigits?)? '}'
+    //   Atom ::= PatternCharacter | '.' | '\' AtomEscape | CharacterClass
+    //          | '(?<' RegExpIdentifierName '>' Disjunction ')'
+    //          | '(?' RegularExpressionFlags ('-' RegularExpressionFlags)? ':' Disjunction ')'
+    //   CharacterClass ::= unicodeMode ? '[' ClassRanges ']' : '[' ClassSetExpression ']'
+    private void ScanAlternative(bool isInGroup)
+    {
+        var isPreviousTermQuantifiable = false;
+        while (true)
+        {
+            var start = _pos;
+            var ch = CharCodeChecked(_pos);
+            switch (ch)
+            {
+                case CharacterCodes.EOF:
+                    return;
+
+                case CharacterCodes.Caret:
+                case CharacterCodes.Dollar:
+                    _pos++;
+                    isPreviousTermQuantifiable = false;
+                    break;
+
+                case CharacterCodes.Backslash:
+                    _pos++;
+                    switch (CharCodeChecked(_pos))
+                    {
+                        case CharacterCodes.b:
+                        case CharacterCodes.B:
+                            _pos++;
+                            isPreviousTermQuantifiable = false;
+                            break;
+                        default:
+                            ScanAtomEscape();
+                            isPreviousTermQuantifiable = true;
+                            break;
+                    }
+
+                    break;
+
+                case CharacterCodes.OpenParen:
+                {
+                    _pos++;
+                    if (CharCodeChecked(_pos) == CharacterCodes.Question)
+                    {
+                        _pos++;
+                        switch (CharCodeChecked(_pos))
+                        {
+                            case CharacterCodes.EqualsSign:
+                            case CharacterCodes.Exclamation:
+                                _pos++;
+                                // In Annex B, `(?=Disjunction)` and `(?!Disjunction)` are quantifiable
+                                isPreviousTermQuantifiable = !_regExpAnyUnicodeModeOrNonAnnexB;
+                                break;
+
+                            case CharacterCodes.LessThan:
+                            {
+                                var groupNameStart = _pos;
+                                _pos++;
+                                switch (CharCodeChecked(_pos))
+                                {
+                                    case CharacterCodes.EqualsSign:
+                                    case CharacterCodes.Exclamation:
+                                        _pos++;
+                                        isPreviousTermQuantifiable = false;
+                                        break;
+                                    default:
+                                        ScanGroupName(isReference: false);
+                                        ScanExpectedChar(CharacterCodes.GreaterThan);
+                                        if (_languageVersion < ScriptTarget.ES2018)
+                                        {
+                                            Error(
+                                                Diagnostics.Named_capturing_groups_are_only_available_when_targeting_ES2018_or_later,
+                                                groupNameStart,
+                                                _pos - groupNameStart);
+                                        }
+
+                                        _regExpNumberOfCapturingGroups++;
+                                        isPreviousTermQuantifiable = true;
+                                        break;
+                                }
+
+                                break;
+                            }
+
+                            default:
+                            {
+                                var modifierStart = _pos;
+                                var setFlags = ScanPatternModifiers(RegularExpressionFlags.None);
+                                if (CharCodeChecked(_pos) == CharacterCodes.Minus)
+                                {
+                                    _pos++;
+                                    ScanPatternModifiers(setFlags);
+                                    if (_pos == modifierStart + 1)
+                                    {
+                                        Error(
+                                            Diagnostics.Subpattern_flags_must_be_present_when_there_is_a_minus_sign,
+                                            modifierStart,
+                                            _pos - modifierStart);
+                                    }
+                                }
+
+                                ScanExpectedChar(CharacterCodes.Colon);
+                                isPreviousTermQuantifiable = true;
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        _regExpNumberOfCapturingGroups++;
+                        isPreviousTermQuantifiable = true;
+                    }
+
+                    ScanDisjunction(isInGroup: true);
+                    ScanExpectedChar(CharacterCodes.CloseParen);
+                    break;
+                }
+
+                case CharacterCodes.OpenBrace:
+                {
+                    _pos++;
+                    var digitsStart = _pos;
+                    ScanDigits();
+                    var min = _tokenValue ?? "";
+                    if (!_regExpAnyUnicodeModeOrNonAnnexB && !Js.IsTruthy(min))
+                    {
+                        isPreviousTermQuantifiable = true;
+                        break;
+                    }
+
+                    if (CharCodeChecked(_pos) == CharacterCodes.Comma)
+                    {
+                        _pos++;
+                        ScanDigits();
+                        var max = _tokenValue ?? "";
+                        if (!Js.IsTruthy(min))
+                        {
+                            if (Js.IsTruthy(max) || CharCodeChecked(_pos) == CharacterCodes.CloseBrace)
+                            {
+                                Error(Diagnostics.Incomplete_quantifier_Digit_expected, digitsStart, 0);
+                            }
+                            else
+                            {
+                                Error(
+                                    Diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash,
+                                    start,
+                                    1,
+                                    ((char)ch).ToString());
+                                isPreviousTermQuantifiable = true;
+                                break;
+                            }
+                        }
+                        else if (Js.IsTruthy(max) &&
+                            Convert.ToInt32(min) > Convert.ToInt32(max) &&
+                            (_regExpAnyUnicodeModeOrNonAnnexB || CharCodeChecked(_pos) == CharacterCodes.CloseBrace))
+                        {
+                            Error(Diagnostics.Numbers_out_of_order_in_quantifier, digitsStart, _pos - digitsStart);
+                        }
+                    }
+                    else if (!Js.IsTruthy(min))
+                    {
+                        if (_regExpAnyUnicodeModeOrNonAnnexB)
+                        {
+                            Error(Diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, start, 1, ((char)ch).ToString());
+                        }
+
+                        isPreviousTermQuantifiable = true;
+                        break;
+                    }
+
+                    if (CharCodeChecked(_pos) != CharacterCodes.CloseBrace)
+                    {
+                        if (_regExpAnyUnicodeModeOrNonAnnexB)
+                        {
+                            Error(Diagnostics._0_expected, _pos, 0, ((char)CharacterCodes.CloseBrace).ToString());
+                            _pos--;
+                        }
+                        else
+                        {
+                            isPreviousTermQuantifiable = true;
+                            break;
+                        }
+                    }
+
+                    goto case CharacterCodes.Asterisk;
+                }
+
+                case CharacterCodes.Asterisk:
+                case CharacterCodes.Plus:
+                case CharacterCodes.Question:
+                    _pos++;
+                    if (CharCodeChecked(_pos) == CharacterCodes.Question)
+                    {
+                        // Non-greedy
+                        _pos++;
+                    }
+
+                    if (!isPreviousTermQuantifiable)
+                    {
+                        Error(Diagnostics.There_is_nothing_available_for_repetition, start, _pos - start);
+                    }
+
+                    isPreviousTermQuantifiable = false;
+                    break;
+
+                case CharacterCodes.Dot:
+                    _pos++;
+                    isPreviousTermQuantifiable = true;
+                    break;
+
+                case CharacterCodes.OpenBracket:
+                    _pos++;
+                    if (_regExpUnicodeSetsMode) ScanClassSetExpression();
+                    else ScanClassRanges();
+                    ScanExpectedChar(CharacterCodes.CloseBracket);
+                    isPreviousTermQuantifiable = true;
+                    break;
+
+                case CharacterCodes.CloseParen:
+                    if (isInGroup) return;
+                    goto case CharacterCodes.CloseBracket;
+
+                case CharacterCodes.CloseBracket:
+                case CharacterCodes.CloseBrace:
+                    if (_regExpAnyUnicodeModeOrNonAnnexB || ch == CharacterCodes.CloseParen)
+                    {
+                        Error(Diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, _pos, 1, ((char)ch).ToString());
+                    }
+
+                    _pos++;
+                    isPreviousTermQuantifiable = true;
+                    break;
+
+                case CharacterCodes.Slash:
+                case CharacterCodes.Bar:
+                    return;
+
+                default:
+                    ScanSourceCharacter();
+                    isPreviousTermQuantifiable = true;
+                    break;
+            }
+        }
+    }
+
+    private RegularExpressionFlags ScanPatternModifiers(RegularExpressionFlags currFlags)
+    {
+        while (true)
+        {
+            var ch = CodePointChecked(_pos);
+            if (ch == CharacterCodes.EOF || !ScannerUtilities.IsIdentifierPart(ch, _languageVersion)) break;
+
+            var size = ScannerUtilities.CharSize(ch);
+            var flag = ScannerUtilities.CharacterCodeToRegularExpressionFlag(ch);
+            if (flag is null)
+            {
+                Error(Diagnostics.Unknown_regular_expression_flag, _pos, size);
+            }
+            else if ((currFlags & flag.Value) != 0)
+            {
+                Error(Diagnostics.Duplicate_regular_expression_flag, _pos, size);
+            }
+            else if ((flag.Value & RegularExpressionFlags.Modifiers) == 0)
+            {
+                Error(Diagnostics.This_regular_expression_flag_cannot_be_toggled_within_a_subpattern, _pos, size);
+            }
+            else
+            {
+                currFlags |= flag.Value;
+                CheckRegularExpressionFlagAvailability(flag.Value, size);
+            }
+
+            _pos += size;
+        }
+
+        return currFlags;
+    }
+
+    // AtomEscape ::= DecimalEscape | CharacterClassEscape | CharacterEscape | 'k<' RegExpIdentifierName '>'
+    private void ScanAtomEscape()
+    {
+        Debug.AssertEqual(CharCodeUnchecked(_pos - 1), CharacterCodes.Backslash);
+        switch (CharCodeChecked(_pos))
+        {
+            case CharacterCodes.k:
+                _pos++;
+                if (CharCodeChecked(_pos) == CharacterCodes.LessThan)
+                {
+                    _pos++;
+                    ScanGroupName(isReference: true);
+                    ScanExpectedChar(CharacterCodes.GreaterThan);
+                }
+                else if (_regExpAnyUnicodeModeOrNonAnnexB || _regExpNamedCaptureGroups)
+                {
+                    Error(Diagnostics.k_must_be_followed_by_a_capturing_group_name_enclosed_in_angle_brackets, _pos - 2, 2);
+                }
+
+                break;
+
+            case CharacterCodes.q:
+                if (_regExpUnicodeSetsMode)
+                {
+                    _pos++;
+                    Error(Diagnostics.q_is_only_available_inside_character_class, _pos - 2, 2);
+                    break;
+                }
+
+                goto default;
+
+            default:
+                // The scanEscapeSequence call in scanCharacterEscape must return non-empty strings, since there
+                // must not be line breaks in a regex literal.
+                Debug.Assert(
+                    ScanCharacterClassEscape() || ScanDecimalEscape() || Js.IsTruthy(ScanCharacterEscape(atomEscape: true)));
+                break;
+        }
+    }
+
+    // DecimalEscape ::= [1-9] [0-9]*
+    private bool ScanDecimalEscape()
+    {
+        Debug.AssertEqual(CharCodeUnchecked(_pos - 1), CharacterCodes.Backslash);
+        var ch = CharCodeChecked(_pos);
+        if (ch >= CharacterCodes._1 && ch <= CharacterCodes._9)
+        {
+            var start = _pos;
+            ScanDigits();
+            _regExpDecimalEscapes = Core.Append(
+                _regExpDecimalEscapes,
+                new DecimalEscape(start, _pos, Convert.ToInt32(_tokenValue ?? "0")));
+            return true;
+        }
+
+        return false;
+    }
+
+    // CharacterEscape ::= `c` ControlLetter | IdentityEscape | (other sequences, handled by scanEscapeSequence)
+    //   IdentityEscape ::= '^' | '$' | '/' | '\' | '.' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '{' | '}' | '|'
+    //                    | [~UnicodeMode] (any other non-identifier characters)
+    private string ScanCharacterEscape(bool atomEscape)
+    {
+        Debug.AssertEqual(CharCodeUnchecked(_pos - 1), CharacterCodes.Backslash);
+        var ch = CharCodeChecked(_pos);
+        switch (ch)
+        {
+            case CharacterCodes.EOF:
+                Error(Diagnostics.Undetermined_character_escape, _pos - 1, 1);
+                return "\\";
+
+            case CharacterCodes.c:
+                _pos++;
+                ch = CharCodeChecked(_pos);
+                if (ScannerUtilities.IsASCIILetter(ch))
+                {
+                    _pos++;
+                    return ((char)(ch & 0x1f)).ToString();
+                }
+
+                if (_regExpAnyUnicodeModeOrNonAnnexB)
+                {
+                    Error(Diagnostics.c_must_be_followed_by_an_ASCII_letter, _pos - 2, 2);
+                }
+                else if (atomEscape)
+                {
+                    // Annex B treats `\` [lookahead = `c`] as the single character `\` when `c` is not followed by
+                    // a valid control character.
+                    _pos--;
+                    return "\\";
+                }
+
+                return ((char)ch).ToString();
+
+            case CharacterCodes.Caret:
+            case CharacterCodes.Dollar:
+            case CharacterCodes.Slash:
+            case CharacterCodes.Backslash:
+            case CharacterCodes.Dot:
+            case CharacterCodes.Asterisk:
+            case CharacterCodes.Plus:
+            case CharacterCodes.Question:
+            case CharacterCodes.OpenParen:
+            case CharacterCodes.CloseParen:
+            case CharacterCodes.OpenBracket:
+            case CharacterCodes.CloseBracket:
+            case CharacterCodes.OpenBrace:
+            case CharacterCodes.CloseBrace:
+            case CharacterCodes.Bar:
+                _pos++;
+                return ((char)ch).ToString();
+
+            default:
+                _pos--;
+                return ScanEscapeSequence(
+                    EscapeSequenceScanningFlags.RegularExpression |
+                    (_regExpAnnexB ? EscapeSequenceScanningFlags.AnnexB : EscapeSequenceScanningFlags.None) |
+                    (_regExpAnyUnicodeMode ? EscapeSequenceScanningFlags.AnyUnicodeMode : EscapeSequenceScanningFlags.None) |
+                    (atomEscape ? EscapeSequenceScanningFlags.AtomEscape : EscapeSequenceScanningFlags.None));
+        }
+    }
+
+    private void ScanGroupName(bool isReference)
+    {
+        Debug.AssertEqual(CharCodeUnchecked(_pos - 1), CharacterCodes.LessThan);
+        _tokenStart = _pos;
+        ScanIdentifier(CodePointChecked(_pos), _languageVersion);
+        var name = _tokenValue ?? "";
+        if (_pos == _tokenStart)
+        {
+            Error(Diagnostics.Expected_a_capturing_group_name);
+        }
+        else if (isReference)
+        {
+            _regExpGroupNameReferences = Core.Append(_regExpGroupNameReferences, new GroupNameReference(_tokenStart, _pos, name));
+        }
+        else if (_regExpTopNamedCapturingGroupsScope?.Contains(name) == true ||
+            _regExpNamedCapturingGroupsScopeStack.Any(group => group?.Contains(name) == true))
+        {
+            Error(
+                Diagnostics.Named_capturing_groups_with_the_same_name_must_be_mutually_exclusive_to_each_other,
+                _tokenStart,
+                _pos - _tokenStart);
+        }
+        else
+        {
+            _regExpTopNamedCapturingGroupsScope ??= [];
+            _regExpTopNamedCapturingGroupsScope.Add(name);
+            _regExpGroupSpecifiers ??= [];
+            _regExpGroupSpecifiers.Add(name);
+        }
+    }
+
+    private bool IsClassContentExit(int ch)
+        => ch == CharacterCodes.CloseBracket || ch == CharacterCodes.EOF || _pos >= _end;
+
+    // ClassRanges ::= '^'? (ClassAtom ('-' ClassAtom)?)*
+    private void ScanClassRanges()
+    {
+        Debug.AssertEqual(CharCodeUnchecked(_pos - 1), CharacterCodes.OpenBracket);
+        if (CharCodeChecked(_pos) == CharacterCodes.Caret)
+        {
+            // character complement
+            _pos++;
+        }
+
+        while (true)
+        {
+            var ch = CharCodeChecked(_pos);
+            if (IsClassContentExit(ch)) return;
+
+            var minStart = _pos;
+            var minCharacter = ScanClassAtom();
+            if (CharCodeChecked(_pos) == CharacterCodes.Minus)
+            {
+                _pos++;
+                ch = CharCodeChecked(_pos);
+                if (IsClassContentExit(ch)) return;
+
+                if (!Js.IsTruthy(minCharacter) && _regExpAnyUnicodeModeOrNonAnnexB)
+                {
+                    Error(
+                        Diagnostics.A_character_class_range_must_not_be_bounded_by_another_character_class,
+                        minStart,
+                        _pos - 1 - minStart);
+                }
+
+                var maxStart = _pos;
+                var maxCharacter = ScanClassAtom();
+                if (!Js.IsTruthy(maxCharacter) && _regExpAnyUnicodeModeOrNonAnnexB)
+                {
+                    Error(
+                        Diagnostics.A_character_class_range_must_not_be_bounded_by_another_character_class,
+                        maxStart,
+                        _pos - maxStart);
+                    continue;
+                }
+
+                if (!Js.IsTruthy(minCharacter)) continue;
+
+                var minCharacterValue = ScannerUtilities.CodePointAt(minCharacter, 0);
+                var maxCharacterValue = ScannerUtilities.CodePointAt(maxCharacter, 0);
+                if (minCharacter.Length == ScannerUtilities.CharSize(minCharacterValue) &&
+                    maxCharacter.Length == ScannerUtilities.CharSize(maxCharacterValue) &&
+                    minCharacterValue > maxCharacterValue)
+                {
+                    Error(Diagnostics.Range_out_of_order_in_character_class, minStart, _pos - minStart);
+                }
+            }
+        }
+    }
+
+    // Static Semantics: MayContainStrings
+    //   ClassUnion:        ClassSetOperands.some(Operand => Operand.MayContainStrings)
+    //   ClassIntersection: ClassSetOperands.every(Operand => Operand.MayContainStrings)
+    //   ClassSubtraction:  ClassSetOperands[0].MayContainStrings
+    //   ClassSetOperand:   ClassStringDisjunctionContents.MayContainStrings
+    //                      || CharacterClassEscape.UnicodePropertyValueExpression.LoneUnicodePropertyNameOrValue
+    //   ClassStringDisjunctionContents: ClassStrings.some(s => s.ClassSetCharacters.length !== 1)
+    //   LoneUnicodePropertyNameOrValue:  isBinaryUnicodePropertyOfStrings(…)
+
+    // ClassSetExpression ::= '^'? (ClassUnion | ClassIntersection | ClassSubtraction)
+    //   ClassUnion        ::= (ClassSetRange | ClassSetOperand)*
+    //   ClassIntersection ::= ClassSetOperand ('&&' ClassSetOperand)+
+    //   ClassSubtraction  ::= ClassSetOperand ('--' ClassSetOperand)+
+    //   ClassSetRange     ::= ClassSetCharacter '-' ClassSetCharacter
+    private void ScanClassSetExpression()
+    {
+        Debug.AssertEqual(CharCodeUnchecked(_pos - 1), CharacterCodes.OpenBracket);
+        var isCharacterComplement = false;
+        if (CharCodeChecked(_pos) == CharacterCodes.Caret)
+        {
+            _pos++;
+            isCharacterComplement = true;
+        }
+
+        var expressionMayContainStrings = false;
+        var ch = CharCodeChecked(_pos);
+        if (IsClassContentExit(ch)) return;
+
+        var start = _pos;
+        var operand = "";
+        switch (_text[_pos..Math.Min(_pos + 2, _text.Length)])
+        {
+            case "--":
+            case "&&":
+                Error(Diagnostics.Expected_a_class_set_operand);
+                _regExpMayContainStrings = false;
+                break;
+            default:
+                operand = ScanClassSetOperand();
+                break;
+        }
+
+        switch (CharCodeChecked(_pos))
+        {
+            case CharacterCodes.Minus:
+                if (CharCodeChecked(_pos + 1) == CharacterCodes.Minus)
+                {
+                    if (isCharacterComplement && _regExpMayContainStrings)
+                    {
+                        Error(
+                            Diagnostics.Anything_that_would_possibly_match_more_than_a_single_character_is_invalid_inside_a_negated_character_class,
+                            start,
+                            _pos - start);
+                    }
+
+                    expressionMayContainStrings = _regExpMayContainStrings;
+                    ScanClassSetSubExpression(ClassSetExpressionType.ClassSubtraction);
+                    _regExpMayContainStrings = !isCharacterComplement && expressionMayContainStrings;
+                    return;
+                }
+
+                break;
+
+            case CharacterCodes.Ampersand:
+                if (CharCodeChecked(_pos + 1) == CharacterCodes.Ampersand)
+                {
+                    ScanClassSetSubExpression(ClassSetExpressionType.ClassIntersection);
+                    if (isCharacterComplement && _regExpMayContainStrings)
+                    {
+                        Error(
+                            Diagnostics.Anything_that_would_possibly_match_more_than_a_single_character_is_invalid_inside_a_negated_character_class,
+                            start,
+                            _pos - start);
+                    }
+
+                    expressionMayContainStrings = _regExpMayContainStrings;
+                    _regExpMayContainStrings = !isCharacterComplement && expressionMayContainStrings;
+                    return;
+                }
+
+                Error(Diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, _pos, 1, ((char)ch).ToString());
+                break;
+
+            default:
+                if (isCharacterComplement && _regExpMayContainStrings)
+                {
+                    Error(
+                        Diagnostics.Anything_that_would_possibly_match_more_than_a_single_character_is_invalid_inside_a_negated_character_class,
+                        start,
+                        _pos - start);
+                }
+
+                expressionMayContainStrings = _regExpMayContainStrings;
+                break;
+        }
+
+        while (true)
+        {
+            ch = CharCodeChecked(_pos);
+            if (ch == CharacterCodes.EOF) break;
+
+            switch (ch)
+            {
+                case CharacterCodes.Minus:
+                {
+                    _pos++;
+                    ch = CharCodeChecked(_pos);
+                    if (IsClassContentExit(ch))
+                    {
+                        _regExpMayContainStrings = !isCharacterComplement && expressionMayContainStrings;
+                        return;
+                    }
+
+                    if (ch == CharacterCodes.Minus)
+                    {
+                        _pos++;
+                        Error(
+                            Diagnostics.Operators_must_not_be_mixed_within_a_character_class_Wrap_it_in_a_nested_class_instead,
+                            _pos - 2,
+                            2);
+                        start = _pos - 2;
+                        operand = _text[start.._pos];
+                        continue;
+                    }
+
+                    if (!Js.IsTruthy(operand))
+                    {
+                        Error(
+                            Diagnostics.A_character_class_range_must_not_be_bounded_by_another_character_class,
+                            start,
+                            _pos - 1 - start);
+                    }
+
+                    var secondStart = _pos;
+                    var secondOperand = ScanClassSetOperand();
+                    if (isCharacterComplement && _regExpMayContainStrings)
+                    {
+                        Error(
+                            Diagnostics.Anything_that_would_possibly_match_more_than_a_single_character_is_invalid_inside_a_negated_character_class,
+                            secondStart,
+                            _pos - secondStart);
+                    }
+
+                    expressionMayContainStrings |= _regExpMayContainStrings;
+                    if (!Js.IsTruthy(secondOperand))
+                    {
+                        Error(
+                            Diagnostics.A_character_class_range_must_not_be_bounded_by_another_character_class,
+                            secondStart,
+                            _pos - secondStart);
+                        break;
+                    }
+
+                    if (!Js.IsTruthy(operand)) break;
+
+                    var minCharacterValue = ScannerUtilities.CodePointAt(operand, 0);
+                    var maxCharacterValue = ScannerUtilities.CodePointAt(secondOperand, 0);
+                    if (operand.Length == ScannerUtilities.CharSize(minCharacterValue) &&
+                        secondOperand.Length == ScannerUtilities.CharSize(maxCharacterValue) &&
+                        minCharacterValue > maxCharacterValue)
+                    {
+                        Error(Diagnostics.Range_out_of_order_in_character_class, start, _pos - start);
+                    }
+
+                    break;
+                }
+
+                case CharacterCodes.Ampersand:
+                    start = _pos;
+                    _pos++;
+                    if (CharCodeChecked(_pos) == CharacterCodes.Ampersand)
+                    {
+                        _pos++;
+                        Error(
+                            Diagnostics.Operators_must_not_be_mixed_within_a_character_class_Wrap_it_in_a_nested_class_instead,
+                            _pos - 2,
+                            2);
+                        if (CharCodeChecked(_pos) == CharacterCodes.Ampersand)
+                        {
+                            Error(Diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, _pos, 1, ((char)ch).ToString());
+                            _pos++;
+                        }
+                    }
+                    else
+                    {
+                        Error(Diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, _pos - 1, 1, ((char)ch).ToString());
+                    }
+
+                    operand = _text[start.._pos];
+                    continue;
+            }
+
+            if (IsClassContentExit(CharCodeChecked(_pos))) break;
+
+            start = _pos;
+            switch (_text[_pos..Math.Min(_pos + 2, _text.Length)])
+            {
+                case "--":
+                case "&&":
+                    Error(
+                        Diagnostics.Operators_must_not_be_mixed_within_a_character_class_Wrap_it_in_a_nested_class_instead,
+                        _pos,
+                        2);
+                    _pos += 2;
+                    operand = _text[start.._pos];
+                    break;
+                default:
+                    operand = ScanClassSetOperand();
+                    break;
+            }
+        }
+
+        _regExpMayContainStrings = !isCharacterComplement && expressionMayContainStrings;
+    }
+
+    private void ScanClassSetSubExpression(ClassSetExpressionType expressionType)
+    {
+        var expressionMayContainStrings = _regExpMayContainStrings;
+        while (true)
+        {
+            var ch = CharCodeChecked(_pos);
+            if (IsClassContentExit(ch)) break;
+
+            // Provide user-friendly diagnostic messages
+            switch (ch)
+            {
+                case CharacterCodes.Minus:
+                    _pos++;
+                    if (CharCodeChecked(_pos) == CharacterCodes.Minus)
+                    {
+                        _pos++;
+                        if (expressionType != ClassSetExpressionType.ClassSubtraction)
+                        {
+                            Error(
+                                Diagnostics.Operators_must_not_be_mixed_within_a_character_class_Wrap_it_in_a_nested_class_instead,
+                                _pos - 2,
+                                2);
+                        }
+                    }
+                    else
+                    {
+                        Error(
+                            Diagnostics.Operators_must_not_be_mixed_within_a_character_class_Wrap_it_in_a_nested_class_instead,
+                            _pos - 1,
+                            1);
+                    }
+
+                    break;
+
+                case CharacterCodes.Ampersand:
+                    _pos++;
+                    if (CharCodeChecked(_pos) == CharacterCodes.Ampersand)
+                    {
+                        _pos++;
+                        if (expressionType != ClassSetExpressionType.ClassIntersection)
+                        {
+                            Error(
+                                Diagnostics.Operators_must_not_be_mixed_within_a_character_class_Wrap_it_in_a_nested_class_instead,
+                                _pos - 2,
+                                2);
+                        }
+
+                        if (CharCodeChecked(_pos) == CharacterCodes.Ampersand)
+                        {
+                            Error(Diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, _pos, 1, ((char)ch).ToString());
+                            _pos++;
+                        }
+                    }
+                    else
+                    {
+                        Error(Diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, _pos - 1, 1, ((char)ch).ToString());
+                    }
+
+                    break;
+
+                default:
+                    switch (expressionType)
+                    {
+                        case ClassSetExpressionType.ClassSubtraction:
+                            Error(Diagnostics._0_expected, _pos, 0, "--");
+                            break;
+                        case ClassSetExpressionType.ClassIntersection:
+                            Error(Diagnostics._0_expected, _pos, 0, "&&");
+                            break;
+                    }
+
+                    break;
+            }
+
+            ch = CharCodeChecked(_pos);
+            if (IsClassContentExit(ch))
+            {
+                Error(Diagnostics.Expected_a_class_set_operand);
+                break;
+            }
+
+            ScanClassSetOperand();
+
+            // Used only if expressionType is Intersection
+            expressionMayContainStrings &= _regExpMayContainStrings;
+        }
+
+        _regExpMayContainStrings = expressionMayContainStrings;
+    }
+
+    // ClassSetOperand ::= '[' ClassSetExpression ']' | '\' CharacterClassEscape
+    //                   | '\q{' ClassStringDisjunctionContents '}' | ClassSetCharacter
+    private string ScanClassSetOperand()
+    {
+        _regExpMayContainStrings = false;
+        switch (CharCodeChecked(_pos))
+        {
+            case CharacterCodes.EOF:
+                return "";
+
+            case CharacterCodes.OpenBracket:
+                _pos++;
+                ScanClassSetExpression();
+                ScanExpectedChar(CharacterCodes.CloseBracket);
+                return "";
+
+            case CharacterCodes.Backslash:
+                _pos++;
+                if (ScanCharacterClassEscape())
+                {
+                    return "";
+                }
+
+                if (CharCodeChecked(_pos) == CharacterCodes.q)
+                {
+                    _pos++;
+                    if (CharCodeChecked(_pos) == CharacterCodes.OpenBrace)
+                    {
+                        _pos++;
+                        ScanClassStringDisjunctionContents();
+                        ScanExpectedChar(CharacterCodes.CloseBrace);
+                        return "";
+                    }
+
+                    Error(Diagnostics.q_must_be_followed_by_string_alternatives_enclosed_in_braces, _pos - 2, 2);
+                    return "q";
+                }
+
+                _pos--;
+                goto default;
+
+            default:
+                return ScanClassSetCharacter();
+        }
+    }
+
+    // ClassStringDisjunctionContents ::= ClassSetCharacter* ('|' ClassSetCharacter*)*
+    private void ScanClassStringDisjunctionContents()
+    {
+        Debug.AssertEqual(CharCodeUnchecked(_pos - 1), CharacterCodes.OpenBrace);
+        var characterCount = 0;
+        while (true)
+        {
+            switch (CharCodeChecked(_pos))
+            {
+                case CharacterCodes.EOF:
+                    return;
+                case CharacterCodes.CloseBrace:
+                    if (characterCount != 1) _regExpMayContainStrings = true;
+                    return;
+                case CharacterCodes.Bar:
+                    if (characterCount != 1) _regExpMayContainStrings = true;
+                    _pos++;
+                    characterCount = 0;
+                    break;
+                default:
+                    ScanClassSetCharacter();
+                    characterCount++;
+                    break;
+            }
+        }
+    }
+
+    // ClassSetCharacter ::= SourceCharacter -- ClassSetSyntaxCharacter -- ClassSetReservedDoublePunctuator
+    //                    | '\' (CharacterEscape | ClassSetReservedPunctuator | 'b')
+    private string ScanClassSetCharacter()
+    {
+        var ch = CharCodeChecked(_pos);
+        if (ch == CharacterCodes.EOF)
+        {
+            // No error here: the initial scan has already reported that the regex is unterminated.
+            return "";
+        }
+
+        if (ch == CharacterCodes.Backslash)
+        {
+            _pos++;
+            ch = CharCodeChecked(_pos);
+            switch (ch)
+            {
+                case CharacterCodes.b:
+                    _pos++;
+                    return "\b";
+
+                case CharacterCodes.Ampersand:
+                case CharacterCodes.Minus:
+                case CharacterCodes.Exclamation:
+                case CharacterCodes.Hash:
+                case CharacterCodes.Percent:
+                case CharacterCodes.Comma:
+                case CharacterCodes.Colon:
+                case CharacterCodes.Semicolon:
+                case CharacterCodes.LessThan:
+                case CharacterCodes.EqualsSign:
+                case CharacterCodes.GreaterThan:
+                case CharacterCodes.At:
+                case CharacterCodes.Backtick:
+                case CharacterCodes.Tilde:
+                    _pos++;
+                    return ((char)ch).ToString();
+
+                default:
+                    return ScanCharacterEscape(atomEscape: false);
+            }
+        }
+
+        if (ch == CharCodeChecked(_pos + 1))
+        {
+            switch (ch)
+            {
+                case CharacterCodes.Ampersand:
+                case CharacterCodes.Exclamation:
+                case CharacterCodes.Hash:
+                case CharacterCodes.Percent:
+                case CharacterCodes.Asterisk:
+                case CharacterCodes.Plus:
+                case CharacterCodes.Comma:
+                case CharacterCodes.Dot:
+                case CharacterCodes.Colon:
+                case CharacterCodes.Semicolon:
+                case CharacterCodes.LessThan:
+                case CharacterCodes.EqualsSign:
+                case CharacterCodes.GreaterThan:
+                case CharacterCodes.Question:
+                case CharacterCodes.At:
+                case CharacterCodes.Backtick:
+                case CharacterCodes.Tilde:
+                    Error(
+                        Diagnostics.A_character_class_must_not_contain_a_reserved_double_punctuator_Did_you_mean_to_escape_it_with_backslash,
+                        _pos,
+                        2);
+                    _pos += 2;
+                    return _text[(_pos - 2).._pos];
+            }
+        }
+
+        switch (ch)
+        {
+            case CharacterCodes.Slash:
+            case CharacterCodes.OpenParen:
+            case CharacterCodes.CloseParen:
+            case CharacterCodes.OpenBracket:
+            case CharacterCodes.CloseBracket:
+            case CharacterCodes.OpenBrace:
+            case CharacterCodes.CloseBrace:
+            case CharacterCodes.Minus:
+            case CharacterCodes.Bar:
+                Error(Diagnostics.Unexpected_0_Did_you_mean_to_escape_it_with_backslash, _pos, 1, ((char)ch).ToString());
+                _pos++;
+                return ((char)ch).ToString();
+        }
+
+        return ScanSourceCharacter();
+    }
+
+    // ClassAtom ::= SourceCharacter but not one of '\' or ']' | '\' ClassEscape
+    //   ClassEscape ::= 'b' | '-' | CharacterClassEscape | CharacterEscape
+    private string ScanClassAtom()
+    {
+        if (CharCodeChecked(_pos) == CharacterCodes.Backslash)
+        {
+            _pos++;
+            var ch = CharCodeChecked(_pos);
+            switch (ch)
+            {
+                case CharacterCodes.b:
+                    _pos++;
+                    return "\b";
+                case CharacterCodes.Minus:
+                    _pos++;
+                    return ((char)ch).ToString();
+                default:
+                    if (ScanCharacterClassEscape()) return "";
+                    return ScanCharacterEscape(atomEscape: false);
+            }
+        }
+
+        return ScanSourceCharacter();
+    }
+
+    // CharacterClassEscape ::= 'd' | 'D' | 's' | 'S' | 'w' | 'W'
+    //                       | [+UnicodeMode] ('P' | 'p') '{' UnicodePropertyValueExpression '}'
+    private bool ScanCharacterClassEscape()
+    {
+        Debug.AssertEqual(CharCodeUnchecked(_pos - 1), CharacterCodes.Backslash);
+        var isCharacterComplement = false;
+        var start = _pos - 1;
+        var ch = CharCodeChecked(_pos);
+        switch (ch)
+        {
+            case CharacterCodes.d:
+            case CharacterCodes.D:
+            case CharacterCodes.s:
+            case CharacterCodes.S:
+            case CharacterCodes.w:
+            case CharacterCodes.W:
+                _pos++;
+                return true;
+
+            case CharacterCodes.P:
+                isCharacterComplement = true;
+                goto case CharacterCodes.p;
+
+            case CharacterCodes.p:
+                _pos++;
+                if (CharCodeChecked(_pos) == CharacterCodes.OpenBrace)
+                {
+                    _pos++;
+                    var propertyNameOrValueStart = _pos;
+                    var propertyNameOrValue = ScanWordCharacters();
+                    if (CharCodeChecked(_pos) == CharacterCodes.EqualsSign)
+                    {
+                        var propertyName = NonBinaryUnicodeProperties().GetValueOrDefault(propertyNameOrValue);
+                        if (_pos == propertyNameOrValueStart)
+                        {
+                            Error(Diagnostics.Expected_a_Unicode_property_name);
+                        }
+                        else if (propertyName is null)
+                        {
+                            Error(Diagnostics.Unknown_Unicode_property_name, propertyNameOrValueStart, _pos - propertyNameOrValueStart);
+                            var suggestion = Core.GetSpellingSuggestion(
+                                propertyNameOrValue,
+                                NonBinaryUnicodePropertyNames(),
+                                Core.Identity);
+                            if (suggestion is not null)
+                            {
+                                Error(Diagnostics.Did_you_mean_0, propertyNameOrValueStart, _pos - propertyNameOrValueStart, suggestion);
+                            }
+                        }
+
+                        _pos++;
+                        var propertyValueStart = _pos;
+                        var propertyValue = ScanWordCharacters();
+                        if (_pos == propertyValueStart)
+                        {
+                            Error(Diagnostics.Expected_a_Unicode_property_value);
+                        }
+                        else if (propertyName is not null && !UnicodePropertyValues(propertyName).Contains(propertyValue))
+                        {
+                            Error(Diagnostics.Unknown_Unicode_property_value, propertyValueStart, _pos - propertyValueStart);
+                            var suggestion = Core.GetSpellingSuggestion(
+                                propertyValue,
+                                UnicodePropertyValues(propertyName),
+                                Core.Identity);
+                            if (suggestion is not null)
+                            {
+                                Error(Diagnostics.Did_you_mean_0, propertyValueStart, _pos - propertyValueStart, suggestion);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (_pos == propertyNameOrValueStart)
+                        {
+                            Error(Diagnostics.Expected_a_Unicode_property_name_or_value);
+                        }
+                        else if (BinaryUnicodePropertiesOfStrings().Contains(propertyNameOrValue))
+                        {
+                            if (!_regExpUnicodeSetsMode)
+                            {
+                                Error(
+                                    Diagnostics.Any_Unicode_property_that_would_possibly_match_more_than_a_single_character_is_only_available_when_the_Unicode_Sets_v_flag_is_set,
+                                    propertyNameOrValueStart,
+                                    _pos - propertyNameOrValueStart);
+                            }
+                            else if (isCharacterComplement)
+                            {
+                                Error(
+                                    Diagnostics.Anything_that_would_possibly_match_more_than_a_single_character_is_invalid_inside_a_negated_character_class,
+                                    propertyNameOrValueStart,
+                                    _pos - propertyNameOrValueStart);
+                            }
+                            else
+                            {
+                                _regExpMayContainStrings = true;
+                            }
+                        }
+                        else if (!UnicodePropertyValues("General_Category").Contains(propertyNameOrValue) &&
+                            !BinaryUnicodeProperties().Contains(propertyNameOrValue))
+                        {
+                            Error(Diagnostics.Unknown_Unicode_property_name_or_value, propertyNameOrValueStart, _pos - propertyNameOrValueStart);
+                            var suggestion = Core.GetSpellingSuggestion(
+                                propertyNameOrValue,
+                                [.. UnicodePropertyValues("General_Category"), .. BinaryUnicodeProperties(), .. BinaryUnicodePropertiesOfStrings()],
+                                Core.Identity);
+                            if (suggestion is not null)
+                            {
+                                Error(Diagnostics.Did_you_mean_0, propertyNameOrValueStart, _pos - propertyNameOrValueStart, suggestion);
+                            }
+                        }
+                    }
+
+                    ScanExpectedChar(CharacterCodes.CloseBrace);
+                    if (!_regExpAnyUnicodeMode)
+                    {
+                        Error(
+                            Diagnostics.Unicode_property_value_expressions_are_only_available_when_the_Unicode_u_flag_or_the_Unicode_Sets_v_flag_is_set,
+                            start,
+                            _pos - start);
+                    }
+                }
+                else if (_regExpAnyUnicodeModeOrNonAnnexB)
+                {
+                    Error(
+                        Diagnostics._0_must_be_followed_by_a_Unicode_property_value_expression_enclosed_in_braces,
+                        _pos - 2,
+                        2,
+                        ((char)ch).ToString());
+                }
+                else
+                {
+                    _pos--;
+                    return false;
+                }
+
+                return true;
+        }
+
+        return false;
+    }
+
+    private string ScanWordCharacters()
+    {
+        var value = "";
+        while (true)
+        {
+            var ch = CharCodeChecked(_pos);
+            if (ch == CharacterCodes.EOF || !ScannerUtilities.IsWordCharacter(ch)) break;
+            value += ((char)ch).ToString();
+            _pos++;
+        }
+
+        return value;
+    }
+
+    private string ScanSourceCharacter()
+    {
+        var size = _regExpAnyUnicodeMode ? ScannerUtilities.CharSize(CodePointChecked(_pos)) : 1;
+        _pos += size;
+        return size > 0 ? _text[(_pos - size).._pos] : "";
+    }
+
+    private void ScanExpectedChar(int ch)
+    {
+        if (CharCodeChecked(_pos) == ch)
+        {
+            _pos++;
+        }
+        else
+        {
+            Error(Diagnostics._0_expected, _pos, 0, ((char)ch).ToString());
+        }
+    }
+
+    // ---- Unicode property tables, indexed the way the grammar rules above need them. ----
+
+    private static Dictionary<string, string> NonBinaryUnicodeProperties() => s_nonBinaryUnicodeProperties ??= BuildNonBinary();
+
+    private static List<string> NonBinaryUnicodePropertyNames() => s_nonBinaryUnicodePropertyNames ??= [.. NonBinaryUnicodeProperties().Keys];
+
+    private static HashSet<string> BinaryUnicodeProperties() => s_binaryUnicodeProperties ??= [.. ScannerTables.BinaryUnicodeProperties];
+
+    private static HashSet<string> BinaryUnicodePropertiesOfStrings() => s_binaryUnicodePropertiesOfStrings ??= [.. ScannerTables.BinaryUnicodePropertiesOfStrings];
+
+    private static HashSet<string> UnicodePropertyValues(string property)
+    {
+        if (s_unicodePropertyValues.TryGetValue(property, out var cached)) return cached;
+
+        var values = new HashSet<string>(UnicodePropertyValuesOf(property), StringComparer.Ordinal);
+        s_unicodePropertyValues[property] = values;
+        return values;
+    }
+
+    private static Dictionary<string, string>? s_nonBinaryUnicodeProperties;
+    private static List<string>? s_nonBinaryUnicodePropertyNames;
+    private static HashSet<string>? s_binaryUnicodeProperties;
+    private static HashSet<string>? s_binaryUnicodePropertiesOfStrings;
+    private static readonly Dictionary<string, HashSet<string>> s_unicodePropertyValues = new(StringComparer.Ordinal);
+
+    private static Dictionary<string, string> BuildNonBinary()
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (alias, canonicalName) in ScannerTables.NonBinaryUnicodeProperties) result[alias] = canonicalName;
+        return result;
+    }
+
+    /// <summary>The value list of a property, materialised once per property name.</summary>
+    private static HashSet<string> UnicodePropertyValuesOf(string property)
+    {
+        foreach (var (name, values) in ScannerTables.ValuesOfNonBinaryUnicodeProperties)
+        {
+            if (name == property) return [.. values];
+        }
+
+        return [];
     }
 
     // ported from: src/compiler/scanner.ts:3977-3979

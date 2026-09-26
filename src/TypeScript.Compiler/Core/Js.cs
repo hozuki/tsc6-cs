@@ -74,19 +74,30 @@ internal static class Js
     /// JS's unary <c>+</c> (ToNumber) for the values the scanner hands it.
     /// </summary>
     /// <remarks>
-    /// PORT-NOTE: the scanner only passes plain decimal digit strings (possibly with leading zeros), and the part
-    /// of JS's ToNumber it relies on is that a failed conversion yields <c>NaN</c> rather than throwing. The rest
-    /// of ToNumber — hex/binary prefixes, whitespace trimming, the empty string being 0 — is not reachable from
-    /// there, so it is not implemented.
+    /// PORT-NOTE: the scanner passes decimal digit strings, and — for a hex literal — the <c>0x…</c> text itself
+    /// (JS's <c>+</c> understands the radix prefixes; <c>double.TryParse</c> does not). The part of ToNumber the
+    /// scanner relies on is that a failed conversion yields <c>NaN</c> rather than throwing. Whitespace trimming
+    /// and the empty string being 0 are not reachable from there.
     /// </remarks>
     public static double ToNumber(string value)
-        => double.TryParse(
+    {
+        // A hex literal arrives here as its own text (`+tokenValue` in checkBigIntSuffix); the binary and octal
+        // prefixes never do, because that method converts those with parseInt first.
+        if (value.Length > 2 && value[0] == '0' && (value[1] == 'x' || value[1] == 'X'))
+        {
+            return long.TryParse(value.AsSpan(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var hex)
+                ? hex
+                : double.NaN;
+        }
+
+        return double.TryParse(
             value,
             NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent,
             CultureInfo.InvariantCulture,
             out var result)
                 ? result
                 : double.NaN;
+    }
 
     /// <summary>
     /// Formats a number the way JavaScript's parameterless <c>Number.prototype.toString()</c> does.
