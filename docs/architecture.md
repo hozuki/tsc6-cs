@@ -836,7 +836,7 @@ M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质�
 
 代价是生成物里有一段明确会抛的代码。这是临时的：清单每长一条就短一条，全部就位后生成物里不再有 `NotImplementedException`。
 
-**进度**（第七批结束时）：428 个工厂成员中，137 个仍是存根。已手写的部分包括字面量与模板家族、标识符与 punctuation、parameter/property/method 声明、表达式家族（access / call / chain）、以及一批辅助（`asEmbeddedStatement`/`asVariableDeclaration`/`flattenCommaElements`/`getCookedText`…）。剩下的集中在四处：
+**进度**（第八批结束时）：428 个工厂成员中，125 个仍是存根。已手写的部分包括字面量与模板家族、标识符与 punctuation、parameter/property/method 声明、表达式家族（access / call / chain）、variable / import / export 声明、以及一批辅助（`asEmbeddedStatement`/`asVariableDeclaration`/`flattenCommaElements`/`getCookedText`…）。剩下的集中在四处：
 
 - **JSDoc 家族**（30 余个）：它们都经由 `createBaseJSDocTag`/`createBaseJSDocTagDeclaration` 这两个泛型辅助，而那两个的 `T["kind"]` 约束在 C# 里表达不了。
 - **声明家族**：class/module/import/export/function/variable 与 `createSourceFile`（含 `cloneSourceFileWithChanges`）。

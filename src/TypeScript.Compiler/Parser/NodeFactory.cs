@@ -1643,4 +1643,276 @@ internal partial class NodeFactory
             ? Update(CreateCallChain(expression, questionDotToken, typeArguments, argumentsArray), node)
             : node;
     }
+
+    //
+    // Statements and declarations (the hand-written half)
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:4276 — <c>createVariableDeclarationList</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS leaves <c>flags</c> unannotated, so its type is <c>any</c>; the port takes it as <c>object?</c>
+    /// and narrows it to the enum, with an absent value meaning <c>None</c> — which is what TS's default is.
+    /// </remarks>
+    public VariableDeclarationList CreateVariableDeclarationList(
+        IList<VariableDeclaration>? declarations,
+        object? flags = null)
+    {
+        var nodeFlags = flags is NodeFlags value ? value : NodeFlags.None;
+        var node = CreateBaseNode<VariableDeclarationList>(SyntaxKind.VariableDeclarationList);
+        node.Flags |= nodeFlags & NodeFlags.BlockScoped;
+        node.Declarations = CreateNodeArray(declarations, null);
+        node.TransformFlags |= PropagateChildrenFlags(node.Declarations)
+            | TransformFlags.ContainsHoistedDeclarationOrCompletion;
+
+        if ((nodeFlags & NodeFlags.BlockScoped) != 0)
+        {
+            node.TransformFlags |= TransformFlags.ContainsES2015 | TransformFlags.ContainsBlockScopedBinding;
+        }
+
+        if ((nodeFlags & NodeFlags.Using) != 0) node.TransformFlags |= TransformFlags.ContainsESNext;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:4292 — <c>updateVariableDeclarationList</c>.</summary>
+    public VariableDeclarationList UpdateVariableDeclarationList(
+        VariableDeclarationList? node,
+        List<VariableDeclaration>? declarations)
+    {
+        return !ReferenceEquals(node!.Declarations, declarations)
+            ? Update(CreateVariableDeclarationList(declarations, node!.Flags), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3876 — <c>createVariableStatement</c>.</summary>
+    public VariableStatement CreateVariableStatement(List<Node>? modifiers, object? declarationList)
+    {
+        var node = CreateBaseNode<VariableStatement>(SyntaxKind.VariableStatement);
+        node.Modifiers = AsNodeArray(modifiers);
+
+        // TS accepts either a declaration list or a plain array of declarations.
+        node.DeclarationList = declarationList is IList<VariableDeclaration> declarations
+            ? CreateVariableDeclarationList(declarations, null)
+            : declarationList as VariableDeclarationList;
+
+        node.TransformFlags |= PropagateChildrenFlags(node.Modifiers)
+            | PropagateChildFlags(node.DeclarationList);
+
+        if ((Utilities.ModifiersToFlags(node.Modifiers) & ModifierFlags.Ambient) != 0)
+        {
+            node.TransformFlags = TransformFlags.ContainsTypeScript;
+        }
+
+        node.JsDoc = null;    // initialized by parser (JsDocContainer)
+        node.FlowNode = null; // initialized by binder (FlowContainer)
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3893 — <c>updateVariableStatement</c>.</summary>
+    public VariableStatement UpdateVariableStatement(
+        VariableStatement? node,
+        List<Node>? modifiers,
+        VariableDeclarationList? declarationList)
+    {
+        return !ReferenceEquals(node!.Modifiers, modifiers) || node!.DeclarationList != declarationList
+            ? Update(CreateVariableStatement(modifiers, declarationList), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:4649 — <c>createImportEqualsDeclaration</c>.</summary>
+    public ImportEqualsDeclaration CreateImportEqualsDeclaration(
+        List<Node>? modifiers,
+        bool isTypeOnly,
+        object? name,
+        Node? moduleReference)
+    {
+        var node = CreateBaseDeclaration<ImportEqualsDeclaration>(SyntaxKind.ImportEqualsDeclaration);
+        node.Modifiers = AsNodeArray(modifiers);
+        node.Name = AsName(name);
+        node.IsTypeOnly = isTypeOnly;
+        node.ModuleReference = moduleReference;
+        node.TransformFlags |= PropagateChildrenFlags(node.Modifiers)
+            | PropagateIdentifierNameFlags(node.Name)
+            | PropagateChildFlags(node.ModuleReference);
+
+        // An `import x = require(…)` is TypeScript syntax unless the reference is an external module one.
+        if (moduleReference is null || moduleReference.Kind != SyntaxKind.ExternalModuleReference)
+        {
+            node.TransformFlags |= TransformFlags.ContainsTypeScript;
+        }
+
+        // An `import =` declaration is always parsed in an await context.
+        node.TransformFlags = CoreFlags.Clear(node.TransformFlags, TransformFlags.ContainsPossibleTopLevelAwait);
+
+        node.JsDoc = null; // initialized by parser (JsDocContainer)
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:4676 — <c>updateImportEqualsDeclaration</c>.</summary>
+    public ImportEqualsDeclaration UpdateImportEqualsDeclaration(
+        ImportEqualsDeclaration? node,
+        List<Node>? modifiers,
+        bool isTypeOnly,
+        Identifier? name,
+        Node? moduleReference)
+    {
+        return !ReferenceEquals(node!.Modifiers, modifiers)
+            || node!.IsTypeOnly != isTypeOnly
+            || node!.Name != name
+            || node!.ModuleReference != moduleReference
+            ? Update(CreateImportEqualsDeclaration(modifiers, isTypeOnly, name, moduleReference), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:4691 — <c>createImportDeclaration</c>.</summary>
+    public ImportDeclaration CreateImportDeclaration(
+        List<Node>? modifiers,
+        ImportClause? importClause,
+        Expression? moduleSpecifier,
+        ImportAttributes? attributes)
+    {
+        var node = CreateBaseNode<ImportDeclaration>(SyntaxKind.ImportDeclaration);
+        node.Modifiers = AsNodeArray(modifiers);
+        node.ImportClause = importClause;
+        node.ModuleSpecifier = moduleSpecifier;
+
+        // `attributes` and `assertClause` are the two spellings of the same slot.
+        node.Attributes = attributes;
+        node.AssertClause = attributes;
+
+        node.TransformFlags |= PropagateChildFlags(node.ImportClause)
+            | PropagateChildFlags(node.ModuleSpecifier);
+
+        // An import declaration is always parsed in an await context.
+        node.TransformFlags = CoreFlags.Clear(node.TransformFlags, TransformFlags.ContainsPossibleTopLevelAwait);
+
+        node.JsDoc = null; // initialized by parser (JsDocContainer)
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:4708 — <c>updateImportDeclaration</c>.</summary>
+    public ImportDeclaration UpdateImportDeclaration(
+        ImportDeclaration? node,
+        List<Node>? modifiers,
+        ImportClause? importClause,
+        Expression? moduleSpecifier,
+        ImportAttributes? attributes)
+    {
+        return !ReferenceEquals(node!.Modifiers, modifiers)
+            || node!.ImportClause != importClause
+            || node!.ModuleSpecifier != moduleSpecifier
+            || node!.Attributes != attributes
+            ? Update(CreateImportDeclaration(modifiers, importClause, moduleSpecifier, attributes), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:4727 — <c>createImportClause</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS types the first parameter as <c>ImportPhaseModifierSyntaxKind | boolean | undefined</c> and answers
+    /// the older boolean spelling inside the body; the union of an enum and a <c>boolean</c> has no single C# type, so
+    /// it arrives as <c>object?</c> and the narrowing happens here.
+    /// </remarks>
+    public ImportClause CreateImportClause(object? phaseModifier, Identifier? name, Node? namedBindings)
+    {
+        var node = CreateBaseDeclaration<ImportClause>(SyntaxKind.ImportClause);
+
+        var phase = phaseModifier switch
+        {
+            bool isTypeOnly => isTypeOnly ? SyntaxKind.TypeKeyword : (SyntaxKind?)null,
+            SyntaxKind kind => kind,
+            _ => null,
+        };
+
+        node.IsTypeOnly = phase == SyntaxKind.TypeKeyword;
+        node.PhaseModifier = phase;
+        node.Name = name;
+        node.NamedBindings = namedBindings;
+        node.TransformFlags |= PropagateChildFlags(node.Name) | PropagateChildFlags(node.NamedBindings);
+        if (phase == SyntaxKind.TypeKeyword) node.TransformFlags |= TransformFlags.ContainsTypeScript;
+
+        // An import clause is always parsed in an await context.
+        node.TransformFlags = CoreFlags.Clear(node.TransformFlags, TransformFlags.ContainsPossibleTopLevelAwait);
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:4746 — <c>updateImportClause</c>.</summary>
+    public ImportClause UpdateImportClause(
+        ImportClause? node,
+        object? phaseModifier,
+        Identifier? name,
+        Node? namedBindings)
+    {
+        var phase = phaseModifier switch
+        {
+            bool isTypeOnly => isTypeOnly ? SyntaxKind.TypeKeyword : (SyntaxKind?)null,
+            SyntaxKind kind => kind,
+            _ => null,
+        };
+
+        return node!.PhaseModifier != phase
+            || node!.Name != name
+            || node!.NamedBindings != namedBindings
+            ? Update(CreateImportClause(phase, name, namedBindings), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:4946 — <c>createExportDeclaration</c>.</summary>
+    public ExportDeclaration CreateExportDeclaration(
+        List<Node>? modifiers,
+        bool isTypeOnly,
+        Node? exportClause,
+        Expression? moduleSpecifier,
+        ImportAttributes? attributes)
+    {
+        var node = CreateBaseDeclaration<ExportDeclaration>(SyntaxKind.ExportDeclaration);
+        node.Modifiers = AsNodeArray(modifiers);
+        node.IsTypeOnly = isTypeOnly;
+        node.ExportClause = exportClause;
+        node.ModuleSpecifier = moduleSpecifier;
+        node.Attributes = attributes;
+        node.AssertClause = attributes;
+        node.TransformFlags |= PropagateChildrenFlags(node.Modifiers)
+            | PropagateChildFlags(node.ExportClause)
+            | PropagateChildFlags(node.ModuleSpecifier);
+
+        // An export declaration is always parsed in an await context.
+        node.TransformFlags = CoreFlags.Clear(node.TransformFlags, TransformFlags.ContainsPossibleTopLevelAwait);
+
+        node.JsDoc = null; // initialized by parser (JsDocContainer)
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:4970 — <c>updateExportDeclaration</c>.</summary>
+    public ExportDeclaration UpdateExportDeclaration(
+        ExportDeclaration? node,
+        List<Node>? modifiers,
+        bool isTypeOnly,
+        Node? exportClause,
+        Expression? moduleSpecifier,
+        ImportAttributes? attributes)
+    {
+        return !ReferenceEquals(node!.Modifiers, modifiers)
+            || node!.IsTypeOnly != isTypeOnly
+            || node!.ExportClause != exportClause
+            || node!.ModuleSpecifier != moduleSpecifier
+            || node!.Attributes != attributes
+            ? FinishUpdateExportDeclaration(
+                CreateExportDeclaration(modifiers, isTypeOnly, exportClause, moduleSpecifier, attributes),
+                node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:4987 — <c>finishUpdateExportDeclaration</c>.</summary>
+    private ExportDeclaration FinishUpdateExportDeclaration(ExportDeclaration updated, ExportDeclaration original)
+    {
+        if (!ReferenceEquals(updated, original))
+        {
+            // Copy the children TS keeps only for error reporting.
+            if (ReferenceEquals(updated.Modifiers, original.Modifiers))
+            {
+                updated.Modifiers = original.Modifiers;
+            }
+        }
+
+        return Update(updated, original);
+    }
 }

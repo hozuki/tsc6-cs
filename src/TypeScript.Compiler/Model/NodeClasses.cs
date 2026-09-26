@@ -807,7 +807,7 @@ internal partial class ImportClause : Node, IDeclaration, INamedDeclaration, IRe
     public override SyntaxKind Kind => SyntaxKind.ImportClause;
 
     public bool IsTypeOnly { get; set; }
-    public SyntaxKind PhaseModifier { get; set; }
+    public SyntaxKind? PhaseModifier { get; set; }
     public Identifier? Name { get; set; }
     public Node? NamedBindings { get; set; }
     public ISymbol? Symbol { get; set; }

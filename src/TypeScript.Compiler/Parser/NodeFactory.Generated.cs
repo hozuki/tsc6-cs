@@ -2710,22 +2710,6 @@ internal partial class NodeFactory
         throw new NotImplementedException("the port has not reached `updateConditionalExpression` yet");
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createVariableStatement</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateVariableStatement(List<Node>? modifiers, object? declarationList)
-    {
-        throw new NotImplementedException("the port has not reached `createVariableStatement` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateVariableStatement</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public VariableStatement UpdateVariableStatement(VariableStatement? node, List<Node>? modifiers, VariableDeclarationList? declarationList)
-    {
-        throw new NotImplementedException("the port has not reached `updateVariableStatement` yet");
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createVariableDeclaration</c>.</summary>
     /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
     /// it yet (docs/architecture.md §15.7).</remarks>
@@ -2740,22 +2724,6 @@ internal partial class NodeFactory
     public VariableDeclaration UpdateVariableDeclaration(VariableDeclaration? node, Node? name, PunctuationToken? exclamationToken, ITypeNode? type, Expression? initializer)
     {
         throw new NotImplementedException("the port has not reached `updateVariableDeclaration` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createVariableDeclarationList</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateVariableDeclarationList(List<VariableDeclaration>? declarations, object? flags)
-    {
-        throw new NotImplementedException("the port has not reached `createVariableDeclarationList` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateVariableDeclarationList</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public VariableDeclarationList UpdateVariableDeclarationList(VariableDeclarationList? node, List<VariableDeclaration>? declarations)
-    {
-        throw new NotImplementedException("the port has not reached `updateVariableDeclarationList` yet");
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createFunctionDeclaration</c>.</summary>
@@ -2812,70 +2780,6 @@ internal partial class NodeFactory
     public object? UpdateNamespaceExportDeclaration(NamespaceExportDeclaration? node, Identifier? name)
     {
         throw new NotImplementedException("the port has not reached `updateNamespaceExportDeclaration` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createImportEqualsDeclaration</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateImportEqualsDeclaration(List<Node>? modifiers, bool isTypeOnly, object? name, Node? moduleReference)
-    {
-        throw new NotImplementedException("the port has not reached `createImportEqualsDeclaration` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateImportEqualsDeclaration</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public ImportEqualsDeclaration UpdateImportEqualsDeclaration(ImportEqualsDeclaration? node, List<Node>? modifiers, bool isTypeOnly, Identifier? name, Node? moduleReference)
-    {
-        throw new NotImplementedException("the port has not reached `updateImportEqualsDeclaration` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createImportDeclaration</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public ImportDeclaration CreateImportDeclaration(List<Node>? modifiers, ImportClause? importClause, Expression? moduleSpecifier, ImportAttributes? attributes)
-    {
-        throw new NotImplementedException("the port has not reached `createImportDeclaration` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateImportDeclaration</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public ImportDeclaration UpdateImportDeclaration(ImportDeclaration? node, List<Node>? modifiers, ImportClause? importClause, Expression? moduleSpecifier, ImportAttributes? attributes)
-    {
-        throw new NotImplementedException("the port has not reached `updateImportDeclaration` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createImportClause</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public ImportClause CreateImportClause(object? phaseModifier, Identifier? name, Node? namedBindings)
-    {
-        throw new NotImplementedException("the port has not reached `createImportClause` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateImportClause</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? UpdateImportClause(ImportClause? node, object? phaseModifier, Identifier? name, Node? namedBindings)
-    {
-        throw new NotImplementedException("the port has not reached `updateImportClause` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createExportDeclaration</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public ExportDeclaration CreateExportDeclaration(List<ModifierToken>? modifiers, bool isTypeOnly, Node? exportClause, Expression? moduleSpecifier, ImportAttributes? attributes)
-    {
-        throw new NotImplementedException("the port has not reached `createExportDeclaration` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateExportDeclaration</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? UpdateExportDeclaration(ExportDeclaration? node, List<ModifierToken>? modifiers, bool isTypeOnly, Node? exportClause, Expression? moduleSpecifier, ImportAttributes? attributes)
-    {
-        throw new NotImplementedException("the port has not reached `updateExportDeclaration` yet");
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocPrimaryTypeWorker</c>.</summary>

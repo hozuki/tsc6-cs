@@ -120,10 +120,11 @@ internal sealed class TsTypeMapper
         try
         {
             var mapped = Map(tsType);
-            if (!optional || mapped.EndsWith('?')) return mapped;
 
-            // Nullability annotation; legal on both reference types and value types.
-            return mapped + "?";
+            // Nullability comes from the type or from the member's optionality: `phaseModifier: X | undefined` is a
+            // required member that can still be absent (§12.6).
+            if (!optional && !HasNullishMember(tsType)) return mapped;
+            return mapped.EndsWith('?') ? mapped : mapped + "?";
         }
         finally
         {
