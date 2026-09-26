@@ -22,8 +22,8 @@
 
 测试资源（验收用）：
 
-- `tests/cases/conformance/` — 5,908 个 `.ts` 用例
-- `tests/baselines/reference/` — 53,026 个 baseline 文件（`.js` / `.types` / `.symbols` / `.errors.txt` / `.symbols.txt` 等）
+- `tests/cases/conformance/` — 5,695 个 `.ts` 用例
+- `tests/baselines/reference/` — 60,931 个 baseline 文件（`.js` / `.types` / `.symbols` / `.errors.txt` / `.symbols.txt` 等）
 - `src/harness/` — 测试驱动框架（定义了 baseline 的生成格式）
 
 ---
@@ -106,15 +106,20 @@
 
 | 源文件 | 行数 | 说明 |
 |---|---|---|
-| `parser.ts` | 9,775 | `Parser`（`createSourceFile`）：递归下降 + 错误恢复 + JSDoc 解析 |
-| `factory/nodeFactory.ts` | 6,848 | `NodeFactory`：唯一的 AST 构造入口（缓存、`NodeArray` 复用、parent 处理） |
-| `factory/utilities.ts` | 1,611 | factory 辅助（`update*` 例程的共享逻辑） |
-| `factory/emitNode.ts` | 337 | 发射期附加信息槽 |
-| `factory/nodeTests.ts` | 952 | 节点判定谓词（取代 TS 的 `isXxx` 条件类型） |
-| `factory/nodeChildren.ts` | 54 | 子节点访问表 |
-| `factory/nodeConverters.ts` / `parenthesizerRules.ts` / `baseNodeFactory.ts` | 179/644/52 | 转换器与括号规则 |
-| `factory/emitHelpers.ts` | 1,377 | 生成 `__awaiter`/`__spreadArray` 等 helper |
-| `expressionToTypeNode.ts` | 1,281 | 表达式 → 类型节点（用于声明生成与快速修复） |
+| `parser.ts` | 10,823 | `Parser`（`createSourceFile`）：递归下降 + 错误恢复 + JSDoc 解析 |
+| `factory/nodeFactory.ts` | 7,542 | `NodeFactory`：唯一的 AST 构造入口（缓存、`NodeArray` 复用、parent 处理） |
+| `factory/utilities.ts` | 1,757 | factory 辅助（`update*` 例程的共享逻辑） |
+| `factory/nodeTests.ts` | 1,201 | 节点判定谓词（取代 TS 的 `isXxx` 条件类型） |
+| `factory/emitHelpers.ts` | 1,491 | 生成 `__awaiter`/`__spreadArray` 等 helper |
+| `expressionToTypeNode.ts` | 1,330 | 表达式 → 类型节点（用于声明生成与快速修复） |
+| `factory/parenthesizerRules.ts` | 706 | 括号规则 |
+| `factory/emitNode.ts` | 381 | 发射期附加信息槽 |
+| `factory/nodeConverters.ts` | 193 | 节点转换器 |
+| `factory/nodeChildren.ts` | 61 | 子节点访问表（增量解析的 `WeakMap` 缓存） |
+| `factory/baseNodeFactory.ts` | 60 | 构造函数间接层（见 §15.2：C# 侧省略） |
+| `factory/utilitiesPublic.ts` | 52 | factory 的公开辅助 |
+
+合计约 25,600 行 —— 是 Layer 2（4,101）的六倍，M4 因此按文件切成 M4a–M4g（见 §15.1）。
 
 ### Layer 4 — 绑定
 
@@ -312,6 +317,7 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 | **M3a** | Layer 1 补充：诊断基础设施 —— 全量诊断表由 `tools/Gen` 从 `diagnosticMessages.json` 生成（2,130 条），加 `DiagnosticMessage` | 生成物编译通过；名字改写规则与全表不变量单测 |
 | **M3** | Layer 2：`Scanner` 全量（见 §14） | 单测：token 流、trivia、错误恢复、关键字表 |
 | **M4** | Layer 3：`Parser` + `NodeFactory` | 能对 conformance 用例产出 AST；语法诊断 baseline 对齐 |
+| **M4a** | Layer 3 前置：`factory/nodeTests.ts` 的 227 个谓词由 `tools/Gen` 生成（`Parser/NodeTests.cs`） | 与 TS 源的函数数、返回类型、参数类型对齐；kind 而非类 |
 | **M5** | Layer 4：`Binder` | `.symbols` baseline 对齐（作用域/符号） |
 | **M6** | Layer 5：`Program` + `Checker`（分期：基础类型 → 泛型 → 高级特性） | `.types` / `.errors.txt` 语义 baseline 对齐 |
 | **M7** | Layer 6/7：Transformers + Emitter | `.js` baseline 对齐 |
@@ -628,3 +634,47 @@ TS 在 `sys` 初始化时把 `sys.writeFile` 换成"先建目录再写"的包装
 TS 的 `sys` 是模块级可变单例（`setSys` 负责替换它），其它模块直接 `import { sys }`。C# 里不保留这个单例：宿主由调用方显式传入（D9 已经规定 `System`/`CompilerHost` 照搬为接口），`setSys` 随之取消。好处是测试可以直接注入 `FakeSystem`，不必替换全局状态 —— `SysWatchTests` 驱动轮询用的就是这个方式。
 
 `sysLog`/`setSysLog` 是另一回事：它是日志钩子（`curSysLog`）而非宿主，模块级可变状态照原样保留在 `SysCore` 上。
+
+---
+
+## 15. M4 计划：Layer 3（`Parser` + `NodeFactory`）
+
+### 15.1 分批
+
+M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质量的量，所以按文件、按依赖自底向上切：
+
+| 批次 | 内容 | 行数 | 状态 |
+|---|---|---|---|
+| M4a | `factory/nodeTests.ts` → `Parser/NodeTests.cs`（生成） | 1,201 | 已完成（§15.4） |
+| M4b | `factory/emitNode.ts` → `Parser/EmitNodes.cs`；`factory/nodeChildren.ts` → `Parser/NodeChildren.cs`；提前移植 `utilities.ts` 的 `getSourceFileOfNode`/`isParseTreeNode`/`getParseTreeNode` | 442 + 3 个函数 | |
+| M4c | `factory/nodeFactory.ts` → `Parser/NodeFactory.cs`（最大单件，再按 create/update 家族细分） | 7,542 | |
+| M4d | `factory/utilities.ts` + `nodeConverters.ts` + `parenthesizerRules.ts` | 2,656 | |
+| M4e | `parser.ts` → `Parser/*`（递归下降主体：声明 / 语句 / 表达式 / 类型 / JSDoc 各自成批） | 10,823 | |
+| M4f | `emitHelpers.ts` + `expressionToTypeNode.ts` | 2,821 | |
+| M4g | baseline 外环（§7 的 P1：先只比 `.errors.txt` 与 `.js`，不含类型检查） | — | |
+
+顺序的理由：`nodeFactory` 的 459 个 import 里有 47 个来自 `nodeTests`、8 个来自 `emitNode`，而 `nodeTests` 只依赖 `types.ts`（227 个函数里 228 个 import 中的 228 个）—— 先把最底层的表与槽位立起来，往上的每批就只依赖已经存在的东西。
+
+### 15.2 两处不逐行移植
+
+- **`factory/baseNodeFactory.ts` 省略**：它是 `objectAllocator` 之上的间接层，存在的理由是让每个编译实例拿到**自己**的一套 `Node` 构造函数（跨 realm 时 `instanceof` 才正确，TS 因此把构造函数做成可注入的）。C# 里 `new Identifier()` 就是确定构造，没有对应问题。节点的 `pos = -1` / `end = -1` 初始范围改由 `Node` 自身承担。
+- **`factory/nodeChildren.ts` 的 `WeakMap` 双层缓存**：TS 用它做增量解析的 "每个 source file 一张 node → children 表"，键不阻碍回收。C# 用 `ConditionalWeakTable<SourceFileLike, …>` 表达同一生命周期，其余语义按 TS 保留。
+
+### 15.3 M4 期间复核出的实测偏差
+
+§3 的那批行数来自早期统计，逐文件复核后发现**系统性偏低**（Layer 2 的 `scanner.ts` 是唯一核对过的）。M4 涉及的 11 个文件全部重新实测并已回写 §3；另有三处数字要改：
+
+- `parser.ts` 9,775 → **10,823**
+- `factory/nodeFactory.ts` 6,848 → **7,542**
+- `tests/cases/conformance` 5,908 → **5,695**；`tests/baselines/reference` 53,026 → **60,931**
+
+### 15.4 M4a 交付
+
+`Parser/NodeTests.cs`（生成，227 个谓词）。源文件的 227 个导出函数**全部**是
+`return node.kind === SyntaxKind.X;`（唯一例外是 `isModuleExportName`，它认 `Identifier` 与 `StringLiteral`
+两个 kind），所以这是表不是码，按 §9 第 5 条并入生成器而不手抄：`extract.cjs` 的 `collectPredicates` 遇到
+别的 body 形态直接抛错 —— 正是这条规则在首次运行时就抓出了 `isModuleExportName`。
+
+**谓词保留 kind 比对，没有写成 `node is NumericLiteral`**：若干谓词测的 kind 在 C# 里共享一个类
+（所有关键字都是 `KeywordToken`，而 `isExportModifier` 测的是 `ExportKeyword`），类型测试并不等价。
+这一层同样适用于后续的 `update*` 家族 —— 它们要按 kind 判断能否复用节点。
