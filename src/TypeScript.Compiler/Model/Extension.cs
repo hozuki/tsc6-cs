@@ -4,22 +4,43 @@
 //     dotnet run --project tools/Gen -- --out src/TypeScript.Compiler
 // </auto-generated>
 
+#nullable enable
+
 namespace TypeScript.Compiler;
 
 /// <summary>Well-known file extensions, as used by module resolution and by <c>changeFullExtension</c>.</summary>
-internal static class Extension
+internal readonly struct Extension : IEquatable<Extension>
 {
-    public const string Ts = ".ts";
-    public const string Tsx = ".tsx";
-    public const string Dts = ".d.ts";
-    public const string Js = ".js";
-    public const string Jsx = ".jsx";
-    public const string Json = ".json";
-    public const string TsBuildInfo = ".tsbuildinfo";
-    public const string Mjs = ".mjs";
-    public const string Mts = ".mts";
-    public const string Dmts = ".d.mts";
-    public const string Cjs = ".cjs";
-    public const string Cts = ".cts";
-    public const string Dcts = ".d.cts";
+    private readonly string _value;
+
+    private Extension(string value) => _value = value;
+
+    /// <summary>The underlying string value, i.e. the value TS gives this enum member.</summary>
+    public string Value => _value ?? string.Empty;
+
+    public static readonly Extension Ts = new(".ts");
+    public static readonly Extension Tsx = new(".tsx");
+    public static readonly Extension Dts = new(".d.ts");
+    public static readonly Extension Js = new(".js");
+    public static readonly Extension Jsx = new(".jsx");
+    public static readonly Extension Json = new(".json");
+    public static readonly Extension TsBuildInfo = new(".tsbuildinfo");
+    public static readonly Extension Mjs = new(".mjs");
+    public static readonly Extension Mts = new(".mts");
+    public static readonly Extension Dmts = new(".d.mts");
+    public static readonly Extension Cjs = new(".cjs");
+    public static readonly Extension Cts = new(".cts");
+    public static readonly Extension Dcts = new(".d.cts");
+
+    public bool Equals(Extension other) => string.Equals(_value, other._value, StringComparison.Ordinal);
+
+    public override bool Equals(object? obj) => obj is Extension other && Equals(other);
+
+    public override int GetHashCode() => _value is null ? 0 : string.GetHashCode(_value, StringComparison.Ordinal);
+
+    public static bool operator ==(Extension left, Extension right) => left.Equals(right);
+
+    public static bool operator !=(Extension left, Extension right) => !left.Equals(right);
+
+    public override string ToString() => Value;
 }

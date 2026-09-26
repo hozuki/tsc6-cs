@@ -4,6 +4,8 @@
 //     dotnet run --project tools/Gen -- --out src/TypeScript.Compiler
 // </auto-generated>
 
+#nullable enable
+
 namespace TypeScript.Compiler;
 
 /// <summary>Flags that guide the emitter for a single node.</summary>

@@ -4,12 +4,33 @@
 //     dotnet run --project tools/Gen -- --out src/TypeScript.Compiler
 // </auto-generated>
 
+#nullable enable
+
 namespace TypeScript.Compiler;
 
 /// <summary>The single-letter marker the emitter writes to describe an erased <c>#private</c> member.</summary>
-internal static class PrivateIdentifierKind
+internal readonly struct PrivateIdentifierKind : IEquatable<PrivateIdentifierKind>
 {
-    public const string Field = "f";
-    public const string Method = "m";
-    public const string Accessor = "a";
+    private readonly string _value;
+
+    private PrivateIdentifierKind(string value) => _value = value;
+
+    /// <summary>The underlying string value, i.e. the value TS gives this enum member.</summary>
+    public string Value => _value ?? string.Empty;
+
+    public static readonly PrivateIdentifierKind Field = new("f");
+    public static readonly PrivateIdentifierKind Method = new("m");
+    public static readonly PrivateIdentifierKind Accessor = new("a");
+
+    public bool Equals(PrivateIdentifierKind other) => string.Equals(_value, other._value, StringComparison.Ordinal);
+
+    public override bool Equals(object? obj) => obj is PrivateIdentifierKind other && Equals(other);
+
+    public override int GetHashCode() => _value is null ? 0 : string.GetHashCode(_value, StringComparison.Ordinal);
+
+    public static bool operator ==(PrivateIdentifierKind left, PrivateIdentifierKind right) => left.Equals(right);
+
+    public static bool operator !=(PrivateIdentifierKind left, PrivateIdentifierKind right) => !left.Equals(right);
+
+    public override string ToString() => Value;
 }

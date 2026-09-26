@@ -4,14 +4,35 @@
 //     dotnet run --project tools/Gen -- --out src/TypeScript.Compiler
 // </auto-generated>
 
+#nullable enable
+
 namespace TypeScript.Compiler;
 
 /// <summary>ANSI escape sequences used when colorizing compiler output.</summary>
-internal static class ForegroundColorEscapeSequences
+internal readonly struct ForegroundColorEscapeSequences : IEquatable<ForegroundColorEscapeSequences>
 {
-    public const string Grey = "\u001B[90m";
-    public const string Red = "\u001B[91m";
-    public const string Yellow = "\u001B[93m";
-    public const string Blue = "\u001B[94m";
-    public const string Cyan = "\u001B[96m";
+    private readonly string _value;
+
+    private ForegroundColorEscapeSequences(string value) => _value = value;
+
+    /// <summary>The underlying string value, i.e. the value TS gives this enum member.</summary>
+    public string Value => _value ?? string.Empty;
+
+    public static readonly ForegroundColorEscapeSequences Grey = new("\u001B[90m");
+    public static readonly ForegroundColorEscapeSequences Red = new("\u001B[91m");
+    public static readonly ForegroundColorEscapeSequences Yellow = new("\u001B[93m");
+    public static readonly ForegroundColorEscapeSequences Blue = new("\u001B[94m");
+    public static readonly ForegroundColorEscapeSequences Cyan = new("\u001B[96m");
+
+    public bool Equals(ForegroundColorEscapeSequences other) => string.Equals(_value, other._value, StringComparison.Ordinal);
+
+    public override bool Equals(object? obj) => obj is ForegroundColorEscapeSequences other && Equals(other);
+
+    public override int GetHashCode() => _value is null ? 0 : string.GetHashCode(_value, StringComparison.Ordinal);
+
+    public static bool operator ==(ForegroundColorEscapeSequences left, ForegroundColorEscapeSequences right) => left.Equals(right);
+
+    public static bool operator !=(ForegroundColorEscapeSequences left, ForegroundColorEscapeSequences right) => !left.Equals(right);
+
+    public override string ToString() => Value;
 }

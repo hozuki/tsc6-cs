@@ -4,6 +4,8 @@
 //     dotnet run --project tools/Gen -- --out src/TypeScript.Compiler
 // </auto-generated>
 
+#nullable enable
+
 namespace TypeScript.Compiler;
 
 /// <summary>Syntax kinds, mirroring TS's <c>SyntaxKind</c> const enum. Values match TS exactly; sentinel members such as <c>FirstStatement</c> are aliases and therefore share their target's value.</summary>

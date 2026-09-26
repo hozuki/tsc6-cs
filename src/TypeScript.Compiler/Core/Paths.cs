@@ -965,7 +965,11 @@ internal static class Paths
     // PORT-NOTE: TS declares these above Layer 0 (`utilities.ts` and `parser.ts`). They are pure string
     // helpers over `Extension`, and `path.ts` (Layer 0) already imports `getDeclarationFileExtension`, so
     // the port lands them here rather than introducing an upward dependency or a stub.
-    private static readonly string[] s_supportedDeclarationExtensions = [Extension.Dts, Extension.Dcts, Extension.Dmts];
+    // PORT-NOTE: TS types these as `readonly Extension[]` and passes them where `readonly string[]` is
+    // expected, which works because a string-enum member is assignable to `string`. The port's Extension
+    // is a struct, so the values are unwrapped explicitly here.
+    private static readonly string[] s_supportedDeclarationExtensions =
+        [Extension.Dts.Value, Extension.Dcts.Value, Extension.Dmts.Value];
 
     public static string? GetDeclarationFileExtension(string fileName)
     {
@@ -975,7 +979,7 @@ internal static class Paths
             return standardExtension;
         }
 
-        if (FileExtensionIs(fileName, Extension.Ts))
+        if (FileExtensionIs(fileName, Extension.Ts.Value))
         {
             var baseName = GetBaseFileName(fileName);
             var index = baseName.LastIndexOf(".d.", StringComparison.Ordinal);

@@ -401,15 +401,34 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 - **不含** `src/services`、`src/server`、`jsTyping`、`typingsInstaller`、`watchGuard`。
 - `deprecatedCompat`（向后兼容垫片）视需要裁剪，策略随实现再议。
 
+**D4 — `__String`：值类型 + 全局池。**
+
+- `SymbolTable` 的键、`InternalSymbolName` 比较等高频路径使用驻留（interned）字符串。
+- 形态：`readonly struct` 包装池化的 `string`，等值与哈希走池内引用比较。配套 TS 的 `escapeLeadingUnderscores` / `unescapeLeadingUnderscores`。
+- 落地时机 M4（`SymbolTable`）。这是唯一一个**改晚了要返工**的决策，所以提前定死。
+
+**D5 — baseline 外环：独立 xUnit 项目。**
+
+- 单独的 `tests/TypeScript.Baselines` 项目，跑 `tests/cases/**` 并比对 `tests/baselines/reference/`。
+- 与 `TypeScript.Compiler.Tests`（内环：快、无外部依赖）分开，避免外环的 I/O 与用例数量拖慢内环反馈。
+- 内环失败 = 我改坏了；外环失败 = 与 TS 语义有差距。两类信号不混在一起。
+
+**D6 — 诊断不本地化，但保留本地化框架（只实现英文）。**
+
+- 诊断建模为「消息模板 + 参数 + 位置」，取文案时经过一个可替换的本地化解析层。
+- 只提供英文文案；`loc/lcl/` 下的 13 种语言不移植。
+- 这样以后要加本地化不必回头改诊断的建模方式。
+
+**D9 — `CompilerHost`：完整复刻 TS 的 host 接口。**
+
+- `System`（sys.ts）、`CompilerHost`、`ModuleResolutionHost` 等按 TS 定义照搬，不做简化版。
+- 好处：可以用虚拟文件系统做测试，且将来能逐项核对 host 语义；简化版会在 M5/M6 逐个暴露缺口。
+
 ### 11.2 待定（到相应里程碑再决策）
 
 | # | 决策 | 何时需要 | 影响 |
 |---|---|---|---|
-| D4 | `__String` 字符串驻留：直接用 `string`，还是引入 `InternedString` 值类型 + 全局池 | M4（`SymbolTable`） | 内存与查表性能；`SymbolTable` 是 checker 最热的容器 |
-| D5 | baseline 外环形态：独立 xUnit 项目跑 `tests/cases`，还是 CLI 工具 + 脚本比对 | M4（语法诊断可验收时） | 决定 CI 反馈速度与失败定位体验 |
-| D6 | 诊断本地化：`loc/lcl/` 下有 13 种语言，是否移植本地化诊断 | M5 | 工作量不小，且对编译器正确性无影响 |
 | D7 | 热路径优化：`Span`/`unsafe`/对象池的引入边界 | M6（checker 可跑之后） | 先正确后快；过早优化会污染移植的可对照性 |
-| D9 | `CompilerHost` 抽象粒度：完整复刻 TS 的 host 接口，还是简化 | M2b（`sys.ts`） | 影响能否用虚拟文件系统做测试 |
 
 ### 11.3 生成器（tools/Gen）
 
@@ -427,6 +446,11 @@ dotnet run --project tools/Gen -- --check    # 只校验不写入（CI / 本地�
 
 1. TS 的 `const enum` 在编译期内联，别名不占运行时位置；C# 的 enum 保留别名成员，于是 `Enum.GetValues` 会返回重复值，`ToString()` 对别名也不可靠。**调试输出必须用独立的名称表**（`formatSyntaxKind`，随 M2 的 model 层实现），不能依赖 `Enum.GetName`。
 2. C# 的 enum **不支持一元 `~`**，所以 `ModifierFlags.Modifier = All & ~Decorator` 这类表达式在生成期求值为十六进制字面量，原表达式保留在行尾注释里以便追溯。同理 `1 << 31` 会溢出 `int`，相关枚举（`TypeFlags`/`TransformFlags`）的底层类型为 `uint`。
-3. **字符串值枚举不生成 C# enum，而是 `internal static class` + `public const string`。** TS 里有 4 个这样的枚举（`Extension`、`InternalSymbolName`、`PrivateIdentifierKind`、`ForegroundColorEscapeSequences`），它们在每个调用点都当普通 `string` 用（比较 `symbol.escapedName`、把 `Extension.Ts` 传给接受 `readonly string[]` 的函数、把颜色码直接写进输出流）。用 C# enum 会在每个这样的位置强制转换，而且无法表示 `"__call"`、`"export="`、`"\u001b[90m"` 这类值。代价是失去名义类型（`Extension` 与任意 `string` 不可区分）—— 但 TS 的 `const enum` 内联之后本来也没有这个约束。
+3. **字符串值枚举生成为 `readonly struct` 包装，而不是 C# enum，也不是裸 `const string`。** TS 里有 4 个这样的枚举（`Extension`、`InternalSymbolName`、`PrivateIdentifierKind`、`ForegroundColorEscapeSequences`）。
+   - C# enum 不能携带字符串值 —— 无法表示 `"__call"`、`"export="`、`"\u001b[90m"`。
+   - 裸 `const string` 会丢掉名义类型，`fileExtensionIs` 这类函数的签名就退化成 `string, string`，没有任何东西能区分 `Extension` 与随手写的字面量。
+   - 生成的 struct 同时保留两者：参数与字段可以声明为 `Extension`，底层字符串通过 `.Value` 取出。实现 `IEquatable<T>`、`==`/`!=`、`GetHashCode`（与 `string.GetHashCode(..., Ordinal)` 一致，保证字典键可用）、`ToString()`。
+   - **不生成到 `string` 的隐式转换**：包装的意义就是调用点必须显式写 `.Value`，类型信息不在赋值处悄悄丢失。代价是 TS 里「把枚举成员直接当字符串传」的位置（例如把 `readonly Extension[]` 传给接受 `readonly string[]` 的 `getAnyExtensionFromPath`）在 C# 中要逐个 unwrap，`Paths` 里已按此处理并加了 PORT-NOTE。
    - 与之相关：生成器**不照抄**字符串字面量。JS 的 `\x` 是定长两位、`\0`/`\'` 的规则也与 C# 不同，所以字面量先解码成实际字符，再按 C# 规则重新编码；遇到不认识的转义会中止生成而不是猜。
+   - `default(T)` 在 C# 里总是存在（TS 没有这个概念），struct 的 `Value` 对 `default` 返回空串而不抛异常，且与任何真实成员都不相等。
 4. 另外还有一类**字符串字面量联合类型**（`TypeOfTag`、`BufferEncoding`、`OrganizeImportsTypeOrder`）。它们没有成员名，C# 中直接用 `string` 表示、值在调用点内联；到实际用到时（`TypeOfTag` 在 checker，`BufferEncoding` 在 `sys.ts`）再评估是否需要命名常量。
