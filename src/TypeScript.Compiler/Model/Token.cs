@@ -47,7 +47,7 @@ internal class KeywordToken : Token
 }
 
 /// <summary>ported from: src/compiler/types.ts:1629-1631 — TS: <c>ModifierToken&lt;TKind&gt;</c>.</summary>
-internal sealed class ModifierToken : KeywordToken
+internal class ModifierToken : KeywordToken
 {
     public ModifierToken(SyntaxKind kind)
         : base(kind)

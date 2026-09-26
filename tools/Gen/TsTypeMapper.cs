@@ -68,16 +68,32 @@ internal sealed class TsTypeMapper
     /// Names that are C# value types on the generated side — the enums. Passing them in keeps this class
     /// from having to know about the extracted model's enum list.
     /// </param>
-    public TsTypeMapper(TsTypeModel model, IEnumerable<string> valueTypeNames)
+    /// <param name="typedEnumMembers">
+    /// The <c>SyntaxKind</c> members that have a <c>TypedEnum</c> nested type. A member outside this set — an alias,
+    /// or <c>Count</c> — has no type to name, so it stays <c>SyntaxKind</c> even in a parameter slot.
+    /// </param>
+    public TsTypeMapper(TsTypeModel model, IEnumerable<string> valueTypeNames, IEnumerable<string>? typedEnumMembers = null)
     {
         _model = model;
         _enumNames = new HashSet<string>(valueTypeNames, StringComparer.Ordinal);
         foreach (var name in _enumNames) _valueTypes.Add(name);
+        _typedEnumMembers = new HashSet<string>(typedEnumMembers ?? [], StringComparer.Ordinal);
     }
+
+    private readonly HashSet<string> _typedEnumMembers;
+
+    /// <summary>
+    /// Whether the slot being mapped right now is a parameter — the only position where <c>SyntaxKind.X</c> acts as
+    /// a type selector instead of a value (§16).
+    /// </summary>
+    private bool _inTypedEnumSlot;
+
+    /// <summary>Whether a mapped C# type is one of the generated enums.</summary>
+    public bool IsEnumType(string type) => _enumNames.Contains(type.TrimEnd('?'));
 
     /// <summary>Whether a mapped C# type is a value type (and therefore must not be nullable-annotated).</summary>
     /// <summary>Type parameters of the member currently being mapped, so `T` stays `T`.</summary>
-    private ISet<string>? _currentTypeParameters;
+    private Dictionary<string, string>? _currentTypeParameters;
 
     public bool IsValueType(string type)
     {
@@ -92,12 +108,14 @@ internal sealed class TsTypeMapper
     /// generic member would lose its parameter and degrade to <c>object</c> (`createNodeArray&lt;T extends Node&gt;`
     /// would emit <c>List&lt;object&gt;</c> instead of <c>List&lt;T&gt;</c>).
     /// </remarks>
-    public string MapMember(string tsType, bool optional, IReadOnlyList<TsTypeParameter>? typeParameters = null)
+    public string MapMember(
+        string tsType,
+        bool optional,
+        IReadOnlyList<TsTypeParameter>? typeParameters = null,
+        IReadOnlyDictionary<string, string>? replacements = null)
     {
         var previous = _currentTypeParameters;
-        _currentTypeParameters = typeParameters is null || typeParameters.Count == 0
-            ? null
-            : new HashSet<string>(typeParameters.Select(tp => tp.Name), StringComparer.Ordinal);
+        _currentTypeParameters = ScopeOf(typeParameters, replacements);
 
         try
         {
@@ -111,6 +129,32 @@ internal sealed class TsTypeMapper
         {
             _currentTypeParameters = previous;
         }
+    }
+
+    /// <summary>
+    /// The type parameters in scope, each mapped to itself unless <paramref name="replacements"/> says otherwise.
+    /// </summary>
+    /// <remarks>
+    /// A replacement is how an enum-constrained type parameter is spelled in C#: TS writes
+    /// <c>createToken&lt;TKind extends SyntaxKind&gt;(token: TKind): Token&lt;TKind&gt;</c>, and while C# cannot
+    /// constrain a type parameter to a specific enum, the parameter is still usable on both sides of the signature
+    /// as the enum itself (§16).
+    /// </remarks>
+    private static Dictionary<string, string>? ScopeOf(
+        IReadOnlyList<TsTypeParameter>? typeParameters,
+        IReadOnlyDictionary<string, string>? replacements)
+    {
+        if (typeParameters is null || typeParameters.Count == 0) return null;
+
+        var scope = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var typeParameter in typeParameters)
+        {
+            scope[typeParameter.Name] = replacements?.TryGetValue(typeParameter.Name, out var replacement) == true
+                ? replacement
+                : typeParameter.Name;
+        }
+
+        return scope;
     }
 
     /// <summary>
@@ -134,9 +178,9 @@ internal sealed class TsTypeMapper
         var text = CollapseWhitespace(tsType);
         if (text.Length == 0) return ["object?"];
 
-        // A type parameter of the member being emitted is already a legal C# name; mapping it would degrade it
-        // to `object` (see MapMember).
-        if (_currentTypeParameters?.Contains(text) == true) return [text];
+        // A type parameter of the member being emitted is already a legal C# name — unless an enum constraint
+        // stands in for it, in which case the type is the enum itself (`TKind extends SyntaxKind` → `SyntaxKind`).
+        if (_currentTypeParameters?.TryGetValue(text, out var typeParameter) == true) return [typeParameter];
 
         // Parenthesised groups carry no information once the inner type is mapped.
         var unwrapped = StripOuterParentheses(text);
@@ -271,13 +315,22 @@ internal sealed class TsTypeMapper
     /// candidate, next to the core signature that takes the wide type. <see cref="MappedSlot.Overloads"/> is
     /// empty whenever the candidates collapse to one type, which is the common case — the widened base covers
     /// them all.
+    /// <para>
+    /// <paramref name="parameter"/> marks a parameter slot, which is where an enum member used as a type
+    /// (<c>token: SyntaxKind.EndOfFileToken</c>) becomes the nested type that stands for it (§16).
+    /// </para>
     /// </remarks>
-    public MappedSlot MapSlot(string tsType, bool optional, IReadOnlyList<TsTypeParameter>? typeParameters = null)
+    public MappedSlot MapSlot(
+        string tsType,
+        bool optional,
+        IReadOnlyList<TsTypeParameter>? typeParameters = null,
+        IReadOnlyDictionary<string, string>? replacements = null,
+        bool parameter = false)
     {
         var previous = _currentTypeParameters;
-        _currentTypeParameters = typeParameters is null || typeParameters.Count == 0
-            ? null
-            : new HashSet<string>(typeParameters.Select(static tp => tp.Name), StringComparer.Ordinal);
+        var previousParameter = _inTypedEnumSlot;
+        _currentTypeParameters = ScopeOf(typeParameters, replacements);
+        _inTypedEnumSlot = parameter;
 
         try
         {
@@ -294,6 +347,7 @@ internal sealed class TsTypeMapper
         finally
         {
             _currentTypeParameters = previous;
+            _inTypedEnumSlot = previousParameter;
         }
     }
 
@@ -405,6 +459,21 @@ internal sealed class TsTypeMapper
         return null;
     }
 
+    /// <summary>
+    /// An enum member used as a <em>parameter</em> type — <c>createToken(token: SyntaxKind.EndOfFileToken)</c> — is
+    /// TS using the member as a type selector, and the port answers with the nested type that stands for it (§16).
+    /// </summary>
+    /// <remarks>
+    /// Anywhere else it stays <c>SyntaxKind</c>, where the value is being passed around rather than selected on. A
+    /// member with no nested type (an alias such as <c>FirstAssignment</c>, or <c>Count</c>) stays
+    /// <c>SyntaxKind</c> even in a parameter slot, because there is no type to name.
+    /// </remarks>
+    private string TypedEnumOrSyntaxKind(string text)
+    {
+        var member = text["SyntaxKind.".Length..];
+        return _inTypedEnumSlot && _typedEnumMembers.Contains(member) ? $"TypedEnum.{member}" : "SyntaxKind";
+    }
+
     /// <summary>Whether a TS name maps to something the port declares.</summary>
     private bool IsKnownName(string name)
     {
@@ -414,7 +483,7 @@ internal sealed class TsTypeMapper
         if (dot > 0) return _enumNames.Contains(name[..dot]);
 
         return s_tsKeywords.Contains(name)
-            || _currentTypeParameters?.Contains(name) == true
+            || _currentTypeParameters?.ContainsKey(name) == true
             || _model.IsKnown(name)
             || _enumNames.Contains(name)
             || s_overrides.ContainsKey(name);
@@ -483,7 +552,7 @@ internal sealed class TsTypeMapper
             return ConvertGeneric(name, arguments);
         }
 
-        if (text.StartsWith("SyntaxKind.", StringComparison.Ordinal)) return "SyntaxKind";
+        if (text.StartsWith("SyntaxKind.", StringComparison.Ordinal)) return TypedEnumOrSyntaxKind(text);
 
         switch (text)
         {

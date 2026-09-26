@@ -380,10 +380,10 @@ internal static class EmitNodes
 
     public static ITypeNode? GetTypeNode(Node node) => node.EmitNode?.TypeNode;
 
-    // PORT-NOTE: TS writes `T extends Identifier`; the port's Identifier is sealed (every node class is), so the
-    // constraint is Node and the caller's static type carries the rest.
+    // TS writes `T extends Identifier`; node classes are not sealed in the port, so the constraint stays exact
+    // (docs/architecture.md §12.7).
     public static T SetIdentifierTypeArguments<T>(T node, NodeArray<Node>? typeArguments)
-        where T : Node
+        where T : Identifier
     {
         GetOrCreateEmitNode(node).IdentifierTypeArguments = typeArguments;
         return node;

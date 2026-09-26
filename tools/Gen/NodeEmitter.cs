@@ -110,6 +110,7 @@ internal static class NodeEmitter
         // only in what they return (`createToken(token: SyntaxKind.EndOfFileToken): EndOfFileToken`, …). Members
         // that would collide are merged into a single signature whose return type is the common base of the
         // candidates — the type a caller can rely on whichever declaration TS resolved to.
+        var emitted = new List<(TsMember Member, string? ForcedReturnType)>();
         foreach (var group in iface.Members
             .Where(member => !Skip(member, extendsNode) && !inherited.Contains(member.Name))
             .GroupBy(member => MemberKey(member, mapper)))
@@ -130,7 +131,22 @@ internal static class NodeEmitter
                 }
             }
 
-            AppendMember(sb, member, mapper, inInterface: true, forceType: forcedReturnType);
+            emitted.Add((member, forcedReturnType));
+        }
+
+        // §16: a declaration that selects on an enum member becomes a default implementation forwarding to the one
+        // taking the enum itself — TS's static path (`createToken(token: SyntaxKind.EndOfFileToken)`) next to its
+        // dynamic one (`createToken(token: SyntaxKind)`).
+        var declarations = emitted.Select(static entry => entry.Member).ToList();
+        foreach (var (member, forcedReturnType) in emitted)
+        {
+            AppendMember(
+                sb,
+                member,
+                mapper,
+                inInterface: true,
+                forceType: forcedReturnType,
+                widening: WideningTargetOf(declarations, member, mapper));
         }
 
         sb.AppendLine("}");
@@ -152,11 +168,10 @@ internal static class NodeEmitter
             .OrderBy(static n => n, StringComparer.Ordinal)
             .ToList();
 
-        // A class with no pinned kind is a categorisation step (`Expression`, `Statement`, …): it has no Kind
-        // of its own, so it stays abstract and only its concrete descendants implement one.
-        var modifiers = iface.ConcreteKind is null
-            ? "abstract "
-            : IsSealed(model, iface.Name) ? "sealed " : "";
+        // A categorisation step with no pinned kind has no Kind of its own, so it stays abstract. Nothing is sealed:
+        // TS's node types are open — `T extends Identifier` is a constraint the port must be able to write, and
+        // sealing every leaf made such a constraint mean "T is exactly this class" (§12.7).
+        var modifiers = iface.ConcreteKind is null ? "abstract " : "";
 
         sb.AppendLine($"/// <summary>ported from types.ts: <c>{iface.Name}</c>.</summary>");
         sb.Append($"internal {modifiers}partial class {iface.Name}{GenericsOf(iface.TypeParameters)} : {baseName}");
@@ -289,7 +304,13 @@ internal static class NodeEmitter
     /// itself wherever a narrowed overload happens to be applicable again, and recurse until the stack overflows.
     /// </para>
     /// </remarks>
-    private static void AppendMember(StringBuilder sb, TsMember member, TsTypeMapper mapper, bool inInterface, string? forceType = null)
+    private static void AppendMember(
+        StringBuilder sb,
+        TsMember member,
+        TsTypeMapper mapper,
+        bool inInterface,
+        string? forceType = null,
+        TsMember? widening = null)
     {
         var name = PascalCase(member.Name);
         // Interface members are implicitly public; class members must say so to satisfy the interface.
@@ -297,20 +318,19 @@ internal static class NodeEmitter
 
         if (!member.IsMethod)
         {
-            var slot = mapper.MapSlot(member.Type, member.IsOptional);
-            AppendNote(sb, slot.Note);
+            var memberSlot = mapper.MapSlot(member.Type, member.IsOptional);
+            AppendNote(sb, memberSlot.Note);
 
             // Generated code runs under `#nullable enable`, and TS's non-optional properties are set by the
             // parser/factory rather than at construction, so reference-typed members are declared nullable to
             // match how the field is actually populated.
             var accessors = member.IsReadonly ? "{ get; }" : "{ get; set; }";
-            sb.AppendLine($"    {accessibility}{Nullable(slot.Type, mapper, forceType)} {name} {accessors}");
+            sb.AppendLine($"    {accessibility}{Nullable(memberSlot.Type, mapper, forceType)} {name} {accessors}");
             return;
         }
 
-        var slots = member.Parameters
-            .Select(parameter => mapper.MapSlot(parameter.Type, parameter.IsOptional, member.TypeParameters))
-            .ToList();
+        var typeParameters = LiveTypeParameters(member, mapper);
+        var slots = Slots(member, mapper);
 
         foreach (var note in slots.Select(slot => slot.Note).Where(static note => note is not null))
         {
@@ -319,7 +339,7 @@ internal static class NodeEmitter
 
         // A method produces its result, so — unlike a property — a non-nullable TS return type maps to a
         // non-nullable C# one. A union return type cannot be overloaded either: it widens (MapSlot.Type).
-        var returnSlot = mapper.MapSlot(member.Type, optional: false, member.TypeParameters);
+        var returnSlot = mapper.MapSlot(member.Type, optional: false, member.TypeParameters, EnumTypeParameters(member, mapper));
         if (returnSlot.Note is not null) AppendNote(sb, returnSlot.Note);
 
         var returnType = forceType ?? (member.Type == "this" ? "object" : returnSlot.Type);
@@ -328,7 +348,31 @@ internal static class NodeEmitter
             .Select((slot, index) => ParameterType(slot.Type, member.Parameters[index].IsRest, mapper))
             .ToList();
 
-        sb.AppendLine($"    {accessibility}{SignatureOf(member, name, returnType, coreTypes, mapper)};");
+        var signature = SignatureOf(member, name, typeParameters, returnType, coreTypes, mapper);
+
+        // §16: this declaration selects on an enum member, so it is the static path — a default implementation that
+        // forwards to the overload taking the enum itself. An enum value reaches the core as `.SyntaxKind`.
+        if (widening is not null)
+        {
+            var target = ParameterTypesOf(widening, mapper);
+            var arguments = slots.Select((slot, index) =>
+            {
+                var argument = ParameterName(member.Parameters[index].Name);
+                // The parameter is declared nullable like every other reference-typed slot in the generated
+                // surface, so unwrapping it needs the null-forgiving operator.
+                return index < target.Count && target[index] == "SyntaxKind"
+                    && slot.Type.StartsWith("TypedEnum.", StringComparison.Ordinal)
+                        ? $"{argument}!.SyntaxKind"
+                        : argument;
+            });
+
+            var targetReturn = mapper.MapSlot(widening.Type, optional: false, widening.TypeParameters, EnumTypeParameters(widening, mapper)).Type;
+            var call = $"{PascalCase(widening.Name)}({string.Join(", ", arguments)})";
+            sb.AppendLine($"    {signature} => {(returnType == targetReturn ? call : $"({returnType}){call}")};");
+            return;
+        }
+
+        sb.AppendLine($"    {accessibility}{signature};");
 
         if (!inInterface) return;
 
@@ -346,10 +390,89 @@ internal static class NodeEmitter
             var arguments = combination
                 .Select((part, index) => part.IsCore ? ParameterName(member.Parameters[index].Name) : $"(object?){ParameterName(member.Parameters[index].Name)}");
 
-            var signature = SignatureOf(member, name, returnType, types, mapper);
-            if (!seen.Add(signature)) continue;
-            sb.AppendLine($"    {signature} => {name}({string.Join(", ", arguments)});");
+            var overloadSignature = SignatureOf(member, name, typeParameters, returnType, types, mapper);
+            if (!seen.Add(overloadSignature)) continue;
+            sb.AppendLine($"    {overloadSignature} => {name}({string.Join(", ", arguments)});");
         }
+    }
+
+    /// <summary>The mapped slots of a method's parameters, in signature order.</summary>
+    /// <remarks>
+    /// Two things happen here that do not happen for a property or a return type. A parameter whose type is a type
+    /// parameter constrained to an enum is replaced by the enum itself — TS writes
+    /// <c>createToken&lt;TKind extends SyntaxKind&gt;(token: TKind)</c>, C# cannot constrain a type parameter to a
+    /// specific enum, and every call site passes the enum anyway. And a parameter is the one position where an enum
+    /// member used as a type becomes its <c>TypedEnum</c> nested type (§16).
+    /// </remarks>
+    private static List<MappedSlot> Slots(TsMember member, TsTypeMapper mapper)
+        => member.Parameters
+            .Select(parameter => mapper.MapSlot(
+                parameter.Type,
+                parameter.IsOptional,
+                member.TypeParameters,
+                EnumTypeParameters(member, mapper),
+                parameter: true))
+            .ToList();
+
+    private static List<string> ParameterTypesOf(TsMember member, TsTypeMapper mapper)
+        => Slots(member, mapper).Select(static slot => slot.Type).ToList();
+
+    /// <summary>Type parameters that survive into C#: an enum-constrained one does not.</summary>
+    private static List<TsTypeParameter> LiveTypeParameters(TsMember member, TsTypeMapper mapper)
+        => member.TypeParameters.Where(typeParameter => EnumTypeParameterOf(typeParameter, mapper) is null).ToList();
+
+    private static Dictionary<string, string> EnumTypeParameters(TsMember member, TsTypeMapper mapper)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var typeParameter in member.TypeParameters)
+        {
+            if (EnumTypeParameterOf(typeParameter, mapper) is { } enumType) result[typeParameter.Name] = enumType;
+        }
+
+        return result;
+    }
+
+    /// <summary>The enum a type parameter is constrained to, or <c>null</c> when it is a real type parameter.</summary>
+    private static string? EnumTypeParameterOf(TsTypeParameter typeParameter, TsTypeMapper mapper)
+    {
+        if (typeParameter.Constraint is null) return null;
+
+        // The constraint is mapped with no type parameters in scope: it names a type, never another parameter.
+        var mapped = mapper.MapMember(typeParameter.Constraint, false).TrimEnd('?');
+        return mapper.IsEnumType(mapped) ? mapped : null;
+    }
+
+    /// <summary>
+    /// The declaration a typed-enum overload forwards to: the same method whose parameters take the enums themselves
+    /// (<c>CreateToken(SyntaxKind)</c>) rather than one member type (<c>CreateToken(TypedEnum.SuperKeyword)</c>).
+    /// </summary>
+    private static TsMember? WideningTargetOf(List<TsMember> members, TsMember member, TsTypeMapper mapper)
+    {
+        if (!member.IsMethod) return null;
+
+        var narrow = ParameterTypesOf(member, mapper);
+        if (!narrow.Any(static type => type.StartsWith("TypedEnum.", StringComparison.Ordinal))) return null;
+
+        foreach (var candidate in members)
+        {
+            if (ReferenceEquals(candidate, member) || !candidate.IsMethod || candidate.Name != member.Name) continue;
+
+            var wide = ParameterTypesOf(candidate, mapper);
+            if (wide.Count != narrow.Count) continue;
+
+            var widens = true;
+            for (var i = 0; i < wide.Count; i++)
+            {
+                if (wide[i] == narrow[i]) continue;
+                if (wide[i] == "SyntaxKind" && narrow[i].StartsWith("TypedEnum.", StringComparison.Ordinal)) continue;
+                widens = false;
+                break;
+            }
+
+            if (widens) return candidate;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -395,14 +518,20 @@ internal static class NodeEmitter
     /// one place that cannot be worked around.
     /// </para>
     /// </remarks>
-    private static string SignatureOf(TsMember member, string name, string returnType, IReadOnlyList<string> parameterTypes, TsTypeMapper mapper)
+    private static string SignatureOf(
+        TsMember member,
+        string name,
+        IReadOnlyList<TsTypeParameter> typeParameters,
+        string returnType,
+        IReadOnlyList<string> parameterTypes,
+        TsTypeMapper mapper)
     {
         var sb = new StringBuilder();
         sb.Append(returnType).Append(' ').Append(name);
 
-        if (member.TypeParameters.Count != 0)
+        if (typeParameters.Count != 0)
         {
-            sb.Append('<').Append(string.Join(", ", member.TypeParameters.Select(tp => tp.Name))).Append('>');
+            sb.Append('<').Append(string.Join(", ", typeParameters.Select(tp => tp.Name))).Append('>');
         }
 
         sb.Append('(');
@@ -413,10 +542,10 @@ internal static class NodeEmitter
             $"{(member.Parameters[index].IsRest ? "params " : "")}{type} {ParameterName(member.Parameters[index].Name)}")));
         sb.Append(')');
 
-        foreach (var typeParameter in member.TypeParameters)
+        foreach (var typeParameter in typeParameters)
         {
             if (typeParameter.Constraint is null) continue;
-            var constraint = mapper.MapMember(typeParameter.Constraint, false, member.TypeParameters).TrimEnd('?');
+            var constraint = mapper.MapMember(typeParameter.Constraint, false, typeParameters).TrimEnd('?');
             if (constraint == "object" || mapper.IsValueType(constraint)) continue;
             sb.Append($" where {typeParameter.Name} : {constraint}");
         }
@@ -471,9 +600,13 @@ internal static class NodeEmitter
     /// `createToken` overloads take `SyntaxKind.EndOfFileToken`, `SyntaxKind.Unknown` and so on, which are distinct
     /// TS types but all map to `SyntaxKind`; and C#'s overload resolution ignores nullable annotations, so
     /// `string` and `string?` are one signature to the compiler.
+    /// <para>
+    /// One exception to the first reason: those enum members become distinct `TypedEnum` types in a parameter slot
+    /// (§16), so they stay distinct here and keep their own overloads.
+    /// </para>
     /// </remarks>
     private static string MemberKey(TsMember member, TsTypeMapper mapper) => member.IsMethod
-        ? $"m:{member.Name}({string.Join(",", member.Parameters.Select(p => mapper.MapMember(p.Type, false, member.TypeParameters).TrimEnd('?')))})"
+        ? $"m:{member.Name}({string.Join(",", ParameterTypesOf(member, mapper).Select(static type => type.TrimEnd('?')))})"
         : $"p:{member.Name}";
 
     private static bool Skip(TsMember member, bool extendsNode)
@@ -514,19 +647,6 @@ internal static class NodeEmitter
 
     private static string GenericsOf(IReadOnlyList<string> typeParameters)
         => typeParameters.Count == 0 ? "" : $"<{string.Join(", ", typeParameters)}>";
-
-    /// <summary>True when no generated class derives from this one.</summary>
-    private static bool IsSealed(TsTypeModel model, string name)
-    {
-        foreach (var candidate in model.Interfaces.Values)
-        {
-            if (candidate.Name == name) continue;
-            if (model.RoleOf(candidate.Name) != TypeRole.Class) continue;
-            if (model.BareClassBaseOf(candidate.Name) == name) return false;
-        }
-
-        return true;
-    }
 
     private static void AppendHeader(StringBuilder sb, string summary)
     {

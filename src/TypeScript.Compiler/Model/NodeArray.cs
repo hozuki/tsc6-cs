@@ -45,7 +45,7 @@ internal class NodeArray<T> : List<T>, IReadonlyTextRange
 /// In TS the distinction is only about writability (<c>Array&lt;T&gt;</c> vs <c>ReadonlyArray&lt;T&gt;</c>);
 /// <see cref="List{T}"/> is already mutable, so the two collapse into one type here.
 /// </remarks>
-internal sealed class MutableNodeArray<T> : NodeArray<T>
+internal class MutableNodeArray<T> : NodeArray<T>
 {
     public MutableNodeArray()
     {

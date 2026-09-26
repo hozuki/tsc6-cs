@@ -632,6 +632,14 @@ M4c 开工前把"退化成 `object?`"的每一处都复核了一遍：`INodeFact
 
 实测落点 9 处：`ArrowFunction.name`（`never`）、`FunctionTypeNode.modifiers`、`FlowUnreachable.node`/`antecedent`、`FlowLabel.node`、`ThisTypePredicate` 与 `AssertsThisTypePredicate` 的 `parameterName`/`parameterIndex`、`DiagnosticWithDetachedLocation.file`、`NodeFactory.createYieldExpression(asteriskToken)`（都是 `undefined`）。另外 `readonly never[]`（"永远是空数组"）现在写成 `List<JsNever>`。
 
+### 12.7 节点类不再 `sealed`
+
+生成器原先给"没有生成类继承它"的节点类加 `sealed`（`NodeClasses.cs` 里有 203 个）。看上去只是给编译器留一点优化余地，实际代价是 **TS 的泛型约束没法照写**：`T extends Identifier` 在 C# 里虽然合法，但当 `Identifier` 是 sealed 时它的意思就变成"T 就是 `Identifier`"，于是手写代码里那一处（`EmitNodes.SetIdentifierTypeArguments`）被放宽成了 `where T : Node`，注释还写着"caller's static type carries the rest"。
+
+现在节点类一律开放：生成物里 `sealed` 为 0，手写的 `NodeArray`/`MutableNodeArray`、`Token`/`ModifierToken`、`SyntaxList` 同步去掉，`SetIdentifierTypeArguments` 的约束照 TS 写成 `where T : Identifier`。代价是少了一点去虚拟化机会 —— D7 已经定了"M6 之后再谈性能"，而类型精度是 parser/checker/transformer 全程都要用的东西。
+
+没有跟着改的是**非节点类型**：`CommentRange`、`DiagnosticMessage`、`MultiMap` 这类值包装，`EmitNode`（节点上的附加槽），以及 `TypedEnum` 的 359 个成员 —— 它们的 `sealed` 表达的是"本来就没有子类"，与 TS 的约束表达力无关。
+
 ---
 
 ## 13. 宿主替换：`sys.ts` 的 Node 绑定（M2c，已完成）
@@ -858,4 +866,31 @@ Token CreateToken(SyntaxKind token);                             // 动态路径
 - **时机是 M4c 的第一件事**：工厂签名一旦按 §15.6 的合并版落地，后面全部调用点都要返工。
 
 这个形态已用独立探针验证过可编译可运行：静态重载按参数类型区分、宽泛重载与它们共存、反查表对未映射的 kind 返回 null、两个同名类型互不干扰、`StaticSyntaxKind` 与 `Instance` 在 `where TToken : ITypedEnum<TToken>` 的泛型上下文里都可用。
+
+### 16.5 M4c 的接入：工厂签名恢复成两条路径
+
+类型与反查表在 M4c 第一步就生成了，但映射器还没用它们 —— 当时 `createToken` 的 7 条具体重载仍被 §15.6 的合并压成一条、返回类型退成 `Node`。接入分三处：
+
+| 位置 | 规则 |
+|---|---|
+| 映射器 | `SyntaxKind.X` **只在参数位置**换成 `TypedEnum.X`：别的位置上它是一个值，不是类型选择器。`X` 没有嵌套类型时（别名 `FirstAssignment`、哨兵 `Count`）即使处在参数位置也仍是 `SyntaxKind` |
+| 签名分组 | `MemberKey` 改用"参数位置"的映射结果，于是那 7 条具体重载不再被合并 |
+| 枚举约束的类型参数 | `createToken<TKind extends SyntaxKind>(token: TKind)` 在 C# 里没有对应写法（类型参数约束不到具体枚举），而调用点传的就是枚举本身 —— 类型参数因此被枚举替换、并从泛型参数表里去掉。这一条同时把 5 条泛型重载合成一条，正是 §16.1 说的动态路径 |
+
+结果（`INodeFactory`，`Node` 是那条宽签名）：
+
+```cs
+Node CreateToken(SyntaxKind token);                                                          // 动态路径
+SuperExpression CreateToken(TypedEnum.SuperKeyword? token) => (SuperExpression)CreateToken(token!.SyntaxKind);
+ThisExpression  CreateToken(TypedEnum.ThisKeyword? token)  => (ThisExpression)CreateToken(token!.SyntaxKind);
+… 7 条，每个成员一条
+```
+
+这 7 条静态重载是**默认实现**，所以实现方仍然只写一个方法体（`CreateToken(SyntaxKind)`）；转发目标由"参数是某个成员类型 vs 参数是枚举本身"配对（`WideningTargetOf`）。
+
+两处与 §16.2 的示意不同，都是模型决定的：
+
+- `EndOfFileToken` 在 `types.ts` 里是**别名**（`Token<SyntaxKind.EndOfFileToken> & JSDocContainer`），不是类，所以那一条的返回类型是 `Token`；
+- 宽签名的返回类型是 `Node` 而不是 `Token`：5 条泛型声明里 `KeywordTypeNode` 不在 `Token` 链上，`CommonBase` 因此只到 `Node`（§15.6 的合并口径，未变）。
+
 

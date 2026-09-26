@@ -14,7 +14,7 @@ namespace TypeScript.Compiler;
 /// The generated part pins <c>Kind</c> to <c>SyntaxKind.SyntaxList</c>; this part adds the field.
 /// </para>
 /// </remarks>
-internal sealed partial class SyntaxList
+internal partial class SyntaxList
 {
     /// <summary>The children, stored on the node rather than in the <c>NodeChildren</c> table.</summary>
     public List<Node>? _children { get; set; }
