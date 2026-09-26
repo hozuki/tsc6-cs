@@ -450,6 +450,105 @@ internal sealed class NodeFactoryEmitter
         "createVoidZero",
         "createExportDefault",
         "createExternalModuleExport",
+
+        // M4d (§15.9): generated names, the operator shortcuts, the JSDoc tag bindings, the prologue copiers, the
+        // lexical-environment merge and the union-typed replacers.
+        "createBaseGeneratedIdentifier",
+        "createBaseGeneratedPrivateIdentifier",
+        "createTempVariable",
+        "createLoopVariable",
+        "createUniqueName",
+        "createUniquePrivateName",
+        "getGeneratedNameForNode",
+        "getGeneratedPrivateNameForNode",
+        "createBinaryExpression",
+        "updateBinaryExpression",
+        "createTypeCheck",
+        "createIsNotTypeCheck",
+        "createCallBinding",
+        "createComma",
+        "createAssignment",
+        "createLogicalOr",
+        "createLogicalAnd",
+        "createBitwiseOr",
+        "createBitwiseXor",
+        "createBitwiseAnd",
+        "createStrictEquality",
+        "createStrictInequality",
+        "createEquality",
+        "createInequality",
+        "createLessThan",
+        "createLessThanEquals",
+        "createGreaterThan",
+        "createGreaterThanEquals",
+        "createLeftShift",
+        "createRightShift",
+        "createUnsignedRightShift",
+        "createAdd",
+        "createSubtract",
+        "createMultiply",
+        "createDivide",
+        "createModulo",
+        "createExponent",
+        "createPrefixPlus",
+        "createPrefixMinus",
+        "createPrefixIncrement",
+        "createPrefixDecrement",
+        "createBitwiseNot",
+        "createLogicalNot",
+        "createPostfixIncrement",
+        "createPostfixDecrement",
+        "createJSDocAllType",
+        "createJSDocUnknownType",
+        "createJSDocNonNullableType",
+        "updateJSDocNonNullableType",
+        "createJSDocNullableType",
+        "updateJSDocNullableType",
+        "createJSDocOptionalType",
+        "updateJSDocOptionalType",
+        "createJSDocVariadicType",
+        "updateJSDocVariadicType",
+        "createJSDocNamepathType",
+        "updateJSDocNamepathType",
+        "createJSDocTypeTag",
+        "updateJSDocTypeTag",
+        "createJSDocReturnTag",
+        "updateJSDocReturnTag",
+        "createJSDocThisTag",
+        "updateJSDocThisTag",
+        "createJSDocThrowsTag",
+        "updateJSDocThrowsTag",
+        "createJSDocSatisfiesTag",
+        "updateJSDocSatisfiesTag",
+        "createJSDocAuthorTag",
+        "updateJSDocAuthorTag",
+        "createJSDocClassTag",
+        "updateJSDocClassTag",
+        "createJSDocPublicTag",
+        "updateJSDocPublicTag",
+        "createJSDocPrivateTag",
+        "updateJSDocPrivateTag",
+        "createJSDocProtectedTag",
+        "updateJSDocProtectedTag",
+        "createJSDocReadonlyTag",
+        "updateJSDocReadonlyTag",
+        "createJSDocOverrideTag",
+        "updateJSDocOverrideTag",
+        "createJSDocDeprecatedTag",
+        "updateJSDocDeprecatedTag",
+        "cloneNode",
+        "copyPrologue",
+        "copyStandardPrologue",
+        "copyCustomPrologue",
+        "ensureUseStrict",
+        "liftToBlock",
+        "mergeLexicalEnvironment",
+        "inlineExpressions",
+        "restoreOuterExpressions",
+        "restoreEnclosingLabel",
+        "replaceModifiers",
+        "replaceDecoratorsAndModifiers",
+        "replacePropertyName",
     };
 
     /// <summary>Refuses a member whose translation would lose a type the call site depends on.</summary>
@@ -552,7 +651,8 @@ internal sealed class NodeFactoryEmitter
 
         foreach (var assignment in member.Assignments)
         {
-            var line = $"node.{PascalCase(assignment.Target)} {assignment.Op} {Translate(Required(assignment.Value))};";
+            var value = NarrowIfTargetIsNarrower(assignment, typeArgument, mapper, Required(assignment.Value));
+            var line = $"node.{PascalCase(assignment.Target)} {assignment.Op} {value};";
             sb.AppendLine(assignment.Condition is { } condition
                 ? $"        if ({Truthy(condition)}) {line}"
                 : $"        {line}");
@@ -591,6 +691,55 @@ internal sealed class NodeFactoryEmitter
         if (_mapper.IsClass(typeArgument)) return typeArgument;
 
         throw new Untranslatable($"no class for the kind `{member.KindExpression}` (type argument `{typeArgument}`)");
+    }
+
+    /// <summary>
+    /// Translates one assignment of a fixed-shape body, narrowing an <c>asName</c> call when the slot it fills is
+    /// narrower than the helper's answer.
+    /// </summary>
+    /// <remarks>
+    /// TS's <c>asName</c> is generic over <c>string | T</c> and passes a node through <em>unchanged</em>, which is what
+    /// keeps a binding pattern, a private identifier or a literal name intact. The port's <c>AsName</c> therefore
+    /// answers <c>Node?</c>, and C# will not assign that to the slots the type model maps as <c>Identifier?</c> or
+    /// <c>MemberExpression?</c>. Those slots are exactly the ones TS's own types make impossible to fill with anything
+    /// else, so the cast the port needs is a narrowing TS performs at compile time — the same treatment the hand-written
+    /// half gives a <c>cast(value, test)</c> (§10.2). Slots already as wide as the helper (<c>Node?</c>, <c>object?</c>)
+    /// are left alone, which is what keeps the patterns and private names working.
+    /// </remarks>
+    private string NarrowIfTargetIsNarrower(
+        TsFactoryAssignment assignment,
+        string className,
+        TsTypeMapper mapper,
+        TsExpression value)
+    {
+        var translated = Translate(value);
+        if (!translated.StartsWith("AsName(", StringComparison.Ordinal)) return translated;
+
+        var targetType = MemberTypeOf(className, assignment.Target, mapper);
+        if (targetType is null or "Node" or "Node?" or "object" or "object?" or "INode" or "INode?") return translated;
+
+        return $"({targetType.TrimEnd('?')}?){translated}";
+    }
+
+    /// <summary>The mapped C# type of the member a create body assigns to, walking the interface chain for it.</summary>
+    private string? MemberTypeOf(string className, string memberName, TsTypeMapper mapper)
+    {
+        var current = className;
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        while (visited.Add(current))
+        {
+            var @interface = _model.Interfaces.FirstOrDefault(candidate => candidate.Name == current);
+            if (@interface is null) return null;
+
+            var member = @interface.Members.FirstOrDefault(m => !m.IsMethod && m.Name == memberName);
+            if (member is not null) return mapper.MapMember(member.Type, member.IsOptional, member.TypeParameters);
+
+            var baseType = @interface.Extends.Count == 0 ? null : TsTypeMapper.BareName(@interface.Extends[0]);
+            if (baseType is null) return null;
+            current = baseType;
+        }
+
+        return null;
     }
 
     /// <summary>ported from a fixed-shape <c>update*</c> member of <c>factory/nodeFactory.ts</c>.</summary>

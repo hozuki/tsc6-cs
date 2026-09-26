@@ -10,7 +10,7 @@ namespace TypeScript.Compiler;
 /// (<see cref="HasTrailingComma"/>, <see cref="TransformFlags"/>) is read by the emitter, which is why it
 /// cannot simply be a plain list.
 /// </remarks>
-internal class NodeArray<T> : List<T>, IReadonlyTextRange
+internal class NodeArray<T> : List<T>, ITextRange, IReadonlyTextRange
 {
     public NodeArray()
     {
@@ -33,9 +33,15 @@ internal class NodeArray<T> : List<T>, IReadonlyTextRange
     public TransformFlags TransformFlags { get; set; }
 
     // ported from: types.ts:33-36 (ReadonlyTextRange)
-    public int Pos { get; set; }
+    /// <remarks>
+    /// PORT-NOTE: TS declares <c>NodeArray</c> as extending <c>ReadonlyTextRange</c>, and gets away with passing one to
+    /// <c>setTextRange</c> (which wants the writable <c>TextRange</c>) because <c>readonly</c> does not affect
+    /// assignability there. C# is nominal, so the array declares both — the same treatment <c>Node</c> gets (see
+    /// docs/architecture.md §15.5). A `NodeArray` built by the factory is a synthesized range until something sets one.
+    /// </remarks>
+    public int Pos { get; set; } = -1;
 
-    public int End { get; set; }
+    public int End { get; set; } = -1;
 }
 
 /// <summary>

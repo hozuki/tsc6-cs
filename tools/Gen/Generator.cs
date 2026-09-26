@@ -56,6 +56,14 @@ internal static class Generator
         new("EmitFlags", "src/compiler/types.ts", "uint", Flags: true,
             "Flags that guide the emitter for a single node."),
 
+        // Declared in `utilities.ts` rather than `types.ts`, and extracted by name (see the generator's
+        // `enumSources`). Neither is a flag set: `Associativity` is 0/1 and `OperatorPrecedence` is an ordered
+        // scale, so the default "values look like bits" guess has to be overridden for the first.
+        new("Associativity", "src/compiler/utilities.ts", "int", Flags: false,
+            "Whether an operator groups to the left or to the right, as reported by <c>Utilities.GetOperatorAssociativity</c>."),
+        new("OperatorPrecedence", "src/compiler/utilities.ts", "int", Flags: false,
+            "The precedence scale the parser and the parenthesizer compare expressions on. Higher binds tighter; <c>Invalid</c> is below every operator."),
+
         // String-valued enums. TS declares them as `const enum` but every member is a string and every call
         // site passes it where a `string` is expected, so they become constants classes rather than C# enums
         // — a C# enum cannot carry "__call", "export=" or an ANSI escape as its value. See EnumEmitter.

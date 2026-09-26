@@ -39,6 +39,14 @@ const tableSources = [
     ["src/compiler/scanner.ts", "valuesOfNonBinaryUnicodeProperties"],
 ];
 
+// `const enum`s the model needs that live outside the type-model sources. Reading all of `utilities.ts` would drag
+// its ~500 declarations into the node model, so the two tables are named explicitly — the same arrangement as
+// `tableSources`. `Associativity` and `OperatorPrecedence` drive binary-expression parsing and the parenthesizer.
+const enumSources = [
+    ["src/compiler/utilities.ts", "Associativity"],
+    ["src/compiler/utilities.ts", "OperatorPrecedence"],
+];
+
 const ts = require(path.join(tsRoot, "lib", "typescript.js"));
 
 // Indexed-access types (`LiteralTypeNode["literal"]`, `HeritageClause["token"]`) are TS's way of naming a
@@ -81,6 +89,10 @@ for (const [sourceRelative, name] of tableSources) {
     tables.push(collectTable(sourceRelative, name));
 }
 
+for (const [sourceRelative, name] of enumSources) {
+    collectEnum(sourceRelative, name);
+}
+
 mergeDuplicateInterfaces(interfaces);
 
 // The node-predicate table's source (see collectPredicates below).
@@ -98,24 +110,38 @@ fs.mkdirSync(path.dirname(outPath), { recursive: true });fs.writeFileSync(
 
 console.log(`extract: ${enums.length} enums, ${interfaces.length} interfaces, ${aliases.length} aliases, ${tables.length} tables, ${predicates.length} predicates, ${factory.members.length} factory members (${factory.members.filter(m => m.supported).length} supported) -> ${outPath}`);
 
-function collect(source, sourceRelative) {
+// -----------------------------------------------------------------------------------------------
+// Extra enums
+// -----------------------------------------------------------------------------------------------
+
+// One `const enum` taken out of a file that is not a type-model source (see `enumSources`).
+function collectEnum(sourceRelative, name) {
+    const filePath = path.join(tsRoot, sourceRelative);
+    const text = fs.readFileSync(filePath, "utf8");
+    const source = ts.createSourceFile(filePath, text, ts.ScriptTarget.Latest, /* setParentNodes */ true, ts.ScriptKind.TS);
+
+    collect(source, sourceRelative, name);
+
+    if (!enums.some(tsEnum => tsEnum.name === name)) {
+        throw new Error(`enum '${name}' not found in ${sourceRelative}`);
+    }
+}
+
+// `onlyEnumName` restricts collection to one enum and nothing else, which is what `collectEnum` uses to take a
+// single table out of a file whose interfaces are not part of the model.
+function collect(source, sourceRelative, onlyEnumName) {
     const text = source.text;
 
     for (const statement of source.statements) {
+        if (onlyEnumName !== undefined) {
+            if (ts.isEnumDeclaration(statement) && statement.name.text === onlyEnumName) {
+                enums.push(enumOf(statement, source, sourceRelative));
+            }
+            continue;
+        }
+
         if (ts.isEnumDeclaration(statement)) {
-            enums.push({
-                name: statement.name.text,
-                isConst: hasModifier(statement, ts.SyntaxKind.ConstKeyword),
-                source: sourceRelative,
-                startLine: lineAt(statement.getStart(source)),
-                endLine: lineAt(statement.end),
-                members: statement.members.map(member => ({
-                    name: memberName(member.name),
-                    valueText: member.initializer ? member.initializer.getText(source) : null,
-                    doc: docOf(member),
-                    trailing: trailingCommentOf(member),
-                })),
-            });
+            enums.push(enumOf(statement, source, sourceRelative));
         } else if (ts.isInterfaceDeclaration(statement)) {
             const kindMember = statement.members.find(
                 m => ts.isPropertySignature(m) && memberName(m.name) === "kind"
@@ -183,6 +209,22 @@ function collect(source, sourceRelative) {
                 endLine: lineAt(statement.end),
             });
         }
+    }
+
+    function enumOf(statement, source, sourceRelative) {
+        return {
+            name: statement.name.text,
+            isConst: hasModifier(statement, ts.SyntaxKind.ConstKeyword),
+            source: sourceRelative,
+            startLine: lineAt(statement.getStart(source)),
+            endLine: lineAt(statement.end),
+            members: statement.members.map(member => ({
+                name: memberName(member.name),
+                valueText: member.initializer ? member.initializer.getText(source) : null,
+                doc: docOf(member),
+                trailing: trailingCommentOf(member),
+            })),
+        };
     }
 
     // The declared type text of a type node, with indexed-access types resolved through the checker. TS writes

@@ -470,6 +470,7 @@ dotnet run --project tools/Gen -- --check    # 只校验不写入（CI / 本地�
 
 - **输入基准**：`tools/ts-source.txt` 里记录的 checkout（当前为 release-6.0 @ `050880ce59`，版本 6.0.3）。移动基准时先改这里的注释，再重跑生成器。
 - **覆盖**：`SyntaxKind`（396 个成员，其中 37 个是哨兵别名）、`NodeFlags`、`ModifierFlags`、`JsxFlags`、`SymbolFlags`、`CheckFlags`、`NodeCheckFlags`、`TypeFlags`、`SignatureFlags`、`TransformFlags`、`EmitFlags`，以及诊断表（`diagnosticMessages.json` → `Model/Diagnostics.cs`，2,130 条）。
+- **类型模型之外的数据表**：`TypeModelSources` 之外的枚举按名字抽取（`extract.cjs` 的 `enumSources`），与 `tableSources` 同形 —— `Associativity` 与 `OperatorPrecedence` 声明在 `utilities.ts`，读整份文件会把它的 500 余个声明拖进节点模型，所以只点名这两个。它们也在 `Generator.Specs` 里有显式条目：`Associativity` 的值是 0/1，默认的"值是独立位"启发式会把它判成 `[Flags]`。
 - **保证**：单元测试 `GeneratedTablesTests` 直接调用 `Generator.Generate` 与仓库内文件逐字节比对，所以 `--check` 的约束在 `dotnet test` 里同样成立；TS 源更新后忘记重跑生成器会立刻失败。
 - **边界**：生成器只理解 TS 写这些表用的形态（成员名、可选 `=` 表达式、`/** */`、`//`、跨行的 `|` 链）。遇到别的写法会**报错退出**，不猜测。
 
@@ -734,8 +735,8 @@ M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质�
 |---|---|---|---|
 | M4a | `factory/nodeTests.ts` → `Parser/NodeTests.cs`（生成） | 1,201 | 已完成（§15.4） |
 | M4b | `factory/emitNode.ts` → `Parser/EmitNodes.cs`；`factory/nodeChildren.ts` → `Parser/NodeChildren.cs`；提前移植 `getSourceFileOfNode`/`isParseTreeNode`/`getParseTreeNode` | 442 + 3 个函数 | 已完成（§15.5） |
-| M4c | `factory/nodeFactory.ts` → `Parser/NodeFactory.cs`（最大单件，再按 create/update 家族细分） | 7,542 | **本层完成**（§15.8：生成物已纳入编译，428 个成员里 417 个已移植，余 11 个逐条指名等 M4d/M5/M7/M4e） |
-| M4d | `factory/utilities.ts` + `nodeConverters.ts` + `parenthesizerRules.ts` | 2,656 | |
+| M4c | `factory/nodeFactory.ts` → `Parser/NodeFactory.cs`（最大单件，再按 create/update 家族细分） | 7,542 | 已完成（§15.8：生成物已纳入编译，428 个成员里 417 个已移植，余 11 个逐条指名等 M4d/M5/M7/M4e） |
+| M4d | `factory/utilities.ts` + `nodeConverters.ts` + `parenthesizerRules.ts`，以及 `nodeFactory.ts` 里生成器表达不了的那半 | 2,656 | **已完成**（§15.9：三个文件全部移植；工厂尾部补齐，生成的 11 个存根清零；残留逐条指名） |
 | M4e | `parser.ts` → `Parser/*`（递归下降主体：声明 / 语句 / 表达式 / 类型 / JSDoc 各自成批） | 10,823 | |
 | M4f | `emitHelpers.ts` + `expressionToTypeNode.ts` | 2,821 | |
 | M4g | baseline 外环（§7 的 P1：先只比 `.errors.txt` 与 `.js`，不含类型检查） | — | |
@@ -861,6 +862,53 @@ M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质�
 
 1. `NullParenthesizerRules` 的列表成员一律新建 `NodeArray`，把 `createNodeArray` 刚刚设好的文本范围与 `HasTrailingComma` 丢掉了 —— `createArrayLiteralExpression` 的尾随省略元素正是靠那个标志（`[1, 2, ,]` 与 `[1, 2, ]` 的区别）。修法是"入参已经是 `NodeArray` 就原样交回"，四个列表成员一起改。这与 §14.3 记的两处 Scanner bug 同属一类：**规格化/包装函数悄悄改写了入参的身份**。
 2. keyword 类型节点在 TS 里**没有自己的对象**：`createToken(SyntaxKind.NumberKeyword)` 的静态类型是 `KeywordTypeNode<TKind>`，靠结构兼容 —— 同一个 token 既能当 token、又能当类型节点。C# 的 `Token` 没实现 `IKeywordTypeNode`，于是 `CreateKeywordTypeNode` 出来的东西一放进 `List<ITypeNode>` 就 `InvalidCastException`。修法是新增 `KeywordTypeToken : Token, IKeywordTypeNode<SyntaxKind>`（`Model/Token.cs`），并让 `CreateTokenNode` 对 `KeywordTypeSyntaxKind` 的那 12 个 kind 建它。**不能**把 `ITypeNode` 直接挂在 `KeywordToken` 上：那会让 `export`/`const` 也变成类型节点，而 `ModifierToken` 还是它的子类。
+
+---
+
+## 15.9 M4d：工厂的三个文件与工厂尾部
+
+### 交付
+
+| 项 | 结果 |
+|---|---|
+| `factory/utilities.ts`（1,757 行） | `Parser/FactoryUtilities.cs`（`internal static partial class FactoryUtilities`：绑定/赋值元素分析、JSX 表达式、生成名格式化、外层表达式、prologue 谓词、运算符分类、二元表达式蹦床） |
+| `factory/parenthesizerRules.ts`（706 行） | `Parser/ParenthesizerRules.cs`：`IParenthesizerRules` 的 31 个成员全部实现，构造时接一个 `NodeFactory` |
+| `factory/nodeConverters.ts`（193 行） | `Parser/NodeConverters.cs` + `NullNodeConverters`（`nullNodeConverters` 的移植：九个成员都抛，`NodeFactoryFlags.NoNodeConverters` 选它） |
+| 工厂尾部（`nodeFactory.ts` 的 `get createX()` 与真逻辑成员） | 生成名 8 个、运算符快捷 30 个、JSDoc tag 绑定 34 个、`cloneNode` 与四个专用克隆、prologue 四个、`mergeLexicalEnvironment`/`liftToBlock`/`inlineExpressions`、`restoreOuterExpressions`/`restoreEnclosingLabel`、`replaceModifiers`/`replaceDecoratorsAndModifiers`/`replacePropertyName`、`createBinaryExpression`/`updateBinaryExpression`/`createTypeCheck`/`createIsNotTypeCheck`/`createCallBinding` |
+| 生成物存根 | **11 → 0**。`NodeFactoryEmitter.s_implemented` 增收 100 个名字后，生成物里不再有 `NotImplementedException`，`NodeFactoryStubTests` 随之退役（改为 `NodeFactoryInterfaceTests`，见下） |
+| 生成器 | `utilities.ts` 的两个 `const enum`（`Associativity`、`OperatorPrecedence`）按名字抽取（`enumSources`，与 `tableSources` 同形的机制），`Specs` 里给它们显式声明 `Flags: false` —— 默认的"值是独立位"启发式会把 `Associativity` 的 0/1 判成标志位。另外 `NodeFactoryEmitter` 现在会按**赋值目标槽的映射类型**给 `asName` 补一次窄化转换（真 bug 3）；槽的类型从模型的接口链上查，查不到就不加转换 |
+| Layer 5 前瞻切片（`Utilities/`） | 表达式分类与优先级（`GetExpressionPrecedence`/`GetOperatorPrecedence`/`GetBinaryOperatorPrecedence`/`GetExpression-`+`GetOperatorAssociativity`）、`GetLeftmostExpression`、`SkipParentheses`/`SkipPartiallyEmittedExpressions`、`IsOptionalChain`、`IsNodeArray`、`IsLiteralKind`/`IsLiteralExpression`、`IsLeftHandSideExpression`/`IsUnaryExpression`/`IsExpression`、绑定模式谓词、语句谓词（`IsStatementOrBlock` 与两个 kind 表）、`GetNodeId`（声明在 `checker.ts`，工厂先要它）、`GetEmitFlags`、`IsGeneratedPrivateIdentifier`、`IsAssignmentExpression`/`IsAssignmentOperator`、`IsLogicalOrCoalescingAssignmentOperator`、`IsPrologueDirective`/`IsCustomPrologue`/`IsHoistedFunction`/`IsHoistedVariableStatement`、`GetOriginalNode`、`SetParent` |
+| 支撑类型 | `Parser/AutoGenerateInfo.cs`、`Parser/CallBinding.cs`、`Parser/GeneratedNamePart.cs` —— `types.ts` 里靠对象字面量填的接口，C# 需要一个可构造类型（与 `LineAndCharacter`、`TextRange` 同样的处理） |
+
+### `NullParenthesizerRules` 退回它的原职
+
+M4c 期间每个工厂都拿它当 `Parenthesizer`（工厂里约 25 处 `parenthesizerRules().…` 因此都能编译、都不能跑）。现在 `NodeFactory.Parenthesizer` 是懒建的 `ParenthesizerRules`，只有 `NodeFactoryFlags.NoParenthesizerRules` 才落到 `NullParenthesizerRules` —— 与 TS 同一个开关、同一个对象。`Converters` 同理。
+
+### 三处真 bug
+
+1. **工厂节点的文本范围是 0 而不是 -1。** TS 的 `baseNodeFactory.ts` 把每个节点建成 `new Node(kind, /*pos*/ -1, /*end*/ -1)`，"工厂造的节点在解析器给它范围之前是 synthesized" 就来自这里；移植版把这条不变量交给了 `Node` 自己（§15.2），但 `Node.Pos`/`End` 是普通自动属性、默认 0，于是 `CreateBaseNode<T>` 造出来的节点**从不是** synthesized：`nodeIsSynthesized` 一路答 false，parenthesizer 的 `isIgnorableParen`、`cloneNode` 的范围重置与 M7 的 source map 全都跟着偏。修法是 `Node` 上的初值 `= -1`（`NodeArray` 同样），并由 `NodeFactoryRangeTests` 守住。
+2. **`Utilities.IsLocalName` 的 body 是错的。** TS 里 `isLocalName` 只有一处（`factory/utilities.ts:565`），判的是 `(getEmitFlags(node) & EmitFlags.LocalName) !== 0`；移植版名下写着 `utilities.ts:565`（那里其实是一个 import 列表），body 判的却是 `escapedText is "arguments" or "this"` —— 一个在原源码里不存在的函数。后果落在 `CreatePrefixUnary-`/`CreatePostfixUnaryExpression` 的 `ContainsUpdateExpressionForIdentifier` 上：`++arguments` 少一个 flag、带 `LocalName` 位的名字多一个 flag，而 module 转换器正是靠这个 flag 决定要不要把 `x++` 改写成 `exports.x++`。现在它是 `FactoryUtilities.IsLocalName`（正确 body），两个调用点随之改旗，`FactoryUtilitiesTests` 与 `NodeFactoryTailTests` 各留一条回归。
+3. **`AsName` 把名字收窄成了 `Identifier`。** TS 的 `asName` 是 `typeof name === "string" ? createIdentifier(name) : name` —— **节点原样传回**，因为这一个 helper 同时服务 `Identifier`、`PropertyName`、`MemberName`、`BindingName`、`EntityName` 五种槽。移植版写的是 `name as Identifier`，于是 `createVariableDeclaration({a}, …)` 的 `Name` 变成 `null`（绑定模式整个丢掉）、`createPropertyDeclaration("#p", …)` 丢掉私有名、`createParameterDeclaration([a], …)` 丢掉参数绑定模式 —— 而 M4e 的解析器正是大批量造这些节点的地方，所以这条必须在解析器落地前修掉。修法是 `AsName(object?) → Node?`（节点原样传回）；真正**需要** `Identifier` 的槽（`ImportEqualsDeclaration.name`、三个函数/类声明的 `name`）在生成的创建体里显式转换：映射器知道每个槽映射成 C# 的什么类型，`NodeFactoryEmitter` 因此在 `node.X = asName(...)` 上按目标类型加一次窄化转换 —— 这正对应 TS 靠类型系统完成的收窄，而绑定模式/私有名所在的槽（`Node?`/`object?`）保持原样。回归见 `FactoryUtilitiesTests` 的两条 `IsLocalName` 与 `CreateAccessorPropertyBackingField`，以及 `NodeConvertersTests` 里走绑定元素的那批。
+
+### 残留（指名，不留半成品）
+
+| 项 | 卡在 | 归属 |
+|---|---|---|
+| `INodeFactory` 的 6 个 `getName` 家族成员（`GetInternalName`/`GetLocalName`/`GetExportName`/`GetDeclarationName`/`GetNamespaceMemberName`/`GetExternalModuleOrNamespaceExportName`） | `getName` → `getNameOfDeclaration` → `getNonAssignedNameOfDeclaration`，其中有 JS 文件专用的 `exports.x =` 分析（`getAssignmentDeclarationKind` 及其十余个辅助，全在 `utilities.ts`） | M5 |
+| `FactoryUtilities.IsJSDocTypeAssertion` | `getJSDocTypeTag` → `getJSDocCommentsAndTags` 家族（JSDoc 归属与父链遍历）。`isOuterExpression` 的 `ExcludeJSDocTypeAssertion` 分支引用它 —— 目前**抛**，因为静默答"不是 JSDoc 断言"会让 `skipOuterExpressions` 跳过多余的括号 | M5 |
+| `factory/utilities.ts` 的 `createExpressionForAccessorDeclaration`、`createExpressionForObjectLiteralElementLike` | `getAllAccessorDeclarations` | M5 |
+| `createExternalHelpersImportDeclarationIfNeeded`、`getLocalNameForExternalImport`、`getExternalModuleNameLiteral`、`tryGetModuleNameFromFile` 等 | `CompilerOptions`/`EmitHost`/`EmitResolver`/模块种类 | M5/M8 |
+| `INodeFactory` 挂到 `NodeFactory` 上做逐成员自检 | 上面第一行 + 一条生成器规则：`CreateNodeArray<T>` 的约束在移植版是 `INode`（§12.9），接口里是 `Node`，C# 不接受"实现方更宽" | M5 |
+
+`NodeFactoryInterfaceTests` 把这份清单变成了断言：它用反射比对 `INodeFactory` 的成员与工厂实际提供的成员，差集必须**恰好**是上表前两行那 7 个名字（6 个 name 家族 + 永不存在的 `BaseFactory`），同时断言生成物里没有 `NotImplementedException`。
+
+### 取舍
+
+`replaceModifiers` 的 `modifiers` 槽在生成物里类型不一致：类型参数、属性签名、方法签名、构造器类型、函数表达式与箭头函数收 `List<ModifierToken>?`，其余收 `List<Node>?`。TS 靠数组协变把同一个数组交给两者，C# 的 `List<T>` 不变，所以从 `ModifierFlags` 建出来的数组要多投影一次。走接口声明的两个重载时调用方给的是 `List<ModifierToken>`，因此"原样传回同一个数组"这条身份在类型不同的那一半目标上本来也到不了 —— 投影不会改变任何可达调用方的行为，`PORT-NOTE` 记在方法上。
+
+`cloneNode` 的等价物是 `MemberwiseClone` + 重置（`Node.ShallowClone`）：TS 把源节点的 own 属性拷到一个**裸**节点上，于是范围、`id`、`parent`、`modifierFlagsCache` 保留新节点的值，其余（含 `emitNode` 与 binder/checker 留下的链接）都跟着源走；C# 没有 prototype/own 之分，逐个字段拷贝 + 显式重置那五个槽正是同一件事。`emitNode` 是复用引用，随后 `setOriginalNode` 的合并对它是自合并 —— TS 的同一段代码也是这么做的（`clone.emitNode` 先被拷进来，再被 `mergeEmitNode` 合到它自己上）。
+
+`createAssignment` 的返回类型是 `BinaryExpression`，不是 TS 的 `AssignmentExpression<EqualsToken>`：`types.ts` 那个接口在移植版里生成了一个**抽象类**（没有任何具体子类继承它），TS 靠结构类型让每个 `x = y` 都满足它，C# 没有这层结构兼容，所以工厂造出来的对象就是 `BinaryExpression`，把它 cast 到抽象类型会抛。`INodeFactory` 里那条 `AssignmentExpression<PunctuationToken>` 签名因此属于"接口比工厂大"的那一类（§15.7 开头那段的同一种情况），`PORT-NOTE` 记在方法上。
 
 ---
 

@@ -66,7 +66,8 @@ public class NodeFactoryFamilyTests
 
     /// <summary>
     /// The flag is set only for a name that is neither generated nor "local" — the rule `visitPreOrPostfixUnaryExpression`
-    /// in module.ts relies on.
+    /// in module.ts relies on. "Local" is the emit flag <c>getLocalName</c> sets, not the spelling: `++arguments` is an
+    /// update of an ordinary identifier.
     /// </summary>
     [Fact]
     public void PrefixUnaryExpression_MarksOnlyARealIdentifier()
@@ -76,7 +77,9 @@ public class NodeFactoryFamilyTests
         var onIdentifier = factory.CreatePrefixUnaryExpression(SyntaxKind.PlusPlusToken, Id("x"));
         Assert.NotEqual(TransformFlags.None, onIdentifier.TransformFlags & TransformFlags.ContainsUpdateExpressionForIdentifier);
 
-        var onLocalName = factory.CreatePrefixUnaryExpression(SyntaxKind.PlusPlusToken, Id("arguments"));
+        var localName = Id("x");
+        EmitNodes.AddEmitFlags(localName, EmitFlags.LocalName);
+        var onLocalName = factory.CreatePrefixUnaryExpression(SyntaxKind.PlusPlusToken, localName);
         Assert.Equal(TransformFlags.None, onLocalName.TransformFlags & TransformFlags.ContainsUpdateExpressionForIdentifier);
 
         var onOtherOperator = factory.CreatePrefixUnaryExpression(SyntaxKind.MinusToken, Id("x"));
@@ -855,21 +858,8 @@ public class NodeFactoryFamilyTests
     // ---------------------------------------------------------------------------------------------
     // The stubs
     // ---------------------------------------------------------------------------------------------
-
-    /// <summary>
-    /// The 11 members whose dependencies belong to later batches are generated as stubs. This is the promise §15.8 makes
-    /// about them: a caller that reaches one fails loudly, rather than seeing a half-built node.
-    /// </summary>
-    [Fact]
-    public void MembersWaitingOnLaterBatches_ThrowInsteadOfBuildingSomethingPartial()
-    {
-        var factory = Factory();
-
-        Assert.Throws<NotImplementedException>(
-            () => factory.CreateBinaryExpression(Id("a"), SyntaxKind.PlusToken, Id("b")));
-        Assert.Throws<NotImplementedException>(
-            () => factory.CreateTempVariable(null, null, null, null));
-        Assert.Throws<NotImplementedException>(
-            () => factory.CreateCallBinding(Id("a"), null, null, null));
-    }
+    //
+    // M4c generated a stub for every factory member it could not express, and this file used to assert that the eleven
+    // of them threw. M4d replaced all eleven with real bodies, so there is nothing left to assert here — the contract
+    // that the factory has no stubs is `NodeFactoryInterfaceTests`, which also lists what the interface still waits on.
 }

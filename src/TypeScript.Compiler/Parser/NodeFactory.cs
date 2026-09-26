@@ -39,13 +39,30 @@ internal partial class NodeFactory
     /// <summary>How this factory was configured (see <see cref="NodeFactoryFlags"/>).</summary>
     public NodeFactoryFlags Flags => _flags;
 
-    /// <summary>ported from: factory/nodeFactory.ts:496 — the <c>parenthesizerRules()</c> the factory keeps lazily.</summary>
+    /// <summary>ported from: factory/nodeFactory.ts:496-522 — the <c>parenthesizerRules()</c> the factory keeps lazily.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS memoizes this per factory and can switch it off with
-    /// <see cref="NodeFactoryFlags.NoParenthesizerRules"/>. Until M4d ports <c>parenthesizerRules.ts</c> every factory
-    /// answers the identity rules — see <see cref="NullParenthesizerRules"/> for what that costs.
+    /// PORT-NOTE: TS memoizes the rules in a closure per factory and switches them off with
+    /// <see cref="NodeFactoryFlags.NoParenthesizerRules"/>. C# has no closure to memoize into, so the memo is a field,
+    /// and the flag selects <see cref="NullParenthesizerRules"/> — the same object TS uses for that flag.
     /// </remarks>
-    public IParenthesizerRules Parenthesizer { get; } = NullParenthesizerRules.Instance;
+    public IParenthesizerRules Parenthesizer
+        => _parenthesizer ??= (_flags & NodeFactoryFlags.NoParenthesizerRules) != 0
+            ? NullParenthesizerRules.Instance
+            : new ParenthesizerRules(this);
+
+    private IParenthesizerRules? _parenthesizer;
+
+    /// <summary>ported from: factory/nodeFactory.ts:497-519 — the <c>converters()</c> the factory keeps lazily.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>nullNodeConverters</c> is the <see cref="NodeFactoryFlags.NoNodeConverters"/> answer; the port
+    /// keeps that object too, so the flag means here what it means there (every converter throws).
+    /// </remarks>
+    public INodeConverters Converters
+        => _converters ??= (_flags & NodeFactoryFlags.NoNodeConverters) != 0
+            ? NullNodeConverters.Instance
+            : new NodeConverters(this);
+
+    private INodeConverters? _converters;
 
     //
     // Node creation
@@ -337,10 +354,13 @@ internal partial class NodeFactory
 
     /// <summary>ported from: factory/nodeFactory.ts:7141 — <c>asName</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS's signature is generic over <c>string | T</c> and returns <c>T | Identifier</c>. The port answers
-    /// with the node it was handed when it is not a string, which is what every call site relies on.
+    /// PORT-NOTE: TS's signature is generic over <c>string | T</c> and returns <c>T | Identifier</c>: a node is passed
+    /// through <em>unchanged</em>, whatever member name it is (an identifier, a private identifier, a string or numeric
+    /// literal, <c>this</c>, a template literal). The port cannot say that in one signature, so the parameter and the
+    /// return are both <c>Node?</c> — narrowing it to <c>Identifier</c> would silently drop every other name kind, which
+    /// is what an earlier version of this method did (<c>name as Identifier</c>).
     /// </remarks>
-    private Identifier? AsName(object? name) => name is string text ? CreateIdentifier(text) : name as Identifier;
+    private Node? AsName(object? name) => name is string text ? CreateIdentifier(text, null, null) : name as Node;
 
     /// <summary>ported from: factory/nodeFactory.ts:7146 — <c>asExpression</c>.</summary>
     private Expression? AsExpression(object? value) => value switch
@@ -1745,7 +1765,7 @@ internal partial class NodeFactory
     {
         var node = CreateBaseDeclaration<ImportEqualsDeclaration>(SyntaxKind.ImportEqualsDeclaration);
         node.Modifiers = AsNodeArray(modifiers);
-        node.Name = AsName(name);
+        node.Name = (Identifier?)AsName(name);
         node.IsTypeOnly = isTypeOnly;
         node.ModuleReference = moduleReference;
         node.TransformFlags |= PropagateChildrenFlags(node.Modifiers)
@@ -2264,7 +2284,7 @@ internal partial class NodeFactory
         if ((@operator == SyntaxKind.PlusPlusToken || @operator == SyntaxKind.MinusMinusToken)
             && NodeTests.IsIdentifier(node.Operand!)
             && !Utilities.IsGeneratedIdentifier(node.Operand!)
-            && !Utilities.IsLocalName(node.Operand!))
+            && !FactoryUtilities.IsLocalName(node.Operand!))
         {
             node.TransformFlags |= TransformFlags.ContainsUpdateExpressionForIdentifier;
         }
@@ -2290,7 +2310,7 @@ internal partial class NodeFactory
 
         if (NodeTests.IsIdentifier(node.Operand!)
             && !Utilities.IsGeneratedIdentifier(node.Operand!)
-            && !Utilities.IsLocalName(node.Operand!))
+            && !FactoryUtilities.IsLocalName(node.Operand!))
         {
             node.TransformFlags |= TransformFlags.ContainsUpdateExpressionForIdentifier;
         }
@@ -2694,7 +2714,7 @@ internal partial class NodeFactory
         var node = CreateBaseDeclaration<FunctionExpression>(SyntaxKind.FunctionExpression);
         node.Modifiers = AsNodeArray(modifiers);
         node.AsteriskToken = asteriskToken;
-        node.Name = AsName(name);
+        node.Name = (Identifier?)AsName(name);
         node.TypeParameters = AsNodeArray(typeParameters);
         node.Parameters = CreateNodeArray(parameters, null);
         node.Type = type;
@@ -2835,7 +2855,7 @@ internal partial class NodeFactory
         var node = CreateBaseDeclaration<FunctionDeclaration>(SyntaxKind.FunctionDeclaration);
         node.Modifiers = AsNodeArray(modifiers);
         node.AsteriskToken = asteriskToken;
-        node.Name = AsName(name);
+        node.Name = (Identifier?)AsName(name);
         node.TypeParameters = AsNodeArray(typeParameters);
         node.Parameters = CreateNodeArray(parameters, null);
         node.Type = type;
@@ -2932,7 +2952,7 @@ internal partial class NodeFactory
     {
         var node = CreateBaseDeclaration<ClassDeclaration>(SyntaxKind.ClassDeclaration);
         node.Modifiers = AsNodeArray(modifiers);
-        node.Name = AsName(name);
+        node.Name = (Identifier?)AsName(name);
         node.TypeParameters = AsNodeArray(typeParameters);
         node.HeritageClauses = AsNodeArray(heritageClauses);
         node.Members = CreateNodeArray(members, null);
@@ -4317,4 +4337,1345 @@ internal partial class NodeFactory
         => EmitNodes.SetStartsOnNewLine(
             CreateExpressionStatement(CreateStringLiteral("use strict", null, null)),
             true);
+
+    //
+    // Generated names
+    //
+
+    // ported from: factory/nodeFactory.ts:478 (`nextAutoGenerateId`)
+    /// <remarks>
+    /// PORT-NOTE: TS keeps the counter in a module-level variable. A static field is the same thing; it is deliberately
+    /// not per-factory, because ids must be unique across every factory that hands out generated names.
+    /// </remarks>
+    private static int s_nextAutoGenerateId;
+
+    /// <summary>ported from: factory/nodeFactory.ts:1313 — <c>createBaseGeneratedIdentifier</c>.</summary>
+    private Identifier CreateBaseGeneratedIdentifier(
+        string text,
+        GeneratedIdentifierFlags autoGenerateFlags,
+        object? prefix,
+        string? suffix)
+    {
+        var node = CreateBaseIdentifier(Utilities.EscapeLeadingUnderscores(text));
+        EmitNodes.SetIdentifierAutoGenerate(node, new AutoGenerateInfo(autoGenerateFlags, s_nextAutoGenerateId, prefix, suffix));
+        s_nextAutoGenerateId++;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1326 — <c>createTempVariable</c>.</summary>
+    public Identifier CreateTempVariable(Action<Identifier>? recordTempVariable, bool? reservedInNestedScopes)
+        => CreateTempVariable(recordTempVariable, reservedInNestedScopes, null, null);
+
+    /// <summary>ported from: factory/nodeFactory.ts:1326 — <c>createTempVariable</c> with a generated-name part.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>prefix</c> is <c>string | GeneratedNamePart</c>; the union has no C# spelling, so it is
+    /// <c>object?</c> here (see <see cref="FactoryUtilities.FormatGeneratedNamePart"/> for the runtime discrimination).
+    /// </remarks>
+    public Identifier CreateTempVariable(
+        Action<Identifier>? recordTempVariable,
+        bool? reservedInNestedScopes,
+        object? prefix,
+        string? suffix)
+    {
+        var flags = GeneratedIdentifierFlags.Auto;
+        if (reservedInNestedScopes == true) flags |= GeneratedIdentifierFlags.ReservedInNestedScopes;
+        var name = CreateBaseGeneratedIdentifier("", flags, prefix, suffix);
+        recordTempVariable?.Invoke(name);
+        return name;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1339 — <c>createLoopVariable</c>.</summary>
+    public Identifier CreateLoopVariable(bool? reservedInNestedScopes)
+    {
+        var flags = GeneratedIdentifierFlags.Loop;
+        if (reservedInNestedScopes == true) flags |= GeneratedIdentifierFlags.ReservedInNestedScopes;
+        return CreateBaseGeneratedIdentifier("", flags, null, null);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1347 — <c>createUniqueName</c>.</summary>
+    public Identifier CreateUniqueName(string? text, GeneratedIdentifierFlags? flags)
+        => CreateUniqueName(text, flags, null, null);
+
+    /// <summary>ported from: factory/nodeFactory.ts:1347 — <c>createUniqueName</c> with a generated-name part.</summary>
+    public Identifier CreateUniqueName(string? text, GeneratedIdentifierFlags? flags, object? prefix, string? suffix)
+    {
+        var effectiveFlags = flags ?? GeneratedIdentifierFlags.None;
+        Debug.Assert((effectiveFlags & GeneratedIdentifierFlags.KindMask) == 0, "Argument out of range: flags");
+        Debug.Assert(
+            (effectiveFlags & (GeneratedIdentifierFlags.Optimistic | GeneratedIdentifierFlags.FileLevel)) != GeneratedIdentifierFlags.FileLevel,
+            "GeneratedIdentifierFlags.FileLevel cannot be set without also setting GeneratedIdentifierFlags.Optimistic");
+        return CreateBaseGeneratedIdentifier(text!, GeneratedIdentifierFlags.Unique | effectiveFlags, prefix, suffix);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1377 — <c>getGeneratedNameForNode</c>.</summary>
+    public Identifier GetGeneratedNameForNode(Node? node, GeneratedIdentifierFlags? flags)
+        => GetGeneratedNameForNode(node, flags, null, null);
+
+    /// <summary>ported from: factory/nodeFactory.ts:1377 — <c>getGeneratedNameForNode</c> with a generated-name part.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS passes <c>idText</c> as the <c>generateName</c> callback, which is
+    /// <see cref="Utilities.IdText"/> here.
+    /// </remarks>
+    public Identifier GetGeneratedNameForNode(Node? node, GeneratedIdentifierFlags? flags, object? prefix, string? suffix)
+    {
+        var effectiveFlags = flags ?? GeneratedIdentifierFlags.None;
+        Debug.Assert((effectiveFlags & GeneratedIdentifierFlags.KindMask) == 0, "Argument out of range: flags");
+        var text = node is null ? "" :
+            Utilities.IsMemberName(node) ? FactoryUtilities.FormatGeneratedName(false, prefix, node, suffix, Utilities.IdText) :
+            $"generated@{Utilities.GetNodeId(node)}";
+        if (prefix is not null || suffix is not null) effectiveFlags |= GeneratedIdentifierFlags.Optimistic;
+        var name = CreateBaseGeneratedIdentifier(text, GeneratedIdentifierFlags.Node | effectiveFlags, prefix, suffix);
+        name.Original = node;
+        return name;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1396 — <c>createBaseGeneratedPrivateIdentifier</c>.</summary>
+    private PrivateIdentifier CreateBaseGeneratedPrivateIdentifier(
+        string text,
+        GeneratedIdentifierFlags autoGenerateFlags,
+        object? prefix,
+        string? suffix)
+    {
+        var node = CreateBasePrivateIdentifier(Utilities.EscapeLeadingUnderscores(text));
+        EmitNodes.SetIdentifierAutoGenerate(node, new AutoGenerateInfo(autoGenerateFlags, s_nextAutoGenerateId, prefix, suffix));
+        s_nextAutoGenerateId++;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1408 — <c>createUniquePrivateName</c>.</summary>
+    public PrivateIdentifier CreateUniquePrivateName(string? text)
+        => CreateUniquePrivateName(text, null, null);
+
+    /// <summary>ported from: factory/nodeFactory.ts:1408 — <c>createUniquePrivateName</c> with a generated-name part.</summary>
+    public PrivateIdentifier CreateUniquePrivateName(string? text, object? prefix, string? suffix)
+    {
+        if (!string.IsNullOrEmpty(text) && !text!.StartsWith('#'))
+        {
+            Debug.Fail("First character of private identifier must be #: " + text);
+        }
+
+        var autoGenerateFlags = GeneratedIdentifierFlags.ReservedInNestedScopes
+            | (!string.IsNullOrEmpty(text) ? GeneratedIdentifierFlags.Unique : GeneratedIdentifierFlags.Auto);
+        return CreateBaseGeneratedPrivateIdentifier(text ?? "", autoGenerateFlags, prefix, suffix);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:1423 — <c>getGeneratedPrivateNameForNode</c>.</summary>
+    public PrivateIdentifier GetGeneratedPrivateNameForNode(Node? node)
+        => GetGeneratedPrivateNameForNode(node, null, null);
+
+    /// <summary>ported from: factory/nodeFactory.ts:1423 — <c>getGeneratedPrivateNameForNode</c> with a generated-name part.</summary>
+    public PrivateIdentifier GetGeneratedPrivateNameForNode(Node? node, object? prefix, string? suffix)
+    {
+        var text = node is not null && Utilities.IsMemberName(node)
+            ? FactoryUtilities.FormatGeneratedName(true, prefix, node, suffix, Utilities.IdText)
+            : $"#generated@{Utilities.GetNodeId(node!)}";
+        var flags = prefix is not null || suffix is not null ? GeneratedIdentifierFlags.Optimistic : GeneratedIdentifierFlags.None;
+        var name = CreateBaseGeneratedPrivateIdentifier(text, GeneratedIdentifierFlags.Node | flags, prefix, suffix);
+        name.Original = node;
+        return name;
+    }
+
+    //
+    // Binary and unary operator factories
+    //
+
+    // ported from: factory/nodeFactory.ts:1022-1123 — the lazily bound `get createX()` members.
+    /// <remarks>
+    /// PORT-NOTE: TS builds each of these as <c>getBinaryCreateFunction(<operator>)</c> — a memoized
+    /// <c>(left, right) =&gt; createBinaryExpression(left, operator, right)</c> — and exposes the result as a factory
+    /// member. The port calls <see cref="CreateBinaryExpression"/> directly (same result, no closure to cache), and the
+    /// declaration order matches the TS getter order.
+    /// </remarks>
+    public BinaryExpression CreateComma(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.CommaToken, right);
+
+    /// <remarks>
+    /// PORT-NOTE: TS declares two <c>createAssignment</c> overloads (`ObjectLiteralExpression | ArrayLiteralExpression`
+    /// and `Expression`); both denote this one runtime function, and the port keeps the general signature only — a
+    /// second overload taking <c>MemberExpression?</c> would capture every member-access argument by C# overload
+    /// resolution and hand back a <c>Node</c> where TS hands back an expression. See docs/architecture.md §15.9.
+    /// <para>
+    /// The return type is <c>BinaryExpression</c>, not TS's <c>AssignmentExpression&lt;EqualsToken&gt;</c>:
+    /// <see cref="AssignmentExpression{TOperator}"/> is an abstract class in the port with no concrete subclass (TS's
+    /// version is a structural type that every <c>x = y</c> satisfies), so the object built here <em>is</em> a
+    /// <c>BinaryExpression</c> and casting it to the abstract type would throw. Every caller reads it as an expression.
+    /// </para>
+    /// </remarks>
+    public BinaryExpression CreateAssignment(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.EqualsToken, right);
+
+    public BinaryExpression CreateLogicalOr(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.BarBarToken, right);
+
+    public BinaryExpression CreateLogicalAnd(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.AmpersandAmpersandToken, right);
+
+    public BinaryExpression CreateBitwiseOr(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.BarToken, right);
+
+    public BinaryExpression CreateBitwiseXor(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.CaretToken, right);
+
+    public BinaryExpression CreateBitwiseAnd(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.AmpersandToken, right);
+
+    public BinaryExpression CreateStrictEquality(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.EqualsEqualsEqualsToken, right);
+
+    public BinaryExpression CreateStrictInequality(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.ExclamationEqualsEqualsToken, right);
+
+    public BinaryExpression CreateEquality(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.EqualsEqualsToken, right);
+
+    public BinaryExpression CreateInequality(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.ExclamationEqualsToken, right);
+
+    public BinaryExpression CreateLessThan(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.LessThanToken, right);
+
+    public BinaryExpression CreateLessThanEquals(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.LessThanEqualsToken, right);
+
+    public BinaryExpression CreateGreaterThan(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.GreaterThanToken, right);
+
+    public BinaryExpression CreateGreaterThanEquals(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.GreaterThanEqualsToken, right);
+
+    public BinaryExpression CreateLeftShift(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.LessThanLessThanToken, right);
+
+    public BinaryExpression CreateRightShift(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.GreaterThanGreaterThanToken, right);
+
+    public BinaryExpression CreateUnsignedRightShift(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.GreaterThanGreaterThanGreaterThanToken, right);
+
+    public BinaryExpression CreateAdd(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.PlusToken, right);
+
+    public BinaryExpression CreateSubtract(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.MinusToken, right);
+
+    public BinaryExpression CreateMultiply(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.AsteriskToken, right);
+
+    public BinaryExpression CreateDivide(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.SlashToken, right);
+
+    public BinaryExpression CreateModulo(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.PercentToken, right);
+
+    public BinaryExpression CreateExponent(Expression? left, Expression? right)
+        => CreateBinaryExpression(left, SyntaxKind.AsteriskAsteriskToken, right);
+
+    // ported from: factory/nodeFactory.ts:1085-1123 — the `getPrefixUnaryCreateFunction` / `getPostfixUnaryCreateFunction` members.
+    public PrefixUnaryExpression CreatePrefixPlus(Expression? operand)
+        => CreatePrefixUnaryExpression(SyntaxKind.PlusToken, operand);
+
+    public PrefixUnaryExpression CreatePrefixMinus(Expression? operand)
+        => CreatePrefixUnaryExpression(SyntaxKind.MinusToken, operand);
+
+    public PrefixUnaryExpression CreatePrefixIncrement(Expression? operand)
+        => CreatePrefixUnaryExpression(SyntaxKind.PlusPlusToken, operand);
+
+    public PrefixUnaryExpression CreatePrefixDecrement(Expression? operand)
+        => CreatePrefixUnaryExpression(SyntaxKind.MinusMinusToken, operand);
+
+    public PrefixUnaryExpression CreateBitwiseNot(Expression? operand)
+        => CreatePrefixUnaryExpression(SyntaxKind.TildeToken, operand);
+
+    public PrefixUnaryExpression CreateLogicalNot(Expression? operand)
+        => CreatePrefixUnaryExpression(SyntaxKind.ExclamationToken, operand);
+
+    public PostfixUnaryExpression CreatePostfixIncrement(Expression? operand)
+        => CreatePostfixUnaryExpression(operand, SyntaxKind.PlusPlusToken);
+
+    public PostfixUnaryExpression CreatePostfixDecrement(Expression? operand)
+        => CreatePostfixUnaryExpression(operand, SyntaxKind.MinusMinusToken);
+
+    //
+    // JSDoc
+    //
+
+    // ported from: factory/nodeFactory.ts:802-1000 — the lazily bound `get createJSDocX()` / `get updateJSDocX()` members.
+    /// <remarks>
+    /// PORT-NOTE: TS exposes each of these as a getter returning a worker bound to a kind
+    /// (<c>getJSDocSimpleTagCreateFunction(SyntaxKind.JSDocAuthorTag)</c> and friends). The workers are already ported —
+    /// these members are the binding, and in C# a call to the worker with the kind <em>is</em> the bound function.
+    /// </remarks>
+    public JSDocAllType CreateJSDocAllType()
+        => CreateJSDocPrimaryTypeWorker<JSDocAllType>(SyntaxKind.JSDocAllType);
+
+    public JSDocUnknownType CreateJSDocUnknownType()
+        => CreateJSDocPrimaryTypeWorker<JSDocUnknownType>(SyntaxKind.JSDocUnknownType);
+
+    public JSDocNonNullableType CreateJSDocNonNullableType(ITypeNode? type, bool? postfix)
+        => CreateJSDocPrePostfixUnaryTypeWorker<JSDocNonNullableType>(SyntaxKind.JSDocNonNullableType, type, postfix);
+
+    public JSDocNonNullableType UpdateJSDocNonNullableType(JSDocNonNullableType? node, ITypeNode? type)
+        => UpdateJSDocPrePostfixUnaryTypeWorker(SyntaxKind.JSDocNonNullableType, node, type);
+
+    public JSDocNullableType CreateJSDocNullableType(ITypeNode? type, bool? postfix)
+        => CreateJSDocPrePostfixUnaryTypeWorker<JSDocNullableType>(SyntaxKind.JSDocNullableType, type, postfix);
+
+    public JSDocNullableType UpdateJSDocNullableType(JSDocNullableType? node, ITypeNode? type)
+        => UpdateJSDocPrePostfixUnaryTypeWorker(SyntaxKind.JSDocNullableType, node, type);
+
+    public JSDocOptionalType CreateJSDocOptionalType(ITypeNode? type)
+        => CreateJSDocUnaryTypeWorker<JSDocOptionalType>(SyntaxKind.JSDocOptionalType, type);
+
+    public JSDocOptionalType UpdateJSDocOptionalType(JSDocOptionalType? node, ITypeNode? type)
+        => UpdateJSDocUnaryTypeWorker(SyntaxKind.JSDocOptionalType, node, type);
+
+    public JSDocVariadicType CreateJSDocVariadicType(ITypeNode? type)
+        => CreateJSDocUnaryTypeWorker<JSDocVariadicType>(SyntaxKind.JSDocVariadicType, type);
+
+    public JSDocVariadicType UpdateJSDocVariadicType(JSDocVariadicType? node, ITypeNode? type)
+        => UpdateJSDocUnaryTypeWorker(SyntaxKind.JSDocVariadicType, node, type);
+
+    public JSDocNamepathType CreateJSDocNamepathType(ITypeNode? type)
+        => CreateJSDocUnaryTypeWorker<JSDocNamepathType>(SyntaxKind.JSDocNamepathType, type);
+
+    public JSDocNamepathType UpdateJSDocNamepathType(JSDocNamepathType? node, ITypeNode? type)
+        => UpdateJSDocUnaryTypeWorker(SyntaxKind.JSDocNamepathType, node, type);
+
+    public JSDocTypeTag CreateJSDocTypeTag(Identifier? tagName, JSDocTypeExpression? typeExpression, object? comment)
+        => CreateJSDocTypeLikeTagWorker<JSDocTypeTag>(SyntaxKind.JSDocTypeTag, tagName, typeExpression, comment);
+
+    public JSDocTypeTag UpdateJSDocTypeTag(JSDocTypeTag? node, Identifier? tagName, JSDocTypeExpression? typeExpression, object? comment)
+        => UpdateJSDocTypeLikeTagWorker(SyntaxKind.JSDocTypeTag, node, tagName, typeExpression, comment);
+
+    public JSDocReturnTag CreateJSDocReturnTag(Identifier? tagName, JSDocTypeExpression? typeExpression, object? comment)
+        => CreateJSDocTypeLikeTagWorker<JSDocReturnTag>(SyntaxKind.JSDocReturnTag, tagName, typeExpression, comment);
+
+    public JSDocReturnTag UpdateJSDocReturnTag(JSDocReturnTag? node, Identifier? tagName, JSDocTypeExpression? typeExpression, object? comment)
+        => UpdateJSDocTypeLikeTagWorker(SyntaxKind.JSDocReturnTag, node, tagName, typeExpression, comment);
+
+    public JSDocThisTag CreateJSDocThisTag(Identifier? tagName, JSDocTypeExpression? typeExpression, object? comment)
+        => CreateJSDocTypeLikeTagWorker<JSDocThisTag>(SyntaxKind.JSDocThisTag, tagName, typeExpression, comment);
+
+    public JSDocThisTag UpdateJSDocThisTag(JSDocThisTag? node, Identifier? tagName, JSDocTypeExpression? typeExpression, object? comment)
+        => UpdateJSDocTypeLikeTagWorker(SyntaxKind.JSDocThisTag, node, tagName, typeExpression, comment);
+
+    public JSDocThrowsTag CreateJSDocThrowsTag(Identifier? tagName, JSDocTypeExpression? typeExpression, object? comment)
+        => CreateJSDocTypeLikeTagWorker<JSDocThrowsTag>(SyntaxKind.JSDocThrowsTag, tagName, typeExpression, comment);
+
+    public JSDocThrowsTag UpdateJSDocThrowsTag(JSDocThrowsTag? node, Identifier? tagName, JSDocTypeExpression? typeExpression, object? comment)
+        => UpdateJSDocTypeLikeTagWorker(SyntaxKind.JSDocThrowsTag, node, tagName, typeExpression, comment);
+
+    public JSDocSatisfiesTag CreateJSDocSatisfiesTag(Identifier? tagName, JSDocTypeExpression? typeExpression, object? comment)
+        => CreateJSDocTypeLikeTagWorker<JSDocSatisfiesTag>(SyntaxKind.JSDocSatisfiesTag, tagName, typeExpression, comment);
+
+    public JSDocSatisfiesTag UpdateJSDocSatisfiesTag(JSDocSatisfiesTag? node, Identifier? tagName, JSDocTypeExpression? typeExpression, object? comment)
+        => UpdateJSDocTypeLikeTagWorker(SyntaxKind.JSDocSatisfiesTag, node, tagName, typeExpression, comment);
+
+    public JSDocAuthorTag CreateJSDocAuthorTag(Identifier? tagName, object? comment)
+        => CreateJSDocSimpleTagWorker<JSDocAuthorTag>(SyntaxKind.JSDocAuthorTag, tagName, comment);
+
+    public JSDocAuthorTag UpdateJSDocAuthorTag(JSDocAuthorTag? node, Identifier? tagName, object? comment)
+        => UpdateJSDocSimpleTagWorker(SyntaxKind.JSDocAuthorTag, node, tagName, comment);
+
+    public JSDocClassTag CreateJSDocClassTag(Identifier? tagName, object? comment)
+        => CreateJSDocSimpleTagWorker<JSDocClassTag>(SyntaxKind.JSDocClassTag, tagName, comment);
+
+    public JSDocClassTag UpdateJSDocClassTag(JSDocClassTag? node, Identifier? tagName, object? comment)
+        => UpdateJSDocSimpleTagWorker(SyntaxKind.JSDocClassTag, node, tagName, comment);
+
+    public JSDocPublicTag CreateJSDocPublicTag(Identifier? tagName, object? comment)
+        => CreateJSDocSimpleTagWorker<JSDocPublicTag>(SyntaxKind.JSDocPublicTag, tagName, comment);
+
+    public JSDocPublicTag UpdateJSDocPublicTag(JSDocPublicTag? node, Identifier? tagName, object? comment)
+        => UpdateJSDocSimpleTagWorker(SyntaxKind.JSDocPublicTag, node, tagName, comment);
+
+    public JSDocPrivateTag CreateJSDocPrivateTag(Identifier? tagName, object? comment)
+        => CreateJSDocSimpleTagWorker<JSDocPrivateTag>(SyntaxKind.JSDocPrivateTag, tagName, comment);
+
+    public JSDocPrivateTag UpdateJSDocPrivateTag(JSDocPrivateTag? node, Identifier? tagName, object? comment)
+        => UpdateJSDocSimpleTagWorker(SyntaxKind.JSDocPrivateTag, node, tagName, comment);
+
+    public JSDocProtectedTag CreateJSDocProtectedTag(Identifier? tagName, object? comment)
+        => CreateJSDocSimpleTagWorker<JSDocProtectedTag>(SyntaxKind.JSDocProtectedTag, tagName, comment);
+
+    public JSDocProtectedTag UpdateJSDocProtectedTag(JSDocProtectedTag? node, Identifier? tagName, object? comment)
+        => UpdateJSDocSimpleTagWorker(SyntaxKind.JSDocProtectedTag, node, tagName, comment);
+
+    public JSDocReadonlyTag CreateJSDocReadonlyTag(Identifier? tagName, object? comment)
+        => CreateJSDocSimpleTagWorker<JSDocReadonlyTag>(SyntaxKind.JSDocReadonlyTag, tagName, comment);
+
+    public JSDocReadonlyTag UpdateJSDocReadonlyTag(JSDocReadonlyTag? node, Identifier? tagName, object? comment)
+        => UpdateJSDocSimpleTagWorker(SyntaxKind.JSDocReadonlyTag, node, tagName, comment);
+
+    public JSDocOverrideTag CreateJSDocOverrideTag(Identifier? tagName, object? comment)
+        => CreateJSDocSimpleTagWorker<JSDocOverrideTag>(SyntaxKind.JSDocOverrideTag, tagName, comment);
+
+    public JSDocOverrideTag UpdateJSDocOverrideTag(JSDocOverrideTag? node, Identifier? tagName, object? comment)
+        => UpdateJSDocSimpleTagWorker(SyntaxKind.JSDocOverrideTag, node, tagName, comment);
+
+    public JSDocDeprecatedTag CreateJSDocDeprecatedTag(Identifier? tagName, object? comment)
+        => CreateJSDocSimpleTagWorker<JSDocDeprecatedTag>(SyntaxKind.JSDocDeprecatedTag, tagName, comment);
+
+    public JSDocDeprecatedTag UpdateJSDocDeprecatedTag(JSDocDeprecatedTag? node, Identifier? tagName, object? comment)
+        => UpdateJSDocSimpleTagWorker(SyntaxKind.JSDocDeprecatedTag, node, tagName, comment);
+
+    //
+    // Binary expressions
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:3386 — <c>createBinaryExpression</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's second parameter is <c>BinaryOperator | BinaryOperatorToken</c> — either the kind or the token.
+    /// The union has no C# spelling, so it is <c>object?</c> here and <c>asToken</c> narrows it, which is what TS's
+    /// overload set does at compile time.
+    /// </remarks>
+    public BinaryExpression CreateBinaryExpression(Expression? left, object? @operator, Expression? right)
+    {
+        var node = CreateBaseDeclaration<BinaryExpression>(SyntaxKind.BinaryExpression);
+        var operatorToken = (Token)AsToken(@operator)!;
+        var operatorKind = operatorToken.Kind;
+        node.Left = Parenthesizer.ParenthesizeLeftSideOfBinary(operatorKind, left);
+        node.OperatorToken = operatorToken;
+        node.Right = Parenthesizer.ParenthesizeRightSideOfBinary(operatorKind, node.Left, right);
+        node.TransformFlags |= PropagateChildFlags(node.Left)
+            | PropagateChildFlags(node.OperatorToken)
+            | PropagateChildFlags(node.Right);
+
+        if (operatorKind == SyntaxKind.QuestionQuestionToken)
+        {
+            node.TransformFlags |= TransformFlags.ContainsES2020;
+        }
+        else if (operatorKind == SyntaxKind.EqualsToken)
+        {
+            if (NodeTests.IsObjectLiteralExpression(node.Left))
+            {
+                node.TransformFlags |= TransformFlags.ContainsES2015
+                    | TransformFlags.ContainsES2018
+                    | TransformFlags.ContainsDestructuringAssignment
+                    | PropagateAssignmentPatternFlags(node.Left);
+            }
+            else if (NodeTests.IsArrayLiteralExpression(node.Left))
+            {
+                node.TransformFlags |= TransformFlags.ContainsES2015
+                    | TransformFlags.ContainsDestructuringAssignment
+                    | PropagateAssignmentPatternFlags(node.Left);
+            }
+        }
+        else if (operatorKind is SyntaxKind.AsteriskAsteriskToken or SyntaxKind.AsteriskAsteriskEqualsToken)
+        {
+            node.TransformFlags |= TransformFlags.ContainsES2016;
+        }
+        else if (Utilities.IsLogicalOrCoalescingAssignmentOperator(operatorKind))
+        {
+            node.TransformFlags |= TransformFlags.ContainsES2021;
+        }
+
+        if (operatorKind == SyntaxKind.InKeyword && NodeTests.IsPrivateIdentifier(node.Left!))
+        {
+            node.TransformFlags |= TransformFlags.ContainsPrivateIdentifierInExpression;
+        }
+
+        node.JsDoc = null; // initialized by parser (JsDocContainer)
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3459 — <c>propagateAssignmentPatternFlags</c>.</summary>
+    private static TransformFlags PropagateAssignmentPatternFlags(Node node)
+        => FactoryUtilities.ContainsObjectRestOrSpread(node)
+            ? TransformFlags.ContainsObjectRestOrSpread
+            : TransformFlags.None;
+
+    /// <summary>ported from: factory/nodeFactory.ts:3466 — <c>updateBinaryExpression</c>.</summary>
+    public BinaryExpression UpdateBinaryExpression(BinaryExpression? node, Expression? left, object? @operator, Expression? right)
+        => !ReferenceEquals(node!.Left, left)
+            || !ReferenceEquals(node.OperatorToken, @operator)
+            || !ReferenceEquals(node.Right, right)
+            ? Update(CreateBinaryExpression(left, @operator, right), node)
+            : node;
+
+    /// <summary>ported from: factory/nodeFactory.ts:5367 — <c>createTypeCheck</c>.</summary>
+    public Expression CreateTypeCheck(Expression? value, string? tag)
+        => tag == "null" ? CreateStrictEquality(value, CreateNull())
+            : tag == "undefined" ? CreateStrictEquality(value, CreateVoidZero())
+            : CreateStrictEquality(CreateTypeOfExpression(value), CreateStringLiteral(tag, null, null));
+
+    /// <summary>ported from: factory/nodeFactory.ts:5374 — <c>createIsNotTypeCheck</c>.</summary>
+    public Expression CreateIsNotTypeCheck(Expression? value, string? tag)
+        => tag == "null" ? CreateStrictInequality(value, CreateNull())
+            : tag == "undefined" ? CreateStrictInequality(value, CreateVoidZero())
+            : CreateStrictInequality(CreateTypeOfExpression(value), CreateStringLiteral(tag, null, null));
+
+    //
+    // Call bindings
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:6643 — <c>shouldBeCapturedInTempVariable</c>.</summary>
+    private static bool ShouldBeCapturedInTempVariable(Expression node, bool cacheIdentifiers)
+    {
+        var target = Utilities.SkipParentheses(node);
+        switch (target.Kind)
+        {
+            case SyntaxKind.Identifier:
+                return cacheIdentifiers;
+
+            case SyntaxKind.ThisKeyword:
+            case SyntaxKind.NumericLiteral:
+            case SyntaxKind.BigIntLiteral:
+            case SyntaxKind.StringLiteral:
+                return false;
+
+            case SyntaxKind.ArrayLiteralExpression:
+                return ((ArrayLiteralExpression)target).Elements!.Count != 0;
+
+            case SyntaxKind.ObjectLiteralExpression:
+                return ((ObjectLiteralExpression)target).Properties!.Count > 0;
+
+            default:
+                return true;
+        }
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6666 — <c>createCallBinding</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's "for <c>a.b()</c> the target is <c>(_a = a).b</c>" shapes are reproduced by building the same
+    /// nodes; the <c>target</c>/<c>thisArg</c> pair comes back as a <see cref="CallBinding"/> (TS uses an object literal).
+    /// </remarks>
+    public ICallBinding CreateCallBinding(
+        Expression? expression,
+        Action<Identifier>? recordTempVariable,
+        ScriptTarget? languageVersion,
+        bool? cacheIdentifiers)
+    {
+        var callee = FactoryUtilities.SkipOuterExpressions(expression!, OuterExpressionKinds.All);
+        Expression thisArg;
+        LeftHandSideExpression target;
+        if (Utilities.IsSuperProperty(callee))
+        {
+            thisArg = CreateThis();
+            target = (LeftHandSideExpression)callee;
+        }
+        else if (NodeTests.IsSuperKeyword(callee))
+        {
+            thisArg = CreateThis();
+            target = languageVersion is not null && languageVersion < ScriptTarget.ES2015
+                ? Utilities.SetTextRange(CreateIdentifier("_super", null, null), callee)
+                : (LeftHandSideExpression)callee;
+        }
+        else if ((Utilities.GetEmitFlags(callee) & EmitFlags.HelperName) != 0)
+        {
+            thisArg = CreateVoidZero();
+            target = Parenthesizer.ParenthesizeLeftSideOfAccess((Expression)callee, false);
+        }
+        else if (NodeTests.IsPropertyAccessExpression(callee))
+        {
+            var propertyAccess = (PropertyAccessExpression)callee;
+            if (ShouldBeCapturedInTempVariable(propertyAccess.Expression!, cacheIdentifiers ?? false))
+            {
+                // for `a.b()` the target is `(_a = a).b` and `thisArg` is `_a`
+                thisArg = CreateTempVariable(recordTempVariable, null);
+                target = CreatePropertyAccessExpression(
+                    Utilities.SetTextRange(
+                        CreateAssignment(thisArg, propertyAccess.Expression),
+                        propertyAccess.Expression),
+                    propertyAccess.Name);
+                Utilities.SetTextRange(target, propertyAccess);
+            }
+            else
+            {
+                thisArg = propertyAccess.Expression!;
+                target = propertyAccess;
+            }
+        }
+        else if (NodeTests.IsElementAccessExpression(callee))
+        {
+            var elementAccess = (ElementAccessExpression)callee;
+            if (ShouldBeCapturedInTempVariable(elementAccess.Expression!, cacheIdentifiers ?? false))
+            {
+                // for `a[b]()` the target is `(_a = a)[b]` and `thisArg` is `_a`
+                thisArg = CreateTempVariable(recordTempVariable, null);
+                target = CreateElementAccessExpression(
+                    Utilities.SetTextRange(
+                        CreateAssignment(thisArg, elementAccess.Expression),
+                        elementAccess.Expression),
+                    elementAccess.ArgumentExpression);
+                Utilities.SetTextRange(target, elementAccess);
+            }
+            else
+            {
+                thisArg = elementAccess.Expression!;
+                target = elementAccess;
+            }
+        }
+        else
+        {
+            // for `a()` the target is `a` and `thisArg` is `void 0`
+            thisArg = CreateVoidZero();
+            target = Parenthesizer.ParenthesizeLeftSideOfAccess(expression, false);
+        }
+
+        return new CallBinding(target, thisArg);
+    }
+
+    //
+    // Cloning
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:6368 — <c>cloneNode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS copies every own enumerable property of the source onto a <em>bare</em> node of the same kind, so
+    /// the base slots (range, id, parent, modifier cache) keep the fresh node's values while everything else — links
+    /// included — is carried over. C# has no prototype-versus-own distinction, so the equivalent is
+    /// <c>MemberwiseClone</c> followed by exactly those base-slot resets; <c>cloneNodeWorker</c> is that pair. The four
+    /// specialised clones are kept as TS writes them, because they copy a different set (an identifier carries its
+    /// links across, a private identifier does not).
+    /// </remarks>
+    public T CloneNode<T>(T? node)
+        where T : Node
+    {
+        if (node is null) return node!;
+        if (NodeTests.IsSourceFile(node)) return (T)(Node)CloneSourceFile((SourceFile)(Node)node);
+        if (Utilities.IsGeneratedIdentifier(node)) return (T)(Node)CloneGeneratedIdentifier((Identifier)(Node)node);
+        if (NodeTests.IsIdentifier(node)) return (T)(Node)CloneIdentifier((Identifier)(Node)node);
+        if (Utilities.IsGeneratedPrivateIdentifier(node)) return (T)(Node)CloneGeneratedPrivateIdentifier((PrivateIdentifier)(Node)node);
+        if (NodeTests.IsPrivateIdentifier(node)) return (T)(Node)ClonePrivateIdentifier((PrivateIdentifier)(Node)node);
+        return (T)CloneNodeWorker(node);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6386 — the tail of <c>cloneNode</c>.</summary>
+    private static T CloneNodeWorker<T>(T node)
+        where T : Node
+    {
+        var clone = (T)node.ShallowClone();
+        clone.Flags = node.Flags & ~NodeFlags.Synthesized;
+        clone.TransformFlags = node.TransformFlags;
+
+        // The fresh node TS starts from owns these, so the copy loop never reaches them.
+        clone.Pos = -1;
+        clone.End = -1;
+        clone.Id = null;
+        clone.Parent = null;
+        clone.ModifierFlagsCache = ModifierFlags.None;
+
+        SetOriginalNode(clone, node);
+        return clone;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6312 — <c>cloneGeneratedIdentifier</c>.</summary>
+    private Identifier CloneGeneratedIdentifier(Identifier node)
+    {
+        var clone = CreateBaseIdentifier(node.EscapedText!);
+        clone.Flags = node.Flags & ~NodeFlags.Synthesized;
+        clone.TransformFlags = node.TransformFlags;
+        SetOriginalNode(clone, node);
+        EmitNodes.SetIdentifierAutoGenerate(
+            clone,
+            new AutoGenerateInfo(EmitNodes.GetIdentifierAutoGenerate(node)!));
+        return clone;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6321 — <c>cloneIdentifier</c>.</summary>
+    private Identifier CloneIdentifier(Identifier node)
+    {
+        var clone = CreateBaseIdentifier(node.EscapedText!);
+        clone.Flags = node.Flags & ~NodeFlags.Synthesized;
+        clone.JsDoc = node.JsDoc;
+        clone.FlowNode = node.FlowNode;
+        clone.Symbol = node.Symbol;
+        clone.TransformFlags = node.TransformFlags;
+        SetOriginalNode(clone, node);
+
+        // clone type arguments for emitter/typeWriter
+        var typeArguments = EmitNodes.GetIdentifierTypeArguments(node);
+        if (typeArguments is not null) EmitNodes.SetIdentifierTypeArguments(clone, typeArguments);
+        return clone;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6334 — <c>cloneGeneratedPrivateIdentifier</c>.</summary>
+    private PrivateIdentifier CloneGeneratedPrivateIdentifier(PrivateIdentifier node)
+    {
+        var clone = CreateBasePrivateIdentifier(node.EscapedText!);
+        clone.Flags = node.Flags & ~NodeFlags.Synthesized;
+        clone.TransformFlags = node.TransformFlags;
+        SetOriginalNode(clone, node);
+        EmitNodes.SetIdentifierAutoGenerate(
+            clone,
+            new AutoGenerateInfo(EmitNodes.GetIdentifierAutoGenerate(node)!));
+        return clone;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6343 — <c>clonePrivateIdentifier</c>.</summary>
+    private PrivateIdentifier ClonePrivateIdentifier(PrivateIdentifier node)
+    {
+        var clone = CreateBasePrivateIdentifier(node.EscapedText!);
+        clone.Flags = node.Flags & ~NodeFlags.Synthesized;
+        clone.TransformFlags = node.TransformFlags;
+        SetOriginalNode(clone, node);
+        return clone;
+    }
+
+    //
+    // Emit prologues
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:1137 — the <c>isUseStrictPrologue</c> the prologue copiers use.</summary>
+    /// <remarks>
+    /// PORT-NOTE: <c>factory/utilities.ts</c> declares a private function of the same name for <c>findUseStrictPrologue</c>;
+    /// TS keeps the two apart because neither module exports it. The port keeps that split.
+    /// </remarks>
+    private static bool IsUseStrictPrologue(Node node)
+        => NodeTests.IsStringLiteral(((ExpressionStatement)node).Expression!)
+            && ((StringLiteral)((ExpressionStatement)node).Expression!).Text == "use strict";
+
+    /// <summary>ported from: factory/nodeFactory.ts:6865 — <c>copyPrologue</c>.</summary>
+    public int CopyPrologue(
+        List<IStatement>? source,
+        List<IStatement>? target,
+        bool? ensureUseStrict,
+        Func<Node, object?>? visitor)
+    {
+        var offset = CopyStandardPrologue(source, target, 0, ensureUseStrict);
+        return CopyCustomPrologue(source, target, offset, visitor, null);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6892 — <c>copyStandardPrologue</c>.</summary>
+    public int CopyStandardPrologue(
+        List<IStatement>? source,
+        List<IStatement>? target,
+        int? statementOffset,
+        bool? ensureUseStrict)
+    {
+        Debug.Assert(target!.Count == 0, "Prologue directives should be at the first statement in the target statements array");
+        var offset = statementOffset ?? 0;
+        var foundUseStrict = false;
+        var numStatements = source!.Count;
+        while (offset < numStatements)
+        {
+            var statement = source[offset];
+            if (Utilities.IsPrologueDirective((Node)statement))
+            {
+                if (IsUseStrictPrologue((Node)statement)) foundUseStrict = true;
+                target.Add(statement);
+            }
+            else
+            {
+                break;
+            }
+
+            offset++;
+        }
+
+        if (ensureUseStrict == true && !foundUseStrict)
+        {
+            target.Add(CreateUseStrictPrologue());
+        }
+
+        return offset;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6916 — <c>copyCustomPrologue</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS runs the visitor through <c>visitNode(statement, visitor, isStatement)</c>, whose <c>VisitResult</c>
+    /// union is <c>Node | Node[] | undefined</c>; the port's visitor type is <c>Func&lt;Node, object?&gt;</c>, so the same
+    /// three outcomes are discriminated here. The <c>isStatement</c> assertion TS adds has no counterpart (there is no
+    /// <c>isStatement</c> predicate in the port yet) — the cast checks the same thing, loudly.
+    /// </remarks>
+    public int CopyCustomPrologue(
+        List<IStatement>? source,
+        List<IStatement>? target,
+        int statementOffset,
+        Func<Node, object?>? visitor,
+        Func<IStatement, bool>? filter)
+    {
+        var offset = statementOffset;
+        var numStatements = source!.Count;
+        while (offset < numStatements)
+        {
+            var statement = source[offset];
+            if ((Utilities.GetEmitFlags((Node)statement) & EmitFlags.CustomPrologue) != 0
+                && (filter is null || filter(statement)))
+            {
+                AppendVisitedNode(target!, statement, visitor);
+            }
+            else
+            {
+                break;
+            }
+
+            offset++;
+        }
+
+        return offset;
+    }
+
+    /// <summary>The <c>append(target, visitNode(node, visitor, isStatement))</c> step of <c>copyCustomPrologue</c>.</summary>
+    private static void AppendVisitedNode(IList<IStatement> target, IStatement statement, Func<Node, object?>? visitor)
+    {
+        if (visitor is null)
+        {
+            target.Add(statement);
+            return;
+        }
+
+        switch (visitor((Node)statement))
+        {
+            case null:
+                break;
+
+            case Node visited:
+                target.Add((IStatement)visited);
+                break;
+
+            case IEnumerable<Node> visited:
+                foreach (var child in visited) target.Add((IStatement)child);
+                break;
+
+            default:
+                Debug.Fail("Invalid visit result");
+                break;
+        }
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6944 — <c>ensureUseStrict</c>.</summary>
+    public NodeArray<IStatement> EnsureUseStrict(NodeArray<IStatement>? statements)
+    {
+        var foundUseStrict = FactoryUtilities.FindUseStrictPrologue(statements!);
+        if (foundUseStrict is null)
+        {
+            var items = new List<IStatement> { CreateUseStrictPrologue() };
+            items.AddRange(statements!);
+            return Utilities.SetTextRange(CreateNodeArray(items, null), statements);
+        }
+
+        return statements!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6959 — <c>liftToBlock</c>.</summary>
+    public IStatement LiftToBlock(List<Node>? nodes)
+    {
+        Debug.Assert(Core.Every(nodes, (node, _) => Utilities.IsStatementOrBlock(node)), "Cannot lift nodes to a Block.");
+        return Core.SingleOrUndefined(nodes) as IStatement
+            ?? CreateBlock(Core.Map(nodes!, static (Node node, int _) => (IStatement)node), null);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6972 — <c>mergeLexicalEnvironment</c>.</summary>
+    public NodeArray<IStatement> MergeLexicalEnvironment(NodeArray<IStatement>? statements, List<IStatement>? declarations)
+        => (NodeArray<IStatement>)MergeLexicalEnvironmentWorker(statements!, declarations);
+
+    /// <summary>ported from: factory/nodeFactory.ts:6973 — the array overload of <c>mergeLexicalEnvironment</c>.</summary>
+    public List<IStatement> MergeLexicalEnvironment(List<IStatement>? statements, List<IStatement>? declarations)
+        => (List<IStatement>)MergeLexicalEnvironmentWorker(statements!, declarations);
+
+    /// <remarks>
+    /// The merge order (right's prologues first, then left's) is the point of this function: the prior transformation's
+    /// lexical initializers have to run before the ones being merged in, so they are spliced in from the right.
+    /// </remarks>
+    private IList<IStatement> MergeLexicalEnvironmentWorker(IList<IStatement> statements, List<IStatement>? declarations)
+    {
+        if (!Core.Some(declarations))
+        {
+            return statements;
+        }
+
+        // find standard prologues on left in the following order: standard directives, hoisted functions, hoisted variables, other custom
+        var leftStandardPrologueEnd = FindSpanEnd(statements, statement => Utilities.IsPrologueDirective((Node)statement), 0);
+        var leftHoistedFunctionsEnd = FindSpanEnd(statements, statement => Utilities.IsHoistedFunction((Node)statement), leftStandardPrologueEnd);
+        var leftHoistedVariablesEnd = FindSpanEnd(
+            statements,
+            statement => Utilities.IsHoistedVariableStatement((Node)statement),
+            leftHoistedFunctionsEnd);
+
+        // find standard prologues on right in the following order: standard directives, hoisted functions, hoisted variables, other custom
+        var rightStandardPrologueEnd = FindSpanEnd(declarations!, statement => Utilities.IsPrologueDirective((Node)statement), 0);
+        var rightHoistedFunctionsEnd = FindSpanEnd(
+            declarations!,
+            statement => Utilities.IsHoistedFunction((Node)statement),
+            rightStandardPrologueEnd);
+        var rightHoistedVariablesEnd = FindSpanEnd(
+            declarations!,
+            statement => Utilities.IsHoistedVariableStatement((Node)statement),
+            rightHoistedFunctionsEnd);
+        var rightCustomPrologueEnd = FindSpanEnd(
+            declarations!,
+            statement => Utilities.IsCustomPrologue((Node)statement),
+            rightHoistedVariablesEnd);
+        Debug.Assert(rightCustomPrologueEnd == declarations!.Count, "Expected declarations to be valid standard or custom prologues");
+
+        // splice prologues from the right into the left. We do this in reverse order
+        // so that we don't need to recompute the index on the left when we insert items.
+        // PORT-NOTE: TS copies the left array only when it is a NodeArray and otherwise splices the caller's array in
+        // place — a plain `List` here is that array, so the same identity is kept.
+        var left = statements is NodeArray<IStatement> ? new List<IStatement>(statements) : (List<IStatement>)statements;
+
+        // splice other custom prologues from right into left
+        if (rightCustomPrologueEnd > rightHoistedVariablesEnd)
+        {
+            left.InsertRange(
+                leftHoistedVariablesEnd,
+                declarations.GetRange(rightHoistedVariablesEnd, rightCustomPrologueEnd - rightHoistedVariablesEnd));
+        }
+
+        // splice hoisted variables from right into left
+        if (rightHoistedVariablesEnd > rightHoistedFunctionsEnd)
+        {
+            left.InsertRange(
+                leftHoistedFunctionsEnd,
+                declarations.GetRange(rightHoistedFunctionsEnd, rightHoistedVariablesEnd - rightHoistedFunctionsEnd));
+        }
+
+        // splice hoisted functions from right into left
+        if (rightHoistedFunctionsEnd > rightStandardPrologueEnd)
+        {
+            left.InsertRange(
+                leftStandardPrologueEnd,
+                declarations.GetRange(rightStandardPrologueEnd, rightHoistedFunctionsEnd - rightStandardPrologueEnd));
+        }
+
+        // splice standard prologues from right into left (that are not already in left)
+        if (rightStandardPrologueEnd > 0)
+        {
+            if (leftStandardPrologueEnd == 0)
+            {
+                left.InsertRange(0, declarations.GetRange(0, rightStandardPrologueEnd));
+            }
+            else
+            {
+                var leftPrologues = new HashSet<string>(StringComparer.Ordinal);
+                for (var i = 0; i < leftStandardPrologueEnd; i++)
+                {
+                    leftPrologues.Add(TextOfPrologue(statements[i]));
+                }
+
+                for (var i = rightStandardPrologueEnd - 1; i >= 0; i--)
+                {
+                    if (!leftPrologues.Contains(TextOfPrologue(declarations[i])))
+                    {
+                        left.Insert(0, declarations[i]);
+                    }
+                }
+            }
+        }
+
+        if (statements is NodeArray<IStatement> nodeArray)
+        {
+            return Utilities.SetTextRange(CreateNodeArray(left, nodeArray.HasTrailingComma), nodeArray);
+        }
+
+        return statements;
+    }
+
+    /// <summary>The `statement.expression.text` a prologue directive is keyed by.</summary>
+    private static string TextOfPrologue(IStatement statement)
+        => ((StringLiteral)((ExpressionStatement)statement).Expression!).Text ?? "";
+
+    /// <summary>ported from: factory/nodeFactory.ts:6966 — <c>findSpanEnd</c>.</summary>
+    private static int FindSpanEnd<T>(IList<T> array, Func<T, bool> test, int start)
+    {
+        var i = start;
+        while (i < array.Count && test(array[i]))
+        {
+            i++;
+        }
+
+        return i;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6751 — <c>inlineExpressions</c>.</summary>
+    public Expression InlineExpressions(List<Expression>? expressions)
+        => expressions!.Count > 10
+            ? CreateCommaListExpression(expressions)
+            : Core.ReduceLeft(expressions, (left, right, _) => CreateComma(left, right))!;
+
+    //
+    // Restoring outer expressions and labels
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:6595 — <c>isIgnorableParen</c>.</summary>
+    private static bool IsIgnorableParen(Expression node)
+        => NodeTests.IsParenthesizedExpression(node)
+            && Utilities.NodeIsSynthesized(node)
+            && Utilities.NodeIsSynthesized(EmitNodes.GetSourceMapRange(node))
+            && Utilities.NodeIsSynthesized(EmitNodes.GetCommentRange(node))
+            && !Core.Some(EmitNodes.GetSyntheticLeadingComments(node))
+            && !Core.Some(EmitNodes.GetSyntheticTrailingComments(node));
+
+    /// <summary>ported from: factory/nodeFactory.ts:6606 — <c>restoreOuterExpressions</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the recursive call passes no <c>kinds</c>, so TS's default (<see cref="OuterExpressionKinds.All"/>)
+    /// applies to the inner expressions regardless of what the caller asked for. The port spells that default out.
+    /// </remarks>
+    public Expression RestoreOuterExpressions(Expression? outerExpression, Expression? innerExpression, OuterExpressionKinds? kinds)
+    {
+        var effectiveKinds = kinds ?? OuterExpressionKinds.All;
+        if (outerExpression is not null
+            && FactoryUtilities.IsOuterExpression(outerExpression, effectiveKinds)
+            && !IsIgnorableParen(outerExpression))
+        {
+            return UpdateOuterExpression(
+                outerExpression,
+                RestoreOuterExpressions(OuterExpressionTarget(outerExpression), innerExpression, null));
+        }
+
+        return innerExpression!;
+    }
+
+    /// <summary>The <c>expression</c> member TS's <c>OuterExpression</c> union has in common.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the union has no C# type (see <see cref="UpdateOuterExpression"/>, which switches the same way), so the
+    /// member it promises is reached through this switch instead of a cast.
+    /// </remarks>
+    private static Expression? OuterExpressionTarget(Node node) => node.Kind switch
+    {
+        SyntaxKind.ParenthesizedExpression => ((ParenthesizedExpression)node).Expression,
+        SyntaxKind.TypeAssertionExpression => ((TypeAssertion)node).Expression,
+        SyntaxKind.SatisfiesExpression => ((SatisfiesExpression)node).Expression,
+        SyntaxKind.AsExpression => ((AsExpression)node).Expression,
+        SyntaxKind.NonNullExpression => ((NonNullExpression)node).Expression,
+        SyntaxKind.ExpressionWithTypeArguments => ((ExpressionWithTypeArguments)node).Expression,
+        SyntaxKind.PartiallyEmittedExpression => ((PartiallyEmittedExpression)node).Expression,
+        _ => throw new InvalidOperationException($"invalid kind: {node.Kind}"),
+    };
+
+    /// <summary>ported from: factory/nodeFactory.ts:6616 — <c>restoreEnclosingLabel</c>.</summary>
+    public IStatement RestoreEnclosingLabel(
+        IStatement? node,
+        LabeledStatement? outermostLabeledStatement,
+        Action<LabeledStatement>? afterRestoreLabelCallback)
+    {
+        if (outermostLabeledStatement is null)
+        {
+            return node!;
+        }
+
+        var updated = UpdateLabeledStatement(
+            outermostLabeledStatement,
+            outermostLabeledStatement.Label!,
+            outermostLabeledStatement.Statement is Node statement && NodeTests.IsLabeledStatement(statement)
+                ? RestoreEnclosingLabel(node, (LabeledStatement)statement, null)
+                : node);
+        afterRestoreLabelCallback?.Invoke(outermostLabeledStatement);
+        return updated;
+    }
+
+    //
+    // Modifier replacement
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:7066 — <c>replaceModifiers</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's second parameter is <c>readonly Modifier[] | ModifierFlags</c>, which the model maps to
+    /// <c>List&lt;ModifierToken&gt;? | ModifierFlags?</c> — the <c>object?</c> here is that union. The generated update
+    /// members do not agree on how they type the <c>modifiers</c> slot (`List&lt;ModifierToken&gt;?` for a type
+    /// parameter or a signature, <c>List&lt;Node&gt;?</c> for everything else), so a modifier array built from flags is
+    /// also projected to the <c>List&lt;Node&gt;</c> shape. A caller that passes an array reaches the target's own shape
+    /// unchanged whenever the two agree; when they do not, the projection is a fresh list, which makes the update member
+    /// see "different array" — the same answer TS gives for a caller that built a new array.
+    /// </remarks>
+    public T ReplaceModifiers<T>(T? node, object? modifiers)
+        where T : Node
+    {
+        var modifierTokens = modifiers is ModifierFlags flags
+            ? CreateModifiersFromModifierFlags(flags)
+            : modifiers as List<ModifierToken>;
+        var modifierArray = modifiers is List<Node> nodes ? nodes : AsNodeList(modifierTokens);
+
+        if (NodeTests.IsTypeParameterDeclaration(node!))
+        {
+            var declaration = (TypeParameterDeclaration)(Node)node!;
+            return (T)(Node)UpdateTypeParameterDeclaration(
+                declaration, modifierTokens, declaration.Name, declaration.Constraint, declaration.Default);
+        }
+
+        if (NodeTests.IsParameter(node!))
+        {
+            var parameter = (ParameterDeclaration)(Node)node!;
+            return (T)(Node)UpdateParameterDeclaration(
+                parameter, modifierArray, parameter.DotDotDotToken, parameter.Name, parameter.QuestionToken, parameter.Type, parameter.Initializer);
+        }
+
+        if (NodeTests.IsConstructorTypeNode(node!))
+        {
+            var constructorType = (ConstructorTypeNode)(Node)node!;
+            return (T)(Node)UpdateConstructorTypeNode(
+                constructorType, modifierTokens, constructorType.TypeParameters, constructorType.Parameters, constructorType.Type);
+        }
+
+        if (NodeTests.IsPropertySignature(node!))
+        {
+            var propertySignature = (PropertySignature)(Node)node!;
+            return (T)(Node)UpdatePropertySignature(
+                propertySignature, modifierTokens, propertySignature.Name, propertySignature.QuestionToken, propertySignature.Type);
+        }
+
+        if (NodeTests.IsPropertyDeclaration(node!))
+        {
+            var property = (PropertyDeclaration)(Node)node!;
+            return (T)(Node)UpdatePropertyDeclaration(
+                property, modifierArray, property.Name, property.QuestionToken ?? property.ExclamationToken, property.Type, property.Initializer);
+        }
+
+        if (NodeTests.IsMethodSignature(node!))
+        {
+            var methodSignature = (MethodSignature)(Node)node!;
+            return (T)(Node)UpdateMethodSignature(
+                methodSignature, modifierTokens, methodSignature.Name, methodSignature.QuestionToken, methodSignature.TypeParameters, methodSignature.Parameters, methodSignature.Type);
+        }
+
+        if (NodeTests.IsMethodDeclaration(node!))
+        {
+            var method = (MethodDeclaration)(Node)node!;
+            return (T)(Node)UpdateMethodDeclaration(
+                method, modifierArray, method.AsteriskToken, method.Name, method.QuestionToken, method.TypeParameters, method.Parameters, method.Type, method.Body);
+        }
+
+        if (NodeTests.IsConstructorDeclaration(node!))
+        {
+            var constructor = (ConstructorDeclaration)(Node)node!;
+            return (T)(Node)UpdateConstructorDeclaration(constructor, modifierArray, constructor.Parameters, constructor.Body);
+        }
+
+        if (NodeTests.IsGetAccessorDeclaration(node!))
+        {
+            var getAccessor = (GetAccessorDeclaration)(Node)node!;
+            return (T)(Node)UpdateGetAccessorDeclaration(
+                getAccessor, modifierArray, getAccessor.Name, getAccessor.Parameters, getAccessor.Type, getAccessor.Body);
+        }
+
+        if (NodeTests.IsSetAccessorDeclaration(node!))
+        {
+            var setAccessor = (SetAccessorDeclaration)(Node)node!;
+            return (T)(Node)UpdateSetAccessorDeclaration(
+                setAccessor, modifierArray, setAccessor.Name, setAccessor.Parameters, setAccessor.Body);
+        }
+
+        if (NodeTests.IsIndexSignatureDeclaration(node!))
+        {
+            var indexSignature = (IndexSignatureDeclaration)(Node)node!;
+            return (T)(Node)UpdateIndexSignature(indexSignature, modifierArray, indexSignature.Parameters, indexSignature.Type);
+        }
+
+        if (NodeTests.IsFunctionExpression(node!))
+        {
+            var functionExpression = (FunctionExpression)(Node)node!;
+            return (T)(Node)UpdateFunctionExpression(
+                functionExpression, modifierTokens, functionExpression.AsteriskToken, functionExpression.Name, functionExpression.TypeParameters, functionExpression.Parameters, functionExpression.Type, functionExpression.Body);
+        }
+
+        if (NodeTests.IsArrowFunction(node!))
+        {
+            var arrowFunction = (ArrowFunction)(Node)node!;
+            return (T)(Node)UpdateArrowFunction(
+                arrowFunction, modifierTokens, arrowFunction.TypeParameters, arrowFunction.Parameters, arrowFunction.Type, arrowFunction.EqualsGreaterThanToken, arrowFunction.Body);
+        }
+
+        if (NodeTests.IsClassExpression(node!))
+        {
+            var classExpression = (ClassExpression)(Node)node!;
+            return (T)(Node)UpdateClassExpression(
+                classExpression, modifierArray, classExpression.Name, classExpression.TypeParameters, classExpression.HeritageClauses, classExpression.Members);
+        }
+
+        if (NodeTests.IsVariableStatement(node!))
+        {
+            var variableStatement = (VariableStatement)(Node)node!;
+            return (T)(Node)UpdateVariableStatement(variableStatement, modifierArray, variableStatement.DeclarationList);
+        }
+
+        if (NodeTests.IsFunctionDeclaration(node!))
+        {
+            var functionDeclaration = (FunctionDeclaration)(Node)node!;
+            return (T)(Node)UpdateFunctionDeclaration(
+                functionDeclaration, modifierArray, functionDeclaration.AsteriskToken, functionDeclaration.Name, functionDeclaration.TypeParameters, functionDeclaration.Parameters, functionDeclaration.Type, functionDeclaration.Body);
+        }
+
+        if (NodeTests.IsClassDeclaration(node!))
+        {
+            var classDeclaration = (ClassDeclaration)(Node)node!;
+            return (T)(Node)UpdateClassDeclaration(
+                classDeclaration, modifierArray, classDeclaration.Name, classDeclaration.TypeParameters, classDeclaration.HeritageClauses, classDeclaration.Members);
+        }
+
+        if (NodeTests.IsInterfaceDeclaration(node!))
+        {
+            var interfaceDeclaration = (InterfaceDeclaration)(Node)node!;
+            return (T)(Node)UpdateInterfaceDeclaration(
+                interfaceDeclaration, modifierArray, interfaceDeclaration.Name, interfaceDeclaration.TypeParameters, interfaceDeclaration.HeritageClauses, interfaceDeclaration.Members);
+        }
+
+        if (NodeTests.IsTypeAliasDeclaration(node!))
+        {
+            var typeAlias = (TypeAliasDeclaration)(Node)node!;
+            return (T)(Node)UpdateTypeAliasDeclaration(
+                typeAlias, modifierArray, typeAlias.Name, typeAlias.TypeParameters, typeAlias.Type);
+        }
+
+        if (NodeTests.IsEnumDeclaration(node!))
+        {
+            var enumDeclaration = (EnumDeclaration)(Node)node!;
+            return (T)(Node)UpdateEnumDeclaration(
+                enumDeclaration, modifierArray, enumDeclaration.Name, enumDeclaration.Members);
+        }
+
+        if (NodeTests.IsModuleDeclaration(node!))
+        {
+            var moduleDeclaration = (ModuleDeclaration)(Node)node!;
+            return (T)(Node)UpdateModuleDeclaration(
+                moduleDeclaration, modifierArray, moduleDeclaration.Name, moduleDeclaration.Body);
+        }
+
+        if (NodeTests.IsImportEqualsDeclaration(node!))
+        {
+            var importEquals = (ImportEqualsDeclaration)(Node)node!;
+            return (T)(Node)UpdateImportEqualsDeclaration(
+                importEquals, modifierArray, importEquals.IsTypeOnly, importEquals.Name, importEquals.ModuleReference);
+        }
+
+        if (NodeTests.IsImportDeclaration(node!))
+        {
+            var importDeclaration = (ImportDeclaration)(Node)node!;
+            return (T)(Node)UpdateImportDeclaration(
+                importDeclaration, modifierArray, importDeclaration.ImportClause, importDeclaration.ModuleSpecifier, importDeclaration.Attributes);
+        }
+
+        if (NodeTests.IsExportAssignment(node!))
+        {
+            var exportAssignment = (ExportAssignment)(Node)node!;
+            return (T)(Node)UpdateExportAssignment(exportAssignment, modifierArray, exportAssignment.Expression);
+        }
+
+        if (NodeTests.IsExportDeclaration(node!))
+        {
+            var exportDeclaration = (ExportDeclaration)(Node)node!;
+            return (T)(Node)UpdateExportDeclaration(
+                exportDeclaration, modifierArray, exportDeclaration.IsTypeOnly, exportDeclaration.ExportClause, exportDeclaration.ModuleSpecifier, exportDeclaration.Attributes);
+        }
+
+        Debug.AssertNever(node);
+        throw new InvalidOperationException("unreachable");
+    }
+
+    /// <summary>The `List&lt;Node&gt;` view of a modifier array, for the update members typed that way.</summary>
+    private static List<Node>? AsNodeList(List<ModifierToken>? modifiers)
+        => modifiers is null ? null : Core.Map(modifiers, static (ModifierToken modifier, int _) => (Node)modifier);
+
+    /// <summary>ported from: factory/nodeFactory.ts:7103 — <c>replaceDecoratorsAndModifiers</c>.</summary>
+    public T ReplaceDecoratorsAndModifiers<T>(T? node, List<Node>? modifiers)
+        where T : Node
+    {
+        if (NodeTests.IsParameter(node!))
+        {
+            var parameter = (ParameterDeclaration)(Node)node!;
+            return (T)(Node)UpdateParameterDeclaration(
+                parameter, modifiers, parameter.DotDotDotToken, parameter.Name, parameter.QuestionToken, parameter.Type, parameter.Initializer);
+        }
+
+        if (NodeTests.IsPropertyDeclaration(node!))
+        {
+            var property = (PropertyDeclaration)(Node)node!;
+            return (T)(Node)UpdatePropertyDeclaration(
+                property, modifiers, property.Name, property.QuestionToken ?? property.ExclamationToken, property.Type, property.Initializer);
+        }
+
+        if (NodeTests.IsMethodDeclaration(node!))
+        {
+            var method = (MethodDeclaration)(Node)node!;
+            return (T)(Node)UpdateMethodDeclaration(
+                method, modifiers, method.AsteriskToken, method.Name, method.QuestionToken, method.TypeParameters, method.Parameters, method.Type, method.Body);
+        }
+
+        if (NodeTests.IsGetAccessorDeclaration(node!))
+        {
+            var getAccessor = (GetAccessorDeclaration)(Node)node!;
+            return (T)(Node)UpdateGetAccessorDeclaration(
+                getAccessor, modifiers, getAccessor.Name, getAccessor.Parameters, getAccessor.Type, getAccessor.Body);
+        }
+
+        if (NodeTests.IsSetAccessorDeclaration(node!))
+        {
+            var setAccessor = (SetAccessorDeclaration)(Node)node!;
+            return (T)(Node)UpdateSetAccessorDeclaration(
+                setAccessor, modifiers, setAccessor.Name, setAccessor.Parameters, setAccessor.Body);
+        }
+
+        if (NodeTests.IsClassExpression(node!))
+        {
+            var classExpression = (ClassExpression)(Node)node!;
+            return (T)(Node)UpdateClassExpression(
+                classExpression, modifiers, classExpression.Name, classExpression.TypeParameters, classExpression.HeritageClauses, classExpression.Members);
+        }
+
+        if (NodeTests.IsClassDeclaration(node!))
+        {
+            var classDeclaration = (ClassDeclaration)(Node)node!;
+            return (T)(Node)UpdateClassDeclaration(
+                classDeclaration, modifiers, classDeclaration.Name, classDeclaration.TypeParameters, classDeclaration.HeritageClauses, classDeclaration.Members);
+        }
+
+        Debug.AssertNever(node);
+        throw new InvalidOperationException("unreachable");
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:7115 — <c>replacePropertyName</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS types the parameter as <c>T["name"]</c>; the generated interface takes <c>object?</c> because the name
+    /// is a union of node types. Each branch passes it to the update member's own <c>name</c> slot (some of which are
+    /// <c>Node?</c>, some <c>object?</c>), so the narrowing happens per branch.
+    /// </remarks>
+    public T ReplacePropertyName<T>(T? node, object? name)
+        where T : Node
+    {
+        var target = (Node)node!;
+        switch (target.Kind)
+        {
+            case SyntaxKind.GetAccessor:
+            {
+                var getAccessor = (GetAccessorDeclaration)target;
+                return (T)(Node)UpdateGetAccessorDeclaration(
+                    getAccessor, getAccessor.Modifiers, (Node?)name, getAccessor.Parameters, getAccessor.Type, getAccessor.Body);
+            }
+
+            case SyntaxKind.SetAccessor:
+            {
+                var setAccessor = (SetAccessorDeclaration)target;
+                return (T)(Node)UpdateSetAccessorDeclaration(
+                    setAccessor, setAccessor.Modifiers, (Node?)name, setAccessor.Parameters, setAccessor.Body);
+            }
+
+            case SyntaxKind.MethodDeclaration:
+            {
+                var method = (MethodDeclaration)target;
+                return (T)(Node)UpdateMethodDeclaration(
+                    method, method.Modifiers, method.AsteriskToken, (Node?)name, method.QuestionToken, method.TypeParameters, method.Parameters, method.Type, method.Body);
+            }
+
+            case SyntaxKind.MethodSignature:
+            {
+                var methodSignature = (MethodSignature)target;
+                return (T)(Node)UpdateMethodSignature(
+                    methodSignature, methodSignature.Modifiers, (Node?)name, methodSignature.QuestionToken, methodSignature.TypeParameters, methodSignature.Parameters, methodSignature.Type);
+            }
+
+            case SyntaxKind.PropertyDeclaration:
+            {
+                var property = (PropertyDeclaration)target;
+                return (T)(Node)UpdatePropertyDeclaration(
+                    property, property.Modifiers, name, property.QuestionToken ?? property.ExclamationToken, property.Type, property.Initializer);
+            }
+
+            case SyntaxKind.PropertySignature:
+            {
+                var propertySignature = (PropertySignature)target;
+                return (T)(Node)UpdatePropertySignature(
+                    propertySignature, propertySignature.Modifiers, (Node?)name, propertySignature.QuestionToken, propertySignature.Type);
+            }
+
+            case SyntaxKind.PropertyAssignment:
+            {
+                var propertyAssignment = (PropertyAssignment)target;
+                return (T)(Node)UpdatePropertyAssignment(propertyAssignment, (Node?)name, propertyAssignment.Initializer);
+            }
+
+            default:
+                throw new InvalidOperationException($"invalid kind: {target.Kind}");
+        }
+    }
 }

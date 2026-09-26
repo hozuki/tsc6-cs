@@ -76,9 +76,24 @@ internal abstract class Node : INode, IReadonlyTextRange, ITextRange
     public IEmitNode? EmitNode { get; set; }
 
     // ported from: types.ts:33-36 (ReadonlyTextRange)
-    public int Pos { get; set; }
+    /// <remarks>
+    /// PORT-NOTE: TS threads the initial range through the node constructor — <c>baseNodeFactory.ts</c> builds every
+    /// node as <c>new Node(kind, /*pos*/ -1, /*end*/ -1)</c> — which is where "a node the factory made is
+    /// synthesized until the parser sets a range" comes from. C# has no constructor to thread it through, so the
+    /// same initial value lives on the properties; <c>CreateBaseNode&lt;T&gt;</c> constructs through <c>new T()</c>,
+    /// so every factory node starts here. <c>Utilities.NodeIsSynthesized</c> reads it.
+    /// </remarks>
+    public int Pos { get; set; } = -1;
 
-    public int End { get; set; }
+    public int End { get; set; } = -1;
 
     public override string ToString() => $"{Kind}";
+
+    /// <summary>A field-for-field copy of this node, for <c>NodeFactory.CloneNode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>cloneNode</c> copies the source's own enumerable properties onto a bare node of the same kind.
+    /// <c>MemberwiseClone</c> is exactly that copy, but it is protected, so the node exposes it. The caller then resets
+    /// the slots a fresh node owns — range, id, parent, modifier cache — see <c>NodeFactory.CloneNodeWorker</c>.
+    /// </remarks>
+    internal Node ShallowClone() => (Node)MemberwiseClone();
 }

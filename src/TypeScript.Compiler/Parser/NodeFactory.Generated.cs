@@ -67,7 +67,7 @@ internal partial class NodeFactory
     {
         var node = CreateBaseNode<QualifiedName>(SyntaxKind.QualifiedName);
         node.Left = left;
-        node.Right = AsName(right);
+        node.Right = (Identifier?)AsName(right);
         node.TransformFlags |= (PropagateChildFlags(node.Left) | PropagateIdentifierNameFlags(node.Right));
         node.FlowNode = null;
         return node;
@@ -104,7 +104,7 @@ internal partial class NodeFactory
     {
         var node = CreateBaseDeclaration<TypeParameterDeclaration>(SyntaxKind.TypeParameter);
         node.Modifiers = AsNodeArray(modifiers);
-        node.Name = AsName(name);
+        node.Name = (Identifier?)AsName(name);
         node.Constraint = constraint;
         node.Default = defaultType;
         node.TransformFlags = TransformFlags.ContainsTypeScript;
@@ -866,7 +866,7 @@ internal partial class NodeFactory
     {
         var node = CreateBaseDeclaration<ClassExpression>(SyntaxKind.ClassExpression);
         node.Modifiers = AsNodeArray(modifiers);
-        node.Name = AsName(name);
+        node.Name = (Identifier?)AsName(name);
         node.TypeParameters = AsNodeArray(typeParameters);
         node.HeritageClauses = AsNodeArray(heritageClauses);
         node.Members = CreateNodeArray(members, null);
@@ -1195,7 +1195,7 @@ internal partial class NodeFactory
     public ContinueStatement CreateContinueStatement(object? label)
     {
         var node = CreateBaseNode<ContinueStatement>(SyntaxKind.ContinueStatement);
-        node.Label = AsName(label);
+        node.Label = (Identifier?)AsName(label);
         node.TransformFlags |= (PropagateChildFlags(node.Label) | TransformFlags.ContainsHoistedDeclarationOrCompletion);
         node.JsDoc = null;
         node.FlowNode = null;
@@ -1214,7 +1214,7 @@ internal partial class NodeFactory
     public BreakStatement CreateBreakStatement(object? label)
     {
         var node = CreateBaseNode<BreakStatement>(SyntaxKind.BreakStatement);
-        node.Label = AsName(label);
+        node.Label = (Identifier?)AsName(label);
         node.TransformFlags |= (PropagateChildFlags(node.Label) | TransformFlags.ContainsHoistedDeclarationOrCompletion);
         node.JsDoc = null;
         node.FlowNode = null;
@@ -1295,7 +1295,7 @@ internal partial class NodeFactory
     public LabeledStatement CreateLabeledStatement(object? label, IStatement? statement)
     {
         var node = CreateBaseNode<LabeledStatement>(SyntaxKind.LabeledStatement);
-        node.Label = AsName(label);
+        node.Label = (Identifier?)AsName(label);
         node.Statement = AsEmbeddedStatement(statement);
         node.TransformFlags |= (PropagateChildFlags(node.Label) | PropagateChildFlags(node.Statement));
         node.JsDoc = null;
@@ -1368,7 +1368,7 @@ internal partial class NodeFactory
     {
         var node = CreateBaseDeclaration<InterfaceDeclaration>(SyntaxKind.InterfaceDeclaration);
         node.Modifiers = AsNodeArray(modifiers);
-        node.Name = AsName(name);
+        node.Name = (Identifier?)AsName(name);
         node.TypeParameters = AsNodeArray(typeParameters);
         node.HeritageClauses = AsNodeArray(heritageClauses);
         node.Members = CreateNodeArray(members, null);
@@ -1394,7 +1394,7 @@ internal partial class NodeFactory
     {
         var node = CreateBaseDeclaration<TypeAliasDeclaration>(SyntaxKind.TypeAliasDeclaration);
         node.Modifiers = AsNodeArray(modifiers);
-        node.Name = AsName(name);
+        node.Name = (Identifier?)AsName(name);
         node.TypeParameters = AsNodeArray(typeParameters);
         node.Type = type;
         node.TransformFlags = TransformFlags.ContainsTypeScript;
@@ -1420,7 +1420,7 @@ internal partial class NodeFactory
     {
         var node = CreateBaseDeclaration<EnumDeclaration>(SyntaxKind.EnumDeclaration);
         node.Modifiers = AsNodeArray(modifiers);
-        node.Name = AsName(name);
+        node.Name = (Identifier?)AsName(name);
         node.Members = CreateNodeArray(members, null);
         node.TransformFlags |= (((PropagateChildrenFlags(node.Modifiers) | PropagateChildFlags(node.Name)) | PropagateChildrenFlags(node.Members)) | TransformFlags.ContainsTypeScript);
         node.TransformFlags &= CoreFlags.Not(TransformFlags.ContainsPossibleTopLevelAwait);
@@ -1479,7 +1479,7 @@ internal partial class NodeFactory
     public NamespaceExportDeclaration CreateNamespaceExportDeclaration(object? name)
     {
         var node = CreateBaseDeclaration<NamespaceExportDeclaration>(SyntaxKind.NamespaceExportDeclaration);
-        node.Name = AsName(name);
+        node.Name = (Identifier?)AsName(name);
         node.TransformFlags |= (PropagateIdentifierNameFlags(node.Name) | TransformFlags.ContainsTypeScript);
         node.Modifiers = null;
         node.JsDoc = null;
@@ -1703,8 +1703,8 @@ internal partial class NodeFactory
     {
         var node = CreateBaseNode<ExportSpecifier>(SyntaxKind.ExportSpecifier);
         node.IsTypeOnly = isTypeOnly;
-        node.PropertyName = AsName(propertyName);
-        node.Name = AsName(name);
+        node.PropertyName = (MemberExpression?)AsName(propertyName);
+        node.Name = (MemberExpression?)AsName(name);
         node.TransformFlags |= (PropagateChildFlags(node.PropertyName) | PropagateChildFlags(node.Name));
         node.TransformFlags &= CoreFlags.Not(TransformFlags.ContainsPossibleTopLevelAwait);
         node.JsDoc = null;
@@ -2181,7 +2181,7 @@ internal partial class NodeFactory
     public ShorthandPropertyAssignment CreateShorthandPropertyAssignment(object? name, Expression? objectAssignmentInitializer)
     {
         var node = CreateBaseDeclaration<ShorthandPropertyAssignment>(SyntaxKind.ShorthandPropertyAssignment);
-        node.Name = AsName(name);
+        node.Name = (Identifier?)AsName(name);
         node.ObjectAssignmentInitializer = (objectAssignmentInitializer is null ? null : Parenthesizer.ParenthesizeExpressionForDisallowedComma(objectAssignmentInitializer));
         node.TransformFlags |= ((PropagateIdentifierNameFlags(node.Name) | PropagateChildFlags(node.ObjectAssignmentInitializer)) | TransformFlags.ContainsES2015);
         node.EqualsToken = null;
@@ -2319,99 +2319,6 @@ internal partial class NodeFactory
             || node!.ThisArg != thisArg
             ? Update(CreateSyntheticReferenceExpression(expression, thisArg), node)
             : node!;
-    }
-
-    //
-    // Stubs — the members the hand-written half does not provide yet (§15.7).
-    //
-    // Each throws, so a caller that reaches one fails loudly rather than seeing a half-built node.
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBaseGeneratedIdentifier</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateBaseGeneratedIdentifier(string? text, GeneratedIdentifierFlags autoGenerateFlags, object? prefix, string? suffix)
-    {
-        throw new NotImplementedException("the port has not reached `createBaseGeneratedIdentifier` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTempVariable</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public Identifier CreateTempVariable(Action<Identifier>? recordTempVariable, bool? reservedInNestedScopes, object? prefix, string? suffix)
-    {
-        throw new NotImplementedException("the port has not reached `createTempVariable` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createLoopVariable</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public Identifier CreateLoopVariable(bool? reservedInNestedScopes)
-    {
-        throw new NotImplementedException("the port has not reached `createLoopVariable` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createUniqueName</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public Identifier CreateUniqueName(string? text, GeneratedIdentifierFlags flags, object? prefix, string? suffix)
-    {
-        throw new NotImplementedException("the port has not reached `createUniqueName` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBaseGeneratedPrivateIdentifier</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateBaseGeneratedPrivateIdentifier(string? text, GeneratedIdentifierFlags autoGenerateFlags, object? prefix, string? suffix)
-    {
-        throw new NotImplementedException("the port has not reached `createBaseGeneratedPrivateIdentifier` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createUniquePrivateName</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public PrivateIdentifier CreateUniquePrivateName(string? text, object? prefix, string? suffix)
-    {
-        throw new NotImplementedException("the port has not reached `createUniquePrivateName` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBinaryExpression</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateBinaryExpression(Expression? left, object? @operator, Expression? right)
-    {
-        throw new NotImplementedException("the port has not reached `createBinaryExpression` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateBinaryExpression</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public BinaryExpression UpdateBinaryExpression(BinaryExpression? node, Expression? left, Token? @operator, Expression? right)
-    {
-        throw new NotImplementedException("the port has not reached `updateBinaryExpression` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTypeCheck</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateTypeCheck(Expression? value, string? tag)
-    {
-        throw new NotImplementedException("the port has not reached `createTypeCheck` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createIsNotTypeCheck</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateIsNotTypeCheck(Expression? value, string? tag)
-    {
-        throw new NotImplementedException("the port has not reached `createIsNotTypeCheck` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createCallBinding</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public ICallBinding CreateCallBinding(Expression? expression, Action<Identifier>? recordTempVariable, ScriptTarget? languageVersion, object? cacheIdentifiers)
-    {
-        throw new NotImplementedException("the port has not reached `createCallBinding` yet");
     }
 
 }
