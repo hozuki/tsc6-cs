@@ -1751,3 +1751,23 @@ ThisExpression  CreateToken(TypedEnum.ThisKeyword? token)  => (ThisExpression)Cr
 **M7-0 之后剩余（下一次的起点）**：`port-crash=381` = `syntacticNodeBuilder` **376**（M4f 未落地的 `expressionToTypeNode.ts`，1,330 行 —— 现在是唯一的大头）+ `visitEachChildWorker` 1（Layer 6）+ `InvalidCastException` 2 + 其它 2；`diverged=11` = 10 条同 M4f 门控造成的单侧 `=!` + **1 条真分歧**（`types/literal/templateLiteralTypes4.ts:150` 的 `node sym mismatch`）。
 
 **三项模型/生成器待办（本次记录，不属 printer）**：① `IPrinter.PrintList/WriteList` 生成成 `where T : Node`，而它们要接受的槽是接口化的（`NodeArray<IStatement>` 等），`where T : INode` 才对（同 `EmitList` 的裁定）；② 模型里没有任何类型实现 `ISourceMapSource`，而参考的 `setSourceMapSource(sourceFile)` 直接传 `SourceFile`（现在由 `Printer.SourceFileMapSource` 适配器顶住，加接口后适配器即可删）；③ `IPrintHandlers.OnBeforeEmitNodeArray/OnAfterEmitNodeArray` 生成成 `NodeArray<object?>`（types.ts:9857 是 `NodeArray<any>`），于是端口在**装了钩子时**要复制一次数组；生成成 `NodeArray<Node>` 即可免掉复制（M8 之前无人装钩子）。
+
+### 17.7 M7-0 收尾：printer 之后的连锁拆门 —— TypeDiff `same=5838 diverged=7 port-crash=63`
+
+printer 落地后，语料从"崩溃"变成"能跑"，此前被门控掩盖的缺陷成批显形；本轮把它们逐条拆掉，全语料（5,908 文件）走到：
+
+| 点 | same | diverged | port-crash |
+|---|---|---|---|
+| M6 末 | 3,637 | 80 | 2,191 |
+| 仅 printer 落地（§17.6） | 5,516 | 11 | 381 |
+| **本轮收尾后** | **5,838** | **7** | **63** |
+
+**本轮拆掉的三批（全语料 + 逐文件证据）**
+
+1. **4 处 JS 越界读/联合类型强转**（`ab98e5b`）：`Checker.IndexAccess.cs:972` 把数值字面量类型的 `value`（JS 里 number）硬转 string；`Checker.Check.Calls.cs:915` 把 `NamedTupleMember | ParameterDeclaration` 强转 `INamedDeclaration`；`Checker.Check.Expressions.cs:1719` 的 `node.typeArguments![i]`（JS 越界读即 `undefined`，端口抛 AOORE）；`NodeBuilder.Members.cs:164` 的 `elementFlags[i]` 同理。四者都按"JS 越界读"的语义用 `i < count` 守卫或传 null errorNode 收口。
+2. **`expressionToTypeNode.ts` 全量移植（M4f 的最后一半，2,177 行）**：`Checker/SyntacticNodeBuilder.cs`(448) + `.Engine.cs`(969) + `.Kinds.cs`(760)；`Checker.NodeBuilder.cs:86` 的 `syntacticNodeBuilder` 门控换成参考自己的 `_syntacticNodeBuilder ??= SyntacticNodeBuilder.CreateSyntacticTypeNodeBuilder(_compilerOptions, SyntacticBuilderResolver)`，`CheckerNodeBuilderTests` 的"仍抛"测试改成真断言。它一次性退掉 **376 条崩溃**与 10 条单侧 `=!` 分歧。
+3. **`Js.ToNumber` 改成 ECMA-262 的 StringNumericLiteral 强制转换**：旧版只特判 `0x` 前缀、其余交给 `double.TryParse`，于是 `+"0o1"`/`+"0b1"`/`+"1e21"`（以及带空白的 `" 1 "`）都被答成 NaN、`"infinity"` 反而答成 Infinity、16 位十六进制串被当成补码（`0xFFFFFFFFFFFFFFFF` → -1）。新版按规范分词（JS WhiteSpace/LineTerminator 裁剪、空串→0、三种进制前缀、十进制文法先验，再用 TryParse 取值）。它以"122 个用例与 node 的 `+s` 逐位比对"+"在 `git archive HEAD` 的干净副本里只换这一个文件做 A/B"证明：退掉 2 条分歧（`types/literal/templateLiteralTypesPatterns.ts`、`types/literal/templateLiteralTypes4.ts` 的哈希**等于参考自己的哈希**），`parser/**`(820)、`es6/binaryAndOctalIntegerLiteral/**`、`types/members/**`、`es2019/**` 零变化。
+
+**M7-0 之后的剩余（下一步的起点）**：`port-crash=63` **全部**是同一个门控 `visitEachChildWorker`（`checker.ts:1134 → visitorPublic.ts` 的 `visitEachChild`，Layer 6 的公共 visitor 基础设施 —— 一个自包含切片即可全部退掉）；`diverged=7` = 4 条同属该门控的单侧 `=!` + 1 条诊断码错配（`interfaces/interfaceDeclarations/interfaceExtendsObjectIntersectionErrors.ts`：端口 `2416@758` 对参考 `2612@709`）+ 2 条类型 id 偏移（`genericCallToOverloadedMethodWithOverloadedArguments.ts` 332/340、`discriminatedUnionTypes2.ts` 178/179，即类型创建计数差，与本轮改动无关，已用 A/B 排除）。
+
+**教训（写入纪律）**：M7-0 的三次测量都证明同一件事 —— 打开一道门控会**成批**显形下一层的缺陷（printer → 4 处 JS 越界读；syntacticBuilder → `visitEachChildWorker`），因此每一道门控拆除后必须重跑全语料并把新显形的项分类（真缺陷 / 下一道门控），不要按上一轮的分组继续做。

@@ -78,32 +78,163 @@ internal static class Js
     }
 
     /// <summary>
-    /// JS's unary <c>+</c> (ToNumber) for the values the scanner hands it.
+    /// JS's unary <c>+</c> (ToNumber) for a string — ECMA-262's <c>StringNumericLiteral</c>.
     /// </summary>
     /// <remarks>
-    /// PORT-NOTE: the scanner passes decimal digit strings, and — for a hex literal — the <c>0x…</c> text itself
-    /// (JS's <c>+</c> understands the radix prefixes; <c>double.TryParse</c> does not). The part of ToNumber the
-    /// scanner relies on is that a failed conversion yields <c>NaN</c> rather than throwing. Whitespace trimming
-    /// and the empty string being 0 are not reachable from there.
+    /// PORT-NOTE: TS writes <c>+s</c> and lets the engine do this; the port's callers hand it two different kinds of
+    /// text, so the whole grammar is implemented rather than the subset the scanner needs. The scanner passes a
+    /// numeric literal's own text — decimal digit strings, and for a hex literal the <c>0x…</c> text itself
+    /// (<c>+tokenValue</c> in <c>checkBigIntSuffix</c>; that method converts the 0b/0o literals with <c>parseInt</c>
+    /// first, like the reference). Every other caller passes a <em>name</em> or an arbitrary string literal's value to
+    /// a <c>+name</c>-shaped test — <c>isNumericLiteralName</c>, <c>isValidNumberString</c> (checker.ts:26616-26620,
+    /// whose <c>+s</c> is over the value of a string literal type: <c>"0o1"</c>, <c>" 1 "</c>, <c>"Infinity"</c> are
+    /// all reachable) — so the leading/trailing WhiteSpace and LineTerminator, the empty string being <c>0</c>, the
+    /// three infinities and the case-insensitive <em>unsigned</em> radix prefixes all matter. Without them
+    /// <c>isValidNumberString("0o1")</c> answered false where <c>+"0o1"</c> is 1, and the checker rejected
+    /// <c>numbers("0o1")</c> and <c>numbers("0b1")</c> in
+    /// tests/cases/conformance/types/literal/templateLiteralTypesPatterns.ts. A radix-prefixed digit run is folded by
+    /// <see cref="ParseInt"/> — the arithmetic the scanner already uses for 0b/0o — except when it fits <c>ulong</c>,
+    /// which converts in one step and so rounds exactly as the specification's single rounding does. The decimal half
+    /// is validated by <see cref="IsDecimalLiteralRun"/> before <c>double.TryParse</c> supplies its value, because
+    /// <c>TryParse</c> accepts the infinity symbol in any casing (<c>"infinity"</c> is <c>NaN</c> to JS).
     /// </remarks>
     public static double ToNumber(string value)
     {
-        // A hex literal arrives here as its own text (`+tokenValue` in checkBigIntSuffix); the binary and octal
-        // prefixes never do, because that method converts those with parseInt first.
-        if (value.Length > 2 && value[0] == '0' && (value[1] == 'x' || value[1] == 'X'))
+        // ECMA-262 7.1.4.1: WhiteSpace and LineTerminator on either side of the literal are ignored.
+        var start = 0;
+        var end = value.Length;
+        while (start < end && IsJsWhiteSpace(value[start])) start++;
+        while (end > start && IsJsWhiteSpace(value[end - 1])) end--;
+        var text = value[start..end];
+
+        if (text.Length == 0) return 0d;
+        if (text == "Infinity" || text == "+Infinity") return double.PositiveInfinity;
+        if (text == "-Infinity") return double.NegativeInfinity;
+
+        // StrNumericLiteral ::: NonDecimalIntegerLiteral — an unsigned `0x`/`0o`/`0b` run. A *signed* one is not a
+        // StrNumericLiteral (`+"-0x1"` is NaN in JS), so it falls through to the decimal attempt below and fails.
+        if (text.Length > 2 && text[0] == '0')
         {
-            return long.TryParse(value.AsSpan(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var hex)
-                ? hex
-                : double.NaN;
+            var radix = text[1] switch
+            {
+                'x' or 'X' => 16,
+                'o' or 'O' => 8,
+                'b' or 'B' => 2,
+                _ => 0,
+            };
+
+            if (radix != 0)
+            {
+                var digits = text.AsSpan(2);
+                if (!IsRadixDigitRun(digits, radix))
+                {
+                    return double.NaN;
+                }
+
+                // A hex run of at most 16 digits is an exact 64-bit integer, and converting it once keeps the
+                // specification's single rounding (`long` would read a high-bit-set run as two's complement and answer
+                // a negative number for `0x8000…`); longer runs fold in double arithmetic like ParseInt does.
+                return radix == 16 && ulong.TryParse(digits, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var hex)
+                    ? hex
+                    : ParseInt(text[2..], radix);
+            }
         }
 
-        return double.TryParse(
-            value,
+        return IsDecimalLiteralRun(text) && double.TryParse(
+            text,
             NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent,
             CultureInfo.InvariantCulture,
             out var result)
                 ? result
                 : double.NaN;
+    }
+
+    /// <summary>ECMA-262's WhiteSpace ∪ LineTerminator, the set a <c>StringNumericLiteral</c> trims.</summary>
+    /// <remarks>
+    /// Not <see cref="char.IsWhiteSpace(char)"/>, which contains U+0085 (NEL) — not whitespace to JS — and omits
+    /// U+FEFF (ZWNBSP), which is.
+    /// </remarks>
+    private static bool IsJsWhiteSpace(char ch)
+        => ch is '\t' or '\n' or '\v' or '\f' or '\r' or ' ' or '\u00a0' or '\ufeff' or '\u2028' or '\u2029'
+            || char.GetUnicodeCategory(ch) == UnicodeCategory.SpaceSeparator;
+
+    /// <summary>Whether every character is a digit of the given radix — no separators, no sign, at least one digit.</summary>
+    private static bool IsRadixDigitRun(ReadOnlySpan<char> digits, int radix)
+    {
+        foreach (var ch in digits)
+        {
+            var digit = ch switch
+            {
+                >= '0' and <= '9' => ch - '0',
+                >= 'a' and <= 'f' => (ch - 'a') + 10,
+                >= 'A' and <= 'F' => (ch - 'A') + 10,
+                _ => -1,
+            };
+
+            if (digit < 0 || digit >= radix)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Whether the text is ECMA-262's <c>StrDecimalLiteral</c> — the decimal half of a <c>StringNumericLiteral</c>.
+    /// </summary>
+    /// <remarks>
+    /// The text has already had its surrounding WhiteSpace trimmed; the digits are ASCII in both languages.
+    /// <see cref="double.TryParse(string, NumberStyles, IFormatProvider, out double)"/> cannot stand in for this
+    /// check, because it is more permissive than the grammar: it reads the infinity symbol in any casing
+    /// (<c>"infinity"</c> is <c>NaN</c> to JS) and its own notion of white space includes U+0085. The work is only
+    /// done so that <c>TryParse</c> — which rounds correctly, unlike a hand-rolled accumulator — can produce the value.
+    /// </remarks>
+    private static bool IsDecimalLiteralRun(ReadOnlySpan<char> text)
+    {
+        var i = text.Length > 0 && (text[0] == '+' || text[0] == '-') ? 1 : 0;
+        var digits = 0;
+
+        while (i < text.Length && text[i] is >= '0' and <= '9')
+        {
+            digits++;
+            i++;
+        }
+
+        if (i < text.Length && text[i] == '.')
+        {
+            i++;
+            while (i < text.Length && text[i] is >= '0' and <= '9')
+            {
+                digits++;
+                i++;
+            }
+        }
+
+        if (digits == 0)
+        {
+            return false;
+        }
+
+        if (i < text.Length && (text[i] == 'e' || text[i] == 'E'))
+        {
+            i++;
+            if (i < text.Length && (text[i] == '+' || text[i] == '-')) i++;
+
+            var exponentDigits = 0;
+            while (i < text.Length && text[i] is >= '0' and <= '9')
+            {
+                exponentDigits++;
+                i++;
+            }
+
+            if (exponentDigits == 0)
+            {
+                return false;
+            }
+        }
+
+        return i == text.Length;
     }
 
     /// <summary>
@@ -114,8 +245,9 @@ internal static class Js
     /// engine do it, and the engine accumulates in double arithmetic: a 500-digit binary literal loses precision and
     /// eventually saturates at <c>Infinity</c> rather than failing. <c>Convert.ToInt32(text, 2)</c> threw
     /// <c>OverflowException</c> on exactly those literals (4 corpus files), so the port folds with the same arithmetic.
-    /// The scanner hands this method validated digit runs, so the prefix/sign/whitespace rules of <c>parseInt</c> are
-    /// not implemented — the first character that is not a digit of the radix stops the fold, as in the engine.
+    /// The scanner and <see cref="ToNumber"/> hand this method validated digit runs, so the prefix/sign/whitespace
+    /// rules of <c>parseInt</c> are not implemented — the first character that is not a digit of the radix stops the
+    /// fold, as in the engine.
     /// </remarks>
     public static double ParseInt(string text, int radix)
     {

@@ -32,12 +32,11 @@ namespace TypeScript.Compiler;
 /// named blockers, in <c>Checker/Stringify.cs</c>.
 /// </para>
 /// <para>
-/// PORT-NOTE: <c>expressionToTypeNode.ts</c> (1,330 lines, §15.14's remaining half, §15.15's M6-6 row) is not ported
-/// yet, so <c>syntacticNodeBuilder = createSyntacticTypeNodeBuilder(compilerOptions, nodeBuilder.syntacticBuilderResolver)</c>
-/// (checker.ts:1552) cannot be assembled. The port keeps the slot and guards every read with a loud, named throw
-/// (<see cref="SyntacticNodeBuilder"/>) instead of dereferencing a null; the builder's resolver —
-/// <see cref="SyntacticBuilderResolver"/>, checker.ts:6310-6476 — is landed here, so landing <c>expressionToTypeNode.ts</c>
-/// is now a one-line assignment in M6-5's assembly with no change at any call site.
+/// PORT-NOTE: <c>expressionToTypeNode.ts</c> (1,330 lines) lands as <see cref="SyntacticNodeBuilder"/>, and
+/// <c>syntacticNodeBuilder = createSyntacticTypeNodeBuilder(compilerOptions, nodeBuilder.syntacticBuilderResolver)</c>
+/// (checker.ts:1552) is the lazy assignment on the <see cref="SyntacticNodeBuilder"/> property, so the reuse/elision
+/// paths below run the reference's own code with no change at any call site. The builder's resolver —
+/// <see cref="SyntacticBuilderResolver"/>, checker.ts:6310-6476 — is the same object the reference passes.
 /// </para>
 /// <para>
 /// PORT-NOTE: <c>factory</c> (factory/nodeFactory.ts:7407) is the module-level singleton the checker imports; the port
@@ -58,10 +57,10 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:1552 — <c>syntacticNodeBuilder</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS assigns it at :1552 and every reader is in the node builder. The port leaves the assignment to
-    /// the M6-5 assembly (which also runs :1551's <c>nodeBuilder = createNodeBuilder()</c>, a no-op here because the
-    /// builder's members live on this class) because its only creator, <c>createSyntacticTypeNodeBuilder</c>, is
-    /// <c>expressionToTypeNode.ts</c> — not ported. Reads go through <see cref="SyntacticNodeBuilder"/>.
+    /// PORT-NOTE: TS assigns it at :1552 and every reader is in the node builder. The port leaves the assignment to the
+    /// property below (which also stands in for :1551's <c>nodeBuilder = createNodeBuilder()</c>, a no-op here because
+    /// the builder's members live on this class), because the builder members are the class's own and the one object
+    /// the assignment builds — the syntactic builder — is created on first read.
     /// </remarks>
     internal ISyntacticNodeBuilder? _syntacticNodeBuilder;
 
@@ -78,16 +77,14 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:1552 — <c>syntacticNodeBuilder</c> as the node builder reads it.</summary>
     /// <remarks>
-    /// PORT-NOTE: a loud, named blocker (docs/architecture.md §15.15 ruling 1's sanctioned form, pinned by a test in
-    /// <c>CheckerNodeBuilderTests</c>): <c>createSyntacticTypeNodeBuilder</c> lives in <c>expressionToTypeNode.ts</c>,
-    /// which is not ported, so dereferencing <c>_syntacticNodeBuilder</c> would be a null dereference at a call site
-    /// whose message names nothing. The message names the missing module and its owner instead.
+    /// PORT-NOTE: checker.ts:1552 evaluates
+    /// <c>createSyntacticTypeNodeBuilder(compilerOptions, nodeBuilder.syntacticBuilderResolver)</c> inside
+    /// <c>createNodeBuilder</c>. The port's builder members live on <see cref="Checker"/> itself (see the class
+    /// remarks), so the assignment has no home in an assembly step and happens on first read instead; the two objects it
+    /// hands the factory hold no per-call state, so the laziness is unobservable — the same reading
+    /// <see cref="SyntacticBuilderResolver"/> documents for its own slot.
     /// </remarks>
-    internal ISyntacticNodeBuilder SyntacticNodeBuilder => _syntacticNodeBuilder
-        ?? throw new NotSupportedException(
-            "syntacticNodeBuilder (checker.ts:1552) requires createSyntacticTypeNodeBuilder from expressionToTypeNode.ts "
-            + "(1,330 lines, not ported — M4f's remaining half). Checker._syntacticNodeBuilder is assigned by the M6-5 "
-            + "assembly once it lands; until then the node builder's reuse/elision paths cannot run.");
+    internal ISyntacticNodeBuilder SyntacticNodeBuilder => _syntacticNodeBuilder ??= TypeScript.Compiler.SyntacticNodeBuilder.CreateSyntacticTypeNodeBuilder(_compilerOptions, SyntacticBuilderResolver);
 
     // ---------------------------------------------------------------------------------------------
     // The ITypeChecker surface (checker.ts:1680-1689)
