@@ -2199,3 +2199,17 @@ harness 的下划线规则是逐节点的 `nodeIsFullySynthetic(node) = nodeIsSy
 #### 17.14.9.1 `requiresAddingImplicitUndefined` 的多余硬转（JSDoc 参数标签）
 
 `Checker/SyntacticBuilderResolver.cs` 的 `SyntaxKind.JSDocParameterTag` 臂把 `declaration` 硬转成 `ParameterDeclaration` 再交给 checker；参考（checker.ts:6331）**直接传联合**，而 checker 自己的 `requiresAddingImplicitUndefined` 参数本来就是 `ParameterDeclaration | JSDocParameterTag`（checker.ts:50852，端口成员早就取 `Node`），其内部 `IsRequiredInitializedParameter` 也已按 `IsJSDocParameterTag(parameter) ||` 先行短路。于是这处转换既多余又必崩（`JSDocPropertyLikeTag` 不是 `ParameterDeclaration`）：`jsdoc/callbackTagNestedParameter.ts`、`callbackTagVariadicType.ts`。删掉转换后 `**/callbackTag*` 过滤器（7 用例）`port-crash` 归零；仅剩 `jsdoc/callbackTagNamespace.ts` 的 errors/types 分歧（点号 `@callback NS.Nested.Inner` 的命名空间解析未落地，已登记）。
+
+#### 17.14.9.2 600 文件分片复测（全部修复之后）
+
+同一命令（`--limit 600 --node-parallel 8`）：
+
+| artifact | 修复前 | 修复后 |
+|---|---|---|
+| `.js` | 798 / 7 / 14 | **818 / 0 / 1** |
+| `.errors.txt` | 807 / 0 / 14 | **820 / 0 / 1** |
+| `.types` | 765 / 4 / 14 | 775 / 4 / 1 |
+| `.symbols` | 769 / 0 / 14 | **779 / 0 / 1** |
+| `SUMMARY` | same=3139 div=11 crash=56 | **same=3192 div=4 crash=4** |
+
+剩余 4 条分歧全是 `privateNameNestedClass{Accessors,Field,Method}Shadowing`.ts 与 `privateNamesInNestedClasses-1.ts 的 `.types` 下划线**中段缺口**（示例：`(x: Derived) => void` 里参数类型名 `Derived` 的 7 个字符没有下划线），仍属 `nodeIsFullySynthetic` 家族但**不是**工厂未标标志位：插桩显示打印到那里的 `Identifier("Derived")` 是 `flags=Synthesized pos=188`、`original` 指向**语法树节点**的那一个（`getParseTreeNode` 因此非空 ⇒ 非 fully synthetic），而 fully synthetic 的 `pos=-1` 同名节点在同一文件里也确实存在。即：节点构建器在"重用语法树节点 vs 重建合成节点"上的取舍与参考不同 —— 属节点构建器的重用面，需要单独切片，本条只记录证据（`artifacts/bd-wide2/port/privateNameNestedClassFieldShadowing.types` 第 43 行）。剩余 1 条崩溃是已登记的 module specifiers 具名阻断（`privateNamesUnique-2.ts`）。
