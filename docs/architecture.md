@@ -345,6 +345,20 @@ P1 自身再分两半，因为两半的前置完全不同（M4e 收口时定的�
 
 ---
 
+### 9.x Go 端（TSGO / TSC 7.0）作为**静态类型化**参考（用户裁定，本会话）
+
+`D:/Source/GitHub/TypeScript` 的 `origin/main` 内 **vendored** 了完整的 Go 端移植：`tsc/internal/`（`checker/` 含 `checker.go`、`relater.go`、`inference.go`、`nodebuilder*.go`、`flow.go`、`jsx.go`、`mapper.go`、`nodecopy.go`、`printer.go`、`pseudotypenodebuilder.go`、`services.go`、`grammarchecks.go`、`links.go`、`exports.go`、`emitresolver.go`；另有 `binder/`、`parser*`、`ast/`、`api/`）。**无需 checkout**：
+
+- 读文件：`git -C D:/Source/GitHub/TypeScript show origin/main:tsc/internal/checker/relater.go`
+- 全树检索：`git -C D:/Source/GitHub/TypeScript grep -n "<pattern>" origin/main -- "tsc/internal/**/*.go"`
+
+**用法边界（强制）：**
+
+- **可以**用作**机械/类型层**参考：凡 TS 里靠**结构类型**成立、而 C#/Go 这类（更）名义化的语言无法照抄的写法——兄弟类之间的 `as` 强转、联合类型读取、可选槽、稀疏数组槽、以基类为入口的遍历、`Kind` 判别、`Node`/`NodeArray` 的泛化面等。Go 端被**同一类**问题逼出过答案，直接借形状可省大量试错。
+- **不可以**当**行为**参考：`release-6.0` 的 `checker.ts`/`program.ts`/`utilities.ts` 是语义的唯一真源；TSGO 与 6.0.3 不一致处**一律以 6.0.3 为准**（7.0 是重写，有真实行为差异）。
+- 借此修出的每个缺陷仍须给出 **6.0.3 的行号**，并在 PORT-NOTE 里注明"形状参考 `tsc/internal/...:<行>`"，以便日后核对。
+- **已验证实例**：`NewExpression → CallExpression` 兄弟类强转（该崩溃类 362 条）在 Go 端的解法是 **kind 判别 + 共享槽位读取**——`case ast.KindCallExpression, ast.KindNewExpression, ast.KindTaggedTemplateExpression, ast.KindDecorator, ast.KindJsxOpeningElement:`（`tsc/internal/checker/checker.go:2553`）与 `ast.IsNewExpression(expr)` 谓词（`checker.go:7547/7946/8506`）。这正是端口那 11 处结构型转换崩溃该采用的形状。
+
 ## 10. 累积差异与决策清单
 
 移植过程中发现的、与原源码有意不同的地方都在这里登记。代码中对应处以 `PORT-NOTE:` 注释标注。
