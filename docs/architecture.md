@@ -1901,3 +1901,10 @@ dotnet run --project tools/TypeDiff -- --cases D:/Source/GitHub/TypeScript/tests
 ```
 
 **仍未闭合（M7-C 尾项，已登记）**：声明发射（`.d.ts`）与 `tsc --declaration` 的逐字节比对（declarations 切片已发现一例"解构 + 参数属性 + 显式数组类型"分歧）；`.js.map`/`sourceMappingURL` 侧与 `tsc --sourceMap` 的比对；剩余 3 条 TypeDiff 分歧；`.errors.txt`/baseline 全量比对（P1b）。
+
+#### 17.13.1 第三条 TypeDiff 分歧修掉：`base.declarations?.every(…)` 的 `?.` 丢了
+
+`getPropertiesOfType(baseType)` 的成员覆盖循环里，参考的
+`base.declarations?.every(d => isPropertyAbstractOrInterface(d, baseDeclarationFlags))`（checker.ts:47593）在基符号**无声明**时短路成 `undefined`（假值）而**不**继续；端口写成 `Core.Every(baseSymbolTarget.Declarations, …)`，而 `Core.Every` 对 `null` 列表答 `true`，于是这类覆盖（元组成员、映射类型成员，如 `[string, number]` 的 `0`）一律 `continue`，其后的 `PropertyWillOverwriteBaseProperty`（2612）永不可达。
+
+实测路径：`interfaceExtendsObjectIntersectionErrors.ts` 的 `class C4 extends Constructor<T4>() { 0: number }` —— 参考在同一节点同时报 2416 与 2612，端口只报 2416（用临时探针定位：基符号 `Flags=Property, Transient`、`Declarations=null`，`CheckFlags.Synthetic` 为假 ⇒ 走 `Every` 臂 ⇒ 落在 `continue` 上）。加 `is not null` 守卫后：**TypeDiff 全语料 `same=5906/5908 diverged=2`**（此前 5905/3）。同型审计：参考 `checker.ts` 全文只有两处 `?.every(`，另一处（51110）端口早已带 `is not null` 守卫。

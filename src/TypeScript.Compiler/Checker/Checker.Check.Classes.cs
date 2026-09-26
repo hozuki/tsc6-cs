@@ -1184,7 +1184,14 @@ internal sealed partial class Checker
                     if (
                         ((GetCheckFlags(baseSymbolTarget) & CheckFlags.Synthetic) != 0
                             ? Core.Some(baseSymbolTarget.Declarations, d => IsPropertyAbstractOrInterface(d, baseDeclarationFlags))
-                            : Core.Every(baseSymbolTarget.Declarations, (d, _) => IsPropertyAbstractOrInterface(d, baseDeclarationFlags)))
+                            // PORT-NOTE: the reference's `base.declarations?.every(…)` short-circuits to `undefined` when the
+                            // base symbol carries no declarations (an instantiated/tuple member, e.g. `0` of `[string, number]`
+                            // or a mapped type's member), and `undefined || …` is falsy. `Core.Every` answers `true` for a
+                            // null list, so the `is not null` guard states the `?.` that was missing: without it every such
+                            // override took this `continue` and the `PropertyWillOverwriteBaseProperty` (2612) report below
+                            // was unreachable (measured: interfaceExtendsObjectIntersectionErrors.ts's `class C4 extends
+                            // Constructor<T4>() { 0: number }`).
+                            : baseSymbolTarget.Declarations is not null && Core.Every(baseSymbolTarget.Declarations, (d, _) => IsPropertyAbstractOrInterface(d, baseDeclarationFlags)))
                         || (GetCheckFlags(baseSymbolTarget) & CheckFlags.Mapped) != 0
                         || derived.ValueDeclaration is not null && NodeTests.IsBinaryExpression((Node)derived.ValueDeclaration)
                     )
