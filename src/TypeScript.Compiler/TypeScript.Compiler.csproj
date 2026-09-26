@@ -2,6 +2,9 @@
 
   <PropertyGroup>
     <RootNamespace>TypeScript.Compiler</RootNamespace>
+    <!-- 目前只有 Core/IcuCaseFolding.cs 用到：那里的入口点是 delegate* unmanaged[Cdecl] 函数指针，
+         而不是被 marshaller 包装过的委托（见该文件与 docs/architecture.md §10.2）。 -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
 

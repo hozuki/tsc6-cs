@@ -359,6 +359,7 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 - **大小写折叠**：JS 的 `toUpperCase`/`toLowerCase` 是 **full case mapping**（`"ß"` → `"SS"`），.NET 的 `ToUpperInvariant`/`ToLowerInvariant` 是保持长度的 simple mapping，两者在 ß、İ 这类字符上不一致：TS 的 `equateStringsCaseInsensitive("ss", "ß")` 为 `true`，只用 .NET 的映射会得到 `false`。移植版因此走 **ICU** —— `Core/IcuCaseFolding` 探测并加载 `u_strToUpper`/`u_strToLower`（UTF-16 接口、root locale，即 V8 用的那张表），原来所有 `ToUpperInvariant`/`ToLowerInvariant` 调用点都改成它。
   - ICU 不可得时回退到 .NET 的 invariant 映射，并在 stderr 上**打印一次警告** —— 降级必须可见，否则一条行为差异会变成谜团。
   - 探测形态：Windows 的 `icuuc.dll` 用未加后缀的符号名，Unix 构建按 ICU 主版本重命名符号（`u_strToUpper_74`）并把版本写进文件名，两种都试（版本 60..80 逐个探测）。
+  - 入口点存成 `delegate* unmanaged[Cdecl]<…>` **函数指针**，而不是被 marshaller 包装的委托：ICU 完全是动态加载的，调用里也没有托管成分需要编组（字符串手动 `fixed`、locale 就是一个 NUL 字节），委托只会多一层间接。指针被包在 `ToUpper`/`ToLower` 后面，调用方看不见它 —— `unsafe` 的边界因此只落在这一个文件（`TypeScript.Compiler.csproj` 开 `AllowUnsafeBlocks`，见 D7）。
   - `Wildcard.GetRegexFromPattern` 的 `RegexOptions.IgnoreCase` 不走这条路径：那是正则引擎自己的折叠，与 V8 的差异单独记在该方法处。
 - **`StartsWith`**：TS 写 `str.lastIndexOf(prefix, 0) === 0`。.NET 的 `LastIndexOf(value, 0, Ordinal)` 在 `value` 长于 `startIndex + 1` 时返回 `-1`（实测 `"./foo".LastIndexOf("./", 0, Ordinal) == -1`），语义不同，因此改写为 `str.StartsWith(prefix, Ordinal)` 并补上 TS `slice` 的长度收敛行为。
 - **"返回同一实例"的优化**：`filter`/`sameMap`/`compact`/`concatenate`/`appendIfUnique` 在 TS 里会把**入参本人**返回（"什么都没变"时），checker 依赖这个优化。移植版把这类数组工具的参数与返回类型统一成 `IList<T>` —— JS `Array` 在 C# 里的对应物 —— 于是那一份实例可以真的交回去；生成物里 `readonly T[]` 的映射也随之从 `IReadOnlyList<T>` 改成 `List<T>`（见 §12.3）。只有实现内部（`new List<T>(…)`、计数用的局部变量）才出现具体类型；`IList<T>` 没有 `RemoveRange` 这类成员，那里展开成等价的循环。
@@ -450,7 +451,7 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 
 | # | 决策 | 何时需要 | 影响 |
 |---|---|---|---|
-| D7 | 热路径优化：`Span`/`unsafe`/对象池的引入边界 | M6（checker 可跑之后） | 先正确后快；过早优化会污染移植的可对照性 |
+| D7 | 热路径优化：`Span`/`unsafe`/对象池的引入边界 | M6（checker 可跑之后） | 先正确后快；过早优化会污染移植的可对照性。**首次（也是目前唯一）引入 `unsafe` 的是 `IcuCaseFolding` 的 P/Invoke 函数指针，见 §10.2 —— 那不是优化，而是"动态加载的库只能这么调"。** |
 
 ### 11.3 生成器（tools/Gen）
 
