@@ -863,7 +863,13 @@ internal sealed partial class Checker
             {
                 if (firstChar == CharacterCodes.OpenBracket)
                 {
-                    symbolName = symbolName.Substring(1, symbolName.Length - 1);
+                    // CHECKER-FIX: checker.ts:8938 writes JS `symbolName.substring(1, symbolName.length - 1)` — the
+                    // second argument is the **end index**, so both the leading `[` and the trailing `]` go. The port
+                    // read it as a length, which answered `Symbol.iterator]` for a computed `[Symbol.iterator]` member
+                    // and made every `symbolToString` of such a symbol print one extra `]` (`I[Symbol.iterator]]`); the
+                    // `symbolProperty*`/`symbolDeclarationEmit*` `.symbols` baselines pinned it (43 divergences on the
+                    // es6/** shard of tools/BaselineDiff). `[1..^1]` is the reference's slice.
+                    symbolName = symbolName[1..^1];
                     firstChar = ScannerUtilities.CharCodeAt(symbolName, 0);
                 }
                 Expression? expression = null;
