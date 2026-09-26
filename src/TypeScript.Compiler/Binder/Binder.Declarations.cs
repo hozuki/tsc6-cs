@@ -69,7 +69,12 @@ internal partial class Binder
             //       and should never be merged directly with other augmentation, and the latter case would be possible if automatic merge is allowed.
             if (Utilities.IsJSDocTypeAlias((Node)node)) Debug.Assert(Utilities.IsInJSFile((Node)node)); // We shouldn't add symbols for JSDoc nodes if not in a JS file.
             var container = _container!;
-            if (!Utilities.IsAmbientModule(container)
+            // PORT-NOTE: the reference's operand is the *declaration* (`binder.ts:911`: `!isAmbientModule(node)`), not
+            // the container — which is exactly what the NOTE just above implements: it is a *nested ambient module*
+            // that must go to `locals` so that it never merges during global merging. Testing the container instead
+            // made every export written inside any ambient module (`declare module "x" { export var y }`) land in
+            // `locals` and left the module symbol's `exports` table empty (`isAmbientModule`, utilitiesPublic.ts:1201).
+            if (!Utilities.IsAmbientModule((Node)node)
                 && (hasExportModifier || (container.Flags & NodeFlags.ExportContext) != 0))
             {
                 if (!Utilities.CanHaveLocals(container)

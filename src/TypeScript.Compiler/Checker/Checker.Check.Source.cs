@@ -1437,7 +1437,9 @@ internal sealed partial class Checker
 
         if (Utilities.IsExpressionNode(node))
         {
-            return GetRegularTypeOfExpression((Expression)node);
+            // PORT-NOTE: the reference's `node as Expression` (checker.ts:50394) is a lie for the qualified names
+            // `isExpressionNode` admits under a type query (utilities.ts:3677); GetRegularTypeOfExpression takes a Node.
+            return GetRegularTypeOfExpression(node);
         }
 
         if (classType is not null && classDecl is not null && !classDecl.IsImplements)
@@ -1590,11 +1592,17 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:50511-50520 — <c>getRegularTypeOfExpression</c>.</summary>
-    internal IType GetRegularTypeOfExpression(Expression expr)
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>expr.parent as Expression</c> (:50513) is the same type-level lie
+    /// <see cref="GetTypeOfExpression"/> records — for an identifier on the right of a qualifier the parent is the
+    /// <see cref="QualifiedName"/> itself, which is no <see cref="Expression"/> here — so the parameter is
+    /// <see cref="Node"/> and the fix-up assigns the parent directly.
+    /// </remarks>
+    internal IType GetRegularTypeOfExpression(Node expr)
     {
         if (Utilities.IsRightSideOfQualifiedNameOrPropertyAccess(expr))
         {
-            expr = (Expression)expr.Parent!;
+            expr = expr.Parent!;
         }
 
         return GetRegularTypeOfLiteralType(GetTypeOfExpression(expr));

@@ -466,7 +466,16 @@ internal static partial class Program
             var objectFlags = ObjectFlagsOf(type);
             var symbol = SymbolKey(type.Symbol);
             var alias = SymbolKey(type.AliasSymbol);
-            var members = TypeList(type is IUnionOrIntersectionType union ? union.Types : null);
+            // The `types` slot is read for every model that declares it, exactly as the reference's own
+            // `Array.isArray(type.types)` test does (tools/TypeDiff/ts-type-dump.cjs:194): `types.ts:6724`'s
+            // union/intersection constituents *and* `types.ts:6960`'s template literal span types. Reading only the
+            // former printed `types=-` for every template literal whose reference side printed its constituents.
+            var members = TypeList(type switch
+            {
+                IUnionOrIntersectionType union => union.Types,
+                ITemplateLiteralType template => template.Types,
+                _ => null,
+            });
             var properties = PropertyList(checker.GetPropertiesOfType(type));
             var signatures = SignatureList(checker.GetSignaturesOfType(type, SignatureKind.Call), checker.GetSignaturesOfType(type, SignatureKind.Construct));
             outLines.Add($"T#{id} flags={FlagWord(type.Flags)} flagsName={FlagsName(type.Flags)} id={type.Id}"

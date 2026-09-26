@@ -7433,7 +7433,7 @@ internal sealed partial class Checker
                 var type = RemoveOptionalTypeMarker(
                     Utilities.IsWriteAccess(location) && location.Kind == SyntaxKind.PropertyAccessExpression
                         ? CheckPropertyAccessExpression((PropertyAccessExpression)location, /*checkMode*/ null, /*writeOnly*/ true)
-                        : GetTypeOfExpression((Expression)location));
+                        : GetTypeOfExpression(location));
                 if (ReferenceEquals(GetExportSymbolOfValueSymbolIfExported(GetNodeLinks(location).ResolvedSymbol!), symbol))
                 {
                     return type;
@@ -9363,7 +9363,7 @@ internal sealed partial class Checker
             CheckPropertyNotUsedBeforeDeclaration(prop, node, right);
             MarkPropertyAsReferenced(prop, node, IsSelfTypeAccess(left, parentSymbol));
             GetNodeLinks(node).ResolvedSymbol = prop;
-            CheckPropertyAccessibilityAtLocation(node, left.Kind == SyntaxKind.SuperKeyword, Utilities.IsWriteAccess(node), apparentType, prop, /*errorNode*/ null);
+            CheckPropertyAccessibility(node, left.Kind == SyntaxKind.SuperKeyword, Utilities.IsWriteAccess(node), apparentType, prop);
             // PORT-NOTE: checker.ts:34995 asserts `node as Expression` before this call. The callee's parameter is
             // `Expression` while `node` here is `PropertyAccessExpression | QualifiedName`, and a qualified name is not
             // an `Expression` — TS permits the assertion because the union overlaps `Expression`, but it is not a

@@ -192,8 +192,17 @@ internal sealed partial class Checker
     /// <c>_flowInvocationCount</c> after the class's slot convention, and both are named in the slice report. The
     /// <c>cache[nodeId] = type</c> write is what makes the slot a node-id-indexed table rather than a
     /// <c>List&lt;T&gt;</c> of one entry per node position.
+    /// <para>
+    /// PORT-NOTE: the reference declares <c>node: Expression</c> but is called with a <c>QualifiedName</c> — the two
+    /// casts at checker.ts:50394 (<c>node as Expression</c>) and checker.ts:41750 are type-level lies its own
+    /// <c>checkExpression(node: Expression | QualifiedName)</c> (checker.ts:41737) admits, and
+    /// <c>isExpressionNode</c> (utilities.ts:3677-3680) answers true for a qualified name under a type query. The port
+    /// has no such lie available: <see cref="QualifiedName"/> is not an <see cref="Expression"/>, so the parameter is
+    /// <see cref="Node"/> and the body reads kind-guarded slots, the shape <c>GAVEUP</c> at
+    /// <c>Checker.Check.Source.cs:1440</c> used to trip on (InvalidCastException, 21 corpus files).
+    /// </para>
     /// </remarks>
-    internal IType GetTypeOfExpression(Expression node)
+    internal IType GetTypeOfExpression(Node node)
     {
         // Don't bother caching types that require no flow analysis and are quick to compute.
         var quickType = GetQuickTypeOfExpression(node);
@@ -243,8 +252,12 @@ internal sealed partial class Checker
     /// <c>IsJSDocTypeAssertion</c> (<c>Parser/FactoryUtilities.cs:509</c>, factory/utilities.ts:624) and is not ported
     /// yet, so <c>FactoryUtilities.GetJSDocTypeAssertionType</c> is red until that slice lands it.
     /// <c>isSymbolOrSymbolForCall</c> (checker.ts:37915) is a sibling checker member, called unqualified.
+    /// <para>
+    /// PORT-NOTE: <c>node: Expression</c> is widened to <see cref="Node"/> by the same argument
+    /// <see cref="GetTypeOfExpression"/> records (checker.ts:41707).
+    /// </para>
     /// </remarks>
-    internal IType? GetQuickTypeOfExpression(Expression node)
+    internal IType? GetQuickTypeOfExpression(Node node)
     {
         var expr = Utilities.SkipParentheses(node, /*excludeJSDocTypeAssertions*/ true);
         if (FactoryUtilities.IsJSDocTypeAssertion(expr))
@@ -1780,7 +1793,7 @@ internal sealed partial class Checker
                 }
 
                 return GetSignaturesOfType(
-                    GetTypeOfExpression((Expression)((JsxSelfClosingElement)node).TagName!),
+                    GetTypeOfExpression(((JsxSelfClosingElement)node).TagName!),
                     SignatureKind.Call);
             case SyntaxKind.TaggedTemplateExpression:
                 return GetSignaturesOfType(

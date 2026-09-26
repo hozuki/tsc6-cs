@@ -60,9 +60,10 @@ Rules:
   reference's `isCallLikeExpression` minus `Decorator`). The five `X0` lists are the program's diagnostics for that file
   in `getPreEmitDiagnostics`' order (config, syntactic, options, global, semantic). An `S` line is a symbol (its
   `SymbolFlags` word, that word's members, its escaped name, its declaration count and its `members`/`exports` keys), a
-  `T` line a type (`TypeFlags`, the checker's own type id, `ObjectFlags`, symbol, alias symbol, a union's/intersection's
-  members, the properties the checker resolves, its call/construct signatures), a `G` line a signature, a `D` line a
-  diagnostic.
+  `T` line a type (`TypeFlags`, the checker's own type id, `ObjectFlags`, symbol, alias symbol, its `types` slot
+  wherever the model declares one — a union's/intersection's constituents (`types.ts:6724`) or a template literal's
+  span types (`types.ts:6960`), matching the reference's `Array.isArray(type.types)` test — the properties the checker
+  resolves, its call/construct signatures), a `G` line a signature, a `D` line a diagnostic.
 * **Every record prints once, every reference is `#id`.** Ids are per file per record kind, assigned in order of first
   reference, starting at `#1`; absent is `-`. Nested descriptions would make the dump grow with the number of
   references rather than with the graph (docs/architecture.md §15.13), and per-reference renumbering would re-print a

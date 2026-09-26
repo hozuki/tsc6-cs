@@ -1018,6 +1018,18 @@ internal static partial class Utilities
         ImportDeclaration declaration => declaration.Modifiers,
         ExportAssignment declaration => declaration.Modifiers,
         ExportDeclaration declaration => declaration.Modifiers,
+        // PORT-NOTE: the five kinds of the reference's `HasIllegalModifiers` (types.ts:1384-1389) also declare the
+        // slot — `classStaticBlockDeclaration`'s copy carries the comment "used only to report grammar errors"
+        // (types.ts:2179-2180) — which is what `findFirstIllegalModifier` (checker.ts:52231-52281) and
+        // `findFirstIllegalDecorator` (:52288-52290) read. Leaving them off this switch answered `null` for a
+        // `@decorator static {}` / `async static {}` body, which made `reportObviousModifierErrors` (:52219-52224)
+        // return early and `checkGrammarModifiers` never see the modifiers: the 1206/1184 grammar errors of
+        // classes/classStaticBlock/classStaticBlock19.ts:14 and :20:14 were dropped entirely.
+        ClassStaticBlockDeclaration declaration => declaration.Modifiers,
+        PropertyAssignment declaration => declaration.Modifiers,
+        ShorthandPropertyAssignment declaration => declaration.Modifiers,
+        MissingDeclaration declaration => declaration.Modifiers,
+        NamespaceExportDeclaration declaration => declaration.Modifiers,
         _ => null,
     };
 }

@@ -1429,6 +1429,18 @@ printer 门控的 `TypeToString`/`SymbolToString`/`SignatureToString`/`TypePredi
 
 **轮内阶梯**（第三轮起每轮都从 `report.txt` **重新分组**，不沿用前轮结论）：2,942/294/2,672（结构型转换）→ 2,990/246（`IsDeclarationName`）→ 3,028/208（export specifier 的角色）→ 3,042/187/2,679（延迟 drain）。
 
+### M6-late 第四轮：`diverged` 187 → 85
+
+**同一命令、集成点独立复跑：`same=3135 diverged=85 port-crash=2688`（`same` +93 / `diverged` −102；+9 崩溃全部是门控在**新跑通**的检查路径上首次触发）。**
+
+| 组（本轮再次从 `report.txt` 重新分组） | 依据与修法 |
+|---|---|
+| 类型标志/类型-符号（全部是 TemplateLiteral 的 `types=` 记录） | **工具侧读取分歧（非端口缺陷）**：`ts-type-dump.cjs:194` 是 `Array.isArray(type.types) ? type.types : undefined`，而端口半只在 `IUnionOrIntersectionType` 上读该槽，导致模板字面量打印 `types=-`。修 `tools/TypeDiff/Program.cs`：凡声明该槽的模型都读（`IUnionOrIntersectionType` / `ITemplateLiteralType`），README 的 v1 措辞同步。**格式未变**——两半改为读同一批槽位，只会暴露更多而非更少 |
+| 符号标志：环境模块 `exports` 表为空（37 条） | **真 binder 缺陷**：端口测的是**容器**（`!IsAmbientModule(container)`）而非**声明**（`node`）；参考 `binder.ts:911`（其上方 `:902-907` 的注释正是节点测试所实现的"按声明判定"）。于是 `declare module "x" { export var y }` 里的 `export` 落进 `locals`、模块符号 `exports` 保持为空（如 `externalModules/topLevelAmbientModule.ts:18`）。修 `Binder/Binder.Declarations.cs` 为 `!Utilities.IsAmbientModule((Node)node)` + PORT-NOTE |
+| "单侧放弃"：TypeQuery 节点（11 条） | `checker.ts:50386-50396` 的 `isExpressionNode(node)` → `getRegularTypeOfExpression(node as Expression)`，而 `isExpressionNode` 对**类型查询下的限定名**故意答真（`utilities.ts:3677-3680`）——参考自己的强转是**类型层的谎**，由它自己的 `checkExpression(Expression \| QualifiedName)`（`checker.ts:41737`）兜住。端口 `(Expression)node` / `(Expression)expr.Parent!` 因此直接抛 InvalidCast（表现为 `N… sym=! type=! sig=!`）。按其真实并集读取 |
+
+**轮内阶梯**：3,042/187/2,679 → 3,122/108/2,678（模板字面量槽 + binder 环境模块）→ **3,135/85/2,688**。
+
 ## 16. `const enum` 成员作类型：typed enum
 
 ### 16.1 TS 的两条路径
