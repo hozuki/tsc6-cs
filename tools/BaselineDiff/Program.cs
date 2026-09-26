@@ -237,7 +237,7 @@ internal static partial class Program
                 // The file itself could not be modelled (a tsconfig unit, a symlink, an unknown directive): the stem it
                 // would have had is reported once, and the reference half reports the same thing independently.
                 var stem = BaselineDiffHarnessModel.ConfiguredName(Paths.GetBaseFileName(file.Rel), null);
-                errors.WriteLine($"{stem}\t{StateOf(ex)}: {ex.GetType().Name}: {FirstLine(ex.Message)}");
+                errors.WriteLine($"{stem}\t{StateOf(ex)}: {ex.GetType().Name}: {FirstLine(ex.Message)} @ {FrameNames(ex)}");
                 foreach (var kind in settings.Artifacts) hashes.WriteLine($"{stem}\t{kind}\t{StateOf(ex)}\t\t");
                 continue;
             }
@@ -253,7 +253,7 @@ internal static partial class Program
                 }
                 catch (Exception ex) when (ex is not OutOfMemoryException)
                 {
-                    errors.WriteLine($"{stem}\t{StateOf(ex)}: {ex.GetType().Name}: {FirstLine(ex.Message)}");
+                    errors.WriteLine($"{stem}\t{StateOf(ex)}: {ex.GetType().Name}: {FirstLine(ex.Message)} @ {FrameNames(ex)}");
                     foreach (var kind in settings.Artifacts) hashes.WriteLine($"{stem}\t{kind}\t{StateOf(ex)}\t\t");
                     continue;
                 }
@@ -1282,6 +1282,29 @@ internal static partial class Program
     {
         var text = Encoding.UTF8.GetString(File.ReadAllBytes(path));
         return text.Length > 0 && text[0] == '\uFEFF' ? text[1..] : text;
+    }
+
+    /// <summary>
+    /// The innermost frames that belong to the port itself, appended to every case-level failure record: unfiltered, a
+    /// stack trace spends its first frames inside the runtime, which says nothing about the bug, and a case that throws
+    /// without a frame to look at can only be re-derived by hand (tools/EmitDiff prints the same shape).
+    /// </summary>
+    private static string FrameNames(Exception ex)
+    {
+        var assembly = typeof(PortProgram).Assembly;
+        var frames = new StackTrace(ex, fNeedFileInfo: true).GetFrames() ?? [];
+        var names = frames
+            .Where(frame => frame.GetMethod()?.DeclaringType?.Assembly == assembly)
+            .Take(6)
+            .Select(frame =>
+            {
+                var method = frame.GetMethod();
+                var file = frame.GetFileName();
+                var where = file is null ? "" : $" ({Path.GetFileName(file)}:{frame.GetFileLineNumber()})";
+                return $"{method?.DeclaringType?.Name}.{method?.Name}{where}";
+            })
+            .ToArray();
+        return names.Length == 0 ? "<no port frames>" : string.Join(" < ", names);
     }
 
     private static string FirstLine(string? message)

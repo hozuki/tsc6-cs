@@ -1981,6 +1981,17 @@ return prop is not null ? GetTypeOfSymbol(prop) : GetIndexTypeOfType(type, _stri
 
 两项都是纯搬运：搬运后 **build 0/0、测试 1,520/1,520、TypeDiff `same=5908/5908` clean、EmitDiff `same=5908/5908` clean**（行为中性）。
 
+#### 17.13.6 基线环（§17.14）发现的两处编译器侧缺陷（已提交 `9dd4e37` 并复核）
+
+§17.14 的基线环比前三环多做了两件事：它真的去读语料自带的 `// @` 指令，并且把**合成节点**（checker/nodeBuilder 造出来、给 `.types` 下划线用的那些）也打进了比对。据此发现的两处缺陷都在编译器侧，都已被集成方提交并复核（**build 0/0、测试 1,520/1,520、TypeDiff 全语料 `same=5908/5908` clean、EmitDiff 全语料 `same=5908/5908` clean**）：
+
+| # | 位置 | 缺陷 | 参考行 | 观测路径 |
+|---|---|---|---|---|
+| 1 | `Checker/NodeBuilder.Names.cs:346,352`（`getSpecifierForModuleSymbol` 的 ambient module 两臂） | JS `substring(1, name.length - 1)` 被读成**长度**（`name.Substring(1, name.Length - 1)`），于是合成 `import("m")` 字面量的 `Text` 留着收尾引号，`Symbol(C[Symbol.iterator]` 一类的名字变成 `m"`；改为 `EscapedName![1..^1]` | `checker.ts:8611,8617` | `.types`/`.symbols` 对 `declare module 'm'` 打出 `typeof import("m\"")`（`exportEqualsOfModule`、`cyclicModuleImport`） |
+| 2 | `Parser/NodeFactory.cs:290-334`（`CreateTokenNode`） | token 各臂直接 `new PunctuationToken/KeywordTypeToken/ModifierToken/KeywordToken/Token`，绕过 `CreateBaseNode` 的 `NodeFlags.Synthesized` 标记；补 `if (_synthesizedNodes) node.Flags \|= NodeFlags.Synthesized;`（switch 需要显式 `Node` 目标类型） | `factory/nodeFactory.ts:7393-7405`（`createBaseTokenNode` 被 `makeSynthetic` 包着） | `Utilities.IsParseTreeNode`/`GetParseTreeNode` → `src/harness/typeWriter.ts:35-37` 的 `nodeIsFullySynthetic`：修前每条合成关键字类型的 `.types` 下划线打空格而非 `^`（`binaryIntegerLiteralES6.types`、`generatorTypeCheck64.types` 各差若干净行），修后逐字节一致 |
+
+两处的共同判据是**基线为真源**：参考编译器能逐字节复现签入基线（§17.14.1 的 148 文件自检），所以基线里的 `^` 与 `"m"` 就是期望行为，端口打不出即是缺陷。
+
 ## §17.14 M7-C 最后一环：`tools/BaselineDiff`（官方 harness 选项模型 + 基线逐字节比对）
 
 前三环（`tools/TypeDiff`、`tools/EmitDiff`、声明发射）都只有**一个固定选项对象**或干脆没有 program，**没有任何一环读到语料自带的 `// @` 指令**——也就是说，端口在"参考自己的测试用哪些选项、哪些文件被拆成多单元、哪些配置会分叉"这件事上一无所证。本环补上这个缺口，且它的第三方不是参考编译器而是**文件**：`tests/baselines/reference` 里的基线。
@@ -2053,7 +2064,45 @@ dotnet run --project tools/BaselineDiff -- --cases D:/Source/GitHub/TypeScript/t
 | `async/.../asyncFunctionDeclarationParameterEvaluation.ts`（`target=es2015`） | `InvalidCastException: FunctionDeclaration → ShorthandPropertyAssignment` | |
 | `async/.../asyncMethodWithSuperConflict_es6.ts` | `InvalidCastException: MethodDeclaration → ShorthandPropertyAssignment` | 与上一条同一判定 |
 
-**成本**：端口半场单线程 186.5 s / 275 case（≈0.68 s/case，每 case 含 1–2 个 program + 声明重编译 + noCheck 重编译 + 两次类型/符号遍历），因此**全语料单机约 2.6 小时**，必须按 `--limit`/`--filter` 分片；参考半场 60 文件 20.6 s（4 批并行）。
+失败记录现已附**端口帧**（`FrameNames`，与 `tools/EmitDiff` 同形），于是两类崩溃可当场定位：
+
+* **`ClassDeclaration/MethodDeclaration/FunctionDeclaration → ShorthandPropertyAssignment`**（`symbolDeclarationEmit1/11/…`、`disallowLineTerminatorBeforeArrow.ts` 等，本分片 15 个 crash 里的绝大多数）：
+  ```
+  Checker.<CalculateNodeCheckFlagWorker>g__IsExpressionNodeOrShorthandPropertyAssignmentName|364_6 (Checker.Check.Flags.cs:319)
+  < …CheckSingleIdentifier|7 (Checker.Check.Flags.cs:333) < …CheckIdentifiers|4 (Checker.Check.Flags.cs:309)
+  < ForEachChildTable.ForEachChildRecursively (ForEachChildTable.cs:481)
+  ```
+  根因单行：`var shorthandParent = (ShorthandPropertyAssignment?)identifier.Parent;` —— 参考的
+  `isShorthandPropertyAssignment(node.parent) && (node.parent.objectAssignmentInitializer ?? node.parent.name) === node`（`checker.ts:51013-51017`）里前一项是**谓词**、后一项只在它成立时求值；端口把谓词写成了**无条件强转**，于是 `CalculateNodeCheckFlagWorker` 的 `ForEachChildRecursively` 走到任何非 shorthand 的父节点（本分片里是 `ClassDeclaration`）即抛。改为 `identifier.Parent as ShorthandPropertyAssignment`（`as` 真转型，`&&` 短路保证只有守卫成立时才读 `shorthandParent!`）后该族崩溃清零。**这是编译器侧、单行、且与参考逐字对应**的修复，按集成方约定留在编译器的提交里（不在本环的 `tools/BaselineDiff/**` 提交中）。
+* **`ModuleTransformer.GetExports` 的空引用**（`emitArrowFunction(target=es5).ts`）：
+  ```
+  ModuleTransformer.GetExports (ModuleTransform.Substitution.cs:247) < ModuleTransformer.SubstituteBinaryExpression (:203)
+  < ModuleTransformer.SubstituteExpression (:90) < ModuleTransformer.OnSubstituteNode (:51) < ImpliedNodeFormatDependentTransformer.OnSubstituteNode (:146)
+  ```
+  只在 `target=es5`（即绕过模块变换后的降级发射路径）出现，未定位到单行根因，**报告不修**。
+
+**成本**：端口半场单线程 186.5 s / 275 case（≈0.68 s/case，每 case 含 1–2 个 program + 声明重编译 + noCheck 重编译 + 两次类型/符号遍历），因此**全语料单机约 2.6 小时**，必须按 `--limit`/`--filter` 分片；参考半场 60 文件 20.6 s（4 批并行）。集成方另跑的 `es6/**` 120 文件分片（150 case，耗时 534 s）给出同一结论且比例一致：
+
+| 分片 | 命令 | ARTIFACT（same/diverged/port-crash） | SUMMARY |
+|---|---|---|---|
+| 60 文件（本环） | `--limit 60 --node-parallel 4` | js 65/1/4、errors 66/0/4、types 65/0/4、symbols 54/11/4 | `same=250 diverged=12 port-crash=16 ref-diverged=0 ref-crash=0` |
+| `es6/**` 120 文件（集成方，修前） | `--filter "es6/**" --limit 120 --node-parallel 8` | js 135/0/15、errors 135/0/15、types 134/1/15、symbols 92/43/15 | `same=496 diverged=44 port-crash=60 ref-diverged=0 ref-crash=0` |
+| 同上（集成方，`0f67b46` 之后） | 同上 | symbols **92/43 → 135/0**；js 135/0/15、errors 135/0/15、types 134/1/15 不变 | `same 496 → 539`；`ref-diverged=0 ref-crash=0` |
+
+`Checker/NodeBuilder.Names.cs:866` 的 `symbolName.substring(1, symbolName.length - 1)`（`checker.ts:8938`）被读成长度，是**同一族第三处**：合成成员名留着收尾 `]`（探针打出 `entity=ElementAccessExpression arg=Identifier:Symbol.iterator]`），打印器再加一个 `]` ⇒ `C[Symbol.iterator]]`。改为 `symbolName[1..^1]` 后 `.symbols` 43 → 0。
+
+**两处仍未闭合（交给集成方）**：
+
+* **`.types` 下划线中段空洞（工具侧，Class 2）**：`symbolProperty5.ts`（`es6/Symbols/`，`target=ES6`，`var x = { [Symbol.iterator]: 0, [Symbol.toPrimitive]() {}, get [Symbol.toStringTag]() {…} }`）。复现产物路径：`artifacts/bd-integration/port/symbolProperty5.types`（driver 的 `--out` 下的 `port/<基线名>`），对照 `tests/baselines/reference/symbolProperty5.types`：
+  ```
+  baseline: >  : ^^^^^^…^^^^              （连续一串）
+  port:     >  : ^^^^^^…^^^^        ^^^^^^…^^^^   （中段 8 格空白）
+  ```
+  即端口在打印一个**嵌套节点**时把下划线关掉了、而参考保持打开：`nodeIsFullySynthetic`（`nodeIsSynthesized && !getParseTreeNode`）对该节点答 false。与 `9dd4e37` 的 factory token 同族、但节点种类不同；定位需要"打印被构造链的节点 kind/text"式探针（Class 1 用的同一手法）。
+* **`(T?)expr` 硬转型扫查（编译器侧，交集成方修）**：C# 里 `(T?)x` 对**引用类型**仍是硬转型，而参考的写法往往是 `is…(x) && …` 谓词。全仓按 `\(([A-Z]\w*)\?\)\s*\w+\.(Parent|Expression|Name|…)\b` 且 `T` 是 `Model/NodeClasses.cs` 里的节点类扫出 2 处（扫查模式只覆盖了这批成员名，更广的成员名会更多）：
+  * `Binder/Binder.Declarations.cs:344` — `(Identifier?)node.Name`
+  * `Transforms/ESDecorators.ClassLike.cs:593` — `(Identifier?)node.Name`
+  （已修的同类现场：`Checker/Checker.Check.Flags.cs:316-323` 的 `(ShorthandPropertyAssignment?)identifier.Parent`，参考 `checker.ts:51013-51017`。）
 
 ### 17.14.3 本轮落地的两处端口缺陷（已由集成方提交 `9dd4e37` 并复核）
 
