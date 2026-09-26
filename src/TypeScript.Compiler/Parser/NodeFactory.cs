@@ -1915,4 +1915,247 @@ internal partial class NodeFactory
 
         return Update(updated, original);
     }
+
+    //
+    // Type nodes (the hand-written half)
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:2280 — <c>createKeywordTypeNode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS constrains its type parameter to <c>KeywordTypeSyntaxKind</c> and answers
+    /// <c>KeywordTypeNode&lt;TKind&gt;</c>. A C# type parameter cannot be constrained to an enum, so the kind arrives as
+    /// the enum itself (§16) and a token is what comes back.
+    /// </remarks>
+    public Node CreateKeywordTypeNode(SyntaxKind kind) => CreateToken(kind);
+
+    /// <summary>ported from: factory/nodeFactory.ts:2546 — <c>createUnionOrIntersectionTypeNode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS builds one <c>UnionTypeNode | IntersectionTypeNode</c> object and lets the kind say which it is;
+    /// the port has a class per kind, so the kind picks it. The parenthesizer the two public entry points pass is the
+    /// only thing that differs between them.
+    /// </remarks>
+    private Node CreateUnionOrIntersectionTypeNode(
+        SyntaxKind kind,
+        List<ITypeNode>? types,
+        Func<List<ITypeNode>?, NodeArray<ITypeNode>> parenthesize)
+    {
+        if (kind == SyntaxKind.UnionType)
+        {
+            var union = CreateBaseNode<UnionTypeNode>(kind);
+            union.Types = CreateNodeArray(parenthesize(types), null);
+            union.TransformFlags = TransformFlags.ContainsTypeScript;
+            return union;
+        }
+
+        var intersection = CreateBaseNode<IntersectionTypeNode>(kind);
+        intersection.Types = CreateNodeArray(parenthesize(types), null);
+        intersection.TransformFlags = TransformFlags.ContainsTypeScript;
+        return intersection;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2559 — <c>createUnionTypeNode</c>.</summary>
+    public UnionTypeNode CreateUnionTypeNode(List<ITypeNode>? types)
+        => (UnionTypeNode)CreateUnionOrIntersectionTypeNode(
+            SyntaxKind.UnionType,
+            types,
+            Parenthesizer.ParenthesizeConstituentTypesOfUnionType);
+
+    /// <summary>ported from: factory/nodeFactory.ts:2569 — <c>createIntersectionTypeNode</c>.</summary>
+    public IntersectionTypeNode CreateIntersectionTypeNode(List<ITypeNode>? types)
+        => (IntersectionTypeNode)CreateUnionOrIntersectionTypeNode(
+            SyntaxKind.IntersectionType,
+            types,
+            Parenthesizer.ParenthesizeConstituentTypesOfIntersectionType);
+
+    /// <summary>ported from: factory/nodeFactory.ts:2550 — <c>updateUnionOrIntersectionTypeNode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS is generic over <c>T extends UnionOrIntersectionTypeNode</c> so one body can serve both kinds. The
+    /// two classes are unrelated in C# (they share only <c>Node</c>), so the port spells the two cases out — the same
+    /// treatment a TS union gets anywhere else (§12.5).
+    /// </remarks>
+    private UnionTypeNode UpdateUnionOrIntersectionTypeNode(
+        UnionTypeNode node,
+        NodeArray<ITypeNode> types,
+        Func<List<ITypeNode>?, NodeArray<ITypeNode>> parenthesize)
+    {
+        return !ReferenceEquals(node.Types, types)
+            ? Update((UnionTypeNode)CreateUnionOrIntersectionTypeNode(node.Kind, types, parenthesize), node)
+            : node;
+    }
+
+    /// <inheritdoc cref="UpdateUnionOrIntersectionTypeNode(UnionTypeNode, NodeArray{ITypeNode}, Func{IList{ITypeNode}?, NodeArray{ITypeNode}})"/>
+    private IntersectionTypeNode UpdateUnionOrIntersectionTypeNode(
+        IntersectionTypeNode node,
+        NodeArray<ITypeNode> types,
+        Func<List<ITypeNode>?, NodeArray<ITypeNode>> parenthesize)
+    {
+        return !ReferenceEquals(node.Types, types)
+            ? Update((IntersectionTypeNode)CreateUnionOrIntersectionTypeNode(node.Kind, types, parenthesize), node)
+            : node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2564 — <c>updateUnionTypeNode</c>.</summary>
+    public UnionTypeNode UpdateUnionTypeNode(UnionTypeNode? node, NodeArray<ITypeNode>? types)
+        => UpdateUnionOrIntersectionTypeNode(node!, types!, Parenthesizer.ParenthesizeConstituentTypesOfUnionType);
+
+    /// <summary>ported from: factory/nodeFactory.ts:2574 — <c>updateIntersectionTypeNode</c>.</summary>
+    public IntersectionTypeNode UpdateIntersectionTypeNode(IntersectionTypeNode? node, NodeArray<ITypeNode>? types)
+        => UpdateUnionOrIntersectionTypeNode(node!, types!, Parenthesizer.ParenthesizeConstituentTypesOfIntersectionType);
+
+    /// <summary>ported from: factory/nodeFactory.ts:2478 — <c>createTupleTypeNode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS assigns <c>NodeArray&lt;TypeNode&gt;</c> into <c>NodeArray&lt;TypeNode | NamedTupleMember&gt;</c> by
+    /// array covariance. C# generics are invariant, so the elements are re-listed as the wider element type — the
+    /// element objects are the same ones.
+    /// </remarks>
+    public TupleTypeNode CreateTupleTypeNode(List<Node>? elements)
+    {
+        var node = CreateBaseNode<TupleTypeNode>(SyntaxKind.TupleType);
+        node.Elements = CreateNodeArray(
+            Parenthesizer.ParenthesizeElementTypesOfTupleType(elements) is { } parenthesized
+                ? parenthesized.Cast<Node>().ToList()
+                : null,
+            null);
+        node.TransformFlags = TransformFlags.ContainsTypeScript;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2485 — <c>updateTupleTypeNode</c>.</summary>
+    public TupleTypeNode UpdateTupleTypeNode(TupleTypeNode? node, List<Node>? elements)
+    {
+        return !ReferenceEquals(node!.Elements, elements)
+            ? Update(CreateTupleTypeNode(elements), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2341 — <c>updateFunctionTypeNode</c>.</summary>
+    public FunctionTypeNode UpdateFunctionTypeNode(
+        FunctionTypeNode? node,
+        NodeArray<TypeParameterDeclaration>? typeParameters,
+        NodeArray<ParameterDeclaration>? parameters,
+        ITypeNode? type)
+    {
+        return !ReferenceEquals(node!.TypeParameters, typeParameters)
+            || !ReferenceEquals(node!.Parameters, parameters)
+            || node!.Type != type
+            ? FinishUpdateFunctionTypeNode(CreateFunctionTypeNode(typeParameters, parameters, type), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2353 — <c>finishUpdateFunctionTypeNode</c>.</summary>
+    private FunctionTypeNode FinishUpdateFunctionTypeNode(FunctionTypeNode updated, FunctionTypeNode original)
+    {
+        if (!ReferenceEquals(updated, original))
+        {
+            // Copy the child TS keeps only for error reporting.
+            updated.Modifiers = original.Modifiers;
+        }
+
+        return FinishUpdateBaseSignatureDeclaration(updated, original);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2363 — <c>createConstructorTypeNode1</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS exports a <c>createConstructorTypeNode</c> that dispatches on its argument count to this and
+    /// <c>createConstructorTypeNode2</c>. In C# the same call site is served by two overloads of that one name.
+    /// </remarks>
+    public ConstructorTypeNode CreateConstructorTypeNode(
+        List<ModifierToken>? modifiers,
+        List<TypeParameterDeclaration>? typeParameters,
+        List<ParameterDeclaration>? parameters,
+        ITypeNode? type)
+    {
+        var node = CreateBaseDeclaration<ConstructorTypeNode>(SyntaxKind.ConstructorType);
+        node.Modifiers = AsNodeArray(modifiers);
+        node.TypeParameters = AsNodeArray(typeParameters);
+        node.Parameters = AsNodeArray(parameters);
+        node.Type = type;
+        node.TransformFlags = TransformFlags.ContainsTypeScript;
+
+        node.JsDoc = null;         // initialized by parser (JsDocContainer)
+        node.Locals = null;        // initialized by binder (LocalsContainer)
+        node.NextContainer = null; // initialized by binder (LocalsContainer)
+        node.TypeArguments = null; // used in quick info
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2388 — <c>createConstructorTypeNode2</c>.</summary>
+    public ConstructorTypeNode CreateConstructorTypeNode(
+        List<TypeParameterDeclaration>? typeParameters,
+        List<ParameterDeclaration>? parameters,
+        ITypeNode? type)
+        => CreateConstructorTypeNode(null, typeParameters, parameters, type);
+
+    /// <summary>ported from: factory/nodeFactory.ts:2399 — <c>updateConstructorTypeNode1</c>.</summary>
+    public ConstructorTypeNode UpdateConstructorTypeNode(
+        ConstructorTypeNode? node,
+        List<ModifierToken>? modifiers,
+        NodeArray<TypeParameterDeclaration>? typeParameters,
+        NodeArray<ParameterDeclaration>? parameters,
+        ITypeNode? type)
+    {
+        return !ReferenceEquals(node!.Modifiers, modifiers)
+            || !ReferenceEquals(node!.TypeParameters, typeParameters)
+            || !ReferenceEquals(node!.Parameters, parameters)
+            || node!.Type != type
+            ? Update(CreateConstructorTypeNode(modifiers, typeParameters, parameters, type), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2430 — <c>updateConstructorTypeNode2</c>.</summary>
+    public ConstructorTypeNode UpdateConstructorTypeNode(
+        ConstructorTypeNode? node,
+        NodeArray<TypeParameterDeclaration>? typeParameters,
+        NodeArray<ParameterDeclaration>? parameters,
+        ITypeNode? type)
+        => UpdateConstructorTypeNode(node, node!.Modifiers, typeParameters, parameters, type);
+
+    /// <summary>ported from: factory/nodeFactory.ts:2635 — <c>createImportTypeNode</c>.</summary>
+    public ImportTypeNode CreateImportTypeNode(
+        ITypeNode? argument,
+        ImportAttributes? attributes,
+        Node? qualifier,
+        List<ITypeNode>? typeArguments,
+        object? isTypeOf = null)
+    {
+        var node = CreateBaseNode<ImportTypeNode>(SyntaxKind.ImportType);
+        node.Argument = argument;
+        node.Attributes = attributes;
+
+        // An `import(…)` type can carry its attributes through the deprecated `assertions` container as well.
+        if (node.Assertions is not null && node.Assertions.AssertClause is not null && node.Attributes is not null)
+        {
+            node.Assertions.AssertClause = node.Attributes;
+        }
+
+        node.Qualifier = qualifier;
+        node.TypeArguments = typeArguments is not null
+            ? Parenthesizer.ParenthesizeTypeArguments(typeArguments)
+            : null;
+        node.IsTypeOf = isTypeOf is bool typeOf && typeOf;
+        node.TransformFlags = TransformFlags.ContainsTypeScript;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:2656 — <c>updateImportTypeNode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS defaults <c>isTypeOf</c> to the node's own value — a default that depends on another parameter. C#
+    /// has no such thing, so the parameter is required and the one caller that relies on the default spells it.
+    /// </remarks>
+    public ImportTypeNode UpdateImportTypeNode(
+        ImportTypeNode? node,
+        ITypeNode? argument,
+        ImportAttributes? attributes,
+        Node? qualifier,
+        List<ITypeNode>? typeArguments,
+        bool isTypeOf)
+    {
+        return node!.Argument != argument
+            || node!.Attributes != attributes
+            || node!.Qualifier != qualifier
+            || !ReferenceEquals(node!.TypeArguments, typeArguments)
+            || node!.IsTypeOf != isTypeOf
+            ? Update(CreateImportTypeNode(argument, attributes, qualifier, typeArguments, isTypeOf), node)
+            : node!;
+    }
 }
