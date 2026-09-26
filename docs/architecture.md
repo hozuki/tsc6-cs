@@ -2080,6 +2080,8 @@ dotnet run --project tools/BaselineDiff -- --cases D:/Source/GitHub/TypeScript/t
   < ModuleTransformer.SubstituteExpression (:90) < ModuleTransformer.OnSubstituteNode (:51) < ImpliedNodeFormatDependentTransformer.OnSubstituteNode (:146)
   ```
   只在 `target=es5`（即绕过模块变换后的降级发射路径）出现，未定位到单行根因，**报告不修**。
+  修完 Class 3 后同一分片（120 文件 / 150 case）**只剩它 1 个 case 崩溃**（`port-crash 60 → 4` = 1 case × 4 产物），
+  分歧也只剩 Class 2 那 1 条（`diverged 44 → 1`）——即该分片已收敛到"1 崩溃 + 1 分歧"。
 
 **成本**：端口半场单线程 186.5 s / 275 case（≈0.68 s/case，每 case 含 1–2 个 program + 声明重编译 + noCheck 重编译 + 两次类型/符号遍历），因此**全语料单机约 2.6 小时**，必须按 `--limit`/`--filter` 分片；参考半场 60 文件 20.6 s（4 批并行）。集成方另跑的 `es6/**` 120 文件分片（150 case，耗时 534 s）给出同一结论且比例一致：
 
@@ -2088,6 +2090,7 @@ dotnet run --project tools/BaselineDiff -- --cases D:/Source/GitHub/TypeScript/t
 | 60 文件（本环） | `--limit 60 --node-parallel 4` | js 65/1/4、errors 66/0/4、types 65/0/4、symbols 54/11/4 | `same=250 diverged=12 port-crash=16 ref-diverged=0 ref-crash=0` |
 | `es6/**` 120 文件（集成方，修前） | `--filter "es6/**" --limit 120 --node-parallel 8` | js 135/0/15、errors 135/0/15、types 134/1/15、symbols 92/43/15 | `same=496 diverged=44 port-crash=60 ref-diverged=0 ref-crash=0` |
 | 同上（集成方，`0f67b46` 之后） | 同上 | symbols **92/43 → 135/0**；js 135/0/15、errors 135/0/15、types 134/1/15 不变 | `same 496 → 539`；`ref-diverged=0 ref-crash=0` |
+| 同上（`0f67b46` + §17.14.2 的 `IsExpressionNodeOrShorthandPropertyAssignmentName` 修复之后，本环复测） | 同上 | js **135/0/15 → 149/0/1**、errors **→ 149/0/1**、types **→ 148/1/1**、symbols **→ 149/0/1** | `same 496 → 595`、`diverged 44 → 1`、`port-crash 60 → 4`；`ref-diverged=0 ref-crash=0 unpaired=0 extra-baseline=0` |
 
 `Checker/NodeBuilder.Names.cs:866` 的 `symbolName.substring(1, symbolName.length - 1)`（`checker.ts:8938`）被读成长度，是**同一族第三处**：合成成员名留着收尾 `]`（探针打出 `entity=ElementAccessExpression arg=Identifier:Symbol.iterator]`），打印器再加一个 `]` ⇒ `C[Symbol.iterator]]`。改为 `symbolName[1..^1]` 后 `.symbols` 43 → 0。
 
