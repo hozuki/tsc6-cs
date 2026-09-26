@@ -1284,7 +1284,11 @@ M6 期间报出的每一个"有调用者但无人声明"或"有意不移植"的�
 | `ICancellationToken` 无任何实现 | — | 记录为假设：`Program` 的 `runWithCancellationToken` 以 `OperationCanceledException` 过滤 | 实现属 M8 的 CLI/host；测试可用 fake |
 | `Utilities.SupportedDeclarationExtensions`、`FactoryUtilities.IsJSDocTypeAssertion` | §15.10 / §15.9 | 见各自小节 | M4e/M4d 记的残留 |
 
-已**关闭**（曾报为缺口、实测已落地或系取证假象）：`ElaborateNeverIntersection`（`Checker.Members.cs:928`）、`GetSignatureInstantiation`（`Checker.TypeSupport.cs:1847`）、`isArrayOrTupleSymbol`/`isReadonlyArraySymbol`（`Checker.TypeSupport.cs:1407/1419`）、`Utilities.IsTypeDeclaration`（`Checker/Utilities.Checker.cs:465`）、`15871`/`15799` 段、`16577-16674` 段（已由 M6TypeSupport 落地九个成员）。
+已**关闭**（曾报为缺口、实测已落地或系取证假象）：`ElaborateNeverIntersection`（`Checker.Members.cs:933`）、`GetSignatureInstantiation`（`Checker.TypeSupport.cs:1847`）、`GetSignatureInstantiationWithoutFillingInTypeArguments`（`:1877`）、`isArrayOrTupleSymbol`/`isReadonlyArraySymbol`（`Checker.TypeSupport.cs:1407/1419`）、`Utilities.IsTypeDeclaration`（`Checker/Utilities.Checker.cs:465`）、`Utilities.GetInterfaceBaseTypeNodes`（`Utilities/Utilities.Checker.cs:400`，参数 `InterfaceDeclaration`）、`Utilities.GetEffectiveImplementsTypeNodes`（同文件 `:381`，参数 `IClassLikeDeclarationBase`）、`15871`/`15799` 段、`16577-16674` 段。
+
+**可发现性陷阱（记下以免后人再踩）**：`Utilities` 的 partial 分散在多个目录且**同名文件存在两份**——`Utilities/Utilities.Checker.cs`（heritage 辅助）与 `Checker/Utilities.Checker.cs`（`IsTypeDeclaration` 等）。加上 `Checker/Checker.Support.cs` 与 `Program/Utilities.Program.cs`、`Program/Program.ProgramDiagnostics.cs` 里各自的 `Utilities` partial，"这个名字在哪个类里"不能靠**文件名**判断，只能按声明形状定位后读**包住它的类**。本里程碑为此付出了三轮返工，也因此把判据写进了本节的偏差表开头。
+
+行号提示：本节所引行号是各次复核当时的快照；文件仍在被追加，`M6LateBinding` 复核时 `ElaborateNeverIntersection` 已从 `:928` 漂到 `:933`、`GetSignatureInstantiation` 从 `:1842` 漂到 `:1847`——按名字与参考范围检索，不要按行号。
 
 ### 生成器缺口（M6 期间修掉）
 
