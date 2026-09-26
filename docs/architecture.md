@@ -2141,7 +2141,15 @@ dotnet run --project tools/BaselineDiff -- --cases D:/Source/GitHub/TypeScript/t
 
 **本轮遗留（各有可复现对，登记待办）**
 
-1. **`.js` 首注释丢失**（60 文件分片 1 例）：`ambientModuleDeclarationWithReservedIdentifierInDottedPath.ts`（`@module: commonjs`）—— baseline 在 `"use strict";` 与 `Object.defineProperty(exports,"__esModule",…)` 之间保留文件首注释 `// https://github.com/microsoft/TypeScript/issues/7840`，端口丢掉它。机制属 `emitSourceFile` 的 detached-comment 路径（emitter.ts:4292-4306 的 `shouldEmitDetachedComment` 与 prologue 列表的写出顺序）；复现：`--filter "ambient/ambientModuleDeclarationWithReservedIdentifierInDottedPath.ts"`。
+1. ~~**`.js` 首注释丢失**（已修，见 §17.14.6）~~：`ambientModuleDeclarationWithReservedIdentifierInDottedPath.ts`（`@module: commonjs`）—— baseline 在 `"use strict";` 与 `Object.defineProperty(exports,"__esModule",…)` 之间保留文件首注释 `// https://github.com/microsoft/TypeScript/issues/7840`，端口丢掉它。机制属 `emitSourceFile` 的 detached-comment 路径（emitter.ts:4292-4306 的 `shouldEmitDetachedComment` 与 prologue 列表的写出顺序）；复现：`--filter "ambient/ambientModuleDeclarationWithReservedIdentifierInDottedPath.ts"`。
    临时插桩（已还原）得到的定位：`EmitDetachedCommentsAndUpdateCommentsInfo` 对**声明**发射的 source file 确实找到 detached 范围（`rangePos=0 rangeEnd=233`、`DetachedCommentInfo(0, 54)`）并按参考调用 `writeComment`，但该上下文里 `ShouldWriteComment` 答 false（`onlyPrintJsDocStyle` 生效）—— 对 `.d.ts` 是正确行为；而 **`.js` 发射这一侧没有出现任何一次 `writeComment`**，即 `.js` 的 `emitSourceFile` 根本没走 `EmitBodyWithDetachedComments`（或走了却没有注释范围）。下一步应在此处按参考对比 `.js` 发射时 `statements[0]` 的 `isPrologueDirective`/`nodeIsSynthesized` 与注释范围的来源。
 2. **`.types` 下划线中段空洞**（es6/** 分片 1 例）：`symbolProperty5.ts` —— baseline 是一条连续 `^^^^`，端口中间空 8 格 ⇒ 某个嵌套节点的 `nodeIsFullySynthetic`（`src/harness/typeWriter.ts:35-37`）答 false。与 `9dd4e37` 的 token 标记同族、不同节点类；复现产物在 `artifacts/bd-integration/port/symbolProperty5.types` 第 6/8 行。
 3. **`GetExports` 空引用（target=es5 降级路径）**：`NullReferenceException @ ModuleTransformer.GetExports (ModuleTransforms/ModuleTransform.Substitution.cs:247) < SubstituteBinaryExpression (:203) < SubstituteExpression (:90) < OnSubstituteNode (:51) < ImpliedNodeFormatDependentTransformer.OnSubstituteNode (:146)`，仅在 `@target: es5` 的降级发射上出现（分片 1 例：`emitArrowFunction(target=es5).ts`；帧见该分片的 `report.txt`）。非单行根因，需按参考逐层比对替换路径。
+
+### 17.14.6 遗留 1 已修：转换后的语句表丢文本范围 ⇒ 首注释被吞
+
+`updateSourceFile` 是每个重建语句表的变换（模块、jsx、ts）都会走的工厂成员，参考里**新语句表保留原语句表的文本范围**——用 release-6.0 自己的 `lib/typescript.js` 经 `after` 变换钩子实测：`ambientModuleDeclarationWithReservedIdentifierInDottedPath.ts` 变换后 `file.statements.pos === 0 && file.statements.end === 296`（文件范围 0..315），而合成出来的首语句 `pos === -1`。端口的 `CreateNodeArray` 给出 `-1/-1`，而 printer 的 `emitSourceFile` 正是把这个**数组**当作 detached-comment 的范围交给 `emitDetachedComments`（emitter.ts:4292-4306 → 5922-5950），`getLeadingCommentRanges(text, -1)` 因 scanner.ts:842 的 `pos >= 0` 守卫找不到任何注释 ⇒ 首个语句被变换掉时，文件首注释整块丢失（`.js` 输出里 `"use strict";` 之后直接是 `Object.defineProperty(exports, "__esModule", …)`）。
+
+修法（`Parser/NodeFactory.cs` 的 `CloneSourceFileWithChanges`，带 PORT-NOTE 与实测数字）：`Utilities.SetTextRange(node.Statements, source.Statements)`。
+
+实测：基线环同一用例 `same=3 diverged=1` → **`same=4 diverged=0`**；三条既有外环零回归（build 0/0、测试 1,520/1,520、TypeDiff `same=5908/5908` clean、EmitDiff `same=5908/5908` clean）。

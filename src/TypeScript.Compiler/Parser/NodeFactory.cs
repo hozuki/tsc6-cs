@@ -3326,6 +3326,16 @@ internal partial class NodeFactory
     {
         var node = CloneSourceFile(source);
         node.Statements = CreateNodeArray(statements, null);
+        // PORT-NOTE: the reference's `updateSourceFile` is reached by every transform that rebuilds a file's statements
+        // (the module transformers, jsx, ts), and the transformed list keeps the *original* statements array's text range
+        // — measured on release-6.0's own `lib/typescript.js` through an `after` transformer:
+        // `file.statements.pos === 0 && file.statements.end === 296` for
+        // `ambientModuleDeclarationWithReservedIdentifierInDottedPath.ts` (file range 0..315) while the first,
+        // synthesized statement carries `pos === -1`. `createNodeArray` answers -1/-1, and the printer's
+        // `emitSourceFile` hands exactly this array to `emitDetachedComments` as its range
+        // (emitter.ts:4292-4306 → 5922-5950); `getLeadingCommentRanges(text, -1)` finds nothing (scanner.ts:842's
+        // `pos >= 0` guard), so a file whose leading comments precede a transformed-away first statement lost them.
+        Utilities.SetTextRange(node.Statements, source.Statements);
         node.IsDeclarationFile = isDeclarationFile;
         node.ReferencedFiles = referencedFiles;
         node.TypeReferenceDirectives = typeReferences;
