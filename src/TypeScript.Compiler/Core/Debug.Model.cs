@@ -249,6 +249,15 @@ internal static partial class Debug
     /// </remarks>
     public static string FormatTypeFlags(TypeFlags? flags) => FormatEnum(flags ?? 0, isFlags: true);
 
+    /// <summary>ported from: src/compiler/debug.ts:488-490 — <c>formatObjectFlags</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: as in the two formatters above, TS's <c>undefined</c> reaches <c>formatEnum</c>'s default and formats
+    /// as <c>"0"</c> — which for <see cref="ObjectFlags"/> is the member <c>None</c>, so <c>?? 0</c> reproduces both the
+    /// value and the spelling TS produces for it. The only caller is the <c>Debug.fail</c> in
+    /// <c>resolveStructuredTypeMembers</c> (checker.ts:15043).
+    /// </remarks>
+    public static string FormatObjectFlags(ObjectFlags? flags) => FormatEnum(flags ?? 0, isFlags: true);
+
     // ---------------------------------------------------------------------------------------------
     // Flow node debug info
     // ---------------------------------------------------------------------------------------------
@@ -270,4 +279,25 @@ internal static partial class Debug
     /// </para>
     /// </remarks>
     public static FlowNode AttachFlowNodeDebugInfo(FlowNode flowNode) => flowNode;
+}
+
+// ported from: src/compiler/debug.ts:460-468 — `formatNodeCheckFlags`.
+/// <summary>
+/// The node-check-flag word as TS prints it in <c>Debug.formatSyntaxKind</c> style messages.
+/// </summary>
+/// <remarks>
+/// PORT-NOTE: TS resolves each set bit to its <c>NodeCheckFlags</c> member name and joins them; the port does the same
+/// by walking the enum's single-bit members, so a flag added to the generated enum is printed without touching this
+/// member. The checker's <c>calculateNodeCheckFlagWorker</c> default arm (checker.ts:51047) is the only caller.
+/// </remarks>
+public static string FormatNodeCheckFlags(NodeCheckFlags flags)
+{
+    var names = new List<string>();
+    foreach (var value in Enum.GetValues<NodeCheckFlags>())
+    {
+        var single = (NodeCheckFlags)((uint)value & ~((uint)value - 1));
+        if (single == value && value != NodeCheckFlags.None && (flags & value) != 0) names.Add(value.ToString());
+    }
+
+    return names.Count != 0 ? string.Join("|", names) : "None";
 }
