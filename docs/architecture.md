@@ -88,7 +88,7 @@
 | `path.ts` | 1,024 | `Core/` | 路径规范化；C# 对照 `Path` 但**必须复刻 TS 语义**（大小写、`/` 分隔符） |
 | `sys.ts` | 1,826 | `Core/` | `System` 接口：文件读写、目录、环境。**实现依赖上层**：`utilities.ts`（Layer 5）的 `matchFiles`/`resolveJSModule`/`writeFileEnsuringDirectories`、`watch.ts` 的 `closeFileWatcher`，以及 `types.ts` 的 `WatchOptions`/`PollingWatchKind`。顺延到 **M2b** |
 | `semver.ts` | 397 | `Core/` | 版本比较 |
-| `tracing.ts` | 322 | `Core/` | ETW/trace 埋点，可后置 |
+| `tracing.ts` | 375 | `Core/Tracing.cs` | ETW/trace 埋点。已落地（M5 前置：`binder.ts` 的三处调用点需要它）；主机由 `StartTracing` 传入，写入缓冲后交给 `ISystem.WriteFile` —— 见 §10.2 |
 
 ### Layer 1 — 数据模型（全局共享的类型与标志）
 
@@ -360,6 +360,10 @@ P1 自身再分两半，因为两半的前置完全不同（M4e 收口时定的�
 | `Queue<T>`（TS 接口） | `TsQueue<T>` | 避免与 `System.Collections.Generic.Queue<T>` 混淆 |
 | `MultiMap<K,V>`（挂在 Map 实例上） | 组合式 `MultiMap<K,V>` 类 | C# 不能给实例加成员；继承 `Dictionary` 又会与 `Add(TKey,TValue)`（仅返回类型不同）冲突 |
 | `System`（`sys.ts` 的宿主接口） | `ISystem` | `System` 是 C# 的根命名空间 |
+| `tracing`（模块级 `let`） | `Tracing.Current`（可空实例） | `tracing` 在 TS 里是"可能没有"的值，调用点一律 `tracing?.…`，故保留可空形态而非空对象 |
+| `tracingEnabled`（namespace） | `TracingEnabled`（类，单例 `Instance`） | §5 规则 6/12；它的状态要跨 start/stop 存活（legend 累积、`traceCount` 递增） |
+| `tracingEnabled.Args`（索引签名） | `TracingArgs` + `TracingValue` | C# 无对象字面量；值的一元联合用显式标记结构表达（§5 规则 4/10） |
+| `TracingNode.tracingPath`（展开属性） | `Node.TracingPath` | C# 实例无法加展开属性，槽位声明在 `Node` 上，接口本身消失 |
 | `WatchOptions`（接口） | `IWatchOptions`（生成）+ `SysWatch.WatchOptions`（具体实现） | 生成器给接口加 `I` 前缀（D1）；TS 到处写对象字面量，需要一个可构造的具体类型 |
 | `FsWatchCallback` 的 `eventName: "rename" \| "change"` | `SysWatch.FsWatchEventName` | 字面量联合做比较容易写错，而且它是宿主边界（宿主自己映射原生事件） |
 | `sys.ts` 里 `{ getModifiedTime }` / `{ getModifiedTime, setTimeout }` 这类结构化 host 参数 | `IModifiedTimeHost` / `IPollingWatchFileHost` | TS 靠结构兼容，C# 要求具名 |
@@ -385,11 +389,15 @@ P1 自身再分两半，因为两半的前置完全不同（M4e 收口时定的�
 - **`missingFileModifiedTime` 的比较**：TS 比的是**引用**（`existingTime === missingFileModifiedTime`），C# 里是 `DateTimeOffset` 的**值**比较。两者只在"文件确实存在于 epoch 0"时分歧；`getModifiedTime` 的兜底返回的正是那个值，所以保持等价。
 - **`Number(text)`**：JS 对不可解析的输入得到 `NaN`，而 `NaN` 是 falsy，后续 `customLevels[level] || levels[level]` 会退回默认值；移植版的 `Number` 直接退化为 `0`，与 `Levels` 里"0 表示未设置"一致。
 - **"watcher 数量耗尽"**：TS 判 `e.code === "ENOSPC"`；C# 里是 `SysCore.IsSystemWatcherLimitExceeded`（`HResult == 28`，或消息里出现 `ENOSPC` 作为兜底）。
+- **tracing 的 JSON**：TS 把普通 JS 对象交给引擎的 `JSON.stringify`。移植版没有 `JSON.stringify`，追踪自己的值与对象因此有显式形态（`TracingArgs`/`TracingValue`）和一个私有写入器（`TracingJson`），并保留该 API 的三条行为：成员按插入序、值为 `undefined` 的成员不写出、数组里的 `undefined` 写成 `null`。数字用 `Js.NumberToString`（`JSON.stringify` 把非有限数写成 `null` 的那条规则照抄）。
+- **tracing 的写入与主机**：TS 在 `startTracing` 里 `require("fs")` 拿文件描述符（整个编译器只有它绕过 `sys`，因为 `sys.writeFile` 不能流式写）。移植版的主机由 `Tracing.StartTracing` 传入（§13.5 没有全局 `sys`），文本先攒在 `StringBuilder` 里、`StopTracing` 时一次 `ISystem.WriteFile`。两处差异都只在"未走完的运行"里可见：崩溃的进程不会留下 trace（TS 留下被截断的前缀），以及 trace 在生成期间驻留内存（TS 边算边写盘）。
+- **tracing 的宿主依赖**：`getLocation` 用到 `Utilities.GetSourceFileOfNode`/`UnescapeLeadingUnderscores`（都在 Utilities），行号列号走 `ScannerUtilities.ComputeLineAndCharacterOfPosition` —— `ISourceFileLike` 目前没有任何类型实现，所以行起点是从 `SourceFile` 上取的（与 `Utilities.Binder.Diagnostics.cs` 同一处收窄，见该文件的 PORT-NOTE）。
 
 ### 10.3 有意复刻的上游行为（看起来像 bug，但必须保持一致）
 
 - `relativeComplement` 的内层循环一旦耗尽 `arrayA` 就结束本轮 `offsetB`，所以"大于 `arrayA` 全部剩余元素"的 `arrayB` 元素不会进入结果（例如 `relativeComplement([1,3,5], [1,2,3,4,5,6])` 得到 `[2,4]` 而非 `[2,4,6]`）。上游调用方保证 `arrayA` 覆盖 `arrayB` 的最大值，因此该分支不会被触发；移植版保留该语义。
 - `insertSorted` 在"插入位置的前一个元素已相等"时返回 `false` 且不修改数组（只在与后继相等时才替换）。
+- `tracing.ts` 的 `dumpTypes` 给递归身份发号时写的是 `if (!recursionToken)`，而 `0` 也是 falsy：拿到 0 号的身份在后续每次查表时都会被重新编号（`recursionId` 因此会漂移）。它只影响 trace 的 `recursionId` 字段，移植版照抄（`Core/Tracing.cs` 的 `DumpTypes`）。
 
 ### 10.4 尚未移植（有 TODO 标注，随对应层补齐）
 
@@ -1074,6 +1082,8 @@ dotnet run --project tools/AstDiff -- --cases <dir> [--filter <glob>] [--out art
 
 M5-1 之后的 M5-2/3/4 互不依赖，可并行；M5-5 是唯一的汇合点。
 
+**这份计划已全部落地**（见 §15.13）。
+
 ### 两个规划发现
 
 1. **选项模型要提前**：binder 一开局就读 `getEmitScriptTarget(options)`（`binder.ts:571-618`）与 `getAlwaysStrict(options)`（620-628），而 `CompilerOptions` 在 §8 里属 M8。TS 的 `CompilerOptions` 是约 120 个可选槽的**接口**，真正庞大的是 `CommandLineOption` 的解析元数据（M8 的 CLI/tsconfig）。因此 M5 需要的是**接口本身 + 少量读选项的辅助**（`getEmitScriptTarget`/`getStrictOptionValue`/`getAlwaysStrict`），不是那套解析器 —— 这也顺带解掉 M4f 的两处阻塞（§15.11 末尾）。
@@ -1086,6 +1096,65 @@ SourceFile(0,131) symbol=ValueModule:"/p" locals=[C=Class:C:1,a=BlockScopedVaria
 ```
 
 同一套比对对 M6（checker）也是现成的：`getTypeChecker()` 之后要什么字段加什么字段。
+
+---
+
+## 15.13 M5：`binder.ts`（Layer 4）
+
+### 交付
+
+`binder.ts` 3,916 行落到 `Binder/` 下 24 个文件：状态与入口（`createBinder` 闭包 → 每文件实例，`Parser`/`Scanner` 同处理）、符号与声明的整套助手（`createSymbol`/`addDeclarationToSymbol`/`declareSymbol` 的冲突合并全路径/`declareModuleMember`/`getDeclarationName` 的五种名字形态与九 kind switch）、`bindContainer`/`bindEach*`/`bindChildren`、声明绑定器、**流图**（narrowing 谓词、flow 节点工厂、语句/表达式/解构/可选链流、`createBindBinaryExpressionFlow` 的蹦床）、严格模式与 JSDoc 延迟绑定（`checkStrictMode*` 全家族 + `delayedBindJSDocTypedefTag`/`bindJSDocImports` + JSDoc tag 家族）、模块/导出/JS 动态赋值（`bindSourceFileIfExternalModule`…、`bindObjectDefinePropertyExport` 与 expando 家族、`bindCallExpression`），以及 `bindWorker` 的分派。
+
+三处设计选择：
+
+- **`bindWorker` 是 kind→handler 表，不是 `switch`。** TS 用一个 250 行的 `switch (node.kind)`，但那个 switch 是 M5 的唯一串行点：若照抄，四条特征切片都要改同一个文件。端口落成按 kind 索引的静态表（`ForEachChildTable` 的分派先例），各切片各自注册自己那一段，表上带"某 kind 被注册两次或漏注册"的断言（73 个 kind，与参考的 switch 一一对应）。
+- **选项只有 `ICompilerOptions` 一个类型**（生成物，137 槽）。`bindSourceFile` 收它，而 M8 的配置/CLI 解析器与测试 fake（`FakeCompilerOptions`）才是"构造"发生的地方 —— 与 `IReadonlyPragmaContext` ← `SourceFile`、`INodeArray<T>` ← `NodeArray<T>` 同形。计算型读取 `GetEmitScriptTarget`/`GetAlwaysStrict`/`GetStrictOptionValue` 单独成文件，因为 TS 的 `_computedOptions` 元数据表（其解析半边属 M8）没有移植。
+- **`tracing` 子系统照实移植**（`tracing.ts` 322 行），而不是把 binder 的三处 `tracing?.push/pop` 丢掉：侦察表明它卡在 Layer 0 而不是后续层，丢掉的话 Program/Checker/services 以后都得回头处理。可空实例语义对齐 TS 的 `tracing?.…`。
+
+### 验证
+
+| 项 | 结果 |
+|---|---|
+| `dotnet build` | 0 错误 0 警告 |
+| `dotnet test` | **834/834**（三次连跑一致；M5 新增约 140 条） |
+| `tools/Gen --check` | 84 项产物无漂移 |
+| `tools/AstDiff` 全量 | **19,585 / 19,585 逐字节一致**（M5 没有扰动解析器） |
+| `tools/BindDiff`（新增，绑定的流程/流图差分） | **19,233 / 19,233 逐字节一致**（diverged=0、port-crash=0；3 个 `ts-error` 是参考实现自己对深递归压力用例栈溢出，见下） |
+
+**`tools/BindDiff`** 是 P1a 的做法搬到 binder：真 `lib/typescript.js` 的 `createProgram` + `getTypeChecker()`（后者是触发绑定的唯一途径）dump 出每个节点的 `flowNode`/`endFlowNode`/`flowNodeWhenTrue`/`flowNodeWhenFalse`/`fallthroughFlowNode`/`possiblyExhaustive` 以及流节点自身的 `FlowFlags`、payload 与前驱（`F#<id>` 行、前驱按首现编号 `#id`），端口侧 dump 同一套字段，逐字节比。字段选择本身就是合同：**只有 binder 写下的槽**参与比较，所以一条差异必然是绑定行为的差异，而不是 checker 的。
+
+覆盖面：语料里 18,876 个 `.ts`、333 个 `.tsx`、24 个 `.js`（合计 19,233）参与比较；351 个 `.json` 与 1 个 `.txt` 由解析差分覆盖（JSON 没有可比的流图）。3 个 `ts-error` 全部是**参考实现自身的限制**：`binderBinaryExpressionStress.ts`、`binderBinaryExpressionStressJs.ts`、`largeControlFlowGraph.ts` 上 TS 自己的 binder 抛 `Maximum call stack size exceeded`，而端口侧 0 崩溃（工具在 256 MiB 预留栈的线程上跑 binder，与 `tools/AstDiff` 同一处理）。
+
+### dump 的内存：从数十 GB 修到数百 MB
+
+第一次全量跑时 C# 侧峰值达 **40 GB**（`BindDiff.exe`），node 侧在 5,908 个文件的子集上就有 897 MiB。两个真因都在 dump 的写法上，而不是在绑定本身：
+
+1. **编号表建在 `key` 调用里**：同一个流图在文件里被引用上千次，每次引用都重新编号、重新整份打印。
+2. **前驱描述被拼成嵌套字符串**：`ante=<另一个节点的完整描述>`，于是每个祖先的字符串里都嵌着一整棵子图。
+
+两条都让输出随"引用次数 × 子图大小"增长，而不是随流图大小增长。修法是格式级的：**每文件一张编号表、每个流节点只打印一次、所有指向流节点的字段一律是 `#id` 引用**（`F#<id> flags=… ante=…` 加可选的 payload 行）。两侧（`Program.cs` 的 `FlowDumper` 与 `ts-flow-dump.cjs` 的 `flowDumper`）同步改，格式即契约。
+
+修后实测（全量 19,233 个文件，34.6 秒）：
+
+| | 修前 | 修后 |
+|---|---|---|
+| C# 侧峰值 | ~40 GB（用户实测） | **229 MiB** |
+| node 侧峰值 | 897 MiB @5,908 文件（全量更高） | **≤250 MiB**（每批 250 个文件，`--node-batch`） |
+| 端口遍历耗时 | 3.5s @5,908 | **2.2s @5,908** |
+
+工具现在在报告里自报自己的峰值工作集，并在每批 node 的输出里带上它自报的 `maxRSS` —— 这类"dump 比图长得快"的回归会直接显示在两行数字上。
+
+### 集成期修掉的两个问题
+
+1. **测试程序集必须串行**（`AssemblyInfo.cs` 的 `CollectionBehavior(DisableTestParallelization = true)`）。症状是**失败集合每次运行都不同**：端口忠实保留了参考实现的若干进程级状态（`Tracing.Current` 单例、flow 节点 id 计数器），而 xUnit 默认并行跑不同 collection —— 一个 tracing 测试开启单例期间，另一个测试里的 `bindSourceFile` 会调 `Tracing.Current?.Pop()`，于是弹出别人的事件并撞上 "results are not supported for events with separateBeginAndEnd" 断言。每个测试自己的 `finally` 收尾挡不住*并发*读者，所以这是程序集级的决定，而不是某个测试的问题。
+2. **两处随进度变化的断言**：`BinderSkeletonTests` 的 `ClassifiableNames` 期望值随 `ImportSpecifier` 臂落地而多了 `q`（`Classifiable` 包含 `Alias`，新值才是对的，已重钉并注明缘由）；同一文件里的 `SymbolCount == 11` 则是"走到哪算哪"的数字（从 11 变 13），按 §5.5 删掉而不是重钉 —— 符号本身由 `BinderModuleExpandoTests`/`BinderFlowTests` 断言。
+
+### 遗留
+
+- **`bindWorker` 未做成真正的"注册表 + 各切片自注册"**：现在是一张表加四个分段注册方法（`AddCoreWorkerHandlers` 等），仍在同一批文件里。若 M6 之后还有切片要加 kind，应该把注册点拆到各自文件。
+- **flow 节点 id 是进程级的**（与参考一致）：`BindDiff` 的 dump 因此不能跨文件比较 id，工具只比较同一次运行内的相对编号。
+- **`.symbols` baseline 仍属 §7 的 P2**：`BindDiff` 比的是 binder 写下的槽，不含 checker 的符号解析结果。
+- M5-0 已记的 `TransientSymbol`/`SymbolLinks` 属 M6；`convertToJson`（M8）、`IsJSDocTypeAssertion` 的 JSDoc 归属家族、`SupportedDeclarationExtensions` 三处 M4e 残留不变。
 
 ---
 
