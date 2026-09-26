@@ -24,7 +24,7 @@ public class GeneratedTablesTests
             tsRoot,
             Path.Combine(repoRoot, "artifacts", "ts-model.test.json"),
             Generator.TypeModelSources);
-        var files = Generator.Generate(model);
+        var files = Generator.Generate(model, tsRoot);
 
         Assert.NotEmpty(files);
         foreach (var file in files)

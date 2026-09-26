@@ -100,7 +100,7 @@
 
 ### Layer 2 — 词法
 
-`scanner.ts`（3,823）— `Scanner`（`createScanner`）、字符分类表、`textToKeywordObj` 关键字表。
+`scanner.ts`（4,101）— `Scanner`（`createScanner`）、字符分类表、`textToKeywordObj` 关键字表、Unicode 标识符表。
 
 ### Layer 3 — 语法
 
@@ -309,6 +309,7 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 | **M2** | Layer 1：`types.ts` 的枚举与标志（`SyntaxKind` 全量、`Extension`、`ScriptTarget`…）+ `Node` 类型层级 | 枚举值与 TS 逐项校验（`tools/gen` 脚本比对） |
 | **M2b** | 节点模型：`types.ts` 的接口/类型别名 → 268 个类 + 269 个接口（见 §12） | 生成物编译通过；继承链与能力接口单测 |
 | **M2c** | Layer 0 其余：`sys.ts` 的宿主接口与纯逻辑（`getNodeSystem` 除外，见 §13）、`performance.ts` | 宿主抽象与计时埋点单测 |
+| **M3a** | Layer 1 补充：诊断基础设施 —— 全量诊断表由 `tools/Gen` 从 `diagnosticMessages.json` 生成（2,130 条），加 `DiagnosticMessage` | 生成物编译通过；名字改写规则与全表不变量单测 |
 | **M3** | Layer 2：`Scanner` 全量 | 单测：token 流、trivia、错误恢复、关键字表 |
 | **M4** | Layer 3：`Parser` + `NodeFactory` | 能对 conformance 用例产出 AST；语法诊断 baseline 对齐 |
 | **M5** | Layer 4：`Binder` | `.symbols` baseline 对齐（作用域/符号） |
@@ -456,7 +457,7 @@ dotnet run --project tools/Gen -- --check    # 只校验不写入（CI / 本地�
 ```
 
 - **输入基准**：`tools/ts-source.txt` 里记录的 checkout（当前为 release-6.0 @ `050880ce59`，版本 6.0.3）。移动基准时先改这里的注释，再重跑生成器。
-- **覆盖**：`SyntaxKind`（396 个成员，其中 37 个是哨兵别名）、`NodeFlags`、`ModifierFlags`、`JsxFlags`、`SymbolFlags`、`CheckFlags`、`NodeCheckFlags`、`TypeFlags`、`SignatureFlags`、`TransformFlags`、`EmitFlags`。
+- **覆盖**：`SyntaxKind`（396 个成员，其中 37 个是哨兵别名）、`NodeFlags`、`ModifierFlags`、`JsxFlags`、`SymbolFlags`、`CheckFlags`、`NodeCheckFlags`、`TypeFlags`、`SignatureFlags`、`TransformFlags`、`EmitFlags`，以及诊断表（`diagnosticMessages.json` → `Model/Diagnostics.cs`，2,130 条）。
 - **保证**：单元测试 `GeneratedTablesTests` 直接调用 `Generator.Generate` 与仓库内文件逐字节比对，所以 `--check` 的约束在 `dotnet test` 里同样成立；TS 源更新后忘记重跑生成器会立刻失败。
 - **边界**：生成器只理解 TS 写这些表用的形态（成员名、可选 `=` 表达式、`/** */`、`//`、跨行的 `|` 链）。遇到别的写法会**报错退出**，不猜测。
 
@@ -474,7 +475,7 @@ dotnet run --project tools/Gen -- --check    # 只校验不写入（CI / 本地�
 5. **`types.ts` 的接口分两类生成：链上的 → C# 类，分类接口与 mixin → C# 接口。** 判据是**位置**而非形状：TS 把节点的分类链写在 `extends` 首位、mixin 写在后面（`CallExpression extends LeftHandSideExpression, Declaration`）。
    - 只在首位出现过的接口 → 类：`Expression`、`LeftHandSideExpression`、`LiteralLikeNode`、`BinaryExpression`…
    - 出现过非首位的接口 → 接口：`Declaration`（`SourceFile` 放首位、`Identifier` 放次位）、`JSDocContainer`、`LocalsContainer`、`FlowContainer`，以及 `PrimaryExpression`（`Identifier` 放首位，但 `LiteralExpression extends LiteralLikeNode, PrimaryExpression` 放次位）。
-   - 结果：**268 个类 / 255 个接口**，`CallExpression` 的链解析为 `CallExpression → LeftHandSideExpression → UpdateExpression → UnaryExpression → Expression → Node` ✓
+   - 结果：**268 个类 / 269 个接口**，`CallExpression` 的链解析为 `CallExpression → LeftHandSideExpression → UpdateExpression → UnaryExpression → Expression → Node` ✓
    - 代价：`Identifier` 的 C# 基类因此是 `Node` 而非 `PrimaryExpression`（后者降为接口）。分类接口本身没有实字段（只有 brand），所以类型关系通过接口完整保留，不丢信息。
    - `PunctuationToken`/`KeywordToken`/`ModifierToken`/`NodeArray` 只经**类型别名**到达（`type DotToken = PunctuationToken<SyntaxKind.DotToken>`），位置规则看不到，用显式清单标为类。这也是 token 家族只需要少数几个类、而不是 187 个空类的原因。
    - 泛型参数在比较基名时必须剥离（`PunctuationToken<TKind>` → `PunctuationToken`），否则继承图与角色判定全线失配。
@@ -482,6 +483,11 @@ dotnet run --project tools/Gen -- --check    # 只校验不写入（CI / 本地�
 6. **类型模型的输入源是 TypeScript 编译器自己的解析器，不是 C# 侧的行扫描。** 最初生成器用行扫描 + 正则啃 `types.ts`，在修掉五个坑之后仍然是脆弱的：成员省略分号、泛型参数里嵌套尖括号、单行接口、`}` 与下一个声明同行、`const enum` 值跨行。既然 checkout 的 `lib/typescript.js` 就是完整的 6.0.3 编译器，改由 `tools/Gen/extract.cjs`（Node）用它解析并输出 JSON，C# 侧只做反序列化。
    - 提取出的模型与行扫描在**接口数与别名数上完全一致**（523 / 274），但**成员数从 3011 降到 1832** —— 行扫描把 `foo(x): void;` 这类方法签名也当成了数据成员，而 `ts.isPropertySignature` 正确排除了它们。
    - `node` 依赖被限定在生成环节：`src/` 下没有任何东西依赖它，提取出的 JSON 写在 `artifacts/`（不提交）。
+
+7. **诊断表的成员名必须逐字符复刻 TS 自己的改写，不能另起一套命名。** 源表（`diagnosticMessages.json`）以**消息文本本身**为 key，C# 成员名是它经过 `scripts/processDiagnosticMessages.mjs` 的 `convertPropertyName` 得到的结果。移植代码里写的正是 `Diagnostics.Unexpected_character` 这类名字，改名等于每个调用点都编译不过。
+   - 规则：`*`、`/`、`:` → `_Asterisk`、`_Slash`、`_Colon`；其余非 `\w` 字符 → `_`（JS 的 `\w` 是 ASCII-only，生成器里写成显式字符类）；连续下划线压缩成一个；开头的下划线若后面不是数字则去掉；结尾下划线去掉（TS 的正则没有 `/g`，只去一个）。
+   - `key`（本地化用）＝"成员名前 100 字符 + `_` + code"，`slice(0, 100)` 照抄；表里 281 条消息的名字超过 100 字符。
+   - 生成器多做两项检查（TS 的脚本只查 code 唯一）：成员名不得重复（JS 对象字面量会静默保留后者，C# 里是编译错误），成员名必须是合法 C# 标识符（`1st line` 在 JS 里是合法 key，在 C# 里不是）。
 
 ---
 

@@ -87,7 +87,7 @@ internal static class Program
         List<GeneratedFile> files;
         try
         {
-            files = Generator.Generate(model, outRoot, warn: m => Console.Error.WriteLine($"gen: {m}"));
+            files = Generator.Generate(model, tsRoot, outRoot, warn: m => Console.Error.WriteLine($"gen: {m}"));
         }
         catch (Exception ex) when (ex is InvalidOperationException or FileNotFoundException)
         {

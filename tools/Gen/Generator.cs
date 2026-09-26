@@ -80,7 +80,12 @@ internal static class Generator
     private static readonly HashSet<string> s_handWrittenEnums = new(StringComparer.Ordinal) { "CharacterCodes" };
 
     /// <summary>Generates every table and the node model from the extracted type model.</summary>
-    public static List<GeneratedFile> Generate(TsModel model, string outputRoot = DefaultOutputRoot, Action<string>? warn = null)
+    /// <param name="tsRoot">The TypeScript checkout the sources are read from.</param>
+    public static List<GeneratedFile> Generate(
+        TsModel model,
+        string tsRoot,
+        string outputRoot = DefaultOutputRoot,
+        Action<string>? warn = null)
     {
         var files = new List<GeneratedFile>();
         var configured = Specs.ToDictionary(static s => s.Name, StringComparer.Ordinal);
@@ -106,6 +111,10 @@ internal static class Generator
 
         files.Add(new GeneratedFile($"{outputRoot}/Model/NodeInterfaces.cs", interfaceSource));
         files.Add(new GeneratedFile($"{outputRoot}/Model/NodeClasses.cs", classSource));
+
+        // The diagnostic table has its own source (a JSON table rather than type declarations), but it is
+        // generated and checked in the same way, so it belongs in the same list.
+        files.Add(DiagnosticEmitter.Emit(tsRoot, outputRoot));
 
         return files;
     }
