@@ -72,6 +72,11 @@ namespace TypeScript.Compiler;
 internal sealed partial class Checker
 {
     /// <summary>ported from: src/compiler/checker.ts:1528 — <c>compilerOptions</c>.</summary>
+    // ported from: src/compiler/checker.ts:1486 — `createTypeChecker`'s `host` parameter.
+    // PORT-NOTE: TS closes over the parameter; the port stores it, so every slice that needs the host reads `_host`
+    // instead of the slices each declaring a copy (checker.ts reads it at :11172, :1611-1613, :3001, :21589/21597, …).
+    internal readonly ITypeCheckerHost _host;
+
     internal readonly ICompilerOptions _compilerOptions;
 
     /// <summary>
@@ -87,6 +92,7 @@ internal sealed partial class Checker
     /// </remarks>
     internal Checker(ITypeCheckerHost host)
     {
+        _host = host;
         _compilerOptions = host.GetCompilerOptions();
 
         // checker.ts:1529, 1531, 1535-1547, 1569-1570
