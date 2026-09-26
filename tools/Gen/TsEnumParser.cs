@@ -115,7 +115,7 @@ internal static class TsEnumParser
             // A block comment may be standalone, may share the line with its member, and may span lines.
             if (line.StartsWith("/*", StringComparison.Ordinal))
             {
-                var (doc, remainder) = ReadBlockComment(lines, ref i, closeLine, raw);
+                var (doc, remainder) = TsComments.ReadBlock(lines, ref i, raw);
                 line = remainder.Trim();
                 if (line.Length == 0)
                 {
@@ -226,52 +226,6 @@ internal static class TsEnumParser
             EndLine = closeLine + 1,
             Members = members,
         };
-    }
-
-    /// <summary>
-    /// Reads a <c>/* … */</c> block starting at line <paramref name="i"/> (which contains the opener),
-    /// advancing <paramref name="i"/> past the line holding the terminator.
-    /// </summary>
-    private static (string Doc, string Remainder) ReadBlockComment(string[] lines, ref int i, int limit, string firstLine)
-    {
-        var sb = new StringBuilder();
-        sb.Append(firstLine);
-
-        while (true)
-        {
-            var end = lines[i].IndexOf("*/", StringComparison.Ordinal);
-            if (end >= 0)
-            {
-                var remainder = lines[i][(end + 2)..];
-                return (CleanDoc(sb.ToString()), remainder);
-            }
-
-            if (i >= limit)
-            {
-                throw new InvalidOperationException($"Unterminated block comment starting at line {i + 1}.");
-            }
-
-            i++;
-            sb.Append('\n').Append(lines[i]);
-        }
-    }
-
-    /// <summary>Strips the delimiters and decorative asterisks from a doc block, collapsing it to one line.</summary>
-    private static string CleanDoc(string block)
-    {
-        var body = block;
-
-        var start = body.IndexOf("/*", StringComparison.Ordinal);
-        if (start >= 0) body = body[(start + 2)..];
-
-        var end = body.IndexOf("*/", StringComparison.Ordinal);
-        if (end >= 0) body = body[..end];
-
-        return string.Join(
-            " ",
-            body.Split('\n')
-                .Select(static l => l.Trim().TrimStart('*').Trim())
-                .Where(static l => l.Length != 0));
     }
 
     private static bool IsIdentifier(string text)

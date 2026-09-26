@@ -20,6 +20,7 @@ internal static class Program
         string? tsRoot = null;
         var outRoot = Generator.DefaultOutputRoot;
         var check = false;
+        var stats = false;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -39,6 +40,9 @@ internal static class Program
                 case "--check":
                     check = true;
                     break;
+                case "--stats":
+                    stats = true;
+                    break;
                 case "--help" or "-h":
                     PrintUsage();
                     return 0;
@@ -57,6 +61,11 @@ internal static class Program
             Console.Error.WriteLine($"gen: TypeScript source root not found: '{tsRoot}'");
             Console.Error.WriteLine("     pass --ts-root <path> or fix tools/ts-source.txt");
             return 2;
+        }
+
+        if (stats)
+        {
+            return PrintInterfaceStats(tsRoot);
         }
 
         List<GeneratedFile> files;
@@ -99,6 +108,79 @@ internal static class Program
         return hadDrift ? 1 : 0;
     }
 
+    /// <summary>Reports how much of <c>types.ts</c> the interface parser currently understands.</summary>
+    private static int PrintInterfaceStats(string tsRoot)
+    {
+        var path = Path.Combine(tsRoot, "src", "compiler", "types.ts");
+        var interfaces = TsInterfaceParser.Parse(File.ReadAllText(path));
+
+        var concrete = interfaces.Where(static i => i.HasConcreteKind).ToList();
+        var abstractOnes = interfaces.Where(static i => !i.HasConcreteKind).ToList();
+
+        Console.WriteLine($"interfaces parsed      : {interfaces.Count}");
+        Console.WriteLine($"  concrete nodes       : {concrete.Count}");
+        Console.WriteLine($"  capability/abstract  : {abstractOnes.Count}");
+        Console.WriteLine($"members total          : {interfaces.Sum(static i => i.Members.Count)}");
+        Console.WriteLine($"empty interfaces       : {interfaces.Count(static i => i.Members.Count == 0)}");
+        Console.WriteLine($"interfaces with bases  : {interfaces.Count(static i => i.Extends.Count != 0)}");
+        Console.WriteLine($"interfaces w/ generics : {interfaces.Count(static i => i.TypeParameters.Count != 0)}");
+
+        Console.WriteLine();
+        Console.WriteLine("largest interfaces:");
+        foreach (var i in interfaces.OrderByDescending(static i => i.Members.Count).Take(10))
+        {
+            Console.WriteLine($"  {i.Name,-42} {i.Members.Count,3} members, extends [{string.Join(", ", i.Extends)}]");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("kinds not covered by a concrete interface (declared as type aliases):");
+        var source = File.ReadAllText(path);
+        var kindNames = TsEnumParser.Parse(source, "SyntaxKind").Members.Select(static m => m.Name).ToHashSet(StringComparer.Ordinal);
+        var fromInterfaces = concrete.Select(static i => i.ConcreteKind!).ToHashSet(StringComparer.Ordinal);
+        var missing = kindNames.Where(k => !fromInterfaces.Contains(k)).ToList();
+        Console.WriteLine($"  {missing.Count} of {kindNames.Count} SyntaxKind members");
+        Console.WriteLine($"  sample: {string.Join(", ", missing.Take(25))}");
+
+        Console.WriteLine();
+        Console.WriteLine("member type shapes:");
+        var shapes = interfaces
+            .SelectMany(static i => i.Members)
+            .GroupBy(static m => ClassifyShape(m.Type))
+            .OrderByDescending(static g => g.Count());
+        foreach (var group in shapes)
+        {
+            Console.WriteLine($"  {group.Key,-22} {group.Count(),5}");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("sample members of each shape:");
+        foreach (var group in shapes)
+        {
+            var sample = group.First();
+            Console.WriteLine($"  {group.Key,-22} {sample.Name}: {Truncate(sample.Type, 80)}");
+        }
+
+        return 0;
+    }
+
+    private static string ClassifyShape(string type)
+    {
+        var t = type.Trim();
+        if (t.Contains("=>", StringComparison.Ordinal)) return "function";
+        if (t.Contains("keyof ", StringComparison.Ordinal)) return "keyof";
+        if (t.Contains(" extends ", StringComparison.Ordinal)) return "conditional";
+        if (t.Contains('{')) return "object-literal";
+        if (t.StartsWith("readonly ", StringComparison.Ordinal) && t.EndsWith("[]", StringComparison.Ordinal)) return "readonly-array";
+        if (t.EndsWith("[]", StringComparison.Ordinal)) return "array";
+        if (t.Contains('|')) return "union";
+        if (t.Contains('&')) return "intersection";
+        if (t.Contains('<')) return "generic";
+        return "simple";
+    }
+
+    private static string Truncate(string text, int max)
+        => text.Length <= max ? text : text[..max] + "…";
+
     private static string FindRepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
@@ -127,9 +209,10 @@ internal static class Program
 
     private static void PrintUsage()
     {
-        Console.WriteLine("usage: dotnet run --project tools/Gen -- [--ts-root <path>] [--out <dir>] [--check]");
+        Console.WriteLine("usage: dotnet run --project tools/Gen -- [--ts-root <path>] [--out <dir>] [--check] [--stats]");
         Console.WriteLine("  --ts-root  TypeScript checkout to read (default: tools/ts-source.txt)");
         Console.WriteLine($"  --out      output root, relative to the repo (default: {Generator.DefaultOutputRoot})");
         Console.WriteLine("  --check    verify generated files are up to date without writing");
+        Console.WriteLine("  --stats    report how much of types.ts the interface parser understands");
     }
 }
