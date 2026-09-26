@@ -339,10 +339,12 @@ internal sealed partial class DeclarationTransformer
     private void CheckEntityNameVisibility(Node entityName, Node enclosingDeclaration)
     {
         var visibilityResult = _resolver.IsEntityNameVisible(entityName, enclosingDeclaration);
-        // PORT-NOTE: TS's `isEntityNameVisible` answers `SymbolVisibilityResult` and its caller passes it to
-        // `handleSymbolAccessibilityError(symbolAccessibilityResult: SymbolAccessibilityResult)`; the port's resolver
-        // slot is the widened `ISymbolVisibilityResult`, whose runtime value is the same `SymbolAccessibilityResult`
-        // the checker built (the extra `errorModuleName` slot the diagnostic path reads is on the derived class).
+        // PORT-NOTE: TS's `isEntityNameVisible` answers `SymbolVisibilityResult` and its caller passes it straight to
+        // `handleSymbolAccessibilityError(symbolAccessibilityResult: SymbolAccessibilityResult)`; TS's `errorModuleName`
+        // is optional, so the base-shaped object satisfies that type and the pass-through is legal. The port's resolver
+        // slot answers the base interface, whose only producer builds the derived `SymbolAccessibilityResult`
+        // (Checker.Stringify.cs's `isEntityNameVisible`, the treatment `hasVisibleDeclarations` already records), so the
+        // downcast is that same pass-through stated for a model whose interfaces are not structurally compatible.
         HandleSymbolAccessibilityError((ISymbolAccessibilityResult)visibilityResult);
     }
 
@@ -506,9 +508,8 @@ internal sealed partial class DeclarationTransformer
     /// <remarks>
     /// <para>
     /// PORT-NOTE: the reference's <c>visitLateVisibilityMarkedStatements</c> is a nested function here for the same
-    /// reason; its <c>isArray(result)</c> test is <c>is not Node</c> over the <c>object?</c> the map holds (a
-    /// <c>NodeArray</c> is not a <see cref="Node"/>), which is how the two arms of <c>some(result, needsScopeMarker)</c>
-    /// are discriminated.
+    /// reason; the two arm tests of its <c>Node | readonly Node[]</c> replacement are the local
+    /// <c>AnyReplacement</c> at the end of this member (its own PORT-NOTE records the container question).
     /// </para>
     /// <para>
     /// PORT-NOTE: TS's <c>Debug.fail</c> for a late statement the transformer does not handle is
@@ -561,17 +562,13 @@ internal sealed partial class DeclarationTransformer
                     _lateStatementReplacementMap.Remove(key);
                     if (result is not null)
                     {
-                        if (result is Node resultNode
-                            ? Utilities.NeedsScopeMarker((IStatement)resultNode)
-                            : Core.Some((IList<IStatement>)result, (IStatement n, int _) => Utilities.NeedsScopeMarker(n)))
+                        if (AnyReplacement(result, n => Utilities.NeedsScopeMarker(n)))
                         {
                             // Top-level declarations in .d.ts files are always considered exported even without a modifier unless there's an export assignment or specifier
                             _needsScopeFixMarker = true;
                         }
                         if (statement.Parent is not null && NodeTests.IsSourceFile(statement.Parent)
-                            && (result is Node externalModuleIndicator
-                                ? Utilities.IsExternalModuleIndicator((IStatement)externalModuleIndicator)
-                                : Core.Some((IList<IStatement>)result, (IStatement n, int _) => Utilities.IsExternalModuleIndicator(n))))
+                            && AnyReplacement(result, n => Utilities.IsExternalModuleIndicator(n)))
                         {
                             _resultHasExternalModuleIndicator = true;
                         }
@@ -580,6 +577,25 @@ internal sealed partial class DeclarationTransformer
                 }
             }
             return statement;
+        }
+
+        // PORT-NOTE: the two tests above are the reference's `isArray(result) ? some(result, test) : test(result)` over
+        // `Statement | readonly Statement[] | undefined`. The array arm's container is whatever the replacement's
+        // `transformTopLevelDeclaration` arm built — an `object?[]` for the export-assignment split
+        // (DeclarationsTransform.Statements.cs:466) — so the arm is read with <see cref="Utilities.IsNodeArray"/> (the
+        // visitor's own test for a visitor's array answer, Utilities.Visitor.cs:106) and an element loop, which is the
+        // general container the `some` call cannot state as one cast.
+        bool AnyReplacement(object? result, Func<IStatement, bool> test)
+        {
+            if (!Utilities.IsNodeArray(result))
+            {
+                return test((IStatement)result!);
+            }
+            foreach (var element in (System.Collections.IEnumerable)result!)
+            {
+                if (test((IStatement)element!)) return true;
+            }
+            return false;
         }
     }
 

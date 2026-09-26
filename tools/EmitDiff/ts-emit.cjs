@@ -5,6 +5,11 @@
 // (port-hashes.txt, written by the C# tool before this runs).
 //
 // usage: node ts-emit.cjs --manifest <json> --out <dir> --js <lib/typescript.js>
+//            [--source-map] [--inline-source-map] [--inline-sources] [--source-root <d>] [--map-root <d>]
+//
+// The `--source-map` family extends the option object both halves are handed together with tools/EmitDiff/Program.cs's
+// PortOptions: nothing else about the run changes, and the flags are the only way a `.js.map` (or an inlined map) is
+// produced for the comparison to see.
 //
 // Outputs, all in --out: ts-hashes.txt ("<rel>\t<hash>\t<length>" per file, manifest order), ts-errors.txt (only if a
 // file could not be emitted), ts/<rel>.js (the diverging files' dumps) and one summary line on stdout.
@@ -136,6 +141,10 @@ function main() {
     // also needs to say where to read the port's hashes and where to put its own outputs, since several batches share
     // one output directory.
     let portHashesArg, hashesArg, errorsArg, dumpsDir;
+    // The source-map slots tools/EmitDiff/Program.cs's PortOptions sets from its own --source-map-family flags; the two
+    // option objects are changed together, so a flag that was not given leaves the matching key absent here.
+    let sourceMap = false, inlineSourceMap = false, inlineSources = false;
+    let sourceRoot, mapRoot;
     for (let i = 0; i < args.length; i++) {
         switch (args[i]) {
             case "--manifest": manifestPath = args[++i]; break;
@@ -145,6 +154,11 @@ function main() {
             case "--hashes": hashesArg = args[++i]; break;
             case "--errors": errorsArg = args[++i]; break;
             case "--dumps": dumpsDir = args[++i]; break;
+            case "--source-map": sourceMap = true; break;
+            case "--inline-source-map": inlineSourceMap = true; break;
+            case "--inline-sources": inlineSources = true; break;
+            case "--source-root": sourceRoot = args[++i]; break;
+            case "--map-root": mapRoot = args[++i]; break;
             default: throw new Error("unknown argument '" + args[i] + "'");
         }
     }
@@ -167,6 +181,20 @@ function main() {
         newLine: ts.NewLineKind.LineFeed,
         suppressOutputPathCheck: true,
     };
+
+    // The source-map slots, set only when the matching flag came in: an absent key is the reference's `undefined` and is
+    // what PortOptions leaves the slot as, so a run without these flags is handed this exact object.
+    //   sourceMap: `<name>.js.map` beside the `.js`, plus the `//# sourceMappingURL=` comment in it (emitter.ts:535-537,
+    //     997-1055).
+    //   inlineSourceMap: the same map inlined into the `.js` as a `data:application/json;base64,` URL, and no `.map`.
+    //   inlineSources: `sourcesContent` in the map (the printer's setSourceMapSource, emitter.ts:6306-6311).
+    //   sourceRoot / mapRoot: the map's `sources` prefix and the comment's path (getSourceMapDirectory /
+    //     getSourceMappingURL, emitter.ts:1011-1055).
+    if (sourceMap) options.sourceMap = true;
+    if (inlineSourceMap) options.inlineSourceMap = true;
+    if (inlineSources) options.inlineSources = true;
+    if (sourceRoot !== undefined) options.sourceRoot = sourceRoot;
+    if (mapRoot !== undefined) options.mapRoot = mapRoot;
 
     const portHashes = new Map();
     const portHashesPath = portHashesArg || path.join(outDir, "port-hashes.txt");

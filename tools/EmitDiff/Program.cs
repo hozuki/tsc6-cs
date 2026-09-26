@@ -12,9 +12,10 @@ namespace TypeScript.Compiler.Tools;
 
 /// <summary>
 /// EmitDiff — the emission half of docs/architecture.md §7's outer loop, and the M7 `.js` differential (§17.5): compile
-/// every file of a corpus twice, once with the port's <c>Program.Emit</c> and once with the real compiler, capture the
-/// emitted JavaScript from each side's <c>writeFile</c>, hash it byte for byte, and report the files whose hashes
-/// differ together with their first differing line pair.
+/// every file of a corpus twice, once with the port's <c>Program.Emit</c> and once with the real compiler, capture every
+/// output each side's <c>writeFile</c> callback was handed (the emitted JavaScript, and — when the source-map flags are
+/// on — the <c>.js.map</c> or the inlined map, in the order the emitter wrote them), hash it byte for byte, and report
+/// the files whose hashes differ together with their first differing line pair.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -40,18 +41,21 @@ namespace TypeScript.Compiler.Tools;
 /// </para>
 /// <para>
 /// Both halves are handed the same option object (<c>target: ESNext</c>, <c>module: ESNext</c>, <c>allowJs: true</c>,
-/// <c>newLine: LineFeed</c>, <c>suppressOutputPathCheck: true</c> — see <see cref="PortOptions"/>) and the same
-/// one-file host: a program of exactly that one file, no default library and no module resolution. Emit is captured
-/// through the callback and nothing else, on both sides (program.ts:2598-2637's <c>writeFile: writeFileCallback ||
-/// writeFile</c>), so neither half implements an emit host of its own.
+/// <c>newLine: LineFeed</c>, <c>suppressOutputPathCheck: true</c>, plus the source-map family when a
+/// <c>--source-map</c>-family flag asked for it — see <see cref="PortOptions"/>) and the same one-file host: a program
+/// of exactly that one file, no default library and no module resolution. Emit is captured through the callback and
+/// nothing else, on both sides (program.ts:2598-2637's <c>writeFile: writeFileCallback || writeFile</c>), so neither
+/// half implements an emit host of its own — and every output the emitter hands that callback is what gets compared,
+/// which is why a <c>--source-map</c> run compares the <c>.js.map</c> and the <c>//# sourceMappingURL=</c> comment
+/// beside the <c>.js</c> without the dump's format changing at all: its <c>begin</c>/<c>end</c> pair already repeats
+/// once per output.
 /// </para>
 /// <para>
-/// The port cannot emit anything until M7's transformer chain and emitter land: <c>Program.Emit</c> is one of that
-/// milestone's loud, named blockers, and so is the transformer list it will ask for next (<c>getTransformers</c>). A
-/// port-side <c>NotSupportedException</c> is therefore *data*, not a harness failure: each file it happens on is
-/// recorded in <c>port-crashes.txt</c> as <c>port-crash: NotSupportedException: …</c>, it counts against the verdict,
-/// and the file never reaches the comparison — a boundary that has not been implemented can never read as agreement.
-/// Nothing is stubbed on either side.
+/// The port's emit is live (M7 landed <c>Program.Emit</c>, the transformer chain and the emitter), so this tool no
+/// longer reports a boundary: a port-side <c>NotSupportedException</c> is still *data* rather than a harness failure
+/// — each file it happens on is recorded in <c>port-crashes.txt</c> as <c>port-crash: NotSupportedException: …</c>, it
+/// counts against the verdict, and the file never reaches the comparison, because a boundary that has not been
+/// implemented can never read as agreement. Nothing is stubbed on either side.
 /// </para>
 /// <para>
 /// The tool never runs <c>node</c> once per file: it hands a whole batch of files to <c>ts-emit.cjs</c> in one process
@@ -79,10 +83,17 @@ internal static partial class Program
           --node <exe>       node executable (default: node)
           --node-script <f>  the batch TS emitter (default: <tool bin>/ts-emit.cjs)
           --node-batch <n>   files per node process (default: 250; each batch reports its own peak RSS)
+          --source-map       emit `<name>.js.map` plus the `//# sourceMappingURL=` comment (both halves)
+          --inline-source-map  inline the map into the `.js` as a `data:` URL instead of a `.js.map` (both halves)
+          --inline-sources   include each source's text in the map as `sourcesContent` (both halves)
+          --source-root <d>  `sourceRoot` written into the map (both halves; no effect without a map option)
+          --map-root <d>     `mapRoot`: where the map is expected to be published (both halves)
 
         Both halves are handed the same options: target=ESNext, module=ESNext, allowJs=true, newLine=LF,
-        suppressOutputPathCheck=true. Files are the `.ts`/`.tsx`/`.js`/`.jsx`/`.mjs`/`.cjs` ones under --cases; JSON
-        files are skipped because the port's JSON conversion is a named M8 residual, not an emitter concern.
+        suppressOutputPathCheck=true, plus whatever the source-map flags above add (the node half's `options` object and
+        this tool's PortOptions must be changed together). Files are the `.ts`/`.tsx`/`.js`/`.jsx`/`.mjs`/`.cjs` ones
+        under --cases; JSON files are skipped because the port's JSON conversion is a named M8 residual, not an emitter
+        concern.
 
         Exit code: 0 = every hash matched, 1 = divergences or crashes were found (see <out>/report.txt),
         2 = bad arguments, 3 = node could not run.
@@ -220,7 +231,7 @@ internal static partial class Program
 
             try
             {
-                var dump = EmitWithPort(file, text);
+                var dump = EmitWithPort(settings, file, text);
                 hashes.WriteLine($"{file.Rel}\t{Hash(dump):x16}\t{dump.Length}");
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -235,9 +246,9 @@ internal static partial class Program
     }
 
     /// <summary>Runs the port's <c>Program.Emit</c> over one file and returns the canonical dump of what it wrote.</summary>
-    private static string EmitWithPort(CorpusFile file, string text)
+    private static string EmitWithPort(Settings settings, CorpusFile file, string text)
     {
-        var options = PortOptions();
+        var options = PortOptions(settings);
         var system = new EmitDiffSystem(file.Rel, text);
         // setParentNodes: false is the reference's own createCompilerHost default — the tsc command line leaves the
         // flag unset and program.ts:448-499 passes it straight to createSourceFile — and the printer walks children
@@ -256,6 +267,11 @@ internal static partial class Program
     /// The option set both halves are handed, frozen in <c>tools/EmitDiff/ts-emit.cjs</c>.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// Only the five frozen slots are set unless a <c>--source-map</c>-family flag asked for more; each of the five
+    /// source-map slots is the same member of the reference's <c>CompilerOptions</c> and the node half sets the same
+    /// ones from the same settings.
+    /// </para>
     /// <para>
     /// PORT-NOTE: <c>newLine: LineFeed</c> is stated rather than left to each side's default because the emitted text is
     /// compared byte for byte: the reference's <c>getNewLineCharacter</c> (utilities.ts:7827-7835) answers
@@ -277,13 +293,24 @@ internal static partial class Program
     /// getEmitHost …</c> instead of the emit itself.
     /// </para>
     /// </remarks>
-    private static EmitDiffCompilerOptions PortOptions() => new()
+    private static EmitDiffCompilerOptions PortOptions(Settings settings) => new()
     {
         Target = ScriptTarget.ESNext,
         Module = ModuleKind.ESNext,
         AllowJs = true,
         NewLine = NewLineKind.LineFeed,
         SuppressOutputPathCheck = true,
+        // The source-map family, from the same five settings the node half reads: `sourceMap` writes `<name>.js.map`
+        // beside the `.js` and appends the `//# sourceMappingURL=` comment (`emitter.ts:506-537`'s getSourceMapFilePath,
+        // `emitter.ts:997-1055`'s getSourceMappingURL), `inlineSourceMap` inlines the map as a `data:` URL instead,
+        // `inlineSources` adds `sourcesContent`, and `sourceRoot`/`mapRoot` rewrite the map's `sources` and the comment.
+        // An unset slot stays null — the reference's `undefined`, which is what the frozen object has — so a run without
+        // these flags hands both halves exactly the object they were handed before the flags existed.
+        SourceMap = settings.SourceMap ? true : null,
+        InlineSourceMap = settings.InlineSourceMap ? true : null,
+        InlineSources = settings.InlineSources ? true : null,
+        SourceRoot = settings.SourceRoot,
+        MapRoot = settings.MapRoot,
     };
 
     /// <summary>
@@ -420,6 +447,34 @@ internal static partial class Program
             psi.ArgumentList.Add(chunkErrors);
             psi.ArgumentList.Add("--dumps");
             psi.ArgumentList.Add(paths.TsDumps);
+            // The source-map slots, one-for-one with what PortOptions set: a flag that was not given is not passed, so
+            // the node half's options object stays the frozen five (see ts-emit.cjs's `options`).
+            if (settings.SourceMap)
+            {
+                psi.ArgumentList.Add("--source-map");
+            }
+
+            if (settings.InlineSourceMap)
+            {
+                psi.ArgumentList.Add("--inline-source-map");
+            }
+
+            if (settings.InlineSources)
+            {
+                psi.ArgumentList.Add("--inline-sources");
+            }
+
+            if (settings.SourceRoot is not null)
+            {
+                psi.ArgumentList.Add("--source-root");
+                psi.ArgumentList.Add(settings.SourceRoot);
+            }
+
+            if (settings.MapRoot is not null)
+            {
+                psi.ArgumentList.Add("--map-root");
+                psi.ArgumentList.Add(settings.MapRoot);
+            }
 
             string stdout, stderr;
             int exitCode;
@@ -486,7 +541,7 @@ internal static partial class Program
         string portText;
         try
         {
-            portText = EmitWithPort(file, ReadText(Path.Combine(settings.Cases, file.Rel.Replace('/', Path.DirectorySeparatorChar))));
+            portText = EmitWithPort(settings, file, ReadText(Path.Combine(settings.Cases, file.Rel.Replace('/', Path.DirectorySeparatorChar))));
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -589,7 +644,15 @@ internal static partial class Program
         sb.Append("# EmitDiff emission differential — corpus ").Append(settings.Cases).Append(" vs ").Append(settings.Js).Append('\n');
         if (settings.Filter is not null) sb.Append("# filter ").Append(settings.Filter).Append('\n');
         if (settings.Limit is not null) sb.Append("# limit ").Append(settings.Limit.Value).Append('\n');
-        sb.Append("# options target=ESNext module=ESNext allowJs=true newLine=LF suppressOutputPathCheck=true\n");
+        sb.Append("# options target=ESNext module=ESNext allowJs=true newLine=LF suppressOutputPathCheck=true");
+        // The source-map slots are part of the compared option set, so a report says which ones it ran with; a run
+        // without the flags prints nothing more, which keeps an old report's header byte-identical.
+        if (settings.SourceMap) sb.Append(" sourceMap=true");
+        if (settings.InlineSourceMap) sb.Append(" inlineSourceMap=true");
+        if (settings.InlineSources) sb.Append(" inlineSources=true");
+        if (settings.SourceRoot is not null) sb.Append(" sourceRoot=").Append(settings.SourceRoot);
+        if (settings.MapRoot is not null) sb.Append(" mapRoot=").Append(settings.MapRoot);
+        sb.Append('\n');
         foreach (var divergence in divergences.OrderBy(d => d.File, StringComparer.Ordinal))
         {
             sb.Append("DIVERGE ").Append(divergence.File)
@@ -798,12 +861,23 @@ internal static partial class Program
         string? cases = null, filter = null, outDir = null, js = null, node = null, nodeScript = null;
         int? limit = null;
         var nodeBatch = 250;
+        // The source-map flags: off unless given, so a run without them hands both halves the frozen option set and its
+        // verdicts stay comparable with every earlier run's.
+        var sourceMap = false;
+        var inlineSourceMap = false;
+        var inlineSources = false;
+        string? sourceRoot = null, mapRoot = null;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
             {
                 case "--cases": cases = Next(args, ref i); break;
                 case "--filter": filter = Next(args, ref i); break;
+                case "--source-map": sourceMap = true; break;
+                case "--inline-source-map": inlineSourceMap = true; break;
+                case "--inline-sources": inlineSources = true; break;
+                case "--source-root": sourceRoot = Next(args, ref i); break;
+                case "--map-root": mapRoot = Next(args, ref i); break;
                 case "--node-batch":
                     var batchRaw = Next(args, ref i);
                     if (batchRaw is null || !int.TryParse(batchRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var batch) || batch <= 0)
@@ -874,6 +948,11 @@ internal static partial class Program
             Js = js,
             Node = node ?? "node",
             NodeScript = nodeScript,
+            SourceMap = sourceMap,
+            InlineSourceMap = inlineSourceMap,
+            InlineSources = inlineSources,
+            SourceRoot = sourceRoot,
+            MapRoot = mapRoot,
         };
         return true;
     }
@@ -940,6 +1019,22 @@ internal static partial class Program
         public required string Cases { get; init; }
         public string? Filter { get; init; }
         public int? Limit { get; init; }
+
+        /// <summary>
+        /// The source-map slots both option objects carry, off unless the matching flag was given. They are the five
+        /// members of the reference's <c>CompilerOptions</c> its source-map path reads (<c>sourceMap</c>,
+        /// <c>inlineSourceMap</c>, <c>inlineSources</c>, <c>sourceRoot</c>, <c>mapRoot</c>), and
+        /// <c>ts-emit.cjs</c>'s <c>options</c> object is set from the same five.
+        /// </summary>
+        public bool SourceMap { get; init; }
+
+        public bool InlineSourceMap { get; init; }
+
+        public bool InlineSources { get; init; }
+
+        public string? SourceRoot { get; init; }
+
+        public string? MapRoot { get; init; }
 
         /// <summary>
         /// How many files one <c>node</c> process handles before it is restarted (default 250).

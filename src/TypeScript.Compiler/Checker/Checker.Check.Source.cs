@@ -2117,13 +2117,22 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:50832-50853 — <c>isImplementationOfOverload</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: TS's <c>node as FunctionLikeDeclaration</c> is the port's
-    /// <see cref="IFunctionLikeDeclarationBase"/> cast for the <c>body</c> read (the erased
+    /// <see cref="IFunctionLikeDeclarationBase"/> narrowing for the <c>body</c> read (the erased
     /// <c>SignatureDeclaration</c> union has no C# type, §7.5); <c>isGetAccessor</c>/<c>isSetAccessor</c> are
     /// <c>utilitiesPublic.ts</c> members and so are <c>Utilities</c> members.
+    /// <para>
+    /// PORT-NOTE (the narrowing, not a cast): <c>SignatureDeclaration</c> admits the declaration kinds that carry no
+    /// <c>body</c> slot — call/construct/index signature, <c>methodSignature</c>, <c>functionType</c>,
+    /// <c>constructorType</c>, <c>jsDocSignature</c> and <c>jsDocFunctionType</c> — and TS reads <c>.body</c> on
+    /// those as <c>undefined</c>; <see cref="IFunctionLikeDeclarationBase"/> is exactly the seven classes that carry
+    /// one. The cast therefore has to be the pattern test that missing-property read states: written as a cast it
+    /// throws on an index signature, and the declaration transformer asks for every <c>isFunctionLike</c> node
+    /// (index signatures included), so the call is reachable.
+    /// </para>
     /// </remarks>
     internal bool? IsImplementationOfOverload(Node? node)
     {
-        if (node is not null && Utilities.NodeIsPresent(((IFunctionLikeDeclarationBase)node).Body))
+        if (node is IFunctionLikeDeclarationBase functionLike && Utilities.NodeIsPresent(functionLike.Body))
         {
             if (Utilities.IsGetAccessor(node) || Utilities.IsSetAccessor(node)) return false; // Get or set accessors can never be overload implementations, but can have up to 2 signatures
             var symbol = GetSymbolOfDeclaration((IDeclaration)node);

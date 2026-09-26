@@ -372,6 +372,15 @@ internal sealed partial class Checker
     /// PORT-NOTE: TS's third parameter defaults to <c>true</c>; the port keeps the default, which also makes this one
     /// member implement both two-parameter slots (<c>ITypeChecker.IsEntityNameVisible</c> and
     /// <c>IEmitResolver.IsEntityNameVisible</c>).
+    /// <para>
+    /// PORT-NOTE (the result object): TS declares <c>SymbolVisibilityResult</c>, but the one consumer outside the
+    /// checker — <c>declarations.ts:824</c>'s <c>handleSymbolAccessibilityError(visibilityResult)</c> — takes a
+    /// <c>SymbolAccessibilityResult</c>, which the object TS builds satisfies because the one slot that type adds
+    /// (<c>errorModuleName</c>) is optional and TS reads it as <c>undefined</c>. The three objects below are
+    /// <see cref="SymbolAccessibilityResult"/> for the same reason <see cref="HasVisibleDeclarations"/>'s is (that
+    /// member's own PORT-NOTE), which is also what makes the declaration transform's downcast to
+    /// <see cref="ISymbolAccessibilityResult"/> the reference's own pass-through instead of a widened read.
+    /// </para>
     /// </remarks>
     public ISymbolVisibilityResult IsEntityNameVisible(Node? entityName, Node? enclosingDeclaration, bool shouldComputeAliasToMakeVisible = true)
     {
@@ -380,16 +389,16 @@ internal sealed partial class Checker
         var symbol = ResolveName(enclosingDeclaration, firstIdentifier.EscapedText!, meaning, /*nameNotFoundMessage*/ null, /*isUse*/ false, /*excludeGlobals*/ false);
         if (symbol is not null && (symbol.Flags & SymbolFlags.TypeParameter) != 0 && (meaning & SymbolFlags.Type) != 0)
         {
-            return new SymbolVisibilityResult { Accessibility = SymbolAccessibility.Accessible };
+            return new SymbolAccessibilityResult { Accessibility = SymbolAccessibility.Accessible };
         }
         if (symbol is null && Utilities.IsThisIdentifier(firstIdentifier) && IsSymbolAccessible(GetSymbolOfDeclaration((IDeclaration)Utilities.GetThisContainer(firstIdentifier, /*includeArrowFunctions*/ false, /*includeClassComputedPropertyName*/ false)), firstIdentifier, meaning, /*shouldComputeAliasesToMakeVisible*/ false).Accessibility == SymbolAccessibility.Accessible)
         {
-            return new SymbolVisibilityResult { Accessibility = SymbolAccessibility.Accessible };
+            return new SymbolAccessibilityResult { Accessibility = SymbolAccessibility.Accessible };
         }
 
         if (symbol is null)
         {
-            return new SymbolVisibilityResult
+            return new SymbolAccessibilityResult
             {
                 Accessibility = SymbolAccessibility.NotResolved,
                 ErrorSymbolName = Utilities.GetTextOfNode(firstIdentifier),
@@ -965,28 +974,14 @@ internal sealed partial class Checker
             + "docs/architecture.md §15.15 ruling 1 and §15.16's residual table.");
 }
 
-/// <summary>ported from: src/compiler/types.ts:5684-5689 — <c>SymbolVisibilityResult</c>.</summary>
+/// <summary>ported from: src/compiler/types.ts:5679-5683 — <c>SymbolAccessibilityResult</c>.</summary>
 /// <remarks>
 /// PORT-NOTE: TS declares an interface and every producer writes an object literal; the port has no anonymous object
-/// types, so this is the class the accessibility members construct. It is declared here (with its derived sibling) so
-/// that a second slice does not invent a second one; the home is the checker, where every producer lives.
+/// types, so this is the class the accessibility members construct. The base class this file used to carry
+/// (<c>SymbolVisibilityResult</c>, types.ts:5684-5689) had exactly one producer — <c>isEntityNameVisible</c> — and the
+/// one consumer of that answer (<c>declarations.ts:824</c>) takes this derived type, so the producer builds this class
+/// and the base class was removed as dead; the base <em>interface</em> stays, as the model's return slot.
 /// </remarks>
-internal sealed class SymbolVisibilityResult : ISymbolVisibilityResult
-{
-    /// <summary>ported from: src/compiler/types.ts:5685 — <c>accessibility</c>.</summary>
-    public SymbolAccessibility Accessibility { get; set; }
-
-    /// <summary>ported from: src/compiler/types.ts:5686 — <c>aliasesToMakeVisible</c>.</summary>
-    public List<Node>? AliasesToMakeVisible { get; set; }
-
-    /// <summary>ported from: src/compiler/types.ts:5687 — <c>errorSymbolName</c>.</summary>
-    public string? ErrorSymbolName { get; set; }
-
-    /// <summary>ported from: src/compiler/types.ts:5688 — <c>errorNode</c>.</summary>
-    public Node? ErrorNode { get; set; }
-}
-
-/// <summary>ported from: src/compiler/types.ts:5679-5683 — <c>SymbolAccessibilityResult</c>.</summary>
 internal sealed class SymbolAccessibilityResult : ISymbolAccessibilityResult
 {
     /// <summary>ported from: src/compiler/types.ts:5680 — <c>accessibility</c>.</summary>

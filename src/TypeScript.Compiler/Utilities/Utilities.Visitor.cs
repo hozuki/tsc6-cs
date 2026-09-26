@@ -103,7 +103,7 @@ internal static partial class Utilities
     /// (<c>NodeArray&lt;IStatement&gt;</c>), which <c>IEnumerable&lt;Node&gt;</c> does not (invariance); <c>Node</c> is
     /// excluded because a node is never the array.
     /// </remarks>
-    private static bool IsNodeArray(object? value) => value is not Node and System.Collections.IEnumerable;
+    internal static bool IsNodeArray(object? value) => value is not Node and System.Collections.IEnumerable;
 
     /// <summary>ported from: src/compiler/visitorPublic.ts:148-176 — <c>visitNode</c>.</summary>
     /// <remarks>

@@ -726,7 +726,11 @@ internal sealed partial class SyntacticNodeBuilder
                 }
                 return false;
             default:
-                Debug.AssertNever(node, $"not a primitive literal: {Debug.FormatSyntaxKind(node.Kind)}");
+                // PORT-NOTE: the reference's `assertType<never>(node); return false` is a type-only assertion (the same
+                // one DeclarationsTransform.Support.cs's sibling records), so the arm returns false; stated as
+                // `Debug.AssertNever` it threw on every expression that is not a literal — reachable, because
+                // `canGetTypeFromObjectLiteral` (expressionToTypeNode.ts:1040) calls it with a computed property name's
+                // expression, which may be any expression.
                 return false;
         }
     }

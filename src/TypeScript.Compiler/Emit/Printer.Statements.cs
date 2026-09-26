@@ -903,7 +903,7 @@ internal sealed partial class Printer
             GenerateNames((Node)statement);
             return (object?)null;
         });
-        EmitBlockStatements(node, /*forceSingleLine*/ IsEmptyBlockLike(node));
+        EmitBlockStatements(node, /*forceSingleLine*/ IsEmptyBlock(node));
         PopNameGenerationScope(node);
     }
 
@@ -2210,14 +2210,6 @@ internal sealed partial class Printer
         DefaultClause defaultClause => defaultClause.Statements,
         _ => null,
     };
-
-    /// <summary>The <c>isEmptyBlock</c> test of the union arms other than <c>Block</c> (emitter.ts:5228-5230).</summary>
-    /// <remarks>
-    /// PORT-NOTE: PrinterCore ports <c>isEmptyBlock</c> as <see cref="IsEmptyBlock(Block)"/> (its call site holds a
-    /// <c>Block</c>), while the reference's parameter is the union above and this file's <c>ModuleBlock</c> call site
-    /// needs the same test; the union's <c>statements</c> member is therefore read here.
-    /// </remarks>
-    private static bool IsEmptyBlockLike(Node block) => StatementsOfBlockLike(block)?.Count == 0;
 
     /// <summary>The port of the union's <c>expression</c> member (emitter.ts:3153-3162).</summary>
     /// <remarks>

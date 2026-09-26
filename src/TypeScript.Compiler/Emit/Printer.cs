@@ -2023,11 +2023,21 @@ internal sealed partial class Printer : IPrinter
     }
 
     /// <summary>ported from: src/compiler/emitter.ts:5228-5231 — <c>isEmptyBlock</c>.</summary>
-    /// <remarks>PORT-NOTE: TS's parameter is the union <c>BlockLike</c> (every member of which has <c>statements</c>) and
-    /// the reference only ever calls it with a <see cref="Block"/>; the port's <c>Block</c> is the class whose
-    /// <c>Statements</c> slot carries that array, so the parameter is that class.</remarks>
-    internal bool IsEmptyBlock(Block block)
-        => (block.Statements is null || block.Statements.Count == 0)
+    /// <remarks>
+    /// PORT-NOTE: TS's parameter is the union <c>BlockLike</c> (types.ts:3366-3370: <c>SourceFile | Block |
+    /// ModuleBlock | CaseOrDefaultClause</c>, every member of which has <c>statements</c>); the port has no name for the
+    /// union, so the member is read through <see cref="StatementsOfBlockLike"/> — the same treatment the other inline
+    /// unions get. Both call sites pass one of the union's arms (emitter.ts:3037's <c>Block</c> and :3653's
+    /// <c>ModuleBlock</c>), and an absent array counts as empty, as it does in the reference's <c>length</c> test.
+    /// <para>
+    /// PORT-NOTE (the range test): the second conjunct is not decoration — it is what keeps an <em>empty</em> body
+    /// written across two lines (<c>namespace M {</c> … <c>}</c>, or a function body the declaration transform emptied)
+    /// printing as <c>{</c> newline <c>}</c> rather than <c>{ }</c>. Dropping it is what the two call sites' shared
+    /// helper did before this member took the union.
+    /// </para>
+    /// </remarks>
+    internal bool IsEmptyBlock(Node block)
+        => (StatementsOfBlockLike(block)?.Count ?? 0) == 0
             && (_currentSourceFile is null || RangeEndIsOnSameLineAsRangeStart(block, block, _currentSourceFile));
 
     // ---------------------------------------------------------------------------------------------

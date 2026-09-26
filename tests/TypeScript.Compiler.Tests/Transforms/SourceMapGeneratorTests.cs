@@ -6,7 +6,9 @@ namespace TypeScript.Compiler.Tests;
 /// <summary>
 /// Acceptance for the source-map writer (M7-B): the printer's source-map path — the mappings a printed file produces,
 /// the <c>sources</c>/<c>names</c>/<c>sourcesContent</c> arrays beside them, the base64 VLQ codec that encodes them, the
-/// decoder, the <c>sourceMappingURL</c> comment helpers and the document position mapper.
+/// decoder, the <c>sourceMappingURL</c> comment helpers and the document position mapper — and the emitter's write path
+/// that puts the map, the <c>sourceMappingURL</c> comment and the <c>data:</c> URL into the files a
+/// <see cref="Program.Emit"/> run hands to <c>writeFile</c>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -23,11 +25,15 @@ namespace TypeScript.Compiler.Tests;
 /// <c>ts.createDocumentPositionMapper</c>, <c>ts.sameMapping</c> and <c>ts.isSourceMapping</c>.
 /// </para>
 /// <para>
-/// PORT-NOTE (what this slice cannot observe): the emitter's own call to <c>createSourceMapGenerator</c>
-/// (<c>Emit/Emitter.cs</c>, an M7-B blocker this slice may not edit) still reports the generator by name, so the emit
-/// path that writes <c>.js.map</c> files from a <see cref="Program"/> is not reachable yet — the one-line hook that
-/// connects it is named in this slice's report. The tests therefore drive the printer and the generator directly, which
-/// is the same pair of objects the emitter passes to each other.
+/// PORT-NOTE (the emit path): the emitter's own <c>createSourceMapGenerator</c> call
+/// (<c>Emit/Emitter.cs</c>, <c>emitter.ts:997-1005</c>) was the last named blocker of this slice; it now calls the
+/// landed <see cref="SourceMap.CreateSourceMapGenerator"/>, so a <see cref="Program"/> with <c>sourceMap</c> set writes
+/// the <c>.js.map</c> and the <c>//# sourceMappingURL=</c> comment the facts below pin, and
+/// <c>tools/EmitDiff --source-map</c> compares them against the reference byte for byte. The facts under *the emitter's
+/// source-map path* measure that whole path (the option gates, the two write orders, the <c>mapRoot</c>/<c>sourceRoot</c>
+/// paths and the inlined <c>data:</c> URL); the ones under *a source-map range with its own source* drive the one arm
+/// of <c>setSourceMapSource</c> no corpus file can reach, because nothing in the compiled corpora gives a node a
+/// source-map range naming another source.
 /// </para>
 /// </remarks>
 public class SourceMapGeneratorTests
@@ -43,6 +49,54 @@ public class SourceMapGeneratorTests
 
     /// <summary>ported from: the measured <c>sourceMapText</c> of <see cref="FixtureText"/> with <c>inlineSources</c>.</summary>
     private const string FixtureInlineMap = "{\"version\":3,\"file\":\"a.js\",\"sourceRoot\":\"\",\"sources\":[\"a.ts\"],\"names\":[],\"mappings\":\"AAAA,SAAS,CAAC,CAAC,CAAC;IACR,IAAI,CAAC,GAAG,CAAC,GAAG,CAAC,CAAC;IACd,OAAO,CAAC,CAAC;AACb,CAAC;AACD,MAAM,CAAC;IACH,CAAC,KAAK,OAAO,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC;CACvB\",\"sourcesContent\":[\"function f(a) {\\n    var x = a + 1;\\n    return x;\\n}\\nclass C {\\n    m() { return f(1); }\\n}\\n\"]}";
+
+    // The emitter-level fixture and its measured outputs: a `.ts` file whose transform chain is *not* a no-op (the enum
+    // IIFE and the type erasure are synthetic nodes), driven end to end through `Program.Emit` with the same one-file
+    // host the differential's `EmitDiffSystem`/`ts-emit.cjs` build (an absolute `/a.ts`, an empty current directory and
+    // no default library), so the output names, the two texts and their order are all emitter behaviour.
+
+    /// <summary>ported from: the fixture the emitter-level facts drive through <c>Program.Emit</c>.</summary>
+    private const string EmitFixtureText = "enum E { A, B }\nfunction f(a: number): number {\n    return a + E.B;\n}\nclass C {\n    m() { return f(1); }\n}\nexport const n = 42;\n";
+
+    /// <summary>ported from: the measured <c>/a.js.map</c> of <see cref="EmitFixtureText"/> with <c>sourceMap</c>.</summary>
+    private const string EmitFixtureMap = "{\"version\":3,\"file\":\"a.js\",\"sourceRoot\":\"\",\"sources\":[\"a.ts\"],\"names\":[],\"mappings\":\"AAAA,IAAK,CAAU;AAAf,WAAK,CAAC;IAAG,mBAAC,CAAA;IAAE,mBAAC,CAAA;AAAC,CAAC,EAAV,CAAC,KAAD,CAAC,QAAS;AACf,SAAS,CAAC,CAAC,CAAS;IAChB,OAAO,CAAC,GAAG,CAAC,CAAC,CAAC,CAAC;AACnB,CAAC;AACD,MAAM,CAAC;IACH,CAAC,KAAK,OAAO,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC;CACvB;AACD,MAAM,CAAC,MAAM,CAAC,GAAG,EAAE,CAAC\"}";
+
+    /// <summary>ported from: the measured <c>/a.js</c> of <see cref="EmitFixtureText"/> with <c>sourceMap</c> — the
+    /// text plus the <c>sourceMappingURL</c> comment, with no newline after it.</summary>
+    private const string EmitFixtureBody = "var E;\n(function (E) {\n    E[E[\"A\"] = 0] = \"A\";\n    E[E[\"B\"] = 1] = \"B\";\n})(E || (E = {}));\nfunction f(a) {\n    return a + E.B;\n}\nclass C {\n    m() { return f(1); }\n}\nexport const n = 42;\n//# sourceMappingURL=a.js.map";
+
+    /// <summary>ported from: the measured <c>/a.js.map</c> of <see cref="EmitFixtureText"/> with
+    /// <c>sourceMap</c> and <c>inlineSources</c>.</summary>
+    private const string EmitFixtureInlineSourcesMap = "{\"version\":3,\"file\":\"a.js\",\"sourceRoot\":\"\",\"sources\":[\"a.ts\"],\"names\":[],\"mappings\":\"AAAA,IAAK,CAAU;AAAf,WAAK,CAAC;IAAG,mBAAC,CAAA;IAAE,mBAAC,CAAA;AAAC,CAAC,EAAV,CAAC,KAAD,CAAC,QAAS;AACf,SAAS,CAAC,CAAC,CAAS;IAChB,OAAO,CAAC,GAAG,CAAC,CAAC,CAAC,CAAC;AACnB,CAAC;AACD,MAAM,CAAC;IACH,CAAC,KAAK,OAAO,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC;CACvB;AACD,MAAM,CAAC,MAAM,CAAC,GAAG,EAAE,CAAC\",\"sourcesContent\":[\"enum E { A, B }\\nfunction f(a: number): number {\\n    return a + E.B;\\n}\\nclass C {\\n    m() { return f(1); }\\n}\\nexport const n = 42;\\n\"]}";
+
+    /// <summary>ported from: the measured <c>/a.js.map</c> of <see cref="EmitFixtureText"/> with <c>sourceMap</c>,
+    /// <c>sourceRoot: "/src"</c> and <c>mapRoot: "../maps"</c> — the same mappings under the normalized source root.</summary>
+    private const string EmitFixtureSourceRootMap = "{\"version\":3,\"file\":\"a.js\",\"sourceRoot\":\"/src/\",\"sources\":[\"a.ts\"],\"names\":[],\"mappings\":\"AAAA,IAAK,CAAU;AAAf,WAAK,CAAC;IAAG,mBAAC,CAAA;IAAE,mBAAC,CAAA;AAAC,CAAC,EAAV,CAAC,KAAD,CAAC,QAAS;AACf,SAAS,CAAC,CAAC,CAAS;IAChB,OAAO,CAAC,GAAG,CAAC,CAAC,CAAC,CAAC;AACnB,CAAC;AACD,MAAM,CAAC;IACH,CAAC,KAAK,OAAO,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC,CAAC;CACvB;AACD,MAAM,CAAC,MAAM,CAAC,GAAG,EAAE,CAAC\"}";
+
+    /// <summary>ported from: the measured <c>/a.js</c> of <see cref="EmitFixtureText"/> with that
+    /// <c>mapRoot</c> — the comment names the path the map will be published at, not its own file name.</summary>
+    private const string EmitFixtureMapRootBody = "var E;\n(function (E) {\n    E[E[\"A\"] = 0] = \"A\";\n    E[E[\"B\"] = 1] = \"B\";\n})(E || (E = {}));\nfunction f(a) {\n    return a + E.B;\n}\nclass C {\n    m() { return f(1); }\n}\nexport const n = 42;\n//# sourceMappingURL=maps/a.js.map";
+
+    /// <summary>ported from: the measured <c>/a.js</c> of a tiny module fixture with <c>inlineSourceMap</c> and
+    /// <c>inlineSources</c> — one output, with the whole map inlined as a base64 <c>data:</c> URL.</summary>
+    private const string EmitFixtureInlineMapBody = "export const x = 1;\n//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiYS5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbImEudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBQUEsTUFBTSxDQUFDLE1BQU0sQ0FBQyxHQUFHLENBQUMsQ0FBQyIsInNvdXJjZXNDb250ZW50IjpbImV4cG9ydCBjb25zdCB4ID0gMTtcbiJdfQ==";
+
+    // The constructed-node fixture: the same two statements printed by the printer directly, once with the `b`
+    // initializer's source-map range naming another source and once without it.
+
+    /// <summary>ported from: the text the constructed-node facts print.</summary>
+    private const string RangeSourceText = "const a = 1;\nconst b = 2;\n";
+
+    /// <summary>ported from: the other source's text, whose <c>zz</c> the range points at.</summary>
+    private const string RangeSourceOtherText = "/* other */\nlet zz = 7;\n";
+
+    /// <summary>ported from: the measured map of the constructed-node print <em>with</em> the range source — the second
+    /// source is added to <c>sources</c> and its text to <c>sourcesContent</c>, and the mappings switch sources.</summary>
+    private const string RangeSourceMap = "{\"version\":3,\"file\":\"a.js\",\"sourceRoot\":\"\",\"sources\":[\"a.ts\",\"other.ts\"],\"names\":[],\"mappings\":\"AAAA,MAAM,CAAC,GAAG,CAAC,CAAC;AACZ,MAAM,CAAC,GCAH,CDAO,CAAC\",\"sourcesContent\":[\"const a = 1;\\nconst b = 2;\\n\",\"/* other */\\nlet zz = 7;\\n\"]}";
+
+    /// <summary>ported from: the measured map of the same print <em>without</em> the range source — the control that
+    /// says the second source is the range's doing and not the fixture's.</summary>
+    private const string RangeSourceControlMap = "{\"version\":3,\"file\":\"a.js\",\"sourceRoot\":\"\",\"sources\":[\"a.ts\"],\"names\":[],\"mappings\":\"AAAA,MAAM,CAAC,GAAG,CAAC,CAAC;AACZ,MAAM,CAAC,GAAG,CAAC,CAAC\",\"sourcesContent\":[\"const a = 1;\\nconst b = 2;\\n\"]}";
 
     /// <summary>ported from: the reference's measured <c>getSources()</c> after its measured <c>addSource</c> calls.</summary>
     private static readonly string[] AddSourceSources = ["/proj/src/a.ts", "/proj/src/b.ts", "/proj/src/sub/c.ts"];
@@ -149,6 +203,197 @@ public class SourceMapGeneratorTests
 
         printer.WriteFile(file, writer, generator);
         return (writer.GetText(), generator.ToString());
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // The emitter's source-map path (emitter.ts:997-1122, 6290-6326) and the one arm no corpus reaches
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>With <c>sourceMap</c> the emitter writes the map first and the JavaScript second, and the JavaScript
+    /// carries the <c>sourceMappingURL</c> comment naming the map — the two outputs EmitDiff's dump frames.</summary>
+    /// <remarks>
+    /// This is where the printer, the generator and the emitter meet: <c>Program.Emit</c> builds the option set, asks
+    /// <c>printSourceFileOrBundle</c> for the generator, writes the map
+    /// (<c>getSourceMapFilePath</c>, emitter.ts:535-537) and appends the comment
+    /// (<c>getSourceMappingURL</c>'s base-name arm, emitter.ts:1053-1055) before handing both texts to the
+    /// <c>writeFile</c> callback. The order is emit behaviour, so it is asserted rather than sorted.
+    /// </remarks>
+    [Fact]
+    public void EmittingWithSourceMaps_WritesTheMeasuredMapThenTheJavaScript()
+    {
+        var outputs = EmitFixture(static options => options.SourceMap = true);
+
+        Assert.Equal(["/a.js.map", "/a.js"], outputs.Select(output => output.FileName));
+        Assert.Equal(EmitFixtureMap, outputs[0].Text);
+        Assert.Equal(EmitFixtureBody, outputs[1].Text);
+    }
+
+    /// <summary>With <c>inlineSources</c> the emitted map also carries the fixture's text.</summary>
+    /// <remarks>The emitter passes <c>inlineSources</c> through to the printer's options
+    /// (emitter.ts:547-552), which is what reaches <c>setSourceMapSource</c>'s <c>setSourceContent</c>
+    /// (emitter.ts:6306-6311).</remarks>
+    [Fact]
+    public void EmittingWithInlineSources_AddsTheMeasuredSourcesContent()
+    {
+        var outputs = EmitFixture(static options =>
+        {
+            options.SourceMap = true;
+            options.InlineSources = true;
+        });
+
+        Assert.Equal(EmitFixtureInlineSourcesMap, outputs[0].Text);
+    }
+
+    /// <summary>With <c>sourceRoot</c> and <c>mapRoot</c> the map's <c>sourceRoot</c> is normalized with a trailing
+    /// separator and the comment names the map's published path instead of its file name.</summary>
+    /// <remarks>
+    /// The two roots take different members: <c>sourceRoot</c> normalizes the map's root
+    /// (<c>getSourceRoot</c>, emitter.ts:1026-1031) and decides the map's directory
+    /// (<c>getSourceMapDirectory</c>'s first arm, emitter.ts:1033-1035), while <c>mapRoot</c> rewrites the comment's
+    /// path (<c>getSourceMappingURL</c>'s middle arm, emitter.ts:1057-1065) — the branch whose relative-path arithmetic
+    /// and <c>encodeURI</c> the port's <c>EncodeUri</c> stands in for.
+    /// </remarks>
+    [Fact]
+    public void EmittingWithSourceRootAndMapRoot_WritesTheMeasuredRoots()
+    {
+        var outputs = EmitFixture(static options =>
+        {
+            options.SourceMap = true;
+            options.SourceRoot = "/src";
+            options.MapRoot = "../maps";
+        });
+
+        Assert.Equal(EmitFixtureSourceRootMap, outputs[0].Text);
+        Assert.Equal(EmitFixtureMapRootBody, outputs[1].Text);
+    }
+
+    /// <summary>With <c>inlineSourceMap</c> there is no second output at all: the whole map is the comment's base64
+    /// <c>data:</c> URL.</summary>
+    /// <remarks>That URL is <c>base64encode(sourceMapGenerator.toString())</c> (emitter.ts:1055-1059, the port's
+    /// <c>Base64Encode</c>), so this fact pins the map's serialization and its UTF-8 base64 in one measured text.</remarks>
+    [Fact]
+    public void EmittingWithInlineSourceMap_WritesTheMeasuredDataUrl()
+    {
+        var outputs = EmitFixture("export const x = 1;\n", static options =>
+        {
+            options.InlineSourceMap = true;
+            options.InlineSources = true;
+        });
+
+        Assert.Equal(["/a.js"], outputs.Select(output => output.FileName));
+        Assert.Equal(EmitFixtureInlineMapBody, outputs[0].Text);
+    }
+
+    /// <summary>A node whose source-map range names another source is mapped into that source, and the map gains it.</summary>
+    /// <remarks>
+    /// <para>
+    /// This is the arm EmitDiff cannot reach: no file of the compiled corpora gives a node a
+    /// <c>sourceMapRange.source</c> — the corpora are emitted one file at a time, so every range either is the node
+    /// itself or carries no <c>source</c> at all. Here the <c>b</c> initializer's range names a second source, which is
+    /// the path <c>emitSourcePos</c>'s <c>source !== sourceMapSource</c> test takes
+    /// (<c>setSourceMapSource</c> → <c>addSource</c>/<c>setSourceContent</c> → <c>emitPos</c> →
+    /// <c>resetSourceMapSource</c>, emitter.ts:6244-6262, 6290-6320).
+    /// </para>
+    /// <para>
+    /// The control print — the same two statements with no range source — is the other half of the measurement: it says
+    /// the second source and its content come from the range, not from the fixture.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void PrintingANodeWithItsOwnSourceMapSource_MapsIntoThatSource()
+    {
+        var (withSourceText, withSourceMap, withSourceSources) = PrintRangeSourceFixture(/*withRangeSource*/ true);
+        var (controlText, controlMap, controlSources) = PrintRangeSourceFixture(/*withRangeSource*/ false);
+
+        Assert.Equal(RangeSourceText, withSourceText);
+        Assert.Equal(RangeSourceMap, withSourceMap);
+        // `getSources` answers the *raw* names: the file's own resolved name and the range source's as it was given.
+        Assert.Equal(["/a.ts", "other.ts"], withSourceSources);
+        Assert.Equal(RangeSourceText, controlText);
+        Assert.Equal(RangeSourceControlMap, controlMap);
+        Assert.Equal(["/a.ts"], controlSources);
+    }
+
+    /// <summary>Prints <see cref="RangeSourceText"/> through the printer and generator, optionally giving the <c>b</c>
+    /// initializer a source-map range whose <c>source</c> is the measured other source.</summary>
+    private static (string Text, string Map, List<string> Sources) PrintRangeSourceFixture(bool withRangeSource)
+    {
+        var file = Parser.CreateSourceFile("/a.ts", RangeSourceText, ScriptTarget.ESNext, /*setParentNodes*/ true, ScriptKind.TS);
+        if (withRangeSource)
+        {
+            var statement = (VariableStatement)file.Statements![1]!;
+            var initializer = statement.DeclarationList!.Declarations![0]!.Initializer!;
+            var start = RangeSourceOtherText.IndexOf("zz", StringComparison.Ordinal);
+            EmitNodes.SetSourceMapRange(initializer, new SourceMapRange
+            {
+                Pos = start,
+                End = start + 2,
+                Source = new TestSourceMapSource("other.ts", RangeSourceOtherText),
+            });
+        }
+
+        var generator = SourceMap.CreateSourceMapGenerator(CreateEmitHost(), "a.js", "", "/", new SourceMapGeneratorOptions());
+        var writer = Utilities.CreateTextWriter("\n");
+        var printer = new Printer(new PrinterOptions
+        {
+            SourceMap = true,
+            InlineSources = true,
+            Target = ScriptTarget.ESNext,
+            NewLine = NewLineKind.LineFeed,
+        });
+
+        printer.WriteFile(file, writer, generator);
+        return (writer.GetText(), generator.ToString(), generator.GetSources());
+    }
+
+    /// <summary>Runs the emitter over <see cref="EmitFixtureText"/> and answers every output the emitter handed the
+    /// <c>writeFile</c> callback, in the order it handed them.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the host is the shape the differential builds — one absolute root file, an empty current directory and
+    /// no default library (`FakeSystem` serves the one file and answers absent for everything else) — and the option set
+    /// is the tool's frozen one plus what the caller sets, so a fact here pins the same path EmitDiff compares.
+    /// </remarks>
+    private static List<(string FileName, string Text)> EmitFixture(Action<FakeCompilerOptions> configure)
+        => EmitFixture(EmitFixtureText, configure);
+
+    /// <summary>The same, over the given fixture text.</summary>
+    private static List<(string FileName, string Text)> EmitFixture(string fixture, Action<FakeCompilerOptions> configure)
+    {
+        var options = new FakeCompilerOptions
+        {
+            Target = ScriptTarget.ESNext,
+            Module = ModuleKind.ESNext,
+            AllowJs = true,
+            NewLine = NewLineKind.LineFeed,
+            SuppressOutputPathCheck = true,
+        };
+        configure(options);
+        var system = new FakeSystem();
+        system.Files["/a.ts"] = fixture;
+        var host = Program.CreateCompilerHostWorker(options, /*setParentNodes*/ false, system);
+        var program = Program.CreateProgram(["/a.ts"], options, host);
+        var outputs = new List<(string FileName, string Text)>();
+        program.Emit(writeFile: (fileName, text, _, _, _, _, _) => outputs.Add((fileName, text)));
+        return outputs;
+    }
+
+    /// <summary>The <see cref="ISourceMapSource"/> a source-map range points at: a file name, its text and no trivia
+    /// override — the three members the printer reads.</summary>
+    private sealed class TestSourceMapSource : ISourceMapSource
+    {
+        public TestSourceMapSource(string fileName, string text)
+        {
+            FileName = fileName;
+            Text = text;
+        }
+
+        public string? FileName { get; set; }
+
+        public string? Text { get; set; }
+
+        public List<int>? LineMap { get; set; }
+
+        public Func<int, int>? SkipTrivia { get; set; }
     }
 
     // ---------------------------------------------------------------------------------------------

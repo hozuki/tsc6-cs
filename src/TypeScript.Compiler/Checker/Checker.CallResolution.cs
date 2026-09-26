@@ -1774,8 +1774,12 @@ internal sealed partial class Checker
                     var i = 0;
                     foreach (var c in candidatesForArgumentError)
                     {
-                        // PORT-NOTE (A″): each printer-gated stringifier passed as a diagnostic-message argument here is a memoised wrapper — see Core/Diagnostic.cs's `DiagnosticArgument`.
-                        Func<IDiagnosticMessageChain?> chain = () => Utilities.ChainDiagnosticMessages(/*details*/ null, Diagnostics.Overload_0_of_1_2_gave_the_following_error, i + 1, candidates.Count, Diagnostic.DeferArg(() => SignatureToString(c)));
+                        // PORT-NOTE: the reference's `chain2` body calls `signatureToString(c)` eagerly, and
+                        // `checkTypeRelatedTo` invokes that chain while it reports the overload failure — so the printer
+                        // runs, and instantiating the candidate's parameter types advances `typeCount`. Deferring this
+                        // argument (Core/Diagnostic.cs's `DiagnosticArgument`, ruling A″) would leave those creations out
+                        // entirely, so it is computed at the reference's own point of use.
+                        Func<IDiagnosticMessageChain?> chain = () => Utilities.ChainDiagnosticMessages(/*details*/ null, Diagnostics.Overload_0_of_1_2_gave_the_following_error, i + 1, candidates.Count, SignatureToString(c));
                         var diags = GetSignatureApplicabilityError(node, args, c, _assignableRelation, CheckMode.Normal, /*reportErrors*/ true, chain);
                         if (diags is not null)
                         {

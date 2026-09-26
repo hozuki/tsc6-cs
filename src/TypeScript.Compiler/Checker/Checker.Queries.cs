@@ -45,10 +45,22 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:11584-11589 — <c>getTypeOfPropertyOrIndexSignatureOfType</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>A || B &amp;&amp; C</c> is <c>getTypeOfPropertyOfType</c> first and, only when that
+    /// answers nothing, the applicable index info's type made optional. The short circuit is observable in
+    /// <c>typeCount</c> — the index lookup interns the name's literal type and <c>addOptionality</c> unions the index
+    /// type with <c>undefined</c> — so the two steps stay separate here instead of collapsing into one <c>??</c>.
+    /// </remarks>
     internal IType? GetTypeOfPropertyOrIndexSignatureOfType(IType type, string name)
     {
-        var prop = GetPropertyOfType(type, name);
-        return prop is not null ? GetTypeOfSymbol(prop) : GetIndexTypeOfType(type, _stringType);
+        var prop = GetTypeOfPropertyOfType(type, name);
+        if (prop is not null)
+        {
+            return prop;
+        }
+
+        var indexType = GetApplicableIndexInfoForName(type, name)?.Type;
+        return indexType is not null ? AddOptionality(indexType, /*isProperty*/ true, /*isOptional*/ true) : null;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:11591-11593 — <c>isTypeAny</c>.</summary>

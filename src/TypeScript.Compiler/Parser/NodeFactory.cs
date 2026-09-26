@@ -151,10 +151,22 @@ internal partial class NodeFactory
     /// <remarks>
     /// The parameter is <c>object?</c> because TS takes <c>string | number</c>; the generated interface carries the
     /// same shape, with `int` and `string` overloads next to it (§12.5).
+    /// <para>
+    /// PORT-NOTE: TS's <c>node.text = value + ""</c> is the JS number-to-string algorithm, so a numeric value converts
+    /// through <see cref="Js.NumberToString"/>. The <c>int</c> arm alone was not enough: every caller that passes a
+    /// computed number passes a <c>double</c> (<c>Js.ToNumber</c>, <c>getEnumMemberValue</c>'s value, the node
+    /// builder's own), which fell into the <c>as string</c> arm and left <c>Text</c> null — the literal then printed
+    /// as nothing at all (the declaration of <c>var v = { [E.member]: 0 }</c> lost the <c>0:</c> of its property).
+    /// </para>
     /// </remarks>
     public NumericLiteral CreateNumericLiteral(object? value, TokenFlags? numericLiteralFlags = null)
     {
-        var text = value is int number ? number.ToString(CultureInfo.InvariantCulture) : value as string;
+        var text = value switch
+        {
+            double number => Js.NumberToString(number),
+            int number => number.ToString(CultureInfo.InvariantCulture),
+            _ => value as string,
+        };
         Debug.Assert(
             text is null || text.Length == 0 || text[0] != CharacterCodes.Minus,
             "Negative numbers should be created in combination with createPrefixUnaryExpression");

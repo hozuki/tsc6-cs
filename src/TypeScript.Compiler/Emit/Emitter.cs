@@ -412,9 +412,9 @@ internal static partial class Emitter
     /// <see cref="EmitTransformers"/>.
     /// </para>
     /// <para>
-    /// PORT-NOTE: <c>createSourceMapGenerator</c> is the one dependency of this member that has not landed
-    /// (<c>sourcemap.ts</c>, the M7-B source-map slice); the call site keeps the reference's call and the named blocker
-    /// reports it.
+    /// PORT-NOTE: <c>createSourceMapGenerator</c> is the source-map slice's entry (<c>sourcemap.ts</c>); the port calls
+    /// the landed <see cref="SourceMap.CreateSourceMapGenerator"/> from the reference's own call site
+    /// (<c>emitter.ts:997-1005</c>).
     /// </para>
     /// </remarks>
     internal static IEmitResult EmitFiles(
@@ -971,13 +971,14 @@ internal static partial class Emitter
     /// slot keeps the reference's <c>notImplemented</c> (see <c>Emitter.Model.cs</c> for the class).</remarks>
     internal static readonly IEmitResolver NotImplementedResolver = new NotImplementedEmitResolver();
 
-    /// <summary>ported from: src/compiler/emitter.ts:752 — the silent failure <c>createSourceMapGenerator</c> is.</summary>
+    /// <summary>ported from: src/compiler/emitter.ts:752 — the <c>createSourceMapGenerator</c> the print site calls.</summary>
     /// <remarks>
-    /// PORT-NOTE (the named blocker): <c>createSourceMapGenerator</c> is <c>sourcemap.ts</c>'s
-    /// (<c>src/compiler/sourcemap.ts:36-58</c>), the M7-B source-map slice, so this slice keeps the reference's call
-    /// site (<c>emitter.ts:997-1005</c>) and reports the missing generator by name rather than printing without one.
-    /// <c>Printer</c> already reports the printer-side half of the same gap (<c>Printer.SourceMaps.cs</c>'s
-    /// <c>SourceMapGeneratorNotSupported</c>); this member is the entry the emitter itself needs.
+    /// PORT-NOTE: the reference's two imports are the module's own <c>createSourceMapGenerator</c>
+    /// (<c>src/compiler/sourcemap.ts:36-58</c>) and the <c>SourceMapGeneratorOptions</c> its fifth argument is
+    /// structurally; the port states both as the landed <see cref="SourceMap.CreateSourceMapGenerator"/> and the
+    /// one-member <see cref="SourceMapGeneratorOptions"/> the emitter's own <see cref="SourceMapOptions"/> view maps
+    /// onto — the same treatment the two <c>*Options</c>/<c>*Handlers</c> literals get, since C# has no structural
+    /// typing. The emitter's view carries five slots and the generator reads only the one, exactly as in the reference.
     /// </remarks>
     private static ISourceMapGenerator CreateSourceMapGenerator(
         IEmitHost host,
@@ -985,9 +986,12 @@ internal static partial class Emitter
         string sourceRoot,
         string sourcesDirectoryPath,
         SourceMapOptions generatorOptions)
-        => throw new NotSupportedException(
-            "createSourceMapGenerator (src/compiler/sourcemap.ts:36) is not ported yet: SourceMapGenerator is the M7-B "
-            + "source-map slice (docs/architecture.md §17.4 item 8).");
+        => SourceMap.CreateSourceMapGenerator(
+            host,
+            file,
+            sourceRoot,
+            sourcesDirectoryPath,
+            new SourceMapGeneratorOptions { ExtendedDiagnostics = generatorOptions.ExtendedDiagnostics });
 
     /// <summary>ported from: src/compiler/core.ts — <c>base64encode(sys, input)</c>'s pure arm.</summary>
     /// <remarks>

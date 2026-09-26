@@ -1892,7 +1892,7 @@ printer 落地后，语料从"崩溃"变成"能跑"，此前被门控掩盖的�
 | 首轮（未修 visitor 窄化） | `same=5890 diverged=0 port-crash=18` | 18 条崩溃**全部**是同一缺陷：`Utilities.VisitEachChildWorker` 把 `PrefixUnaryExpression` 分派强转成 `JsonMinusNumericLiteral`（§17.12 缺陷 3），任何含 `-x`/`+x` 的文件即崩 |
 | 修后（当前树） | **`same=5908/5908 diverged=0 port-crash=0 ts-error=0 unpaired=0`（VERDICT clean）** | 5,908 个文件的 `.js` 与参考**逐字节相同**，零崩溃、零分歧 |
 
-同一树的 checker 侧外环（`tools/TypeDiff`，真源 `lib/typescript.js`）：**`same=5905/5908 diverged=3 port-crash=0`** —— 与本批次之前的基线完全相同（零回归），剩余 3 条为已记录的诊断码错配与两条类型 id 偏移。
+同一树的 checker 侧外环（`tools/TypeDiff`，真源 `lib/typescript.js`）：**`same=5908/5908 diverged=0 port-crash=0 ts-error=0 unpaired=0`（VERDICT clean）** —— 历史上最后三条分歧（1 条诊断码错配 + 2 条类型 id 偏移）分别由 §17.13.1 与 §17.13.2 修掉。
 
 验收命令（可复现）：
 ```
@@ -1900,7 +1900,7 @@ dotnet run --project tools/EmitDiff -- --cases D:/Source/GitHub/TypeScript/tests
 dotnet run --project tools/TypeDiff -- --cases D:/Source/GitHub/TypeScript/tests/cases/conformance --out artifacts/M7-C-typeside-final
 ```
 
-**仍未闭合（M7-C 尾项，已登记）**：声明发射（`.d.ts`）与 `tsc --declaration` 的逐字节比对（declarations 切片已发现一例"解构 + 参数属性 + 显式数组类型"分歧）；`.js.map`/`sourceMappingURL` 侧与 `tsc --sourceMap` 的比对；剩余 3 条 TypeDiff 分歧；`.errors.txt`/baseline 全量比对（P1b）。
+**仍未闭合（M7-C 尾项，已登记）**：声明发射（`.d.ts`）与 `tsc --declaration` 的逐字节比对（declarations 切片已发现一例"解构 + 参数属性 + 显式数组类型"分歧）；剩余 3 条 TypeDiff 分歧；`.errors.txt`/baseline 全量比对（P1b）。`.js.map`/`sourceMappingURL` 侧已收口，见 §17.13.3。
 
 #### 17.13.1 第三条 TypeDiff 分歧修掉：`base.declarations?.every(…)` 的 `?.` 丢了
 
@@ -1908,3 +1908,68 @@ dotnet run --project tools/TypeDiff -- --cases D:/Source/GitHub/TypeScript/tests
 `base.declarations?.every(d => isPropertyAbstractOrInterface(d, baseDeclarationFlags))`（checker.ts:47593）在基符号**无声明**时短路成 `undefined`（假值）而**不**继续；端口写成 `Core.Every(baseSymbolTarget.Declarations, …)`，而 `Core.Every` 对 `null` 列表答 `true`，于是这类覆盖（元组成员、映射类型成员，如 `[string, number]` 的 `0`）一律 `continue`，其后的 `PropertyWillOverwriteBaseProperty`（2612）永不可达。
 
 实测路径：`interfaceExtendsObjectIntersectionErrors.ts` 的 `class C4 extends Constructor<T4>() { 0: number }` —— 参考在同一节点同时报 2416 与 2612，端口只报 2416（用临时探针定位：基符号 `Flags=Property, Transient`、`Declarations=null`，`CheckFlags.Synthetic` 为假 ⇒ 走 `Every` 臂 ⇒ 落在 `continue` 上）。加 `is not null` 守卫后：**TypeDiff 全语料 `same=5906/5908 diverged=2`**（此前 5905/3）。同型审计：参考 `checker.ts` 全文只有两处 `?.every(`，另一处（51110）端口早已带 `is not null` 守卫。
+
+#### 17.13.2 最后两条 TypeDiff 分歧修掉：`getTypeOfPropertyOrIndexSignatureOfType` 的错移植 + 一处 A″ 延迟被本语料观测到
+
+**收尾实测：TypeDiff 全语料 `same=5908/5908 diverged=0 port-crash=0`（VERDICT clean，此前 5906/2）。**
+
+两条都是**类型创建计数差**，用同一个临时探针定位（把 `createType` 的 `typeCount`/`TypeFlags`/调用栈逐次写文件：参考侧是 `lib/typescript.js` 的副本，在 `createType` 里插一段 `appendFileSync`；端口侧在 `Checker.CreateType` 里按 `TSC_CT_LOG` 环境变量打同构的点；两侧跑完即删/`git checkout` 还原，仓库最终无探针痕迹）。因为探针记的是**全部**创建（不只是 dump 里可达的那些），两侧的创建序列可以逐项对齐——这正是 dump 只报"id 偏移"时唯一能落地的定位手段。判定方法先把 dump 里 `(dump 序号, ref id, port id)` 按 ref id 排序：只有 deficit 随 ref id 单调时才可能是一条偏移，再拿探针序列做逐项对比。
+
+**① `types/union/discriminatedUnionTypes2.ts`（`T#2` `id=178` 对 `179`，端口少 1 次创建）。** 探针指向 `f31` 的 `if (foo.tag === true)`：参考在 `narrowTypeByDiscriminant` 的过滤回调里调 `getTypeOfPropertyOrIndexSignatureOfType`（checker.ts:11584-11589），对 `Foo` 的 `{ [x: string]: string }` 成员取到索引签名类型后还要过 `addOptionality(propType, /*isProperty*/ true, /*isOptional*/ true)` ⇒ `getOptionalType` 造出 `string | undefined` 这个联合，那一次 `createType` 就是缺的量。端口整个函数是
+
+```csharp
+var prop = GetPropertyOfType(type, name);          // 语义等同 getTypeOfPropertyOfType
+return prop is not null ? GetTypeOfSymbol(prop) : GetIndexTypeOfType(type, _stringType);
+```
+
+两处都错：索引回退既不是 `getApplicableIndexInfoForName(type, name)?.type`（按**名字**取可用索引信息，而不是"字符串索引签名"那一条），又丢了 `addOptionality`。改写成参考的三段顺序（`getTypeOfPropertyOfType` 短路 → `getApplicableIndexInfoForName` → `AddOptionality`）后，两侧创建序列 **198/198 逐项相同**（id + TypeFlags）。参考全文该函数只有 3 个调用点，端口也是同样 3 个（`Checker.Relations.Identical.cs:150`、`Checker.Inference.cs:5584`、`Checker.Check.cs:1090`），无漏网。
+
+**② `types/typeRelationships/typeInference/genericCallToOverloadedMethodWithOverloadedArguments.ts`（`id=332` 对 `340`，端口少 8 次创建）。** 探针显示参考多出的 8 次全部来自 `signatureToString(c)`（checker.ts:81308-81317 的 `chain2`），链是 `checkTypeRelatedTo → chain2 → signatureToString → signatureToSignatureDeclaration → symbolToParameterDeclaration → getTypeOfSymbol(瞬时形参符号) → instantiateType`：**打印**候选签名时，把 `Promise<number>.then` 实例化签名里那几个瞬时形参的类型实例化出来（每次 2 个：匿名对象类型 + 联合，m3/m4/m5/m6 各贡献若干）。端口在 `Checker.CallResolution.cs:1778` 把该实参包成 `Diagnostic.DeferArg(...)`（M6-late 的 A″），于是 `chain()` 虽在 `CheckTypeRelatedTo` 里被调用、实参却无人读 ⇒ 这一步永不发生。改成在 `chain` 体内直接求值（与参考同一时点：`CheckTypeRelatedTo` 调 `chain` 时）后，两侧 **346/346 逐项相同**。
+
+**A″ 的残留账（仍留给裁定，不在本次范围内）：** ② 只是 A″（约 200 个调用点，前文"需在 295 条分歧收完之后单独裁定"的那条）里**被本语料观测到**的那一个；机制上是"参考在调用点就算出消息实参，而打印会把瞬态符号的类型实例化出来"，所以凡实参为 `typeToString`/`symbolToString`/`signatureToString`/`typePredicateToString` 的诊断调用点，只要其链在检查期被求值，就同样能移动 `typeCount`。本语料现在对其余调用点零分歧（实测 5,908/5,908），整体去留仍应由那条裁定决定——前文已量出"放开 printer 门控会让 `diverged` 增加约 1,041"，而 A″ 使门控只在消息文本真被读到时才触发；本次只在**已量出可观测的唯一调用点**上改成参考的求值时点，其余调用点一律未动。
+
+**验收（实测）**：`dotnet build src/TypeScript.Compiler` 0 错误 / 0 警告；`dotnet test --filter FullyQualifiedName~Checker` **108/108 通过**（整份测试由集成点复跑）；`dotnet run --project tools/TypeDiff -- --cases …/tests/cases/conformance` **`same=5908/5908 diverged=0 port-crash=0`（VERDICT clean）**。
+
+#### 17.13.3 M7-C 尾项之 `.js.map` 侧收口：EmitDiff 开 `--source-map`，端口 source-map 路径逐字节一致
+
+§17.12 落地的 source-map 切片（`SourceMap{,.Generator,.Mappings,.DocumentPosition}.cs` + `Emit/Printer.SourceMaps.cs`）此前**完全不被外环跑到**：EmitDiff 的冻结选项集里没有 `sourceMap`，一次 `.js.map` 都不产生，而端口侧 `Emit/Emitter.cs` 的私有 `CreateSourceMapGenerator` 仍是抛 `NotSupportedException` 的具名阻断（`emitter.ts:997-1005` 的调用点被原样留着）。
+
+**改动（两处）**：
+
+1. **端口侧最后一米**：`Emit/Emitter.cs` 的 `CreateSourceMapGenerator` 从"具名阻断"换成 `SourceMap.CreateSourceMapGenerator`（`src/compiler/sourcemap.ts:36-58`），并把 emitter 的 `SourceMapOptions` 视图映射到生成器唯一读的成员 `SourceMapGeneratorOptions.extendedDiagnostics`（参考里那个接口是结构类型，C# 里就是这一句）。这是 emitter 自己的入口，printer 侧（`Printer.SourceMaps.cs`）此前已就位。
+2. **工具两侧一起扩**：`tools/EmitDiff/Program.cs` 的 `PortOptions` 与 `ts-emit.cjs` 的 `options` 同时新增参考 source-map 路径读的五个 `CompilerOptions` 槽——`sourceMap`/`inlineSourceMap`/`inlineSources`/`sourceRoot`/`mapRoot`，由 `--source-map`/`--inline-source-map`/`--inline-sources`/`--source-root <d>`/`--map-root <d>` 驱动（不带 flag 时这五个槽在两侧**都缺席**，所以默认运行的选项对象与之前逐字节相同、判决与历史可比）。**dump 格式一个字没改**：`begin`/`end` 本来就按"发射器写出的每个输出"重复，于是 `.js.map`（emit 先写它，`emitter.ts:1099-1121`）与 `.js`（含 `//# sourceMappingURL=` 注释，`emitter.ts:1053-1055`）各自成为一条记录，名字/顺序/长度/字节全部进同一个 FNV-1a 哈希。`report.txt` 的 `# options` 行按同样的顺序追加实际开到的槽位。
+
+**实测（同一份 5,908 文件语料，参考 `lib/typescript.js` 6.0.3 的 `program.emit`，即 `tsc --sourceMap` 同一发射器）**：
+
+| 运行 | 结果 |
+|---|---|
+| 修前（阻断在位）`--source-map` | `same=36 diverged=0 port-crash=5872 unpaired=0`（36 个仍 `same` 的是不产出 JS 的 `.d.ts` 输入，发生器根本没被请求） |
+| 修后 `--source-map` | `same=5908/5908 diverged=0 port-crash=0 ts-error=0`（VERDICT clean，24 批 node；参考侧 24 批合计写出 `emitted=11,744` 个输出 = 5,872 份 `.js` + 5,872 份 `.js.map`、7,216,081 字节，端口侧逐文件哈希与 dump 长度与之相同） |
+| `--source-map --inline-sources` | 同上 clean |
+| `--source-map --map-root ../maps` | 同上 clean |
+| `--source-map --source-root /src` | 同上 clean |
+| `--inline-source-map` | 同上 clean |
+| `es6/**`（1,045 文件）`--source-map --inline-sources --source-root ../src --map-root ../maps` | `same=1045/1045` clean |
+| `es6/**`（1,045 文件）`--inline-source-map --inline-sources` | `same=1045/1045` clean |
+
+除上表外，另用 16 个自造对抗夹具（非 ASCII 文件名与源文本、BOM、CRLF、U+2028/U+2029 行分隔、shebang、空文件、`.d.ts`、`.js`、`.tsx`、含空格/`#`/`+` 的文件名、60 行多段映射文件）把 `sourceRoot`/`mapRoot` 的绝对/相对/空/带空格/URL/Windows 盘符各臂、`inlineSourceMap`+`inlineSources` 的 base64 也压了一遍，全部逐字节一致；该临时语料与测量脚本只用于量期望值，未留在树里（`artifacts/` 下已删）。
+
+**测试**：`tests/TypeScript.Compiler.Tests/Transforms/SourceMapGeneratorTests.cs` 由 18 条增至 **23 条**（新增：发射路径的写序与两段文本、`inlineSources` 的 `sourcesContent`、`sourceRoot`+`mapRoot` 的注释与源根、`inlineSourceMap` 的 `data:` URL，以及**任何语料都到不了**的 `sourceMapRange.source` 换源臂——外环逐文件发射，永远不会有节点的 source-map 范围指向另一个源，所以 `emitSourcePos` 的 `source !== sourceMapSource` 分支只能由单测驱动）。期望值全部先用参考 6.0.3 现量（`artifacts/` 下的临时 node 脚本，量完即删）。
+
+**结论**：`Emitter.cs` 那一行阻断是这条路径上唯一的真缺陷；把它换成真生成器后，端口 source-map 路径与参考在全部可达配置下**零分歧、零崩溃**。仍未闭合：声明发射（`.d.ts`）、剩余 TypeDiff 分歧、`.errors.txt`/baseline 全量比对（P1b）。
+
+#### 17.13.4 M7-C 尾项之 `.d.ts` 侧：声明发射逐字节收敛（7 处缺陷）
+
+以 `node lib/tsc.js --declaration --emitDeclarationOnly` （6.0.3）为真源，对声明切片留下的那例分歧（解构导出列表 + 参数属性 + 显式数组类型）追到根，并顺带清掉 7 处真缺陷（`DeclarationsTransformTests` 4 → 11 条逐字节用例，每条都先证明"修前失败"）：
+
+| # | 位置 | 缺陷 | 参考 |
+|---|---|---|---|
+| 1 | `Checker.Check.Source.cs` `IsImplementationOfOverload` | 把 `node.Body` 强转读：索引签名 `isFunctionLike` 但无 body 槽 ⇒ `InvalidCastException`（`class C { [k: string]: unknown }` 即崩） | checker.ts:50832-50833 + declarations.ts:1036 |
+| 2 | `Checker.Stringify.cs` `IsEntityNameVisible` | 结果对象类型写成 `SymbolVisibilityResult`（缺 `errorModuleName`），与 `HasVisibleDeclarations` 的 `SymbolAccessibilityResult` 不是同一形状；后者已删 | declarations.ts:823-826 |
+| 3 | `Checker/SyntacticNodeBuilder.Kinds.cs` `IsPrimitiveLiteralValue` | default 臂调 `Debug.AssertNever`，而参考的 `assertType<never>` 是**纯类型层**断言 ⇒ 非字面量实参会误抛；改答 `false` | utilities.ts:12051 |
+| 4 | `Emit/Printer.cs` `IsEmptyBlock` | 少了"块的起止在同一行"合取项 ⇒ `declare namespace M { }` 打成一行的判定错；同时删掉 `Printer.Statements.cs` 里只按语句数判空的重复 `IsEmptyBlockLike` | emitter.ts 的空块判定 |
+| 5 | `Parser/NodeFactory.cs` `CreateNumericLiteral` | `string \| number` 槽只处理了整数 ⇒ 传 double 时 `Text` 为 `null`（声明发射的 `0: number` 属性名即触发） | nodeFactory.ts（`createNumericLiteral`） |
+| 6 | `Transforms/Declarations/DeclarationsTransform.Members.cs` | 迟到替换表的值（`Node \| Node[]`）被强转成 `IList<IStatement>` ⇒ 改走 `AnyReplacement`（`IsNodeArray` + 元素循环） | declarations.ts:1700 附近 |
+| 7 | `Utilities/Utilities.Visitor.cs` | `IsNodeArray` 由 private 提为 internal，供声明变换复用同一判定 | — |
+
+另有一处**夹具而非产品**：`DeclarationsTransformTests` 的选项集漏了 `Declaration = true`，而 `getEmitDeclarations` 决定 `checkExportSpecifier` 是否 `collectLinkedAliases(setVisibility: true)`，那是解构绑定元素可见性的唯一来源（checker.ts:48823-48825 + 11348/11454 + declarations.ts:756-767、1760-1761）。补上后端口与真源逐字节一致。
