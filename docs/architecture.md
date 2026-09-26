@@ -1221,6 +1221,19 @@ SourceFile(0,131) symbol=ValueModule:"/p" locals=[C=Class:C:1,a=BlockScopedVaria
 
 `SymbolTable` 在端口里是 `Dictionary<string, ISymbol>`（**无序**），而 TS 的 `SymbolTable = Map<__String, Symbol>` 按插入序迭代 —— checker 的属性列表、联合归约与显示字符串都从它派生。`tools/BindDiff` 看不见这个差异，因为它的 dump 对 key 排了序。因此 M6-0 必须先把 `SymbolTable` 换成保序形态并迁移全部槽位与调用点，**在 checker 开始写 members 之前**。这条与 M5 的教训同类：缺失/错误的模型槽会晚爆，而这次它连差分都躲得过。
 
+### M6→M7 边界（loud blocker 清单，M7 落地时逐条接管）
+
+`Program` 侧由 `Program.EmitNotLanded` 统一抛出（消息里带成员名与 TS 行号）：
+
+| 成员 | TS 位置 | 归 M7 的理由 |
+|---|---|---|
+| `Program.Emit` | program.ts:2688 | 需要 emitter（Layer 7） |
+| `Program.EmitBuildInfo` | program.ts:2650 | 同上（build info 的序列化在 emitter 侧） |
+| `Program.GetDeclarationDiagnostics` / `…Worker` | program.ts:2827 / 3244 | 声明发射的诊断通道 |
+| `Program.GetEmitHost` | program.ts:2598 | 发射宿主 |
+
+另有三个**声明在 emitter.ts/utilities.ts、但本质是 program 状态**的辅助，M6-1 不得不先落在 `Program.EmitBoundary.cs`（各带 PORT-NOTE）：`Program.GetCommonSourceDirectoryFromOptions`（emitter.ts:636）、`GetCommonSourceDirectoryOfConfig`（:685）、`GetComputedCommonSourceDirectory`（utilities.ts:10261）。**M7 必须调用它们而不是再声明一份**——这与 `formatMessage` 家族同一条规则。
+
 ### 生成器缺口（M6 期间修掉）
 
 `MapUnion` 的公共基只看 C# 的**类**链，而对没到达 `Node` 的联合会退化成 `Node`——两处显形：`IProgram.getFileProcessingDiagnostics()` 生成为 `List<Node>?`，`getFileIncludeReasons()` 生成为 `Dictionary<string, List<Node>>`，而端口的值分别是 `List<IFilePreprocessingDiagnostics>` 与 `List<IFileIncludeReason>`（TS 的 `readonly FilePreprocessingDiagnostics[]` 与 `Map<string, FileIncludeReason[]>`）。修法与 M5-0 的 `FlowNode`、M6-0b 的 `SymbolTable` 同一机制：两条 `s_overrides`。容器形状不动（§12.3 的 `Map`→`Dictionary` 本就是对的），`Program` 在边界上构造它。
