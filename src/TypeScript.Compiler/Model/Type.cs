@@ -48,13 +48,20 @@ internal partial class Type : IType
     /// PORT-NOTE: TS's constructor deliberately does not set <c>id</c>; <c>createType</c> (checker.ts:5518-5521)
     /// assigns it from <c>typeCount</c> right after construction. <c>createOriginType</c> (checker.ts:5531-5533)
     /// leaves it 0. The port keeps both behaviours by leaving the slot at its default here.
+    /// <para>
+    /// PORT-NOTE: TS types the parameter <c>TypeChecker</c> and stores it only when <c>Debug.isDebugging || tracing</c>
+    /// — the field exists for the debugger, and nothing in the checker reads it. The port takes it as <c>object?</c> and
+    /// narrows with <c>as</c>, so that constructing a type does not require the <c>Checker</c> class to have finished
+    /// implementing the 380-member <c>ITypeChecker</c> (which only the M6-5 assembly can do). Once it has, the <c>as</c>
+    /// starts succeeding with no change at any call site.
+    /// </para>
     /// </remarks>
-    public Type(ITypeChecker checker, TypeFlags flags)
+    public Type(object? checker, TypeFlags flags)
     {
         Flags = flags;
         if (Debug.IsDebugging || Tracing.Current is not null)
         {
-            Checker = checker;
+            Checker = checker as ITypeChecker;
         }
     }
 

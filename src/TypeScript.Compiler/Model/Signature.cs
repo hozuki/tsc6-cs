@@ -31,13 +31,18 @@ internal partial class Signature : ISignature
     /// <remarks>
     /// PORT-NOTE: unlike <see cref="Type"/>'s constructor, this one assigns <c>checker</c> only under
     /// <c>Debug.isDebugging</c> (<c>utilities.ts:8500</c>), without consulting tracing.
+    /// <para>
+    /// PORT-NOTE: the parameter is <c>object?</c> for the reason <see cref="Type(object?, TypeFlags)"/> records — the
+    /// field is debug-only, and taking it as an object keeps checker construction independent of the <c>Checker</c>
+    /// class finishing <c>ITypeChecker</c>.
+    /// </para>
     /// </remarks>
-    public Signature(ITypeChecker checker, SignatureFlags flags)
+    public Signature(object? checker, SignatureFlags flags)
     {
         Flags = flags;
         if (Debug.IsDebugging)
         {
-            Checker = checker;
+            Checker = checker as ITypeChecker;
         }
     }
 

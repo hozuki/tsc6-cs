@@ -1221,11 +1221,12 @@ SourceFile(0,131) symbol=ValueModule:"/p" locals=[C=Class:C:1,a=BlockScopedVaria
 
 `SymbolTable` 在端口里是 `Dictionary<string, ISymbol>`（**无序**），而 TS 的 `SymbolTable = Map<__String, Symbol>` 按插入序迭代 —— checker 的属性列表、联合归约与显示字符串都从它派生。`tools/BindDiff` 看不见这个差异，因为它的 dump 对 key 排了序。因此 M6-0 必须先把 `SymbolTable` 换成保序形态并迁移全部槽位与调用点，**在 checker 开始写 members 之前**。这条与 M5 的教训同类：缺失/错误的模型槽会晚爆，而这次它连差分都躲得过。
 
-### 三项裁定
+### 四项裁定
 
 1. **受 printer 门控的字符串化**（`typeToString`/`symbolToString`/`signatureToString`/`typePredicateToString` 用到 `checker.ts:6194-6264` 的 `createPrinter*`，属 M7）：采用端口既有惯例 —— **显式命名 + 测试钉住的 loud blocker**（先例是 `FactoryUtilities.IsJSDocTypeAssertion`，§15.9），并逐条进本节的残留清单。不使用静默降级：静默的错字符串会污染 `.types` baseline，而 loud blocker 会在 M7 接上时立刻变成绿灯。
 2. **`moduleSpecifiers` 的两个调用点**（`checker.ts:8534`/`8638`）：归 M6-late，作为 M6-6 的契约项，不在 M6 主体里提前引入那 1,470 行。
-3. **checker 的交付形态是 `Checker : ITypeChecker`**，与 `NodeFactory : INodeFactory` 同形：TS 的 `const checker: TypeChecker = {…}` 是一个字面量，而端口的成员是 landed partial 的实例方法，所以要由类实现那个生成的接口（380+ 成员，M6-5 组装完成后才可能转换成功；中间的"无法转换"是预期状态）。若到 M6-5 仍有接口成员表达不了（M4d 的 `INodeFactory` 有 6 个这样的），走 §15.9 的"接口比类大"处理：逐条指名 + 反射测试钉住差集，而不是给出发不出正确结果的实现。
+3. **`Type`/`Signature` 的构造子收 `object?` 而不是 `ITypeChecker`。** 参考实现自己也只在 `Debug.isDebugging || tracing` 时才把 checker 存进那个字段（`utilities.ts:8489-8503`）——它纯粹是给调试器/服务层读的，checker 本身从不读它。端口因此把参数收成 `object?`、体内 `as ITypeChecker`：代价为零，却让"构造一个类型"不再依赖 `Checker` 类已经实现完那个 380 成员的接口（只有 M6-5 的组装能做到）。等组装完成后同一个 `as` 自然开始成立，**任何调用点都不需要再改**。这条解开的不只是 21 个编译错误，而是"在 M6-5 之前所有 checker 测试都跑不起来"。
+4. **checker 的交付形态是 `Checker : ITypeChecker`**，与 `NodeFactory : INodeFactory` 同形：TS 的 `const checker: TypeChecker = {…}` 是一个字面量，而端口的成员是 landed partial 的实例方法，所以要由类实现那个生成的接口（380+ 成员，M6-5 组装完成后才可能转换成功；中间的"无法转换"是预期状态）。若到 M6-5 仍有接口成员表达不了（M4d 的 `INodeFactory` 有 6 个这样的），走 §15.9 的"接口比类大"处理：逐条指名 + 反射测试钉住差集，而不是给出发不出正确结果的实现。
 
 ---
 
