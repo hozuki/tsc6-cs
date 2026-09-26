@@ -160,6 +160,36 @@ internal static class Program
             Console.WriteLine($"  {group.Key,-22} {sample.Name}: {Truncate(sample.Type, 80)}");
         }
 
+        Console.WriteLine();
+        Console.WriteLine("type aliases:");
+        var aliases = TsTypeAliasParser.Parse(source);
+        Console.WriteLine($"  parsed               : {aliases.Count}");
+        var aliasShapes = aliases
+            .GroupBy(static a => ClassifyShape(a.Value))
+            .OrderByDescending(static g => g.Count());
+        foreach (var group in aliasShapes)
+        {
+            Console.WriteLine($"  {group.Key,-22} {group.Count(),5}   e.g. {group.First().Name} = {Truncate(group.First().Value, 60)}");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("type model (D1: chain steps -> class, mixins -> interface):");
+        var model = new TsTypeModel(interfaces, aliases);
+        var classes = interfaces.Where(i => model.RoleOf(i.Name) == TypeRole.Class).ToList();
+        var mixins = interfaces.Where(i => model.RoleOf(i.Name) == TypeRole.Interface).ToList();
+        Console.WriteLine($"  classes              : {classes.Count}");
+        Console.WriteLine($"  interfaces (mixins)  : {mixins.Count}");
+        Console.WriteLine($"  mixes sample         : {string.Join(", ", mixins.Take(14).Select(static i => i.Name))}");
+
+        var withBase = classes.Where(i => model.ClassBaseOf(i.Name) is not (null or "Node")).ToList();
+        Console.WriteLine($"  classes w/ base      : {withBase.Count}");
+        Console.WriteLine($"  base sample          : {string.Join(", ", withBase.Take(6).Select(i => $"{i.Name}->{model.ClassBaseOf(i.Name)}"))}");
+
+        Console.WriteLine($"  chain depth check    : CallExpression -> {string.Join(" -> ", model.ClassChainOf("CallExpression").Take(9))}");
+        Console.WriteLine($"  mixins of Identifier : {string.Join(", ", model.InterfaceClosureOf("Identifier", transitive: true))}");
+        Console.WriteLine($"  dual-role classes    : {model.DualRoleClasses.Count} -> {string.Join(", ", model.DualRoleClasses.Take(8))}");
+        Console.WriteLine($"  probe                : PrimaryExpression={model.RoleOf("PrimaryExpression")} Token={model.RoleOf("Token")} Identifier.base={model.ClassBaseOf("Identifier")}");
+
         return 0;
     }
 

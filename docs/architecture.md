@@ -452,6 +452,14 @@ dotnet run --project tools/Gen -- --check    # 只校验不写入（CI / 本地�
    - 移位：`1u << 31` —— 左操作数需要后缀（否则 `1 << 31` 溢出 `int`），右操作数**不能**带后缀（C# 只有 `T << int`，没有 `uint << uint`）。
    - 生成器**保留表达式**而非求值成字面量，正是为了这几处能与 TS 源码逐字对照；求值仍然保留，用于挑选底层类型宽度和检出越界成员。
    - 生成器**不照抄**字符串字面量。JS 的 `\x` 是定长两位、`\0`/`\'` 的规则也与 C# 不同，所以字面量先解码成实际字符，再按 C# 规则重新编码；遇到不认识的转义会中止生成而不是猜。
+
+5. **`types.ts` 的接口分两类生成：链上的 → C# 类，分类接口与 mixin → C# 接口。** 判据是**位置**而非形状：TS 把节点的分类链写在 `extends` 首位、mixin 写在后面（`CallExpression extends LeftHandSideExpression, Declaration`）。
+   - 只在首位出现过的接口 → 类：`Expression`、`LeftHandSideExpression`、`LiteralLikeNode`、`BinaryExpression`…
+   - 出现过非首位的接口 → 接口：`Declaration`（`SourceFile` 放首位、`Identifier` 放次位）、`JSDocContainer`、`LocalsContainer`、`FlowContainer`，以及 `PrimaryExpression`（`Identifier` 放首位，但 `LiteralExpression extends LiteralLikeNode, PrimaryExpression` 放次位）。
+   - 结果：**268 个类 / 255 个接口**，`CallExpression` 的链解析为 `CallExpression → LeftHandSideExpression → UpdateExpression → UnaryExpression → Expression → Node` ✓
+   - 代价：`Identifier` 的 C# 基类因此是 `Node` 而非 `PrimaryExpression`（后者降为接口）。分类接口本身没有实字段（只有 brand），所以类型关系通过接口完整保留，不丢信息。
+   - `PunctuationToken`/`KeywordToken`/`ModifierToken`/`NodeArray` 只经**类型别名**到达（`type DotToken = PunctuationToken<SyntaxKind.DotToken>`），位置规则看不到，用显式清单标为类。这也是 token 家族只需要少数几个类、而不是 187 个空类的原因。
+   - 泛型参数在比较基名时必须剥离（`PunctuationToken<TKind>` → `PunctuationToken`），否则继承图与角色判定全线失配。
 3. **字符串值枚举生成为 `readonly struct` 包装，而不是 C# enum，也不是裸 `const string`。** TS 里有 4 个这样的枚举（`Extension`、`InternalSymbolName`、`PrivateIdentifierKind`、`ForegroundColorEscapeSequences`）。
    - C# enum 不能携带字符串值 —— 无法表示 `"__call"`、`"export="`、`"\u001b[90m"`。
    - 裸 `const string` 会丢掉名义类型，`fileExtensionIs` 这类函数的签名就退化成 `string, string`，没有任何东西能区分 `Extension` 与随手写的字面量。

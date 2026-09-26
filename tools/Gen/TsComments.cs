@@ -23,6 +23,13 @@ internal static class TsComments
                 .Where(static l => l.Length != 0));
     }
 
+    /// <summary>Removes a trailing <c>//</c> comment from a line.</summary>
+    public static string StripLineComment(string line)
+    {
+        var index = line.IndexOf("//", StringComparison.Ordinal);
+        return index < 0 ? line : line[..index];
+    }
+
     /// <summary>
     /// Reads a block comment starting at <paramref name="i"/> (whose line contains the opener). The
     /// returned remainder is whatever followed <c>*/</c> on the closing line; <paramref name="i"/> is left

@@ -21,10 +21,6 @@ internal static class TsDeclarations
         @"^export\s+interface\s+(\w+)\s*(?:<([^>]*)>)?\s*(?:extends\s+(.+?))?\s*\{$",
         RegexOptions.Compiled);
 
-    private static readonly Regex s_typeAlias = new(
-        @"^export\s+type\s+(\w+)\s*(?:<([^>]*)>)?\s*=\s*(.+)$",
-        RegexOptions.Compiled);
-
     public static InterfaceHeader? ParseInterfaceHeader(string rawLine)
     {
         var line = rawLine.Trim();
@@ -43,18 +39,54 @@ internal static class TsDeclarations
     /// Matches a single-line <c>export type X = …;</c>. Multi-line aliases (long unions) are returned with
     /// whatever was on the header line and are expected to be reassembled by the caller.
     /// </summary>
+    /// <remarks>
+    /// Parsed by hand rather than by regex: a generic parameter list may contain nested angle brackets
+    /// (<c>export type A&lt;T extends Array&lt;Y&gt;&gt; = …</c>), which a <c>[^&gt;]*</c> pattern truncates
+    /// and silently drops the alias.
+    /// </remarks>
     public static TypeAliasHeader? ParseTypeAliasHeader(string rawLine)
     {
+        const string prefix = "export type ";
         var line = rawLine.Trim();
-        if (!line.StartsWith("export type ", StringComparison.Ordinal)) return null;
+        if (!line.StartsWith(prefix, StringComparison.Ordinal)) return null;
 
-        var match = s_typeAlias.Match(line);
-        if (!match.Success) return null;
+        var rest = line[prefix.Length..];
 
-        return new TypeAliasHeader(
-            match.Groups[1].Value,
-            SplitTypeParameters(match.Groups[2].Success ? match.Groups[2].Value : null),
-            match.Groups[3].Value.Trim());
+        var nameEnd = 0;
+        while (nameEnd < rest.Length && (char.IsLetterOrDigit(rest[nameEnd]) || rest[nameEnd] == '_'))
+        {
+            nameEnd++;
+        }
+
+        if (nameEnd == 0) return null;
+
+        var name = rest[..nameEnd];
+        rest = rest[nameEnd..].TrimStart();
+
+        var typeParameters = new List<string>();
+        if (rest.StartsWith('<'))
+        {
+            var depth = 0;
+            var end = -1;
+            for (var i = 0; i < rest.Length; i++)
+            {
+                if (rest[i] == '<') depth++;
+                else if (rest[i] == '>' && --depth == 0)
+                {
+                    end = i;
+                    break;
+                }
+            }
+
+            if (end < 0) return null;
+
+            typeParameters = SplitTypeParameters(rest[1..end]);
+            rest = rest[(end + 1)..].TrimStart();
+        }
+
+        if (!rest.StartsWith('=')) return null;
+
+        return new TypeAliasHeader(name, typeParameters, rest[1..].Trim());
     }
 
     /// <summary>Splits <c>"TKind extends SyntaxKind"</c> into the bare parameter names.</summary>
