@@ -272,4 +272,22 @@ public class ParserSmokeTests
         var access = Assert.IsType<PropertyAccessExpression>(chainedDeclaration.Initializer);
         Assert.IsType<NonNullExpression>(access.Expression);
     }
+
+    [Fact]
+    public void ForAwaitStatement_KeepsItsAwaitModifier()
+    {
+        // 27 corpus files depended on this: `awaitModifier` is the statement's first child in `forEachChild`, and the
+        // port used to answer a plain `Token` for the keyword through `parseTokenNode` while the slot's C# type is
+        // `KeywordToken?` — `as` on a mismatched reference type answers null instead of failing, so the modifier was
+        // silently dropped (see docs/architecture.md §15.11 defect 1).
+        var file = Parse("async function f() { for await (const x of y) { } }");
+
+        var function = Assert.IsType<FunctionDeclaration>(Assert.Single(file.Statements!));
+        var body = Assert.IsType<Block>(function.Body);
+        var loop = Assert.IsType<ForOfStatement>(Assert.Single(body.Statements!));
+
+        Assert.NotNull(loop.AwaitModifier);
+        Assert.Equal(SyntaxKind.AwaitKeyword, loop.AwaitModifier!.Kind);
+        Assert.Equal(SyntaxKind.VariableDeclarationList, loop.Initializer!.Kind);
+    }
 }
