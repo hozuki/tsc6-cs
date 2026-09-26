@@ -225,6 +225,10 @@ internal partial class NodeFactory
         SyntaxKind.NullKeyword => CreateBaseNode<NullLiteral>(token),
         SyntaxKind.TrueKeyword => CreateBaseNode<TrueLiteral>(token),
         SyntaxKind.FalseKeyword => CreateBaseNode<FalseLiteral>(token),
+
+        // TS's `createToken(token: TKind extends PunctuationSyntaxKind)` answers a `PunctuationToken<TKind>`; the port's
+        // token classes carry the kind at run time, so the range is what picks the class (Model/Token.cs).
+        _ when token >= SyntaxKind.FirstPunctuation && token <= SyntaxKind.LastPunctuation => new PunctuationToken(token),
         _ => new Token(token),
     };
 
@@ -2157,5 +2161,244 @@ internal partial class NodeFactory
             || node!.IsTypeOf != isTypeOf
             ? Update(CreateImportTypeNode(argument, attributes, qualifier, typeArguments, isTypeOf), node)
             : node!;
+    }
+
+    //
+    // Expressions (the second hand-written batch)
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:3088 — <c>createNewExpression</c>.</summary>
+    public NewExpression CreateNewExpression(
+        Expression? expression,
+        List<ITypeNode>? typeArguments,
+        List<Expression>? argumentsArray)
+    {
+        var node = CreateBaseDeclaration<NewExpression>(SyntaxKind.NewExpression);
+        node.Expression = Parenthesizer.ParenthesizeExpressionOfNew(expression);
+        node.TypeArguments = AsNodeArray(typeArguments);
+        node.Arguments = argumentsArray is not null
+            ? Parenthesizer.ParenthesizeExpressionsOfCommaDelimitedList(argumentsArray)
+            : null;
+        node.TransformFlags |= PropagateChildFlags(node.Expression)
+            | PropagateChildrenFlags(node.TypeArguments)
+            | PropagateChildrenFlags(node.Arguments)
+            | TransformFlags.ContainsES2020;
+
+        if (node.TypeArguments is not null) node.TransformFlags |= TransformFlags.ContainsTypeScript;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3104 — <c>updateNewExpression</c>.</summary>
+    public NewExpression UpdateNewExpression(
+        NewExpression? node,
+        Expression? expression,
+        List<ITypeNode>? typeArguments,
+        List<Expression>? argumentsArray)
+    {
+        return node!.Expression != expression
+            || !ReferenceEquals(node!.TypeArguments, typeArguments)
+            || !ReferenceEquals(node!.Arguments, argumentsArray)
+            ? Update(CreateNewExpression(expression, typeArguments, argumentsArray), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3113 — <c>createTaggedTemplateExpression</c>.</summary>
+    public TaggedTemplateExpression CreateTaggedTemplateExpression(
+        Expression? tag,
+        List<ITypeNode>? typeArguments,
+        MemberExpression? template)
+    {
+        var node = CreateBaseNode<TaggedTemplateExpression>(SyntaxKind.TaggedTemplateExpression);
+        node.Tag = Parenthesizer.ParenthesizeLeftSideOfAccess(tag, false);
+        node.TypeArguments = AsNodeArray(typeArguments);
+        node.Template = template;
+        node.TransformFlags |= PropagateChildFlags(node.Tag)
+            | PropagateChildrenFlags(node.TypeArguments)
+            | PropagateChildFlags(node.Template)
+            | TransformFlags.ContainsES2015;
+
+        if (node.TypeArguments is not null) node.TransformFlags |= TransformFlags.ContainsTypeScript;
+        if (Utilities.HasInvalidEscape(node.Template)) node.TransformFlags |= TransformFlags.ContainsES2018;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3132 — <c>updateTaggedTemplateExpression</c>.</summary>
+    public TaggedTemplateExpression UpdateTaggedTemplateExpression(
+        TaggedTemplateExpression? node,
+        Expression? tag,
+        List<ITypeNode>? typeArguments,
+        MemberExpression? template)
+    {
+        return node!.Tag != tag
+            || !ReferenceEquals(node!.TypeArguments, typeArguments)
+            || node!.Template != template
+            ? Update(CreateTaggedTemplateExpression(tag, typeArguments, template), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3368 — <c>createPrefixUnaryExpression</c>.</summary>
+    public PrefixUnaryExpression CreatePrefixUnaryExpression(SyntaxKind @operator, Expression? operand)
+    {
+        var node = CreateBaseNode<PrefixUnaryExpression>(SyntaxKind.PrefixUnaryExpression);
+        node.Operator = @operator;
+        node.Operand = Parenthesizer.ParenthesizeOperandOfPrefixUnary(operand);
+        node.TransformFlags |= PropagateChildFlags(node.Operand);
+
+        // Only a non-generated, non-"local" name is the subject of an update expression — see the comment in
+        // `visitPreOrPostfixUnaryExpression` in module.ts.
+        if ((@operator == SyntaxKind.PlusPlusToken || @operator == SyntaxKind.MinusMinusToken)
+            && NodeTests.IsIdentifier(node.Operand!)
+            && !Utilities.IsGeneratedIdentifier(node.Operand!)
+            && !Utilities.IsLocalName(node.Operand!))
+        {
+            node.TransformFlags |= TransformFlags.ContainsUpdateExpressionForIdentifier;
+        }
+
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3387 — <c>updatePrefixUnaryExpression</c>.</summary>
+    public PrefixUnaryExpression UpdatePrefixUnaryExpression(PrefixUnaryExpression? node, Expression? operand)
+    {
+        return node!.Operand != operand
+            ? Update(CreatePrefixUnaryExpression(node!.Operator, operand), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3394 — <c>createPostfixUnaryExpression</c>.</summary>
+    public PostfixUnaryExpression CreatePostfixUnaryExpression(Expression? operand, SyntaxKind @operator)
+    {
+        var node = CreateBaseNode<PostfixUnaryExpression>(SyntaxKind.PostfixUnaryExpression);
+        node.Operator = @operator;
+        node.Operand = Parenthesizer.ParenthesizeOperandOfPostfixUnary(operand);
+        node.TransformFlags |= PropagateChildFlags(node.Operand);
+
+        if (NodeTests.IsIdentifier(node.Operand!)
+            && !Utilities.IsGeneratedIdentifier(node.Operand!)
+            && !Utilities.IsLocalName(node.Operand!))
+        {
+            node.TransformFlags |= TransformFlags.ContainsUpdateExpressionForIdentifier;
+        }
+
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3412 — <c>updatePostfixUnaryExpression</c>.</summary>
+    public PostfixUnaryExpression UpdatePostfixUnaryExpression(PostfixUnaryExpression? node, Expression? operand)
+    {
+        return node!.Operand != operand
+            ? Update(CreatePostfixUnaryExpression(operand, node!.Operator), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3473 — <c>createConditionalExpression</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS writes `questionToken ?? createToken(SyntaxKind.QuestionToken)`, which resolves to
+    /// `PunctuationToken&lt;SyntaxKind.QuestionToken&gt;`. The port's wide `CreateToken` answers `Node` (§16), so the token
+    /// class is named directly — a punctuation token carries no transform flags of its own, which is why that is the
+    /// same object either way.
+    /// </remarks>
+    public ConditionalExpression CreateConditionalExpression(
+        Expression? condition,
+        PunctuationToken? questionToken,
+        Expression? whenTrue,
+        PunctuationToken? colonToken,
+        Expression? whenFalse)
+    {
+        var node = CreateBaseNode<ConditionalExpression>(SyntaxKind.ConditionalExpression);
+        node.Condition = Parenthesizer.ParenthesizeConditionOfConditionalExpression(condition);
+        node.QuestionToken = questionToken ?? new PunctuationToken(SyntaxKind.QuestionToken);
+        node.WhenTrue = Parenthesizer.ParenthesizeBranchOfConditionalExpression(whenTrue);
+        node.ColonToken = colonToken ?? new PunctuationToken(SyntaxKind.ColonToken);
+        node.WhenFalse = Parenthesizer.ParenthesizeBranchOfConditionalExpression(whenFalse);
+        node.TransformFlags |= PropagateChildFlags(node.Condition)
+            | PropagateChildFlags(node.QuestionToken)
+            | PropagateChildFlags(node.WhenTrue)
+            | PropagateChildFlags(node.ColonToken)
+            | PropagateChildFlags(node.WhenFalse);
+        node.FlowNodeWhenFalse = null;
+        node.FlowNodeWhenTrue = null;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3491 — <c>updateConditionalExpression</c>.</summary>
+    public ConditionalExpression UpdateConditionalExpression(
+        ConditionalExpression? node,
+        Expression? condition,
+        Token? questionToken,
+        Expression? whenTrue,
+        Token? colonToken,
+        Expression? whenFalse)
+    {
+        return node!.Condition != condition
+            || node!.QuestionToken != questionToken
+            || node!.WhenTrue != whenTrue
+            || node!.ColonToken != colonToken
+            || node!.WhenFalse != whenFalse
+            ? Update(
+                CreateConditionalExpression(
+                    condition,
+                    questionToken as PunctuationToken,
+                    whenTrue,
+                    colonToken as PunctuationToken,
+                    whenFalse),
+                node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:4251 — <c>createVariableDeclaration</c>.</summary>
+    public VariableDeclaration CreateVariableDeclaration(
+        object? name,
+        PunctuationToken? exclamationToken,
+        ITypeNode? type,
+        Expression? initializer)
+    {
+        var node = CreateBaseDeclaration<VariableDeclaration>(SyntaxKind.VariableDeclaration);
+        node.Name = AsName(name);
+        node.ExclamationToken = exclamationToken;
+        node.Type = type;
+        node.Initializer = AsInitializer(initializer);
+        node.TransformFlags |= PropagateNameFlags(node.Name)
+            | PropagateChildFlags(node.Initializer)
+            | (node.ExclamationToken is not null || node.Type is not null
+                ? TransformFlags.ContainsTypeScript
+                : TransformFlags.None);
+
+        node.JsDoc = null; // initialized by parser (JsDocContainer)
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:4266 — <c>updateVariableDeclaration</c>.</summary>
+    public VariableDeclaration UpdateVariableDeclaration(
+        VariableDeclaration? node,
+        Node? name,
+        PunctuationToken? exclamationToken,
+        ITypeNode? type,
+        Expression? initializer)
+    {
+        return node!.Name != name
+            || node!.Type != type
+            || node!.ExclamationToken != exclamationToken
+            || node!.Initializer != initializer
+            ? Update(CreateVariableDeclaration(name, exclamationToken, type, initializer), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6218 — <c>createSyntheticExpression</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS types the first parameter as <c>Type</c> and the third as
+    /// <c>ParameterDeclaration | NamedTupleMember</c>; the first is the checker's type object, which the port models
+    /// separately, and the third collapses to <c>Node</c> (§12.5).
+    /// </remarks>
+    public SyntheticExpression CreateSyntheticExpression(
+        IType? type,
+        object? isSpread = null,
+        Node? tupleNameSource = null)
+    {
+        var node = CreateBaseNode<SyntheticExpression>(SyntaxKind.SyntheticExpression);
+        node.Type = type;
+        node.IsSpread = isSpread is bool spread && spread;
+        node.TupleNameSource = tupleNameSource;
+        return node;
     }
 }

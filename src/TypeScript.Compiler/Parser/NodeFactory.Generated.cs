@@ -2446,38 +2446,6 @@ internal partial class NodeFactory
         throw new NotImplementedException("the port has not reached `updateIndexSignature` yet");
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createNewExpression</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateNewExpression(Expression? expression, List<ITypeNode>? typeArguments, List<Expression>? argumentsArray)
-    {
-        throw new NotImplementedException("the port has not reached `createNewExpression` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateNewExpression</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public NewExpression UpdateNewExpression(NewExpression? node, Expression? expression, List<ITypeNode>? typeArguments, List<Expression>? argumentsArray)
-    {
-        throw new NotImplementedException("the port has not reached `updateNewExpression` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTaggedTemplateExpression</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateTaggedTemplateExpression(Expression? tag, List<ITypeNode>? typeArguments, MemberExpression? template)
-    {
-        throw new NotImplementedException("the port has not reached `createTaggedTemplateExpression` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateTaggedTemplateExpression</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public TaggedTemplateExpression UpdateTaggedTemplateExpression(TaggedTemplateExpression? node, Expression? tag, List<ITypeNode>? typeArguments, MemberExpression? template)
-    {
-        throw new NotImplementedException("the port has not reached `updateTaggedTemplateExpression` yet");
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createFunctionExpression</c>.</summary>
     /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
     /// it yet (docs/architecture.md §15.7).</remarks>
@@ -2510,38 +2478,6 @@ internal partial class NodeFactory
         throw new NotImplementedException("the port has not reached `updateArrowFunction` yet");
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createPrefixUnaryExpression</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreatePrefixUnaryExpression(SyntaxKind @operator, Expression? operand)
-    {
-        throw new NotImplementedException("the port has not reached `createPrefixUnaryExpression` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updatePrefixUnaryExpression</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public PrefixUnaryExpression UpdatePrefixUnaryExpression(PrefixUnaryExpression? node, Expression? operand)
-    {
-        throw new NotImplementedException("the port has not reached `updatePrefixUnaryExpression` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createPostfixUnaryExpression</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreatePostfixUnaryExpression(Expression? operand, SyntaxKind @operator)
-    {
-        throw new NotImplementedException("the port has not reached `createPostfixUnaryExpression` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updatePostfixUnaryExpression</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public PostfixUnaryExpression UpdatePostfixUnaryExpression(PostfixUnaryExpression? node, Expression? operand)
-    {
-        throw new NotImplementedException("the port has not reached `updatePostfixUnaryExpression` yet");
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createBinaryExpression</c>.</summary>
     /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
     /// it yet (docs/architecture.md §15.7).</remarks>
@@ -2556,38 +2492,6 @@ internal partial class NodeFactory
     public BinaryExpression UpdateBinaryExpression(BinaryExpression? node, Expression? left, Token? @operator, Expression? right)
     {
         throw new NotImplementedException("the port has not reached `updateBinaryExpression` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createConditionalExpression</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public ConditionalExpression CreateConditionalExpression(Expression? condition, PunctuationToken? questionToken, Expression? whenTrue, PunctuationToken? colonToken, Expression? whenFalse)
-    {
-        throw new NotImplementedException("the port has not reached `createConditionalExpression` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateConditionalExpression</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public ConditionalExpression UpdateConditionalExpression(ConditionalExpression? node, Expression? condition, Token? questionToken, Expression? whenTrue, Token? colonToken, Expression? whenFalse)
-    {
-        throw new NotImplementedException("the port has not reached `updateConditionalExpression` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createVariableDeclaration</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public VariableDeclaration CreateVariableDeclaration(object? name, PunctuationToken? exclamationToken, ITypeNode? type, Expression? initializer)
-    {
-        throw new NotImplementedException("the port has not reached `createVariableDeclaration` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateVariableDeclaration</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public VariableDeclaration UpdateVariableDeclaration(VariableDeclaration? node, Node? name, PunctuationToken? exclamationToken, ITypeNode? type, Expression? initializer)
-    {
-        throw new NotImplementedException("the port has not reached `updateVariableDeclaration` yet");
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createFunctionDeclaration</c>.</summary>
@@ -3036,14 +2940,6 @@ internal partial class NodeFactory
     public SourceFile UpdateSourceFile(SourceFile? node, List<IStatement>? statements, object? isDeclarationFile, object? referencedFiles, object? typeReferenceDirectives, object? _hasNoDefaultLib, object? libReferenceDirectives)
     {
         throw new NotImplementedException("the port has not reached `updateSourceFile` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createSyntheticExpression</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public SyntheticExpression CreateSyntheticExpression(IType? type, object? isSpread, Node? tupleNameSource)
-    {
-        throw new NotImplementedException("the port has not reached `createSyntheticExpression` yet");
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createImmediatelyInvokedFunctionExpression</c>.</summary>

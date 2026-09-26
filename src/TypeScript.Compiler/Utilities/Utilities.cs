@@ -149,6 +149,43 @@ internal static partial class Utilities
         _ => ModifierFlags.None,
     };
 
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1581-1583 — <c>isGeneratedIdentifier</c>.</summary>
+    public static bool IsGeneratedIdentifier(Node node)
+        => NodeTests.IsIdentifier(node) && EmitNodes.GetIdentifierAutoGenerate(node) is not null;
+
+    /// <summary>ported from: src/compiler/utilities.ts:565 — <c>isLocalName</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS reads <c>node.escapedText</c> without asking whether the node is an identifier, because its callers
+    /// have narrowed the type. The property only exists on an identifier here, so the port checks the kind.
+    /// </remarks>
+    public static bool IsLocalName(Node node)
+        => node is Identifier identifier && identifier.EscapedText is "arguments" or "this";
+
+    /// <summary>ported from: src/compiler/utilities.ts:6144-6152 — <c>hasInvalidEscape</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS types the parameter as <c>TemplateLiteral</c> — a union of <c>TemplateExpression</c> and
+    /// <c>NoSubstitutionTemplateLiteral</c> — and dispatches on which it is; the port takes the wider <c>Node</c> and
+    /// narrows, because a union has no C# type (§12.5).
+    /// </remarks>
+    public static bool HasInvalidEscape(Node? template)
+    {
+        if (template is null) return false;
+
+        if (NodeTests.IsNoSubstitutionTemplateLiteral(template))
+        {
+            return ContainsInvalidEscapeFlag(template);
+        }
+
+        if (template is not TemplateExpression expression) return false;
+
+        return ContainsInvalidEscapeFlag(expression.Head!)
+            || Core.Some(expression.TemplateSpans, span => ContainsInvalidEscapeFlag(span.Literal!));
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:6144 — <c>containsInvalidEscapeFlag</c>.</summary>
+    private static bool ContainsInvalidEscapeFlag(Node token)
+        => ((((ITemplateLiteralLikeNode)token).TemplateFlags ?? TokenFlags.None) & TokenFlags.ContainsInvalidEscape) != 0;
+
     /// <summary>ported from: src/compiler/utilities.ts:5311 — <c>isPropertyAccessChain</c>.</summary>
     public static bool IsPropertyAccessChain(Node node)
         => NodeTests.IsPropertyAccessExpression(node) && (node.Flags & NodeFlags.OptionalChain) != 0;
