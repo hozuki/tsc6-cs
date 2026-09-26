@@ -18,6 +18,15 @@ namespace TypeScript.Compiler;
 /// from Layer 5 at all: the factory needs <c>getNodeId</c> to spell a generated name for a non-member node, and the
 /// checker reads back the same id.
 /// </para>
+/// <para>
+/// M4f's two files (<c>factory/emitHelpers.ts</c> and <c>expressionToTypeNode.ts</c>) added the last group: the
+/// function-like predicates they narrow with, <c>findAncestor</c>, <c>forEachReturnStatement</c>,
+/// <c>getFunctionFlags</c> and the <c>getEffective*tNode</c> family. Two of their bodies stop short of the JS-file
+/// JSDoc fallback, because <c>getJSDocType</c> / <c>getJSDocReturnType</c> belong to the JSDoc-attribution family of M5:
+/// each says so in a PORT-NOTE and throws rather than answering a type-less <c>null</c>. <c>hasDynamicName</c> is
+/// <em>not</em> here for the same milestone reason — it is defined as <c>getNonAssignedNameOfDeclaration(declaration)</c>
+/// followed by <c>isDynamicName</c>, and that name lookup is exactly the M5 family §15.9 records as residual.
+/// </para>
 /// </remarks>
 internal static partial class Utilities
 {
@@ -841,5 +850,308 @@ internal static partial class Utilities
 
             return node;
         }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // M4f prerequisites: `factory/emitHelpers.ts` and `expressionToTypeNode.ts` need these ahead of M5
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>ported from: src/compiler/utilities.ts:3804-3806 — <c>isInJSFile</c>.</summary>
+    public static bool IsInJSFile(Node? node) => node is not null && (node.Flags & NodeFlags.JavaScriptFile) != 0;
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1692-1704 — <c>isFunctionLikeDeclarationKind</c>.</summary>
+    private static bool IsFunctionLikeDeclarationKind(SyntaxKind kind) => kind switch
+    {
+        SyntaxKind.FunctionDeclaration
+            or SyntaxKind.MethodDeclaration
+            or SyntaxKind.Constructor
+            or SyntaxKind.GetAccessor
+            or SyntaxKind.SetAccessor
+            or SyntaxKind.FunctionExpression
+            or SyntaxKind.ArrowFunction => true,
+        _ => false,
+    };
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1710-1724 — <c>isFunctionLikeKind</c>.</summary>
+    public static bool IsFunctionLikeKind(SyntaxKind kind) => kind switch
+    {
+        SyntaxKind.MethodSignature
+            or SyntaxKind.CallSignature
+            or SyntaxKind.JSDocSignature
+            or SyntaxKind.ConstructSignature
+            or SyntaxKind.IndexSignature
+            or SyntaxKind.FunctionType
+            or SyntaxKind.JSDocFunctionType
+            or SyntaxKind.ConstructorType => true,
+        _ => IsFunctionLikeDeclarationKind(kind),
+    };
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1675-1677 — <c>isFunctionLike</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's guard narrows the node to <c>SignatureDeclaration</c> — a union of sixteen node types that has no
+    /// C# base interface of its own (<c>JSDocSignature</c> does not even implement <c>ISignatureDeclarationBase</c>) — so
+    /// the port answers <c>bool</c> and the caller narrows as it needs, the same treatment
+    /// <see cref="CanHaveModifiers"/> gets.
+    /// </remarks>
+    public static bool IsFunctionLike(Node? node) => node is not null && IsFunctionLikeKind(node.Kind);
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1685-1687 — <c>isFunctionLikeDeclaration</c>.</summary>
+    public static bool IsFunctionLikeDeclaration(Node node) => IsFunctionLikeDeclarationKind(node.Kind);
+
+    /// <summary>ported from: src/compiler/utilities.ts:2893-2918 — <c>forEachReturnStatement</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>body: Block | Statement</c> is <see cref="IStatement"/> here — the anchor §12.9 gives that
+    /// categorisation chain — and <c>Block</c> implements it, so both members of the union are accepted. The walk itself
+    /// needs the <c>Node</c> half (the port's <see cref="INode"/> carries no child slots), hence the cast. <c>T</c> stays
+    /// unconstrained: the walk stops at the first result the <c>forEachChild</c> family considers truthy, which the port's
+    /// <see cref="ForEachChildTable.ForEachChild{T}"/> expresses the same way.
+    /// </remarks>
+    public static T? ForEachReturnStatement<T>(IStatement body, Func<ReturnStatement, T?> visitor)
+    {
+        return Traverse((Node)body);
+
+        T? Traverse(Node node) => node.Kind switch
+        {
+            SyntaxKind.ReturnStatement => visitor((ReturnStatement)node),
+            SyntaxKind.CaseBlock
+                or SyntaxKind.Block
+                or SyntaxKind.IfStatement
+                or SyntaxKind.DoStatement
+                or SyntaxKind.WhileStatement
+                or SyntaxKind.ForStatement
+                or SyntaxKind.ForInStatement
+                or SyntaxKind.ForOfStatement
+                or SyntaxKind.WithStatement
+                or SyntaxKind.SwitchStatement
+                or SyntaxKind.CaseClause
+                or SyntaxKind.DefaultClause
+                or SyntaxKind.LabeledStatement
+                or SyntaxKind.TryStatement
+                or SyntaxKind.CatchClause => ForEachChildTable.ForEachChild(node, Traverse),
+            _ => default,
+        };
+    }
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:786-799 — <c>findAncestor</c> (both overloads).</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's second overload answers <c>boolean | "quit"</c> — a truthy value stops the walk and answers that
+    /// node, <c>"quit"</c> stops it and answers <c>undefined</c>. A C# <c>bool</c>-returning delegate cannot carry a third
+    /// answer, so TS's two overloads become two here: a plain predicate, which a method group such as
+    /// <c>Utilities.IsFunctionLike</c> binds to directly, and the quit-capable one whose <c>null</c> is TS's <c>"quit"</c>
+    /// (<c>false</c> keeps walking, <c>true</c> returns the node, <c>null</c> returns nothing). A lambda that answers
+    /// <c>bool</c> binds to the first — that is the better conversion — so only a caller that wants to quit has to spell
+    /// the nullable form.
+    /// <para>
+    /// PORT-NOTE: TS's first overload is a type guard (<c>T extends Node</c>, answering <c>T | undefined</c>). C# cannot
+    /// narrow through a predicate, so the port keeps <c>Node?</c> and the caller casts — the same treatment
+    /// <see cref="IsNamedDeclaration"/> gets.
+    /// </para>
+    /// </remarks>
+    public static Node? FindAncestor(Node? node, Func<Node, bool> callback)
+        => FindAncestorCore(node, n => callback(n));
+
+    /// <summary>The quit-capable overload: an answer of <c>null</c> stops the walk without a result (TS's
+    /// <c>"quit"</c>).</summary>
+    public static Node? FindAncestor(Node? node, Func<Node, bool?> callback) => FindAncestorCore(node, callback);
+
+    private static Node? FindAncestorCore(Node? node, Func<Node, bool?> callback)
+    {
+        while (node is not null)
+        {
+            var result = callback(node);
+            if (result is null) return null;
+            if (result.Value) return node;
+            node = node.Parent;
+        }
+
+        return null;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:5318-5345 — <c>getFunctionFlags</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's parameter is the <c>SignatureDeclaration | undefined</c> union, which also admits the signature
+    /// kinds without a body (call, construct, index). The port takes <c>Node</c> and narrows with
+    /// <c>is IFunctionLikeDeclarationBase</c> where TS writes <c>as FunctionLikeDeclaration</c>: both answer
+    /// <c>Invalid</c> for a signature that has no body, because the missing member reads <c>undefined</c> on that side.
+    /// <para>
+    /// PORT-NOTE: TS asks <c>hasSyntacticModifier(node, ModifierFlags.Async)</c>; that family is spelled out for the four
+    /// kinds this member admits in <c>HasAsyncModifier</c> — see its note.
+    /// </para>
+    /// </remarks>
+    public static FunctionFlags GetFunctionFlags(Node? node)
+    {
+        if (node is null) return FunctionFlags.Invalid;
+
+        var flags = FunctionFlags.Normal;
+        switch (node.Kind)
+        {
+            case SyntaxKind.FunctionDeclaration:
+            case SyntaxKind.FunctionExpression:
+            case SyntaxKind.MethodDeclaration:
+                if (((IFunctionLikeDeclarationBase)node).AsteriskToken is not null)
+                {
+                    flags |= FunctionFlags.Generator;
+                }
+
+                goto case SyntaxKind.ArrowFunction;
+
+            case SyntaxKind.ArrowFunction:
+                if (HasAsyncModifier(node))
+                {
+                    flags |= FunctionFlags.Async;
+                }
+
+                break;
+        }
+
+        if (node is not IFunctionLikeDeclarationBase { Body: not null })
+        {
+            flags |= FunctionFlags.Invalid;
+        }
+
+        return flags;
+    }
+
+    /// <summary>The port of TS's <c>hasSyntacticModifier(node, ModifierFlags.Async)</c> for the kinds
+    /// <see cref="GetFunctionFlags"/> admits.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS reaches the answer through the cached modifier-flag family (<c>hasSyntacticModifier</c> →
+    /// <c>getSyntacticModifierFlags</c> → <c>getModifierFlagsWorker</c> and the <c>modifierFlagsCache</c> bits), which
+    /// belongs with <c>getEffectiveModifierFlags</c> and the <c>HasModifiers</c> alias — a union of ~25 types with no C#
+    /// anchor, so M5 has to bring it in together with the effective-modifier family. For the four function-like kinds
+    /// <c>canHaveModifiers</c> answers true, so <c>getSyntacticModifierFlagsNoCache</c> reduces to
+    /// <c>modifiersToFlags(node.modifiers)</c> and the cached value is the same bit; the question is spelled out here
+    /// rather than moving that family into this batch. A kind outside the four answers <c>false</c>, because
+    /// <see cref="GetFunctionFlags"/> never asks about one.
+    /// </remarks>
+    private static bool HasAsyncModifier(Node node) => node switch
+    {
+        FunctionDeclaration declaration => (ModifiersToFlags(declaration.Modifiers) & ModifierFlags.Async) != 0,
+        FunctionExpression declaration => (ModifiersToFlags(declaration.Modifiers) & ModifierFlags.Async) != 0,
+        MethodDeclaration declaration => (ModifiersToFlags(declaration.Modifiers) & ModifierFlags.Async) != 0,
+        ArrowFunction declaration => (ModifiersToFlags(declaration.Modifiers) & ModifierFlags.Async) != 0,
+        _ => false,
+    };
+
+    /// <summary>ported from: src/compiler/utilities.ts:12218-12222 — <c>isNewScopeNode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's guard narrows to <c>IntroducesNewScopeNode</c> (<c>SignatureDeclaration | JSDocSignature |
+    /// MappedTypeNode</c>); C# cannot narrow through a predicate, so the port answers <c>bool</c>. The alias itself has no
+    /// port counterpart — nothing names it except parameter slots of
+    /// <c>SyntacticTypeNodeBuilderResolver.enterNewScope</c>, which the generated interface already spells <c>Node?</c>.
+    /// </remarks>
+    public static bool IsNewScopeNode(Node node)
+        => IsFunctionLike(node) || NodeTests.IsJSDocSignature(node) || NodeTests.IsMappedTypeNode(node);
+
+    /// <summary>ported from: src/compiler/utilities.ts:6793-6795 — <c>parameterIsThisKeyword</c>.</summary>
+    public static bool ParameterIsThisKeyword(ParameterDeclaration parameter) => IsThisIdentifier(parameter.Name);
+
+    /// <summary>ported from: src/compiler/utilities.ts:6764-6769 — <c>getSetAccessorValueParameter</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS guards with <c>accessor &amp;&amp;</c> a parameter it also declares non-optional; the port's parameter
+    /// is non-nullable, so only the length test remains.
+    /// </remarks>
+    public static ParameterDeclaration? GetSetAccessorValueParameter(SetAccessorDeclaration accessor)
+    {
+        if (accessor.Parameters is { Count: > 0 } parameters)
+        {
+            var hasThis = parameters.Count == 2 && ParameterIsThisKeyword(parameters[0]);
+            return parameters[hasThis ? 1 : 0];
+        }
+
+        return null;
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:6892-6898 — <c>getEffectiveTypeAnnotationNode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the JSDoc fallback that TS runs for a JavaScript file is only half ported. The JSDoc-property case is
+    /// here (<c>node.typeExpression.type</c> is the annotation, and both kinds are in the model), but the rest needs
+    /// <c>getJSDocType</c>, which belongs to the JSDoc-attribution family that arrives with M5. Answering <c>null</c>
+    /// there would silently drop every type a JS file declares through <c>@type</c> / <c>@param</c>, so the branch is a
+    /// loud blocker instead — the same choice <see cref="FactoryUtilities.IsJSDocTypeAssertion"/> makes.
+    /// </remarks>
+    public static ITypeNode? GetEffectiveTypeAnnotationNode(Node node)
+    {
+        if (!IsInJSFile(node) && NodeTests.IsFunctionDeclaration(node)) return null;
+        if (NodeTests.IsTypeAliasDeclaration(node)) return null; // has a .type, is not a type annotation
+        var type = GetTypeAnnotationNode(node);
+        if (type is not null || !IsInJSFile(node)) return type;
+        if (node is JSDocPropertyLikeTag propertyLike) return propertyLike.TypeExpression?.Type;
+        throw new NotImplementedException(
+            "getEffectiveTypeAnnotationNode's JSDoc fallback needs getJSDocType, which arrives with the JSDoc helpers in M5");
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:6901-6903 — <c>getTypeAnnotationNode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's whole body is <c>(node as HasType).type</c>, and <c>HasType</c> is only the static spelling of
+    /// that read — at runtime it is a plain property read on whatever node it is handed. The port writes the read out as
+    /// a switch over every node type whose model declares a <c>type</c> slot: <c>ISignatureDeclarationBase</c> covers the
+    /// whole <c>SignatureDeclaration</c> family (as <c>HasType</c>'s first member names it), and the remaining arms are
+    /// <c>HasType</c>'s other members plus the node types TS's union omits but the read still reaches
+    /// (<c>SatisfiesExpression</c>, <c>NamedTupleMember</c>, <c>OptionalTypeNode</c>, <c>RestTypeNode</c>,
+    /// <c>TemplateLiteralTypeSpan</c>, <c>JSDocOptionalType</c>, <c>JSDocVariadicType</c>, <c>JSDocNamepathType</c>).
+    /// <c>JSDocSignature</c> is deliberately absent: TS's union lists it, but its <c>type</c> is a
+    /// <c>JSDocReturnTag</c> rather than a <c>TypeNode</c>, which is why <c>getEffectiveReturnTypeNode</c> handles that
+    /// shape itself.
+    /// </remarks>
+    private static ITypeNode? GetTypeAnnotationNode(Node node) => node switch
+    {
+        ISignatureDeclarationBase signature => signature.Type,
+        VariableDeclaration declaration => declaration.Type,
+        ParameterDeclaration declaration => declaration.Type,
+        PropertySignature declaration => declaration.Type,
+        PropertyDeclaration declaration => declaration.Type,
+        TypePredicateNode declaration => declaration.Type,
+        ParenthesizedTypeNode declaration => declaration.Type,
+        TypeOperatorNode declaration => declaration.Type,
+        MappedTypeNode declaration => declaration.Type,
+        TypeAssertion declaration => declaration.Type,
+        AsExpression declaration => declaration.Type,
+        SatisfiesExpression declaration => declaration.Type,
+        TypeAliasDeclaration declaration => declaration.Type,
+        NamedTupleMember declaration => declaration.Type,
+        OptionalTypeNode declaration => declaration.Type,
+        RestTypeNode declaration => declaration.Type,
+        TemplateLiteralTypeSpan declaration => declaration.Type,
+        JSDocTypeExpression declaration => declaration.Type,
+        JSDocNonNullableType declaration => declaration.Type,
+        JSDocNullableType declaration => declaration.Type,
+        JSDocOptionalType declaration => declaration.Type,
+        JSDocVariadicType declaration => declaration.Type,
+        JSDocNamepathType declaration => declaration.Type,
+        _ => null,
+    };
+
+    /// <summary>ported from: src/compiler/utilities.ts:6911-6915 — <c>getEffectiveReturnTypeNode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's parameter is <c>SignatureDeclaration | JSDocSignature</c>, which has no C# counterpart (see
+    /// <see cref="IsFunctionLike"/>), so the port takes <c>Node</c> and narrows with <c>is JSDocSignature</c> /
+    /// <c>is ISignatureDeclarationBase</c> exactly where TS's union members apply.
+    /// <para>
+    /// PORT-NOTE: the JavaScript-file fallback (<c>getJSDocReturnType</c>) is not ported — it belongs to the
+    /// JSDoc-attribution family that arrives with M5. A JS function with no return annotation is the common case there,
+    /// so answering <c>null</c> would silently drop the declared return type; the branch is a loud blocker instead, the
+    /// same choice <see cref="GetEffectiveTypeAnnotationNode"/> makes.
+    /// </para>
+    /// </remarks>
+    public static ITypeNode? GetEffectiveReturnTypeNode(Node node)
+    {
+        if (NodeTests.IsJSDocSignature(node))
+        {
+            return ((JSDocSignature)node).Type?.TypeExpression?.Type;
+        }
+
+        var type = node is ISignatureDeclarationBase signature ? signature.Type : null;
+        if (type is not null) return type;
+        if (!IsInJSFile(node)) return null;
+        throw new NotImplementedException(
+            "getEffectiveReturnTypeNode's JSDoc fallback needs getJSDocReturnType, which arrives with the JSDoc helpers in M5");
+    }
+
+    /// <summary>ported from: src/compiler/utilities.ts:6933-6936 — <c>getEffectiveSetAccessorTypeAnnotationNode</c>.</summary>
+    public static ITypeNode? GetEffectiveSetAccessorTypeAnnotationNode(SetAccessorDeclaration node)
+    {
+        var parameter = GetSetAccessorValueParameter(node);
+        return parameter is not null ? GetEffectiveTypeAnnotationNode(parameter) : null;
     }
 }

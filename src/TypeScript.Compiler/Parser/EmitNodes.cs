@@ -58,9 +58,11 @@ internal sealed class EmitNode : IEmitNode
 /// and comment ranges, and the helper list.
 /// </summary>
 /// <remarks>
-/// PORT-NOTE: TS's <c>helpers</c> is <c>EmitHelper[]</c>, a union of a helper descriptor and a node. The generated
-/// <see cref="IEmitNode.Helpers"/> is <c>List&lt;Node&gt;</c> (union members with no common C# base collapse to
-/// <c>Node</c>), so these entry points take <c>Node</c> too.
+/// PORT-NOTE: TS's <c>helpers</c> is <c>EmitHelper[]</c> — descriptor objects, not nodes. The generated
+/// <see cref="IEmitNode.Helpers"/> is <c>List&lt;Node&gt;</c> (the union's members share only interfaces, and the
+/// common-base search of <c>tools/Gen</c> walks class chains, so it falls back to <c>Node</c>), and these entry points take
+/// <c>Node</c> for that reason. <see cref="EmitHelper"/> is the descriptor class the port builds, and it derives from
+/// <c>Node</c> so that one object fits every one of these slots — see its own note for the whole story.
 /// </remarks>
 internal static class EmitNodes
 {
