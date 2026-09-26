@@ -66,7 +66,12 @@ internal sealed class SyntacticBuilderResolver : ISyntacticTypeNodeBuilderResolv
                     && _checker.ContainsNonMissingUndefinedType(type);
             case SyntaxKind.Parameter:
             case SyntaxKind.JSDocParameterTag:
-                return _checker.RequiresAddingImplicitUndefined((ParameterDeclaration)declaration, enclosingDeclaration);
+                // PORT-NOTE: the reference passes the union itself (checker.ts:6331) — the checker's own
+                // `requiresAddingImplicitUndefined` takes `ParameterDeclaration | JSDocParameterTag` (checker.ts:50852)
+                // and the port's member already takes `Node`, so the cast was both unnecessary and wrong: a
+                // `JSDocParameterTag` (a `JSDocPropertyLikeTag`) is not a `ParameterDeclaration` and threw
+                // (jsdoc/callbackTagNestedParameter.ts, callbackTagVariadicType.ts).
+                return _checker.RequiresAddingImplicitUndefined(declaration, enclosingDeclaration);
             default:
                 // PORT-NOTE: TS's `Debug.assertNever(declaration)` is typed `never`, so the switch needs no code after it;
                 // the port's returns void and throws, so this `return false` only satisfies definite assignment.
