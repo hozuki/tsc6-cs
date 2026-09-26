@@ -542,7 +542,9 @@ internal static partial class ScannerUtilities
     }
 
     // ported from: src/compiler/scanner.ts:740-760
-    private static bool IsConflictMarkerTrivia(string text, int pos)
+    /// <summary>Whether a merge-conflict marker starts at <paramref name="pos"/> (also used by the scanner).
+    /// </summary>
+    public static bool IsConflictMarkerTrivia(string text, int pos)
     {
         Debug.Assert(pos >= 0);
 
@@ -568,7 +570,7 @@ internal static partial class ScannerUtilities
 
     // ported from: src/compiler/scanner.ts:762-790
     /// <summary>Consumes a merge-conflict marker, reporting it through <paramref name="error"/>.</summary>
-    private static int ScanConflictMarkerTrivia(
+    public static int ScanConflictMarkerTrivia(
         string text,
         int pos,
         Action<DiagnosticMessage, int?, int?>? error = null)
@@ -613,7 +615,7 @@ internal static partial class ScannerUtilities
     private static partial Regex ShebangTriviaRegex();
 
     // ported from: src/compiler/scanner.ts:794-798
-    private static bool IsShebangTrivia(string text, int pos)
+    public static bool IsShebangTrivia(string text, int pos)
     {
         // Shebangs check must only be done at the start of the file
         Debug.Assert(pos == 0);
@@ -621,7 +623,7 @@ internal static partial class ScannerUtilities
     }
 
     // ported from: src/compiler/scanner.ts:800-804
-    private static int ScanShebangTrivia(string text, int pos)
+    public static int ScanShebangTrivia(string text, int pos)
         => pos + ShebangTriviaRegex().Match(text).Value.Length;
 
     // ported from: src/compiler/scanner.ts:965-971

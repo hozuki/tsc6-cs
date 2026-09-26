@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace TypeScript.Compiler;
 
 /// <summary>ported from: src/compiler/scanner.ts:39 — TS: <c>ErrorCallback</c>.</summary>
@@ -75,7 +77,7 @@ internal sealed partial class Scanner
     private string? _tokenValue;
     private TokenFlags _tokenFlags;
 
-    private List<ICommentDirective>? _commentDirectives;
+    private IList<ICommentDirective>? _commentDirectives;
     private int _skipJsDocLeadingAsterisks;
     private ScriptKind _scriptKind = ScriptKind.Unknown;
     private JSDocParsingMode _jsDocParsingMode = JSDocParsingMode.ParseAll;
@@ -141,7 +143,7 @@ internal sealed partial class Scanner
 
     public bool IsUnterminated() => (_tokenFlags & TokenFlags.Unterminated) != 0;
 
-    public IReadOnlyList<ICommentDirective>? GetCommentDirectives() => _commentDirectives;
+    public IList<ICommentDirective>? GetCommentDirectives() => _commentDirectives;
 
     public TokenFlags GetNumericLiteralFlags() => _tokenFlags & TokenFlags.NumericLiteralFlags;
 
@@ -1097,5 +1099,759 @@ internal sealed partial class Scanner
 
         _tokenValue = Js.NumberToString(numericValue);
         return SyntaxKind.NumericLiteral;
+    }
+
+    // ---- Comment directives (scanner.ts:349-356, 3618-3657). ----
+
+    // ported from: src/compiler/scanner.ts:349
+    [GeneratedRegex(@"^//\/?\s*@(ts-expect-error|ts-ignore)")]
+    private static partial Regex CommentDirectiveRegExSingleLine();
+
+    // ported from: src/compiler/scanner.ts:354
+    [GeneratedRegex(@"^(?:/|\*)*\s*@(ts-expect-error|ts-ignore)")]
+    private static partial Regex CommentDirectiveRegExMultiLine();
+
+    // ported from: src/compiler/scanner.ts:356
+    /// <remarks>PORT-NOTE: JS's <c>/i</c> does not consult the ambient culture, hence CultureInvariant.</remarks>
+    [GeneratedRegex(@"@(?:see|link)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex JsDocSeeOrLink();
+
+    // ported from: src/compiler/scanner.ts:3618-3637
+    private IList<ICommentDirective>? AppendIfCommentDirective(
+        IList<ICommentDirective>? commentDirectives,
+        string text,
+        Regex commentDirectiveRegEx,
+        int lineStart)
+    {
+        var type = GetDirectiveFromComment(text.TrimStart(), commentDirectiveRegEx);
+        if (type is null) return commentDirectives;
+
+        return Core.Append(
+            commentDirectives,
+            new CommentDirective
+            {
+                Range = new TextRange { Pos = lineStart, End = _pos },
+                Type = type.Value,
+            });
+    }
+
+    // ported from: src/compiler/scanner.ts:3638-3657
+    private static CommentDirectiveType? GetDirectiveFromComment(string text, Regex commentDirectiveRegEx)
+    {
+        var match = commentDirectiveRegEx.Match(text);
+        if (!match.Success) return null;
+
+        return match.Groups[1].Value switch
+        {
+            "ts-expect-error" => CommentDirectiveType.ExpectError,
+            "ts-ignore" => CommentDirectiveType.Ignore,
+            _ => null,
+        };
+    }
+
+    // ---- Scanning (scanner.ts:1891-2436). ----
+
+    // ported from: src/compiler/scanner.ts:1891-2388
+    /// <summary>Advances to the next token and returns it.</summary>
+    public SyntaxKind Scan()
+    {
+        _fullStartPos = _pos;
+        _tokenFlags = TokenFlags.None;
+        while (true)
+        {
+            _tokenStart = _pos;
+            if (_pos >= _end) return _token = SyntaxKind.EndOfFileToken;
+
+            var ch = CodePointUnchecked(_pos);
+            if (_pos == 0)
+            {
+                // Special handling for shebang
+                if (ch == CharacterCodes.Hash && ScannerUtilities.IsShebangTrivia(_text, _pos))
+                {
+                    _pos = ScannerUtilities.ScanShebangTrivia(_text, _pos);
+                    if (_skipTrivia) continue;
+
+                    return _token = SyntaxKind.ShebangTrivia;
+                }
+            }
+
+            switch (ch)
+            {
+                case CharacterCodes.LineFeed:
+                case CharacterCodes.CarriageReturn:
+                    _tokenFlags |= TokenFlags.PrecedingLineBreak;
+                    if (_skipTrivia)
+                    {
+                        _pos++;
+                        continue;
+                    }
+
+                    if (ch == CharacterCodes.CarriageReturn && _pos + 1 < _end && CharCodeUnchecked(_pos + 1) == CharacterCodes.LineFeed)
+                    {
+                        // consume both CR and LF
+                        _pos += 2;
+                    }
+                    else
+                    {
+                        _pos++;
+                    }
+
+                    return _token = SyntaxKind.NewLineTrivia;
+
+                case CharacterCodes.Tab:
+                case CharacterCodes.VerticalTab:
+                case CharacterCodes.FormFeed:
+                case CharacterCodes.Space:
+                case CharacterCodes.NonBreakingSpace:
+                case CharacterCodes.Ogham:
+                case CharacterCodes.EnQuad:
+                case CharacterCodes.EmQuad:
+                case CharacterCodes.EnSpace:
+                case CharacterCodes.EmSpace:
+                case CharacterCodes.ThreePerEmSpace:
+                case CharacterCodes.FourPerEmSpace:
+                case CharacterCodes.SixPerEmSpace:
+                case CharacterCodes.FigureSpace:
+                case CharacterCodes.PunctuationSpace:
+                case CharacterCodes.ThinSpace:
+                case CharacterCodes.HairSpace:
+                case CharacterCodes.ZeroWidthSpace:
+                case CharacterCodes.NarrowNoBreakSpace:
+                case CharacterCodes.MathematicalSpace:
+                case CharacterCodes.IdeographicSpace:
+                case CharacterCodes.ByteOrderMark:
+                    if (_skipTrivia)
+                    {
+                        _pos++;
+                        continue;
+                    }
+
+                    while (_pos < _end && ScannerUtilities.IsWhiteSpaceSingleLine(CharCodeUnchecked(_pos))) _pos++;
+                    return _token = SyntaxKind.WhitespaceTrivia;
+
+                case CharacterCodes.Exclamation:
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.EqualsSign)
+                    {
+                        if (CharCodeUnchecked(_pos + 2) == CharacterCodes.EqualsSign)
+                        {
+                            _pos += 3;
+                            return _token = SyntaxKind.ExclamationEqualsEqualsToken;
+                        }
+
+                        _pos += 2;
+                        return _token = SyntaxKind.ExclamationEqualsToken;
+                    }
+
+                    _pos++;
+                    return _token = SyntaxKind.ExclamationToken;
+
+                case CharacterCodes.DoubleQuote:
+                case CharacterCodes.SingleQuote:
+                    _tokenValue = ScanString();
+                    return _token = SyntaxKind.StringLiteral;
+
+                case CharacterCodes.Backtick:
+                    return _token = ScanTemplateAndSetTokenValue(shouldEmitInvalidEscapeError: false);
+
+                case CharacterCodes.Percent:
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.EqualsSign)
+                    {
+                        _pos += 2;
+                        return _token = SyntaxKind.PercentEqualsToken;
+                    }
+
+                    _pos++;
+                    return _token = SyntaxKind.PercentToken;
+
+                case CharacterCodes.Ampersand:
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.Ampersand)
+                    {
+                        if (CharCodeUnchecked(_pos + 2) == CharacterCodes.EqualsSign)
+                        {
+                            _pos += 3;
+                            return _token = SyntaxKind.AmpersandAmpersandEqualsToken;
+                        }
+
+                        _pos += 2;
+                        return _token = SyntaxKind.AmpersandAmpersandToken;
+                    }
+
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.EqualsSign)
+                    {
+                        _pos += 2;
+                        return _token = SyntaxKind.AmpersandEqualsToken;
+                    }
+
+                    _pos++;
+                    return _token = SyntaxKind.AmpersandToken;
+
+                case CharacterCodes.OpenParen:
+                    _pos++;
+                    return _token = SyntaxKind.OpenParenToken;
+
+                case CharacterCodes.CloseParen:
+                    _pos++;
+                    return _token = SyntaxKind.CloseParenToken;
+
+                case CharacterCodes.Asterisk:
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.EqualsSign)
+                    {
+                        _pos += 2;
+                        return _token = SyntaxKind.AsteriskEqualsToken;
+                    }
+
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.Asterisk)
+                    {
+                        if (CharCodeUnchecked(_pos + 2) == CharacterCodes.EqualsSign)
+                        {
+                            _pos += 3;
+                            return _token = SyntaxKind.AsteriskAsteriskEqualsToken;
+                        }
+
+                        _pos += 2;
+                        return _token = SyntaxKind.AsteriskAsteriskToken;
+                    }
+
+                    _pos++;
+                    if (_skipJsDocLeadingAsterisks != 0 &&
+                        (_tokenFlags & TokenFlags.PrecedingJSDocLeadingAsterisks) == 0 &&
+                        (_tokenFlags & TokenFlags.PrecedingLineBreak) != 0)
+                    {
+                        // decoration at the start of a JSDoc comment line
+                        _tokenFlags |= TokenFlags.PrecedingJSDocLeadingAsterisks;
+                        continue;
+                    }
+
+                    return _token = SyntaxKind.AsteriskToken;
+
+                case CharacterCodes.Plus:
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.Plus)
+                    {
+                        _pos += 2;
+                        return _token = SyntaxKind.PlusPlusToken;
+                    }
+
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.EqualsSign)
+                    {
+                        _pos += 2;
+                        return _token = SyntaxKind.PlusEqualsToken;
+                    }
+
+                    _pos++;
+                    return _token = SyntaxKind.PlusToken;
+
+                case CharacterCodes.Comma:
+                    _pos++;
+                    return _token = SyntaxKind.CommaToken;
+
+                case CharacterCodes.Minus:
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.Minus)
+                    {
+                        _pos += 2;
+                        return _token = SyntaxKind.MinusMinusToken;
+                    }
+
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.EqualsSign)
+                    {
+                        _pos += 2;
+                        return _token = SyntaxKind.MinusEqualsToken;
+                    }
+
+                    _pos++;
+                    return _token = SyntaxKind.MinusToken;
+
+                case CharacterCodes.Dot:
+                    if (ScannerUtilities.IsDigit(CharCodeUnchecked(_pos + 1)))
+                    {
+                        ScanNumber();
+                        return _token = SyntaxKind.NumericLiteral;
+                    }
+
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.Dot && CharCodeUnchecked(_pos + 2) == CharacterCodes.Dot)
+                    {
+                        _pos += 3;
+                        return _token = SyntaxKind.DotDotDotToken;
+                    }
+
+                    _pos++;
+                    return _token = SyntaxKind.DotToken;
+
+                case CharacterCodes.Slash:
+                    // Single-line comment
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.Slash)
+                    {
+                        _pos += 2;
+                        while (_pos < _end)
+                        {
+                            if (ScannerUtilities.IsLineBreak(CharCodeUnchecked(_pos))) break;
+                            _pos++;
+                        }
+
+                        _commentDirectives = AppendIfCommentDirective(
+                            _commentDirectives,
+                            _text[_tokenStart.._pos],
+                            CommentDirectiveRegExSingleLine(),
+                            _tokenStart);
+
+                        if (_skipTrivia) continue;
+
+                        return _token = SyntaxKind.SingleLineCommentTrivia;
+                    }
+
+                    // Multi-line comment
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.Asterisk)
+                    {
+                        _pos += 2;
+                        var isJSDoc = CharCodeUnchecked(_pos) == CharacterCodes.Asterisk &&
+                            CharCodeUnchecked(_pos + 1) != CharacterCodes.Slash;
+
+                        var commentClosed = false;
+                        var lastLineStart = _tokenStart;
+                        while (_pos < _end)
+                        {
+                            var commentCh = CharCodeUnchecked(_pos);
+
+                            if (commentCh == CharacterCodes.Asterisk && CharCodeUnchecked(_pos + 1) == CharacterCodes.Slash)
+                            {
+                                _pos += 2;
+                                commentClosed = true;
+                                break;
+                            }
+
+                            _pos++;
+
+                            if (ScannerUtilities.IsLineBreak(commentCh))
+                            {
+                                lastLineStart = _pos;
+                                _tokenFlags |= TokenFlags.PrecedingLineBreak;
+                            }
+                        }
+
+                        if (isJSDoc && ShouldParseJSDoc()) _tokenFlags |= TokenFlags.PrecedingJSDocComment;
+
+                        _commentDirectives = AppendIfCommentDirective(
+                            _commentDirectives,
+                            _text[lastLineStart.._pos],
+                            CommentDirectiveRegExMultiLine(),
+                            lastLineStart);
+
+                        if (!commentClosed) Error(Diagnostics.Asterisk_Slash_expected);
+
+                        if (_skipTrivia) continue;
+
+                        if (!commentClosed) _tokenFlags |= TokenFlags.Unterminated;
+                        return _token = SyntaxKind.MultiLineCommentTrivia;
+                    }
+
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.EqualsSign)
+                    {
+                        _pos += 2;
+                        return _token = SyntaxKind.SlashEqualsToken;
+                    }
+
+                    _pos++;
+                    return _token = SyntaxKind.SlashToken;
+
+                case CharacterCodes._0:
+                    if (_pos + 2 < _end && (CharCodeUnchecked(_pos + 1) == CharacterCodes.X || CharCodeUnchecked(_pos + 1) == CharacterCodes.x))
+                    {
+                        _pos += 2;
+                        _tokenValue = ScanMinimumNumberOfHexDigits(1, canHaveSeparators: true);
+                        if (!Js.IsTruthy(_tokenValue))
+                        {
+                            Error(Diagnostics.Hexadecimal_digit_expected);
+                            _tokenValue = "0";
+                        }
+
+                        _tokenValue = "0x" + _tokenValue;
+                        _tokenFlags |= TokenFlags.HexSpecifier;
+                        return _token = CheckBigIntSuffix();
+                    }
+
+                    if (_pos + 2 < _end && (CharCodeUnchecked(_pos + 1) == CharacterCodes.B || CharCodeUnchecked(_pos + 1) == CharacterCodes.b))
+                    {
+                        _pos += 2;
+                        _tokenValue = ScanBinaryOrOctalDigits(2);
+                        if (!Js.IsTruthy(_tokenValue))
+                        {
+                            Error(Diagnostics.Binary_digit_expected);
+                            _tokenValue = "0";
+                        }
+
+                        _tokenValue = "0b" + _tokenValue;
+                        _tokenFlags |= TokenFlags.BinarySpecifier;
+                        return _token = CheckBigIntSuffix();
+                    }
+
+                    if (_pos + 2 < _end && (CharCodeUnchecked(_pos + 1) == CharacterCodes.O || CharCodeUnchecked(_pos + 1) == CharacterCodes.o))
+                    {
+                        _pos += 2;
+                        _tokenValue = ScanBinaryOrOctalDigits(8);
+                        if (!Js.IsTruthy(_tokenValue))
+                        {
+                            Error(Diagnostics.Octal_digit_expected);
+                            _tokenValue = "0";
+                        }
+
+                        _tokenValue = "0o" + _tokenValue;
+                        _tokenFlags |= TokenFlags.OctalSpecifier;
+                        return _token = CheckBigIntSuffix();
+                    }
+
+                    goto case CharacterCodes._1;
+
+                case CharacterCodes._1:
+                case CharacterCodes._2:
+                case CharacterCodes._3:
+                case CharacterCodes._4:
+                case CharacterCodes._5:
+                case CharacterCodes._6:
+                case CharacterCodes._7:
+                case CharacterCodes._8:
+                case CharacterCodes._9:
+                    return _token = ScanNumber();
+
+                case CharacterCodes.Colon:
+                    _pos++;
+                    return _token = SyntaxKind.ColonToken;
+
+                case CharacterCodes.Semicolon:
+                    _pos++;
+                    return _token = SyntaxKind.SemicolonToken;
+
+                case CharacterCodes.LessThan:
+                    if (ScannerUtilities.IsConflictMarkerTrivia(_text, _pos))
+                    {
+                        _pos = ScannerUtilities.ScanConflictMarkerTrivia(_text, _pos, (message, errPos, length) => Error(message, errPos, length));
+                        if (_skipTrivia) continue;
+
+                        return _token = SyntaxKind.ConflictMarkerTrivia;
+                    }
+
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.LessThan)
+                    {
+                        if (CharCodeUnchecked(_pos + 2) == CharacterCodes.EqualsSign)
+                        {
+                            _pos += 3;
+                            return _token = SyntaxKind.LessThanLessThanEqualsToken;
+                        }
+
+                        _pos += 2;
+                        return _token = SyntaxKind.LessThanLessThanToken;
+                    }
+
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.EqualsSign)
+                    {
+                        _pos += 2;
+                        return _token = SyntaxKind.LessThanEqualsToken;
+                    }
+
+                    if (_languageVariant == LanguageVariant.JSX &&
+                        CharCodeUnchecked(_pos + 1) == CharacterCodes.Slash &&
+                        CharCodeUnchecked(_pos + 2) != CharacterCodes.Asterisk)
+                    {
+                        _pos += 2;
+                        return _token = SyntaxKind.LessThanSlashToken;
+                    }
+
+                    _pos++;
+                    return _token = SyntaxKind.LessThanToken;
+
+                case CharacterCodes.EqualsSign:
+                    if (ScannerUtilities.IsConflictMarkerTrivia(_text, _pos))
+                    {
+                        _pos = ScannerUtilities.ScanConflictMarkerTrivia(_text, _pos, (message, errPos, length) => Error(message, errPos, length));
+                        if (_skipTrivia) continue;
+
+                        return _token = SyntaxKind.ConflictMarkerTrivia;
+                    }
+
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.EqualsSign)
+                    {
+                        if (CharCodeUnchecked(_pos + 2) == CharacterCodes.EqualsSign)
+                        {
+                            _pos += 3;
+                            return _token = SyntaxKind.EqualsEqualsEqualsToken;
+                        }
+
+                        _pos += 2;
+                        return _token = SyntaxKind.EqualsEqualsToken;
+                    }
+
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.GreaterThan)
+                    {
+                        _pos += 2;
+                        return _token = SyntaxKind.EqualsGreaterThanToken;
+                    }
+
+                    _pos++;
+                    return _token = SyntaxKind.EqualsToken;
+
+                case CharacterCodes.GreaterThan:
+                    if (ScannerUtilities.IsConflictMarkerTrivia(_text, _pos))
+                    {
+                        _pos = ScannerUtilities.ScanConflictMarkerTrivia(_text, _pos, (message, errPos, length) => Error(message, errPos, length));
+                        if (_skipTrivia) continue;
+
+                        return _token = SyntaxKind.ConflictMarkerTrivia;
+                    }
+
+                    _pos++;
+                    return _token = SyntaxKind.GreaterThanToken;
+
+                case CharacterCodes.Question:
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.Dot &&
+                        !ScannerUtilities.IsDigit(CharCodeUnchecked(_pos + 2)))
+                    {
+                        _pos += 2;
+                        return _token = SyntaxKind.QuestionDotToken;
+                    }
+
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.Question)
+                    {
+                        if (CharCodeUnchecked(_pos + 2) == CharacterCodes.EqualsSign)
+                        {
+                            _pos += 3;
+                            return _token = SyntaxKind.QuestionQuestionEqualsToken;
+                        }
+
+                        _pos += 2;
+                        return _token = SyntaxKind.QuestionQuestionToken;
+                    }
+
+                    _pos++;
+                    return _token = SyntaxKind.QuestionToken;
+
+                case CharacterCodes.OpenBracket:
+                    _pos++;
+                    return _token = SyntaxKind.OpenBracketToken;
+
+                case CharacterCodes.CloseBracket:
+                    _pos++;
+                    return _token = SyntaxKind.CloseBracketToken;
+
+                case CharacterCodes.Caret:
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.EqualsSign)
+                    {
+                        _pos += 2;
+                        return _token = SyntaxKind.CaretEqualsToken;
+                    }
+
+                    _pos++;
+                    return _token = SyntaxKind.CaretToken;
+
+                case CharacterCodes.OpenBrace:
+                    _pos++;
+                    return _token = SyntaxKind.OpenBraceToken;
+
+                case CharacterCodes.Bar:
+                    if (ScannerUtilities.IsConflictMarkerTrivia(_text, _pos))
+                    {
+                        _pos = ScannerUtilities.ScanConflictMarkerTrivia(_text, _pos, (message, errPos, length) => Error(message, errPos, length));
+                        if (_skipTrivia) continue;
+
+                        return _token = SyntaxKind.ConflictMarkerTrivia;
+                    }
+
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.Bar)
+                    {
+                        if (CharCodeUnchecked(_pos + 2) == CharacterCodes.EqualsSign)
+                        {
+                            _pos += 3;
+                            return _token = SyntaxKind.BarBarEqualsToken;
+                        }
+
+                        _pos += 2;
+                        return _token = SyntaxKind.BarBarToken;
+                    }
+
+                    if (CharCodeUnchecked(_pos + 1) == CharacterCodes.EqualsSign)
+                    {
+                        _pos += 2;
+                        return _token = SyntaxKind.BarEqualsToken;
+                    }
+
+                    _pos++;
+                    return _token = SyntaxKind.BarToken;
+
+                case CharacterCodes.CloseBrace:
+                    _pos++;
+                    return _token = SyntaxKind.CloseBraceToken;
+
+                case CharacterCodes.Tilde:
+                    _pos++;
+                    return _token = SyntaxKind.TildeToken;
+
+                case CharacterCodes.At:
+                    _pos++;
+                    return _token = SyntaxKind.AtToken;
+
+                case CharacterCodes.Backslash:
+                {
+                    var extendedCookedChar = PeekExtendedUnicodeEscape();
+                    if (extendedCookedChar >= 0 && ScannerUtilities.IsIdentifierStart(extendedCookedChar, _languageVersion))
+                    {
+                        _tokenValue = ScanExtendedUnicodeEscape(shouldEmitInvalidEscapeError: true) + ScanIdentifierParts();
+                        return _token = GetIdentifierToken();
+                    }
+
+                    var cookedChar = PeekUnicodeEscape();
+                    if (cookedChar >= 0 && ScannerUtilities.IsIdentifierStart(cookedChar, _languageVersion))
+                    {
+                        _pos += 6;
+                        _tokenFlags |= TokenFlags.UnicodeEscape;
+                        _tokenValue = ((char)cookedChar).ToString() + ScanIdentifierParts();
+                        return _token = GetIdentifierToken();
+                    }
+
+                    Error(Diagnostics.Invalid_character);
+                    _pos++;
+                    return _token = SyntaxKind.Unknown;
+                }
+
+                case CharacterCodes.Hash:
+                {
+                    if (_pos != 0 && _pos + 1 < _text.Length && _text[_pos + 1] == '!')
+                    {
+                        Error(Diagnostics.can_only_be_used_at_the_start_of_a_file, _pos, 2);
+                        _pos++;
+                        return _token = SyntaxKind.Unknown;
+                    }
+
+                    var charAfterHash = CodePointUnchecked(_pos + 1);
+                    if (charAfterHash == CharacterCodes.Backslash)
+                    {
+                        _pos++;
+                        var extendedCookedChar = PeekExtendedUnicodeEscape();
+                        if (extendedCookedChar >= 0 && ScannerUtilities.IsIdentifierStart(extendedCookedChar, _languageVersion))
+                        {
+                            _tokenValue = "#" + ScanExtendedUnicodeEscape(shouldEmitInvalidEscapeError: true) + ScanIdentifierParts();
+                            return _token = SyntaxKind.PrivateIdentifier;
+                        }
+
+                        var cookedChar = PeekUnicodeEscape();
+                        if (cookedChar >= 0 && ScannerUtilities.IsIdentifierStart(cookedChar, _languageVersion))
+                        {
+                            _pos += 6;
+                            _tokenFlags |= TokenFlags.UnicodeEscape;
+                            _tokenValue = "#" + ((char)cookedChar).ToString() + ScanIdentifierParts();
+                            return _token = SyntaxKind.PrivateIdentifier;
+                        }
+
+                        _pos--;
+                    }
+
+                    if (ScannerUtilities.IsIdentifierStart(charAfterHash, _languageVersion))
+                    {
+                        _pos++;
+
+                        // We rely on scanIdentifier's behaviour and adjust the token kind afterwards: it starts at
+                        // tokenStart, which still includes the '#', so the '#' ends up prepended for us.
+                        ScanIdentifier(charAfterHash, _languageVersion);
+                    }
+                    else
+                    {
+                        _tokenValue = "#";
+                        Error(Diagnostics.Invalid_character, _pos, ScannerUtilities.CharSize(ch));
+                        _pos++;
+                    }
+
+                    return _token = SyntaxKind.PrivateIdentifier;
+                }
+
+                case CharacterCodes.ReplacementCharacter:
+                    Error(Diagnostics.File_appears_to_be_binary, 0, 0);
+                    _pos = _end;
+                    return _token = SyntaxKind.NonTextFileMarkerTrivia;
+
+                default:
+                {
+                    var identifierKind = ScanIdentifier(ch, _languageVersion);
+                    if (identifierKind is not null) return _token = identifierKind.Value;
+
+                    if (ScannerUtilities.IsWhiteSpaceSingleLine(ch))
+                    {
+                        _pos += ScannerUtilities.CharSize(ch);
+                        continue;
+                    }
+
+                    if (ScannerUtilities.IsLineBreak(ch))
+                    {
+                        _tokenFlags |= TokenFlags.PrecedingLineBreak;
+                        _pos += ScannerUtilities.CharSize(ch);
+                        continue;
+                    }
+
+                    var size = ScannerUtilities.CharSize(ch);
+                    Error(Diagnostics.Invalid_character, _pos, size);
+                    _pos += size;
+                    return _token = SyntaxKind.Unknown;
+                }
+            }
+        }
+    }
+
+    // ported from: src/compiler/scanner.ts:2390-2410
+    private bool ShouldParseJSDoc()
+    {
+        switch (_jsDocParsingMode)
+        {
+            case JSDocParsingMode.ParseAll:
+                return true;
+            case JSDocParsingMode.ParseNone:
+                return false;
+        }
+
+        if (_scriptKind != ScriptKind.TS && _scriptKind != ScriptKind.TSX)
+        {
+            // If outside of TS, we need JSDoc to get any type info.
+            return true;
+        }
+
+        if (_jsDocParsingMode == JSDocParsingMode.ParseForTypeInfo)
+        {
+            // If we're in TS, but we don't need to produce reliable errors,
+            // we don't need to parse to find @see or @link.
+            return false;
+        }
+
+        return JsDocSeeOrLink().IsMatch(_text[_fullStartPos.._pos]);
+    }
+
+    // ported from: src/compiler/scanner.ts:2412-2423
+    public SyntaxKind ReScanInvalidIdentifier()
+    {
+        Debug.Assert(
+            _token == SyntaxKind.Unknown,
+            "'reScanInvalidIdentifier' should only be called when the current token is 'SyntaxKind.Unknown'.");
+
+        _pos = _tokenStart = _fullStartPos;
+        _tokenFlags = 0;
+        var ch = CodePointUnchecked(_pos);
+        var identifierKind = ScanIdentifier(ch, ScriptTarget.ESNext);
+        if (identifierKind is not null) return _token = identifierKind.Value;
+
+        _pos += ScannerUtilities.CharSize(ch);
+        return _token; // Still `SyntaxKind.Unknown`
+    }
+
+    // ported from: src/compiler/scanner.ts:2425-2436
+    private SyntaxKind? ScanIdentifier(int startCharacter, ScriptTarget languageVersion)
+    {
+        var ch = startCharacter;
+        if (ScannerUtilities.IsIdentifierStart(ch, languageVersion))
+        {
+            _pos += ScannerUtilities.CharSize(ch);
+            while (_pos < _end && ScannerUtilities.IsIdentifierPart(ch = CodePointUnchecked(_pos), languageVersion))
+            {
+                _pos += ScannerUtilities.CharSize(ch);
+            }
+
+            _tokenValue = _text[_tokenStart.._pos];
+            if (ch == CharacterCodes.Backslash) _tokenValue += ScanIdentifierParts();
+            return GetIdentifierToken();
+        }
+
+        return null;
     }
 }
