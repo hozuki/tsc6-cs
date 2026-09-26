@@ -1236,15 +1236,15 @@ SourceFile(0,131) symbol=ValueModule:"/p" locals=[C=Class:C:1,a=BlockScopedVaria
 
 ### 实现偏差与调用点归属（M6）
 
-归属的**裁决依据**是"已有调用点已经写在哪里"——这是让树以最低风险同时满足"可编译"与"一个名字一处声明"的判据。据此三类处理：
+归属的裁决依据是**"已有调用点已经写在哪里"**——它同时满足"可编译"与"一个名字一处声明"，且搬迁成本最低。这条规则在 M6 期间被用错了两次（我先按文件名判断类归属），所以这里记下判据本身：**看命中所在的类，而不是命中所在的文件**——`Checker/Checker.Support.cs` 里就有两个 partial 类（`Checker` 与一个 `Utilities`）。
 
-| 名字 | 参考声明位置 | 端口归属 | 依据 |
+| 名字 | 参考声明位置 | 端口归属 | 依据与状态 |
 |---|---|---|---|
-| `IsPartOfTypeNode`、`IsPartOfTypeExpressionWithTypeArguments`、`IsNodeDescendantOf`、`IsExpressionWithTypeArgumentsInClassExtendsClause`、`GetFirstIdentifier`、`IsNumericLiteralName` | `utilities.ts`（逐个核过，`checker.ts` 声明数为 0） | **`Utilities/Utilities.Checker.cs`**，调用点 `Utilities.<Name>(…)` | 既有调用点**大多已写成 `Utilities.<Name>`**，声明落在 `Checker.Support.cs` 才是异常；`Checker.Support.cs` 删副本并修掉它自己剩下的未限定内部调用 |
-| `GetCheckFlags`（`utilities.ts:8040-8042`）、`GetObjectFlags`（`utilities.ts:8280`） | `utilities.ts` | **`Checker`**（`Checker.Symbols.cs` / `Checker.Support.cs`），记为登记偏差 | 十处与约三十处既有调用点都是**未限定**的；此时搬到 `Utilities` 意味在正在被写的文件里改四十处调用点，收益只是归档整齐 |
-| `GetNodeId` | `checker.ts:1460` | **`Utilities.GetNodeId`**（`Utilities/Utilities.cs:480`），记为反方向偏差 | 工厂自 M4 起就需要它，端口的家比本里程碑更早且有意为之；不因"参考声明在 checker.ts"被改回去 |
+| `IsPartOfTypeNode`、`IsPartOfTypeExpressionWithTypeArguments`、`IsNodeDescendantOf`、`IsExpressionWithTypeArgumentsInClassExtendsClause`、`GetFirstIdentifier`、`IsNumericLiteralName` | `utilities.ts`（逐个核过：`checker.ts` 声明数为 0） | **已经是 `Utilities` 成员**，声明在 `Checker/Checker.Support.cs:1978-2242` 的 `Utilities` partial 里；唯一缺陷是 `Support.cs:717` 两处未限定调用（CS0103），改为 `Utilities.IsNodeDescendantOf(…)` | 类是对的、声明唯一；文件位置在切片旁边（`Program/Utilities.Program.cs` 同形），接受并登记——"同一类"才是规则，不是"同一目录"。其余调用点已全部限定 |
+| `GetCheckFlags`（`utilities.ts:8040-8042`）、`GetObjectFlags`（`utilities.ts:8280`） | `utilities.ts` | **`Checker`**（`Checker.Symbols.cs` / `Checker.Support.cs`），登记为偏差 | 约四十处既有调用点都是**未限定**的，声明到 `Utilities` 要在正在写的文件里改四十处；`Checker.Support.cs:52` 的 PORT-NOTE 本就计划这个家 |
+| `GetNodeId` | `checker.ts:1460` | **`Utilities.GetNodeId`**（`Utilities/Utilities.cs:480`），登记为反方向偏差 | 工厂自 M4 起就需要它，端口的家比本里程碑更早且有意为之；不因"参考声明在 checker.ts"被改回 |
 
-集成期新增的反射守卫（"`Utilities` 与 `Checker` 不得声明同名成员"）以这张表为**显式允许清单**：被测试钉住的偏差是决定，没登记的偏差才是漂移。**M6-3 起规则收紧**：参考声明在 `utilities.ts`/`utilitiesPublic.ts` 的成员一律落 `Utilities/**`，调用点带限定。
+集成期新增的反射守卫（"`Utilities` 与 `Checker` 不得声明同名成员"）以这张表为**显式允许清单**：被测试钉住的偏差是决定，没登记的偏差才是漂移。**M6-3 起规则收紧**：参考声明在 `utilities.ts`/`utilitiesPublic.ts` 的成员一律落 `Utilities`（类），调用点带限定。
 
 ### 生成器缺口（M6 期间修掉）
 
