@@ -11,15 +11,13 @@ namespace TypeScript.Compiler;
 /// </summary>
 /// <remarks>
 /// <para>
-/// PORT-NOTE (the printer): <c>symbolToString</c> (6169), <c>signatureToString</c> (6202), <c>typeToString</c> (6240) and
-/// <c>typePredicateToString</c> (11175) each end by handing a synthesized node to a printer
+/// PORT-NOTE (the printer, M7-0): <c>symbolToString</c> (6169), <c>signatureToString</c> (6202), <c>typeToString</c>
+/// (6240) and <c>typePredicateToString</c> (11175) each end by handing a synthesized node to a printer
 /// (<c>createPrinterWithRemoveCommentsNeverAsciiEscape</c> 6194, <c>createPrinterWithRemoveComments</c> 6195,
 /// <c>createPrinterWithRemoveCommentsOmitTrailingSemicolon</c> 6205, <c>createPrinterWithDefaults</c> 6264) and calling
-/// <c>printer.writeNode(...)</c>. The printer is declared in <c>emitter.ts:1200-1211</c> — Layer 7/M7, not ported. Per
-/// docs/architecture.md §15.15 ruling 1 the port does not substitute a silently wrong string: each member builds the
-/// node exactly as the reference does and then throws a loud, named blocker (<see cref="PrinterNotSupported"/>) whose
-/// message carries the reference line. M7 replaces the throw with the printer call; every call site stays as it is.
-/// These four are also listed in §15.16's residual table.
+/// <c>printer.writeNode(...)</c>. Those printers are M7's `emitter.ts` printer (<c>Emit/Printer*.cs</c>, reached through
+/// <c>PrinterFactory</c>), so the four members now answer real strings; while M6 was in flight each of them built the
+/// node exactly as the reference does and then threw a named blocker, and that blocker is gone.
 /// </para>
 /// <para>
 /// PORT-NOTE (<c>isAnySymbolAccessible</c> and its two neighbours, 5895-5979): the task brief's range for this slice
@@ -454,12 +452,17 @@ internal sealed partial class Checker
         // meaning to `SymbolFlags.None`, which is what every bitwise test against `undefined` answers in JS.
         Func<ISymbol?, SymbolFlags, Node?, NodeBuilderFlags?, InternalNodeBuilderFlags?, ISymbolTracker?, Node?> builder =
             (flags & SymbolFormatFlags.AllowAnyNodeKind) != 0 ? SymbolToNode : SymbolToEntityName;
-        _ = builder(symbol, meaning ?? SymbolFlags.None, enclosingDeclaration, nodeFlags, internalNodeFlags, /*tracker*/ null)!; // TODO: GH#18217
+        var entity = builder(symbol, meaning ?? SymbolFlags.None, enclosingDeclaration, nodeFlags, internalNodeFlags, /*tracker*/ null)!; // TODO: GH#18217
         // add neverAsciiEscape for GH#39027
-        // PORT-NOTE: TS selects the printer here (`enclosingDeclaration?.kind === SyntaxKind.SourceFile`
-        // ? createPrinterWithRemoveCommentsNeverAsciiEscape() : createPrinterWithRemoveComments()) and prints `entity`;
-        // both printers are M7's. See the class remarks.
-        throw PrinterNotSupported(nameof(SymbolToString), 6200);
+        // PORT-NOTE (M7-0): the printer is Layer 7's now — `createPrinterWithRemoveCommentsNeverAsciiEscape()` when
+        // the enclosing declaration is a source file, `createPrinterWithRemoveComments()` otherwise (checker.ts:6198-6200),
+        // printing into the caller's writer.
+        var printer = enclosingDeclaration is not null && enclosingDeclaration.Kind == SyntaxKind.SourceFile
+            ? PrinterFactory.CreatePrinterWithRemoveCommentsNeverAsciiEscape()
+            : PrinterFactory.CreatePrinterWithRemoveComments();
+        var sourceFile = enclosingDeclaration is not null ? Utilities.GetSourceFileOfNode(enclosingDeclaration) : null;
+        printer.WriteNode(EmitHint.Unspecified, entity, sourceFile, writer);
+        return writer;
         }
     }
 
@@ -483,7 +486,7 @@ internal sealed partial class Checker
         {
             sigOutput = kind == SignatureKind.Construct ? SyntaxKind.ConstructSignature : SyntaxKind.CallSignature;
         }
-        _ = SignatureToSignatureDeclaration(
+        var sig = SignatureToSignatureDeclaration(
             signature!,
             sigOutput,
             enclosingDeclaration,
@@ -493,24 +496,32 @@ internal sealed partial class Checker
             maximumLength,
             verbosityLevel,
             @out);
-        // PORT-NOTE: TS prints `sig` with `createPrinterWithRemoveCommentsOmitTrailingSemicolon()` into
-        // `getTrailingSemicolonDeferringWriter(writer)` (checker.ts:6233-6236); the printer is M7's and the deferring
-        // writer is utilities.ts:6412 (M6 utilities slice). See the class remarks.
-        throw PrinterNotSupported(nameof(SignatureToString), 6233);
+        // PORT-NOTE (M7-0): `createPrinterWithRemoveCommentsOmitTrailingSemicolon()` into
+        // `getTrailingSemicolonDeferringWriter(writer)` (checker.ts:6233-6235).
+        var printer = PrinterFactory.CreatePrinterWithRemoveCommentsOmitTrailingSemicolon();
+        var sourceFile = enclosingDeclaration is not null ? Utilities.GetSourceFileOfNode(enclosingDeclaration) : null;
+        printer.WriteNode(EmitHint.Unspecified, sig!, sourceFile, Utilities.GetTrailingSemicolonDeferringWriter(writer)); // TODO: GH#18217
+        return writer;
         }
     }
 
     /// <summary>ported from: src/compiler/checker.ts:6240-6265 — <c>typeToString</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE (M7-0): the reference's default writer is <c>createTextWriter("")</c> (checker.ts:6244) — an empty
+    /// newline, so the printer's own line breaks vanish — and *not* the <c>usingSingleLineStringWriter</c> wrapper the
+    /// other three converters use for their absent-writer case, which would turn each line break into a space.
+    /// </remarks>
     public string TypeToString(IType? type, Node? enclosingDeclaration = null, TypeFormatFlags? flags = null)
-        => TypeToString(type, enclosingDeclaration, flags ?? (TypeFormatFlags.AllowUniqueESSymbolType | TypeFormatFlags.UseAliasDefinedOutsideCurrentScope), /*writer*/ null, /*maximumLength*/ null, /*verbosityLevel*/ null, /*out*/ null);
+        => TypeToString(type, enclosingDeclaration, flags ?? (TypeFormatFlags.AllowUniqueESSymbolType | TypeFormatFlags.UseAliasDefinedOutsideCurrentScope), Utilities.CreateTextWriter(""), /*maximumLength*/ null, /*verbosityLevel*/ null, /*out*/ null);
 
     /// <summary>ported from: src/compiler/checker.ts:6240-6265 — the writer-taking overload.</summary>
     internal string TypeToString(IType? type, Node? enclosingDeclaration, TypeFormatFlags flags, IEmitTextWriter? writer, int? maximumLength, int? verbosityLevel, IWriterContextOut? @out)
     {
-        return writer is not null ? TypeToStringWorker(writer).GetText() : Utilities.UsingSingleLineStringWriter(TypeToStringWorker);
-
-        IEmitTextWriter TypeToStringWorker(IEmitTextWriter writer)
-        {
+        // PORT-NOTE (M7-0): the reference declares `writer: EmitTextWriter = createTextWriter("")` (checker.ts:6244);
+        // the port takes the nullable writer every other overload takes and applies that default here, so a caller
+        // that passes none gets the reference's own writer rather than the single-line one the other three converters
+        // use for their absent-writer case.
+        writer ??= Utilities.CreateTextWriter("");
         // PORT-NOTE: TS's `!maximumLength` is JS falsiness, so an explicit 0 counts as "no maximum" too.
         var noTruncation = ((maximumLength ?? 0) == 0 && _compilerOptions.NoErrorTruncation == true)
             || (flags & TypeFormatFlags.NoTruncation) != 0;
@@ -526,11 +537,20 @@ internal sealed partial class Checker
         if (typeNode is null) Debug.Fail("should always get typenode");
         // The unresolved type gets a synthesized comment on `any` to hint to users that it's not a plain `any`.
         // Otherwise, we always strip comments out.
-        // PORT-NOTE: TS picks between `createPrinterWithRemoveComments()` and `createPrinterWithDefaults()` here
-        // (checker.ts:6262) according to whether the type is `unresolvedType`, prints `typeNode`, then trims the result
-        // to the maximum length (6266-6272). Both printers are M7's, so the print and the trim move with it.
-        throw PrinterNotSupported(nameof(TypeToString), 6262);
+        // PORT-NOTE (M7-0): `createPrinterWithDefaults()` for `unresolvedType`, `createPrinterWithRemoveComments()`
+        // otherwise (checker.ts:6260-6261), then the reference's own truncation (6266-6272).
+        var printer = !ReferenceEquals(type, _unresolvedType) ? PrinterFactory.CreatePrinterWithRemoveComments() : PrinterFactory.CreatePrinterWithDefaults();
+        var sourceFile = enclosingDeclaration is not null ? Utilities.GetSourceFileOfNode(enclosingDeclaration) : null;
+        printer.WriteNode(EmitHint.Unspecified, (Node)typeNode, sourceFile, writer);
+        var result = writer.GetText();
+
+        var maxLength = maximumLength ?? (noTruncation ? Utilities.NoTruncationMaximumTruncationLength * 2 : Utilities.DefaultMaximumTruncationLength * 2);
+        if (maxLength != 0 && result.Length != 0 && result.Length >= maxLength)
+        {
+            return result[..(maxLength - "...".Length)] + "...";
         }
+
+        return result;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:11175-11187 — <c>typePredicateToString</c>.</summary>
@@ -545,10 +565,12 @@ internal sealed partial class Checker
         IEmitTextWriter TypePredicateToStringWorker(IEmitTextWriter writer)
         {
         var nodeBuilderFlags = ToNodeBuilderFlags(flags) | NodeBuilderFlags.IgnoreErrors | NodeBuilderFlags.WriteTypeParametersInQualifiedName;
-        _ = TypePredicateToTypePredicateNode(predicate, enclosingDeclaration, nodeBuilderFlags, /*internalFlags*/ null, /*tracker*/ null)!; // TODO: GH#18217
-        // PORT-NOTE: TS prints the predicate with `createPrinterWithRemoveComments()` (checker.ts:11181); that printer is
-        // M7's. See the class remarks.
-        throw PrinterNotSupported(nameof(TypePredicateToString), 11181);
+        var typePredicateNode = TypePredicateToTypePredicateNode(predicate, enclosingDeclaration, nodeBuilderFlags, /*internalFlags*/ null, /*tracker*/ null)!; // TODO: GH#18217
+        // PORT-NOTE (M7-0): `createPrinterWithRemoveComments()` (checker.ts:11181), printing into the caller's writer.
+        var printer = PrinterFactory.CreatePrinterWithRemoveComments();
+        var sourceFile = enclosingDeclaration is not null ? Utilities.GetSourceFileOfNode(enclosingDeclaration) : null;
+        printer.WriteNode(EmitHint.Unspecified, typePredicateNode, sourceFile, writer);
+        return writer;
         }
     }
 

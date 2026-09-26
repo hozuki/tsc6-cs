@@ -1731,3 +1731,23 @@ ThisExpression  CreateToken(TypedEnum.ThisKeyword? token)  => (ThisExpression)Cr
 - 新建 `tools/EmitDiff`（形制照 `tools/BindDiff`/`tools/TypeDiff`：同语料、两半各写 `.js` 与诊断，逐字节比），先跑单文件选项矩阵（`target`/`module`/`jsx`/`useDefineForClassFields`…），再上全语料。
 - P1b（§7）：`.errors.txt` + `.js` 与 `tests/baselines/reference/**` 逐字节比对（需要指令注释解析与 harness 复刻）。
 - `EmitBuildInfo` 与增量属 M8；本阶段只把 `Program` 侧接口接通。
+
+### 17.6 M7-0 交付：printer 落地，四个 `*ToString` 去门控
+
+**交付物**：`Emit/` 8 个文件 **8,290 行**（`Printer.cs` 2,185、`Printer.Statements.cs` 1,340、`Printer.Types.cs` 1,686、`Printer.Expressions.cs` 880、`Printer.Comments.cs` ~700、`Printer.SourceMaps.cs` 263、`PrinterFactory.cs` 131、`Printer.State.cs` 137）＋ `Utilities/Utilities.Printer.cs` 221 ＋ `Utilities/Utilities.Emit.cs`（A1 写入层与注释/三斜线工具）。覆盖 `emitter.ts:1199-6378` 的 printer 全部（发射文件族 1-1190 留给阶段 B）。
+
+切片与归属（四个并行 agent + 集成）：
+| 片 | 内容 | 文件 |
+|---|---|---|
+| A1 | 文本写入层（`createTextWriter`/`getTrailingSemicolonDeferringWriter`/缩进缓存） | `Utilities.Emit.cs` |
+| A2 | printer 工厂与状态、`printNode/printList/printFile/printBundle`、`writeNode/writeList/writeFile/writeBundle`、`print/reset/setWriter/setSourceFile/getCurrentLineMap`、`emit` 族、`pipelineEmit` 五相、`pipelineEmitWithHintWorker` 巨型分派、writer 包装、行终止符引擎、`emitList/emitNodeList*` | `Printer.cs`、`PrinterFactory.cs`、`Printer.State.cs` |
+| A3 | 替换相与 emitHelpers、字面量/标识符/实体名、类型参数与参数、全部类型节点、绑定模式、文本读取与名字生成器（`generateName` 全族） | `Printer.Types.cs`、`Utilities.Printer.cs` |
+| A4 | 表达式族（含 `createEmitBinaryExpression`、`parenthesizeExpressionForNoAsi`）、语句/声明/模块族、JSX、JSDoc 与 sourceFile/prologue 族 | `Printer.Expressions.cs`、`Printer.Statements.cs` |
+| A5 | 注释管线（30 个方法）+ source-map 管线（10 个方法 + 一个具名阻断）；另补 `utilities.ts` 的注释族（`writeCommentRange`/`emitDetachedComments`/`getContainingNodeArray` 等，~250 行） | `Printer.Comments.cs`、`Printer.SourceMaps.cs`、`Utilities.Emit.cs` |
+| A6 | 接线：四个 `*ToString` 改调真 printer（`PrinterFactory` 的四个默认 + `getTrailingSemicolonDeferringWriter`），删除 `PrinterNotSupported` 与文件头"printer 是 M7"的说明；`typeToString` 的缺省 writer 改为参考的 `createTextWriter("")`（其余三个仍用 `usingSingleLineStringWriter`） | `Checker/Checker.Stringify.cs` |
+
+**验收（实测）**：build 0 错误 / 0 警告；测试 **1,053/1,053**（并入 A1 的 4 例写入层测试）；`Gen --check` 无漂移；**TypeDiff 全语料 5,908 文件：`same=5516 diverged=11 port-crash=381`**（M6 末为 3,637 / 80 / 2,191 —— `same` +1,879、`diverged` −69、崩溃 −1,810）。A2 另做了一次**与参考 printer 的差分烟测**（同一源文本分别用端口与 `lib/typescript.js` 的 printer 打印，逐字节比对）：`printFile`/`printNode(SourceFile)`/`printList`、`removeComments`+`omitTrailingSemicolon` 变体、`preserveSourceNewlines` 的开/关与注释重排版、`.tsx`、JSDoc 文件全部一致。
+
+**M7-0 之后剩余（下一次的起点）**：`port-crash=381` = `syntacticNodeBuilder` **376**（M4f 未落地的 `expressionToTypeNode.ts`，1,330 行 —— 现在是唯一的大头）+ `visitEachChildWorker` 1（Layer 6）+ `InvalidCastException` 2 + 其它 2；`diverged=11` = 10 条同 M4f 门控造成的单侧 `=!` + **1 条真分歧**（`types/literal/templateLiteralTypes4.ts:150` 的 `node sym mismatch`）。
+
+**三项模型/生成器待办（本次记录，不属 printer）**：① `IPrinter.PrintList/WriteList` 生成成 `where T : Node`，而它们要接受的槽是接口化的（`NodeArray<IStatement>` 等），`where T : INode` 才对（同 `EmitList` 的裁定）；② 模型里没有任何类型实现 `ISourceMapSource`，而参考的 `setSourceMapSource(sourceFile)` 直接传 `SourceFile`（现在由 `Printer.SourceFileMapSource` 适配器顶住，加接口后适配器即可删）；③ `IPrintHandlers.OnBeforeEmitNodeArray/OnAfterEmitNodeArray` 生成成 `NodeArray<object?>`（types.ts:9857 是 `NodeArray<any>`），于是端口在**装了钩子时**要复制一次数组；生成成 `NodeArray<Node>` 即可免掉复制（M8 之前无人装钩子）。
