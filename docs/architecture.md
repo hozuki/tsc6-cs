@@ -2123,3 +2123,21 @@ dotnet run --project tools/BaselineDiff -- --cases D:/Source/GitHub/TypeScript/t
 * **12 条分歧（2 类）+ 4 个崩溃 case（4 类）**：见 §17.14.2 表，均已给复现对；`.symbols` 的 `]` 与"丢首部注释"各一处，四类崩溃同族（缺 kind 判定的强转）。
 * **模型未覆盖（报告而非默认）**：`tsconfig.json` 单元（语料 10 个文件，端口无 `parseJsonSourceFileConfigFileContent`，M8）；`// @link:` 符号链接（语料 0）；`@paths`/`@plugins`（object 型选项，参考自己的 `optionValue` 就抛）；`@pretty: true`（1 个文件，缺 `getErrorSummaryText`/`getErrorCountForSummary`/`getFilesInErrorForSummary`）；`noCheck` 比对里的 diff（9 份 `.js` 基线打印 jsdiff 的 `createTwoFilesPatch`，该包是参考的 npm 依赖、未随仓引入 ⇒ 这些 case 记为 `unmodelled`，不会"少打一段 patch 也算 same"）。
 * **挂起的辅助检查**：`--limit`/`--filter` 分片下不验"多余基线"（分片必然覆盖不到多数基线），报告会显式说明。
+
+### 17.14.5 基线环驱动的三处编译器侧修复与本轮遗留（集成方）
+
+本环（§17.14）暴露的缺陷中，编译器侧由集成方按环的分片复测收口；工具（`tools/BaselineDiff/**`）侧由切片代理提交 `743de84`：
+
+| 提交 | 缺陷 | 参考 | 环上复测 |
+|---|---|---|---|
+| `9dd4e37` | 环境模块名的 JS `substring` 结束下标被当长度（说明符打成 `m"`）；工厂 token 未标 `Synthesized`（`.types` 少下划线） | checker.ts:8611/8617、nodeFactory.ts:7393-7405 | — |
+| `0f67b46` | 计算属性名 `[Symbol.iterator]` 只剥了前括号（`symbolToString` 多一个 `]`） | checker.ts:8938 | es6/** 分片 `symbols` `same=92 diverged=43` → **`same=135 diverged=0`**；SUMMARY `same` 496 → **539** |
+| `5f5df01` | `IsExpressionNodeOrShorthandPropertyAssignmentName` 把 `isShorthandPropertyAssignment(parent)` 谓词写成 `(ShorthandPropertyAssignment?)identifier.Parent`（C# 的 `(T?)x` 对引用类型是**硬转**）⇒ 类声明经节点遍历命中，15 条 `InvalidCastException` | checker.ts:50925 邻近 | es6/** 分片 `port-crash` 15 → 0（该 15 条即此一类） |
+
+三处修复后：build 0 错误 0 警告、测试 1,520/1,520、`tools/TypeDiff` 全语料 `same=5908/5908` clean、`tools/EmitDiff` 全语料（`.js` 与 `--source-map`）`same=5908/5908` clean。
+
+**本轮遗留（各有可复现对，登记待办）**
+
+1. **`.js` 首注释丢失**（60 文件分片 1 例）：`ambientModuleDeclarationWithReservedIdentifierInDottedPath.ts`（`@module: commonjs`）—— baseline 在 `"use strict";` 与 `Object.defineProperty(exports,"__esModule",…)` 之间保留文件首注释 `// https://github.com/microsoft/TypeScript/issues/7840`，端口丢掉它。机制属 `emitSourceFile` 的 detached-comment 路径（emitter.ts:4292-4306 的 `shouldEmitDetachedComment` 与 prologue 列表的写出顺序）；复现：`--filter "ambient/ambientModuleDeclarationWithReservedIdentifierInDottedPath.ts"`。
+2. **`.types` 下划线中段空洞**（es6/** 分片 1 例）：`symbolProperty5.ts` —— baseline 是一条连续 `^^^^`，端口中间空 8 格 ⇒ 某个嵌套节点的 `nodeIsFullySynthetic`（`src/harness/typeWriter.ts:35-37`）答 false。与 `9dd4e37` 的 token 标记同族、不同节点类；复现产物在 `artifacts/bd-integration/port/symbolProperty5.types` 第 6/8 行。
+3. **`GetExports` 空引用（target=es5 降级路径）**：`NullReferenceException @ ModuleTransformer.GetExports (ModuleTransforms/ModuleTransform.Substitution.cs:247) < SubstituteBinaryExpression (:203) < SubstituteExpression (:90) < OnSubstituteNode (:51) < ImpliedNodeFormatDependentTransformer.OnSubstituteNode (:146)`，仅在 `@target: es5` 的降级发射上出现（分片 1 例：`emitArrowFunction(target=es5).ts`；帧见该分片的 `report.txt`）。非单行根因，需按参考逐层比对替换路径。
