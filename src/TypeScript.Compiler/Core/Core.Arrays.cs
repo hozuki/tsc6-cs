@@ -407,6 +407,10 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:399-415
+    /// <remarks>
+    /// PORT-NOTE: the test is JS <em>truthiness</em>, not "is not undefined": TS drops a mapped value that is
+    /// falsy, so an empty string produced by the mapper never reaches the result (wildcard specs rely on this).
+    /// </remarks>
     public static IReadOnlyList<TU> FlatMap<T, TU>(IReadOnlyList<T>? array, Func<T, int, object?> mapfn)
     {
         var result = new List<TU>();
@@ -415,14 +419,14 @@ internal static partial class Core
             for (var i = 0; i < array.Count; i++)
             {
                 var v = mapfn(array[i], i);
-                if (v is null) continue;
+                if (!Js.IsTruthy(v)) continue;
                 if (v is IEnumerable<TU> many)
                 {
                     result.AddRange(many);
                 }
                 else
                 {
-                    result.Add((TU)v);
+                    result.Add((TU)v!);
                 }
             }
         }
@@ -431,6 +435,7 @@ internal static partial class Core
     }
 
     // ported from: src/compiler/core.ts:418-434
+    /// <inheritdoc cref="FlatMap{T,TU}(IReadOnlyList{T}?,Func{T,int,object}?)"/>
     public static List<TU> FlatMapToMutable<T, TU>(IReadOnlyList<T>? array, Func<T, int, object?> mapfn)
     {
         var result = new List<TU>();
@@ -439,14 +444,14 @@ internal static partial class Core
             for (var i = 0; i < array.Count; i++)
             {
                 var v = mapfn(array[i], i);
-                if (v is null) continue;
+                if (!Js.IsTruthy(v)) continue;
                 if (v is IEnumerable<TU> many)
                 {
                     result.AddRange(many);
                 }
                 else
                 {
-                    result.Add((TU)v);
+                    result.Add((TU)v!);
                 }
             }
         }

@@ -31,6 +31,14 @@ internal static class Js
     };
 
     /// <summary>Evaluates JavaScript truthiness for a reference value that is expected to be non-null.</summary>
+    /// <remarks>
+    /// PORT-NOTE: this overload answers "is not null", which is <em>not</em> JS truthiness for every type it can
+    /// be bound to. It exists for call sites whose value is a reference the compiler cannot prove non-null. For
+    /// anything whose falsy-ness matters (<c>string</c> in particular) test the value directly, or pass an
+    /// explicit <c>(object?)</c> cast to <see cref="IsTruthy(object?)"/> — overload resolution prefers this
+    /// overload for a <c>string</c> argument, so a plain <c>IsTruthy(someString)</c> answers <c>true</c> for the
+    /// empty string.
+    /// </remarks>
     public static bool IsTruthy<T>(T? value)
         where T : class
         => value is not null;

@@ -290,4 +290,14 @@ public class CoreArraysTests
         Assert.Equal([5, 7], multiMap.Get('a'));
         Assert.True(multiMap.ContainsKey('b'));
     }
+
+    [Fact]
+    public void FlatMap_DropsFalsyMappedValues()
+    {
+        // TS: flatMap(array, mapfn) keeps a mapped value only when it is truthy, so "" disappears
+        // (the wildcard specs rely on this for empty specs).
+        var mapped = Core.FlatMap<string, string>(["", "a", "b"], (s, _) => s);
+
+        Assert.Equal(["a", "b"], mapped);
+    }
 }
