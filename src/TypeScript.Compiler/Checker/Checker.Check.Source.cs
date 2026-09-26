@@ -1934,7 +1934,11 @@ internal sealed partial class Checker
                 }
             }
 
-            return links.IsDeclarationWithCollidingName!.Value;
+            // PORT-NOTE: the reference's `return links.isDeclarationWithCollidingName!` is a *type-level* assertion: the
+            // slot stays `undefined` when `container` holds no locals (the branch above does not assign), and a truthy
+            // test on it then answers false. The port states that as `?? false` — reading `.Value` here is what threw
+            // "Nullable object must have a value" from the ES2015 transform's substitution hook.
+            return links.IsDeclarationWithCollidingName ?? false;
         }
 
         return false;

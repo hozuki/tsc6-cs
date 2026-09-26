@@ -1699,13 +1699,21 @@ internal sealed partial class Printer : IPrinter
     }
 
     /// <summary>ported from: src/compiler/emitter.ts:4975-4985 — <c>writeLines</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>lineText.slice(indentation)</c> is JS's clamping slice — a line shorter than the
+    /// guessed indentation (the empty lines of a helper's text, which <c>guessIndentation</c> skips but this loop does
+    /// not) answers the empty string, where C#'s <c>Substring</c> throws <c>ArgumentOutOfRangeException</c>. The guard
+    /// states the clamp.
+    /// </remarks>
     private void WriteLines(string text)
     {
         var lines = s_lineTerminatorSplitter.Split(text);
         var indentation = GuessIndentation(lines);
         foreach (var lineText in lines)
         {
-            var line = indentation is not null && indentation != 0 ? lineText.Substring(indentation.Value) : lineText;
+            var line = indentation is not null && indentation != 0
+                ? lineText.Length <= indentation.Value ? "" : lineText.Substring(indentation.Value)
+                : lineText;
             if (line.Length != 0)
             {
                 WriteLine();

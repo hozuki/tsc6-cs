@@ -1816,3 +1816,44 @@ printer 落地后，语料从"崩溃"变成"能跑"，此前被门控掩盖的�
 2. **`Utilities.Visitor` 的 `isArray(visited)` 判定**（visitorPublic.ts:172）：端口写成 `visited is IEnumerable<Node>`，而接口化的节点数组（`NodeArray<IStatement>`）不是 `IEnumerable<Node>`（泛型不变），于是 visitor 返回"片段列表"时抛 `InvalidCastException`。新增 `IsNodeArray`（非泛型 `IEnumerable` 且非 `Node`）并在两处使用。
 
 **验收（实测）**：build 0 错误 0 警告、测试 **1,206/1,206**、**TypeDiff 全语料仍 `same=5905 diverged=3 port-crash=0`（零回归）**。批次 2 的期望值改为用参考真值测定：`ts.transpileModule(src, options)`（6.0.3）为 24/27 例的直接 oracle，另两例用 `node lib/tsc.js` 复核（`transpileModule` 隐含 `isolatedModules`，无法建模 const enum 保留与跨文件别名解析）；其中 1 例期望写错（点号命名空间的中间变量是 `var B;` 而非 `let B;`，`ts.ts:2026`）已按参考改正，另 2 处"本链比参考小"（ES 模块转换器未装、const enum 内联用 `tsc` 测）在测试处注明而非掩盖。
+
+### 17.11 M7-B 批次 3（二）：`generators.ts` —— 生成器降级 + 一处跨切片 printer 缺陷
+
+本批次的一半（`es2015.ts`，5,065 行）由并行切片交付；本节记 `generators.ts`（3,284 行）这一半。
+
+| 交付 | 内容 |
+|---|---|
+| `Transforms/GeneratorsTransform.cs`（593） | 工厂 `TransformGenerators` + `OpCode`/`BlockAction`/`CodeBlockKind`/`ExceptionBlockState`/`Instruction` 五个枚举、`CodeBlock` 类族（`Exception`/`With`/`Switch`/`Loop`/`Labeled`）、`OperationArguments` 结构体、状态字段与四个访问器（`transformSourceFile` 起手） |
+| `Transforms/GeneratorsTransform.Visits.cs`（766） | `generators.ts:552-1278` 的访问器：生成器函数声明/表达式/访问器、含 `yield` 的逗号/逻辑/条件/`yield*`/数组/对象/元素访问/调用/`new` |
+| `Transforms/GeneratorsTransform.Emit.cs`（1,072） | `generators.ts:1280-2107`：15 种语句的 `transformAndEmit*`、`containsYield`/`countInitialNodesWithoutYield`、`onSubstituteNode`（改名后的 catch 变量）与 `cacheExpression`/`declareLocal` |
+| `Transforms/GeneratorsTransform.Blocks.cs`（602） | `generators.ts:2109-2711`：标签、代码块的 `begin*`/`end*` 族、`break`/`continue` 目标查找与 `emit*` 操作族 |
+| `Transforms/GeneratorsTransform.Build.cs`（531） | `generators.ts:2742-3284`：`build`/`buildStatements`、标签刷写、块进入/离开簿记与 `write*` 族 |
+| 测试 | `tests/.../Transforms/GeneratorsTransformTests.cs`：39 例 |
+
+**唯一保留的具名阻断**：`visitObjectLiteralExpression` 的 `reduceProperty` 调参考的 `createExpressionForObjectLiteralElementLike`（factory/utilities.ts:465-480），该成员未移植（`FactoryUtilities` 头部已记，阻断项是 `getAllAccessorDeclarations`）。因此含 `yield` 的对象字面量路径响亮抛 `NotSupportedException`（点名成员与参考行），并有两例测试钉住：一例断言这条失败，一例（常量）记下参考对同一输入的输出，供该成员落地后直接改断言。其余 37 例全部是参考真值。
+
+**方法与 oracle**：全部期望值用 `ts.transpileModule(src, { target: ES5, module: CommonJS, alwaysStrict: false })`（6.0.3）测定；39 例中 38 例逐字节比对（含 `__generator` helper 全文与调用点），1 例为具名阻断。夹具严格限制在「ES5 语法 + 生成器」子集，因此 `transformGenerators` 就是参考会施加的唯一 transform（`transformES2015` 对该子集无事可做），测得的文本与参考一致。
+
+**跨切片真缺陷（本批发现，已修，不在本切片文件内）**：`Emit/Printer.cs` 的 `WriteLines`（emitter.ts:4975-4985）把 JS 的 `slice` 写成了 `Substring`。参考 `const line = indentation ? lineText.slice(indentation) : lineText;` 中 `"".slice(8) === ""`，C# 的 `"".Substring(8)` 抛 `ArgumentOutOfRangeException`；`guessIndentation` 跳过空行而刷写循环不跳，于是**任何**「首行为空 + 各行统一缩进」的 helper 文本都会在第一个空行炸掉。`Parser/EmitHelpers.cs` 里每个多行 helper 都是这个形状，因此本切片是第一个在测试里真正申请到 helper 的切片（`__generator`）就撞上它——38 例全部死在 `Printer.WriteLines`，transform 的文本一行都没写出去。修法一行：`lineText.Length <= indentation.Value ? "" : lineText.Substring(indentation.Value)`；已由 `Emit/` 切片按同一钳制落下（该文件处的 PORT-NOTE 记之）。与 §17.10 的头两条同属「JS 越界读 → C# 抛异常」这一类。**该缺陷不修则本切片 38/39 例全红**，所以它是本批次的硬前置，不是可选改进。
+
+**逐条偏差（均已写入代码处的 PORT-NOTE）**：① `endLoopBlock` 的 `endBlock() as SwitchBlock`（generators.ts:2342）是参考自身的笔误（上一行断言的是 `Loop`），端口用 `BreakableCodeBlock`（`Switch`/`Loop`/`Labeled` 共享 `isScript`/`breakLabel` 的基类）承载那两个槽；② 参考用平行洞数组 + 元组联合存状态（明写为了省 GC），端口保留数组形态，洞以 `-1`/`null` 哨兵表达（每个读洞处本就与「非负操作下标」比较），`OperationArguments` 由元组联合变为 4 槽 readonly struct（仍是「一个数组元素、无对象」）；③ `supportsUnlabeledBreak`/`supportsLabeledBreakOrContinue`/`supportsUnlabeledContinue` 的类型谓词在 C# 退化为 `bool` + 调用处强转；④ `visitNode(x, visitor, isStatement)` 的断言收窄在端口只保留入参类型，个别 `Node` 入参在边界强转；⑤ `containsYield` 参数放宽为 `INode?`（`IStatement` 与节点类在端口无公共基类）；⑥ `isLogicalOperator`（utilities.ts:7408）/`isBinaryLogicalOperator`（utilities.ts:7403）在 `FactoryUtilities` 已有私有一份（factory/utilities.ts:1246 的二进制版），本切片是第二份拷贝（同 `Destructuring.AssertEachNode` 的处理），报表请收一份；⑦ `Debug.failBadSyntaxKind` 与 `Debug.assertNever` 在表达式位置的返回类型缺口，按仓库既有写法用 `Debug.Fail<T>`/「void 后跟一个 return」；⑧ `renamedCatchVariableDeclarations` 与 `labelExpressions`/`labelNumbers` 的稀疏写读各配一个私有小工具（`List<T>` 无洞）。
+
+**验收（实测）**：真树 `dotnet build src/TypeScript.Compiler` **0 错误 0 警告**；`dotnet test --filter GeneratorsTransformTests` **39/39 通过**（printer 缺陷修复后；修复前该 38 例全部死在 `Printer.WriteLines`，本批次因此也是那条缺陷的阳性对照）。全部期望值来自参考真值测定，含 `__generator` helper 全文与调用点的逐字节比对。
+
+
+### 17.11 M7-B 批次 3：`es2015.ts` + `generators.ts`（含四处基础缺陷修复）
+
+| 交付 | 内容 |
+|---|---|
+| `Transforms/ES2015Transform*.cs`（7 文件） | `transformers/es2015.ts`（5,065 行）：class→IIFE + `__extends`、箭头/捕获 `this`/`new.target`、解构与默认值/rest、for-of/for-in 循环转换（`_loop_1` 家族）、spread、模板字面量、`super`/`new.target` 替换 |
+| `Transforms/GeneratorsTransform*.cs`（5 文件） | `transformers/generators.ts`（3,284 行）：生成器/async 状态机（`__generator`/`__awaiter` 辅助、块与标签、`try/catch/finally` 转换、参数展开辅助） |
+| 测试 | `ES2015TransformTests`（30→28，见下）、`GeneratorsTransformTests`（39），全部以 `ts.transpileModule`/`tsc` 6.0.3 的真值钉定 |
+
+**本批次顺带修掉的四处基础缺陷（都不在本切片范围内，但都是真缺陷）：**
+
+1. **`Parser/NodeFactory.cs` 的克隆丢 `NodeFlags.Synthesized`**：参考的 `cloneNodeWorker` 由**合成基工厂**造克隆后再 `clone.flags |= node.flags & ~NodeFlags.Synthesized`（nodeFactory.ts:6395/7393-7405），端口写成 `clone.Flags = node.Flags & ~NodeFlags.Synthesized` —— 既丢了标记又覆盖了构造期标志。后果：克隆被 `IsParseTreeNode` 认作语法树节点，`EmitResolver.GetConstantValue` 的 `getParseTreeNode(nodeIn, canHaveConstantValue)` 守卫把 es2015 自己合成的 `Object.defineProperty(C.prototype, …)` 实参漏进 checker，`getAssignmentTarget` 解引用其空父指针 → **任何带访问器的类**都 NRE。修法按"本工厂是否合成"（`_synthesizedNodes`）区分 `CloneNodeWorker` 与四个专用克隆（后者经本工厂的 `CreateBaseIdentifier` 已带标记，用 `|=`）。
+2. **`Checker/Checker.Inference.cs` 的 `GetEnclosingIterationStatement` 把三值回调压成两值**：参考 `(!n || nodeStartsNewLexicalEnvironment(n)) ? "quit" : isIterationStatement(n, false)`（checker.ts:31267-31269）里 `false` 是**继续**，端口写成 `!startLexical && isIterationStatement ? true : null`，于是遍历在循环体的 `Block` 处退出、对所有 Block 体的 do/while 都答 null ⇒ `BlockScopedBindingInLoop`/`LoopWithCapturedBlockScopedBinding` 从没被设过 ⇒ es2015 的循环转换永不触发（被捕获的绑定走了"重命名"路径）。
+3. **`Emit/Printer.cs` 的 `WriteLines` 未按 JS 语义裁剪**：参考 `lineText.slice(indentation)` 会**钳制**（空行答空串，`guessIndentation` 跳过空行而循环不跳），端口的 `Substring` 越界抛 `ArgumentOutOfRangeException` —— 任何"前导换行 + 统一缩进"的 emit helper 文本（`Parser/EmitHelpers.cs` 里全部如此）一被真正请求就炸。
+4. **`Checker/Checker.Check.Source.cs` 的 `IsSymbolOfDeclarationWithCollidingName` 读了空值**：参考末尾 `return links.isDeclarationWithCollidingName!` 是**类型层断言**（容器无局部变量时该槽保持 `undefined`，真值测试即假），端口 `.Value` 抛"Nullable object must have a value"。
+
+**验收（实测）**：build 0 错误 0 警告、测试 **1,284/1,284**（+30 es2015 +39 generators +2 访问器真值例；另删除 1 例不可能出现在参考管线里的静态属性初始化用例 —— `transformClassFields` 无条件跑在 `transformES2015` 之前，transformer.ts:161-166 + es2015.ts:2276-2278，该用例归 M7-B5 用真链验证）；**TypeDiff 全语料仍 `same=5905 diverged=3 port-crash=0`（零回归）**。

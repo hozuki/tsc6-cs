@@ -7575,9 +7575,16 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:31267-31269 — <c>getEnclosingIterationStatement</c>.</summary>
+    /// <remarks>PORT-NOTE: the reference's callback answers <c>"quit"</c> for a node that starts a new lexical
+    /// environment and <c>isIterationStatement(n, false)</c> otherwise — a *two*-valued answer whose <c>false</c> keeps
+    /// the walk going. The port states the quit as <c>null</c> and the other two answers as <c>false</c>/<c>true</c>;
+    /// collapsing the walk into <c>!nodeStartsNewLexicalEnvironment(n) &amp;&amp; isIterationStatement(n)</c> made the
+    /// walk stop at the first node that was neither (e.g. a loop's body block), so a <c>do</c>/<c>while</c> body's
+    /// block-scoped bindings never reached the loop node and <c>LoopWithCapturedBlockScopedBinding</c> was never set
+    /// on it.</remarks>
     internal Node? GetEnclosingIterationStatement(Node node)
     {
-        return Utilities.FindAncestor(node, n => !Utilities.NodeStartsNewLexicalEnvironment(n) && Utilities.IsIterationStatement(n, /*lookInLabeledStatements*/ false) ? true : (bool?)null);
+        return Utilities.FindAncestor(node, n => Utilities.NodeStartsNewLexicalEnvironment(n) ? null : (bool?)Utilities.IsIterationStatement(n, /*lookInLabeledStatements*/ false));
     }
 
     /// <summary>ported from: src/compiler/checker.ts:31271-31333 — <c>checkNestedBlockScopedBinding</c>.</summary>

@@ -5005,11 +5005,25 @@ internal partial class NodeFactory
     }
 
     /// <summary>ported from: factory/nodeFactory.ts:6386 — the tail of <c>cloneNode</c>.</summary>
-    private static T CloneNodeWorker<T>(T node)
+    /// <remarks>
+    /// PORT-NOTE (the flags): the reference builds the clone with <c>baseFactory.createBaseNode(node.kind)</c> — the
+    /// factory's *own* base, which <c>syntheticFactory</c> wraps in <c>makeSynthetic</c> (nodeFactory.ts:7393-7405) —
+    /// and then ORs the source's non-<c>Synthesized</c> bits in (<c>clone.flags |= node.flags &amp; ~NodeFlags.Synthesized</c>,
+    /// nodeFactory.ts:6395). The clone therefore always carries the factory's own stamp: `Synthesized` for
+    /// <see cref="Factory"/>, nothing for <see cref="FactoryUtilities.ParseNodeFactory"/> (the reference's
+    /// <c>parseBaseNodeFactory</c>, parser.ts:432-441, does not call <c>makeSynthetic</c>) — which is what
+    /// <c>typeSerializer</c> relies on when it clones through the parse factory and then treats the clone as a source
+    /// tree node (<c>transformers/typeSerializer.ts:600</c>). <c>ShallowClone</c> is not a base node — it carries the
+    /// *source's* flags — so the stamp has to be restated here; assigning <c>node.Flags &amp; ~NodeFlags.Synthesized</c>
+    /// (as this port did) instead dropped it, which made <c>Utilities.IsParseTreeNode</c> report a clone of a
+    /// synthesized node as a parse-tree node and let the emit resolver's <c>getParseTreeNode</c> guards (e.g.
+    /// checker.ts:51413-51416 <c>getConstantValue</c>) hand synthesized nodes to the checker.
+    /// </remarks>
+    private T CloneNodeWorker<T>(T node)
         where T : Node
     {
         var clone = (T)node.ShallowClone();
-        clone.Flags = node.Flags & ~NodeFlags.Synthesized;
+        clone.Flags = (_synthesizedNodes ? NodeFlags.Synthesized : NodeFlags.None) | (node.Flags & ~NodeFlags.Synthesized);
         clone.TransformFlags = node.TransformFlags;
 
         // The fresh node TS starts from owns these, so the copy loop never reaches them.
@@ -5027,7 +5041,7 @@ internal partial class NodeFactory
     private Identifier CloneGeneratedIdentifier(Identifier node)
     {
         var clone = CreateBaseIdentifier(node.EscapedText!);
-        clone.Flags = node.Flags & ~NodeFlags.Synthesized;
+        clone.Flags |= node.Flags & ~NodeFlags.Synthesized;
         clone.TransformFlags = node.TransformFlags;
         SetOriginalNode(clone, node);
         EmitNodes.SetIdentifierAutoGenerate(
@@ -5040,7 +5054,7 @@ internal partial class NodeFactory
     private Identifier CloneIdentifier(Identifier node)
     {
         var clone = CreateBaseIdentifier(node.EscapedText!);
-        clone.Flags = node.Flags & ~NodeFlags.Synthesized;
+        clone.Flags |= node.Flags & ~NodeFlags.Synthesized;
         clone.JsDoc = node.JsDoc;
         clone.FlowNode = node.FlowNode;
         clone.Symbol = node.Symbol;
@@ -5057,7 +5071,7 @@ internal partial class NodeFactory
     private PrivateIdentifier CloneGeneratedPrivateIdentifier(PrivateIdentifier node)
     {
         var clone = CreateBasePrivateIdentifier(node.EscapedText!);
-        clone.Flags = node.Flags & ~NodeFlags.Synthesized;
+        clone.Flags |= node.Flags & ~NodeFlags.Synthesized;
         clone.TransformFlags = node.TransformFlags;
         SetOriginalNode(clone, node);
         EmitNodes.SetIdentifierAutoGenerate(
@@ -5070,7 +5084,7 @@ internal partial class NodeFactory
     private PrivateIdentifier ClonePrivateIdentifier(PrivateIdentifier node)
     {
         var clone = CreateBasePrivateIdentifier(node.EscapedText!);
-        clone.Flags = node.Flags & ~NodeFlags.Synthesized;
+        clone.Flags |= node.Flags & ~NodeFlags.Synthesized;
         clone.TransformFlags = node.TransformFlags;
         SetOriginalNode(clone, node);
         return clone;

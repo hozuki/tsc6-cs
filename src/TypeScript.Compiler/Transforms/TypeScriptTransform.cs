@@ -2,7 +2,7 @@
 
 namespace TypeScript.Compiler;
 
-// ported from: src/compiler/transformers/ts.ts:205-2750 — the whole TypeScript-specific erase transform.
+// ported from: src/compiler/transformers/ts.ts:209-2750 — the whole TypeScript-specific erase transform.
 /// <summary>
 /// ported from: src/compiler/transformers/ts.ts:235-2750 — <c>transformTypeScript</c>: the transformer that erases the
 /// TypeScript-only syntax of a <see cref="SourceFile"/> (or of every file of a <see cref="Bundle"/>), leaving the

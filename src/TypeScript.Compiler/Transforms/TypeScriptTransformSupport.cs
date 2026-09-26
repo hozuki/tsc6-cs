@@ -2,7 +2,8 @@
 
 namespace TypeScript.Compiler;
 
-// ported from: src/compiler/utilities.ts:1151-1163 (insertStatementsAfterPrologue/-AfterStandardPrologue),
+// ported from: src/compiler/utilities.ts:1124-1134 (insertStatementsAfterPrologue), :1151-1153
+//             (insertStatementsAfterStandardPrologue),
 //             :7845-7852 (createRange), :7870-7872 (moveRangePos), :7879-7884 (moveRangePastDecorators),
 //             :7891-7898 (moveRangePastModifiers), :7910-7912 (createTokenRange), :8019-8021 (getInitializedVariables);
 //             src/compiler/checker.ts:1479-1483 (isInstantiatedModule);
@@ -251,11 +252,15 @@ internal static class TypeScriptTransformSupport
     /// (<c>ts.ts:2016</c>, <c>:2038</c>, <c>:2566</c> and <c>:1617</c>). The port's <see cref="ISourceMapRange"/> adds a
     /// non-optional <c>Source</c> slot that neither <see cref="Node"/> nor <see cref="NodeArray{T}"/> declares, so the
     /// port's <c>SetSourceMapRange</c> cannot take them as they stand (its reader,
-    /// <see cref="EmitNodes.GetSourceMapRange"/>, already widens to <see cref="ITextRange"/> and casts back). This
-    /// adapter states the same range as the port's own <see cref="SourceMapRange"/>, capturing <c>Pos</c>/<c>End</c> at
-    /// the moment the reference's assignment would have aliased the node — the reader only ever reads those two slots
-    /// off it. The generator's fix (widening the setter's parameter to <see cref="ITextRange"/>) is in this slice's
-    /// report.
+    /// <see cref="EmitNodes.GetSourceMapRange"/>, already widens to <see cref="ITextRange"/> and casts back). Of the
+    /// reference's seven call sites — <c>ts.ts:995</c>, <c>:1626</c>, <c>:2039</c>, <c>:2042</c>, <c>:2529</c>,
+    /// <c>:2532</c> and <c>:2565</c> — four can hand over a node itself: <c>moveRangePastDecorators</c> and
+    /// <c>moveRangePastModifiers</c> answer the node unchanged when it has neither decorator nor modifier, and
+    /// <c>:2039</c>/<c>:2042</c> pass a declaration outright (<c>:2565</c> passes its <c>name</c>). This adapter states
+    /// the same range as the port's own <see cref="SourceMapRange"/>, capturing <c>Pos</c>/<c>End</c> at the moment the
+    /// reference's assignment would have aliased the node — the reader only ever reads those two slots off it, and the
+    /// source-map slice of M7-B is what will next read them. The generator's fix (widening the setter's parameter to
+    /// <see cref="ITextRange"/>) is in this slice's report.
     /// </remarks>
     public static ISourceMapRange SourceMapRangeOf(ITextRange range)
         => range as ISourceMapRange ?? new SourceMapRange { Pos = range.Pos, End = range.End };
