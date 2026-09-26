@@ -1,0 +1,8 @@
+# TypeScript checkout that the generated data tables are derived from.
+#
+# Baseline: release-6.0 @ 050880ce59 ("Bump version to 6.0.3"), i.e. compiler version 6.0.3.
+# Update this comment whenever the checkout is moved to a new baseline, and re-run tools/Gen.
+#
+# One path per line; '#' starts a comment.
+# Override with: dotnet run --project tools/Gen -- --ts-root <path>
+D:\Source\GitHub\TypeScript

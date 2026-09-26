@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Gen</AssemblyName>
+    <RootNamespace>TypeScript.Compiler.Tools</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 生成物校验测试需要直接调用 Generator，见 tests/.../Model/GeneratedTablesTests.cs -->
+    <InternalsVisibleTo Include="TypeScript.Compiler.Tests" />
+  </ItemGroup>
+
+</Project>
