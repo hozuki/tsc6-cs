@@ -166,6 +166,14 @@ internal partial interface IClassElement : INode, INamedDeclaration
 {
 }
 
+/// <summary>ported from types.ts: <c>ClassLikeDeclarationBase</c>.</summary>
+internal partial interface IClassLikeDeclarationBase : INode, INamedDeclaration, IJSDocContainer
+{
+    NodeArray<TypeParameterDeclaration>? TypeParameters { get; }
+    NodeArray<HeritageClause>? HeritageClauses { get; }
+    NodeArray<IClassElement>? Members { get; }
+}
+
 /// <summary>ported from types.ts: <c>CommandLineOptionBase</c>.</summary>
 internal partial interface ICommandLineOptionBase
 {
@@ -832,7 +840,7 @@ internal partial interface IEmitResolver
     List<IStatement>? GetDeclarationStatementsForSourceFile(SourceFile? node, NodeBuilderFlags flags, InternalNodeBuilderFlags internalFlags, ISymbolTracker? tracker);
     bool IsImportRequiredByAugmentation(ImportDeclaration? decl);
     bool IsDefinitelyReferenceToGlobalSymbolObject(Node? node);
-    List<Node>? CreateLateBoundIndexSignatures(ClassLikeDeclarationBase? cls, Node? enclosingDeclaration, NodeBuilderFlags flags, InternalNodeBuilderFlags internalFlags, ISymbolTracker? tracker);
+    List<Node>? CreateLateBoundIndexSignatures(Node? cls, Node? enclosingDeclaration, NodeBuilderFlags flags, InternalNodeBuilderFlags internalFlags, ISymbolTracker? tracker);
     List<IDeclaration> SymbolToDeclarations(ISymbol? symbol, SymbolFlags meaning, NodeBuilderFlags flags, int? maximumLength, int? verbosityLevel, IWriterContextOut? @out);
 }
 
@@ -3688,7 +3696,7 @@ internal partial interface ITypeChecker
     bool IsDeclarationVisible(Node? node);
     bool IsPropertyAccessible(Node? node, bool isSuper, bool isWrite, IType? containingType, ISymbol? property);
     Node? GetTypeOnlyAliasDeclaration(ISymbol? symbol);
-    MemberOverrideStatus GetMemberOverrideModifierStatus(ClassLikeDeclarationBase? node, IClassElement? member, ISymbol? memberSymbol);
+    MemberOverrideStatus GetMemberOverrideModifierStatus(Node? node, IClassElement? member, ISymbol? memberSymbol);
     bool IsTypeParameterPossiblyReferenced(ITypeParameter? tp, Node? node);
     bool TypeHasCallOrConstructSignatures(IType? type);
     SymbolFlags GetSymbolFlags(ISymbol? symbol);

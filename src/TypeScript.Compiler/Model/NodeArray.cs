@@ -2,6 +2,24 @@ namespace TypeScript.Compiler;
 
 // ported from: src/compiler/types.ts:1583-1592 (MutableNodeArray / NodeArray)
 /// <summary>
+/// The read-only view of a <see cref="NodeArray{T}"/>, covariant in <c>T</c>.
+/// </summary>
+/// <remarks>
+/// PORT-NOTE: TS's <c>NodeArray&lt;T&gt;</c> is a <c>ReadonlyArray&lt;T&gt;</c>, which is covariant — so a
+/// <c>NodeArray&lt;ImportSpecifier&gt;</c> can be passed where a <c>NodeArray&lt;Node&gt;</c> is expected, and both
+/// <c>forEachChild</c>'s array callback and <c>forEachChildRecursively</c> rely on that. C# generics are invariant, and
+/// this interface is the covariant view that makes the same call shape possible without a copy: every member it declares
+/// is a getter, so nothing can be written through it. Callers that need to mutate, or that need the mutable-array-shaped
+/// members, keep using <see cref="NodeArray{T}"/>.
+/// </remarks>
+internal interface INodeArray<out T> : IReadOnlyList<T>, IReadonlyTextRange
+{
+    bool HasTrailingComma { get; }
+
+    TransformFlags TransformFlags { get; }
+}
+
+/// <summary>
 /// An array of nodes that also carries a text range.
 /// </summary>
 /// <remarks>
@@ -10,7 +28,7 @@ namespace TypeScript.Compiler;
 /// (<see cref="HasTrailingComma"/>, <see cref="TransformFlags"/>) is read by the emitter, which is why it
 /// cannot simply be a plain list.
 /// </remarks>
-internal class NodeArray<T> : List<T>, ITextRange, IReadonlyTextRange
+internal class NodeArray<T> : List<T>, INodeArray<T>, ITextRange, IReadonlyTextRange
 {
     public NodeArray()
     {

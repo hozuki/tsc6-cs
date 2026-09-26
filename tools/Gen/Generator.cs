@@ -129,6 +129,15 @@ internal static class Generator
         files.Add(TypedEnumEmitter.Emit(model, outputRoot));
         files.Add(NodeFactoryEmitter.Emit(model, mapper, outputRoot));
 
+        // The `forEachChild` kind table (parser.ts), which is a per-kind visitor table like the other generated
+        // tables. A visit the port cannot express — a member the concrete class does not have — is reported
+        // rather than dropped in silence (docs/architecture.md §9).
+        files.Add(ForEachChildEmitter.Emit(model.ForEachChild, model, typeModel, mapper, outputRoot, out var dropped));
+        foreach (var (kind, member, reason) in dropped)
+        {
+            warn?.Invoke($"forEachChild: SyntaxKind.{kind}.{member} visit omitted: {reason}");
+        }
+
         return files;
     }
 

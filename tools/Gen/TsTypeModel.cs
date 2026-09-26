@@ -280,6 +280,14 @@ internal sealed class TsTypeModel
     private static readonly HashSet<string> s_capabilityBases = new(StringComparer.Ordinal)
     {
         "LiteralLikeNode",
+
+        // `ClassExpression extends ClassLikeDeclarationBase, PrimaryExpression` — the capability comes first, so the
+        // position rule made it the base class and the whole `PrimaryExpression → MemberExpression → … → Expression`
+        // chain was lost (§12.8). The step that matters is the second one, so the capability is demoted to an interface
+        // and the class walks up from `PrimaryExpression`. `ClassDeclaration` inherits the same capability and keeps
+        // `Node` as its base, because a declaration is a statement rather than an expression — its members survive as
+        // the interface's members, exactly like `ILiteralLikeNode`'s.
+        "ClassLikeDeclarationBase",
     };
 
     /// <summary>The C# base reference of a class, or <c>null</c> when only <c>Node</c> is left.</summary>

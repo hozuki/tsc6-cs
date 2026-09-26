@@ -169,6 +169,103 @@ internal sealed class TsPredicate
 }
 
 /// <summary>
+/// The <c>forEachChildTable</c> of <c>parser.ts</c> (docs/architecture.md §11.3): one child-visitor entry per
+/// container <c>SyntaxKind</c>, in source order.
+/// </summary>
+/// <remarks>
+/// The table is 740 lines of <c>||</c>-chains, which is why it is generated rather than transcribed. The
+/// extractor understands exactly the shapes <c>parser.ts</c> writes (a direct <c>visitNode</c>/<c>visitNodes</c>/
+/// <c>forEach</c> call and the three conditional forms the JSDoc entries need) and aborts on anything else —
+/// the order it encodes is the language service's contract.
+/// </remarks>
+internal sealed class TsForEachChild
+{
+    public string Source { get; set; } = "";
+
+    /// <summary>Line of the <c>const forEachChildTable</c> declaration, for the generated header.</summary>
+    public int StartLine { get; set; }
+
+    /// <summary>Line the table's object literal ends on.</summary>
+    public int EndLine { get; set; }
+
+    /// <summary>
+    /// The module-level functions the generated file also ports (<c>forEachChild</c>, <c>forEachChildRecursively</c>,
+    /// <c>gatherPossibleChildren</c>), with their source ranges for the generated header.
+    /// </summary>
+    public List<TsForEachChildFunction> Functions { get; set; } = [];
+
+    public List<TsForEachChildEntry> Entries { get; set; } = [];
+}
+
+/// <summary>One module-level function the generated file ports, with its source range.</summary>
+internal sealed class TsForEachChildFunction
+{
+    public string Name { get; set; } = "";
+
+    public int StartLine { get; set; }
+
+    public int EndLine { get; set; }
+}
+
+/// <summary>One <c>[SyntaxKind.X]: …</c> member of <c>forEachChildTable</c>.</summary>
+internal sealed class TsForEachChildEntry
+{
+    public string Kind { get; set; } = "";
+
+    /// <summary>The shared visitor function's name, or <c>null</c> when the entry is an inline function expression.</summary>
+    public string? Visitor { get; set; }
+
+    /// <summary>The first parameter's type as written — a node type, or the union several kinds share.</summary>
+    public string NodeType { get; set; } = "";
+
+    /// <summary>Line of the entry, used for the generated <c>ported from</c> comments.</summary>
+    public int Line { get; set; }
+
+    public List<TsForEachChildVisit> Visits { get; set; } = [];
+}
+
+/// <summary>
+/// One step of a visitor body's <c>||</c>-chain.
+/// </summary>
+/// <remarks>
+/// <see cref="Form"/> says which members are set: <c>node</c> (<c>visitNode(cbNode, node.member)</c>),
+/// <c>nodes</c> (<c>visitNodes(cbNode, cbNodes, node.member)</c> or its <c>typeof</c>-guarded variant),
+/// <c>elements</c> (core.ts's <c>forEach(node.member, cbNode)</c>), or <c>if</c> (a conditional whose two arms
+/// are themselves chains). <see cref="Cast"/> is TS's <c>(node as X)</c>, needed only to know whether a kind
+/// can have the member at all.
+/// </remarks>
+internal sealed class TsForEachChildVisit
+{
+    public string Form { get; set; } = "";
+
+    public string? Member { get; set; }
+
+    public string? Cast { get; set; }
+
+    /// <summary><c>notNull</c> for <c>visitNodes</c>, <c>notString</c> for the <c>typeof … === "string"</c> guard.</summary>
+    public string? Guard { get; set; }
+
+    public TsForEachChildCondition? Condition { get; set; }
+
+    public List<TsForEachChildVisit> WhenTrue { get; set; } = [];
+
+    public List<TsForEachChildVisit> WhenFalse { get; set; } = [];
+
+    public int Line { get; set; }
+}
+
+/// <summary>The condition of an <c>if</c>-shaped visit.</summary>
+internal sealed class TsForEachChildCondition
+{
+    /// <summary><c>member</c> for a boolean member such as <c>isNameFirst</c>, <c>kindIs</c> for <c>node.x?.kind === SyntaxKind.Y</c>.</summary>
+    public string Form { get; set; } = "";
+
+    public string Member { get; set; } = "";
+
+    public string? Kind { get; set; }
+}
+
+/// <summary>
 /// The type model of a TS source file, obtained from the TypeScript compiler's own parser.
 /// </summary>
 /// <remarks>
@@ -320,6 +417,9 @@ public List<TsTable> Tables { get; set; } = [];
 
     /// <summary>The node predicates of <c>factory/nodeTests.ts</c>, in source order.</summary>
     public List<TsPredicate> Predicates { get; set; } = [];
+
+    /// <summary>The <c>forEachChildTable</c> of <c>parser.ts</c> (see <see cref="TsForEachChild"/>).</summary>
+    public TsForEachChild ForEachChild { get; set; } = new();
 
     /// <summary>
     /// The fixed-shape members of <c>factory/nodeFactory.ts</c>, in source order (docs/architecture.md §15.7).

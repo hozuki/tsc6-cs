@@ -100,15 +100,21 @@ const predicateSource = "src/compiler/factory/nodeTests.ts";
 
 const predicates = collectPredicates();
 
+// The child-visitor table's source (see collectForEachChild below).
+const forEachChildSource = "src/compiler/parser.ts";
+
+// The child-visitor table of parser.ts (see collectForEachChild below).
+const forEachChild = collectForEachChild();
+
 // The node factory's fixed-shape members (docs/architecture.md §15.7).
 const factory = collectFactory();
 
 fs.mkdirSync(path.dirname(outPath), { recursive: true });fs.writeFileSync(
     outPath,
-    JSON.stringify({ source: sources.join(", "), enums, interfaces, aliases, tables, predicates, factory }, null, 1),
+    JSON.stringify({ source: sources.join(", "), enums, interfaces, aliases, tables, predicates, forEachChild, factory }, null, 1),
     "utf8");
 
-console.log(`extract: ${enums.length} enums, ${interfaces.length} interfaces, ${aliases.length} aliases, ${tables.length} tables, ${predicates.length} predicates, ${factory.members.length} factory members (${factory.members.filter(m => m.supported).length} supported) -> ${outPath}`);
+console.log(`extract: ${enums.length} enums, ${interfaces.length} interfaces, ${aliases.length} aliases, ${tables.length} tables, ${predicates.length} predicates, ${forEachChild.entries.length} forEachChild entries, ${factory.members.length} factory members (${factory.members.filter(m => m.supported).length} supported) -> ${outPath}`);
 
 // -----------------------------------------------------------------------------------------------
 // Extra enums
@@ -360,6 +366,231 @@ function collectPredicates() {
     }
 
     return result;
+}
+
+// -----------------------------------------------------------------------------------------------
+// forEachChild
+// -----------------------------------------------------------------------------------------------
+
+// `forEachChildTable` maps each container SyntaxKind to a child visitor. Every entry is either a function
+// expression written in place or a bare reference to a shared named function, and every body is a single
+// `return` whose expression is a `||`-chain of `visitNode(cbNode, node.m)`, `visitNodes(cbNode, cbNodes, node.m)`
+// and `forEach(node.m, cbNode)` calls, plus the three conditional forms the JSDoc entries use (see
+// `classifyVisit`). Anything else aborts the run: the emitter must never guess at a body's order (that order is
+// the contract the language service relies on). See docs/architecture.md §9 and §11.3.
+function collectForEachChild() {
+    const filePath = path.join(tsRoot, forEachChildSource);
+    const text = fs.readFileSync(filePath, "utf8");
+    const source = ts.createSourceFile(filePath, text, ts.ScriptTarget.Latest, /* setParentNodes */ true, ts.ScriptKind.TS);
+
+    const lineOf = node => source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+    const written = node => node.getText(source).replace(/\s+/g, " ");
+    const fail = (node, message) => {
+        throw new Error(`forEachChild: ${message} at ${forEachChildSource}:${lineOf(node)}: ${written(node)}`);
+    };
+
+    // The shared visitors are plain function declarations further down the file; the table is evaluated after them.
+    const functions = new Map();
+    (function walk(node) {
+        if (ts.isFunctionDeclaration(node) && node.name) functions.set(node.name.text, node);
+        ts.forEachChild(node, walk);
+    })(source);
+
+    let table = null;
+    for (const statement of source.statements) {
+        if (!ts.isVariableStatement(statement)) continue;
+        for (const declaration of statement.declarationList.declarations) {
+            if (declaration.name.getText(source) === "forEachChildTable") table = declaration;
+        }
+    }
+
+    if (!table || !ts.isObjectLiteralExpression(table.initializer)) {
+        throw new Error(`forEachChild: forEachChildTable not found in ${forEachChildSource}`);
+    }
+
+    const entries = [];
+    for (const property of table.initializer.properties) {
+        if (!ts.isPropertyAssignment(property) || !ts.isComputedPropertyName(property.name)) {
+            fail(property, "unexpected forEachChildTable member");
+        }
+
+        const key = /^SyntaxKind\.(\w+)$/.exec(property.name.expression.getText(source));
+        if (!key) fail(property.name, "unexpected forEachChildTable key");
+
+        const inline = ts.isFunctionExpression(property.initializer);
+        const fn = inline ? property.initializer : functions.get(property.initializer.getText(source));
+        if (!fn || !ts.isFunctionDeclaration(fn) && !ts.isFunctionExpression(fn)) {
+            fail(property.initializer, `unresolved forEachChildTable visitor '${written(property.initializer)}'`);
+        }
+
+        if (fn.body.statements.length !== 1 || !ts.isReturnStatement(fn.body.statements[0]) || !fn.body.statements[0].expression) {
+            fail(fn, `unexpected forEachChild body for SyntaxKind.${key[1]}`);
+        }
+
+        entries.push({
+            kind: key[1],
+            visitor: inline ? null : property.initializer.getText(source),
+            nodeType: fn.parameters.length !== 0 && fn.parameters[0].type ? fn.parameters[0].type.getText(source) : "any",
+            line: lineOf(property),
+            visits: classifyChain(fn.body.statements[0].expression),
+        });
+    }
+
+    // The module-level functions the generated file also ports (`forEachChild`, the recursive walker and its
+    // helper), with their ranges, so the generated header names every source region.
+    const helperRanges = ["forEachChild", "forEachChildRecursively", "gatherPossibleChildren"].map(name => {
+        const fn = functions.get(name);
+        if (!fn) throw new Error(`forEachChild: expected a function declaration '${name}' in ${forEachChildSource}`);
+        return {
+            name,
+            startLine: lineOf(fn),
+            endLine: source.getLineAndCharacterOfPosition(fn.getEnd()).line + 1,
+        };
+    });
+
+    return {
+        source: forEachChildSource,
+        startLine: lineOf(table),
+        endLine: source.getLineAndCharacterOfPosition(table.initializer.getEnd()).line + 1,
+        functions: helperRanges,
+        entries,
+    };
+
+    // A `||` chain, left to right. `||` is left-associative, so a nested chain is just more of the same list.
+    function classifyChain(node) {
+        const visits = [];
+        (function walk(current) {
+            if (ts.isBinaryExpression(current) && current.operatorToken.kind === ts.SyntaxKind.BarBarToken) {
+                walk(current.left);
+                walk(current.right);
+                return;
+            }
+
+            visits.push(classifyVisit(unwrap(current)));
+        })(node);
+
+        return visits;
+    }
+
+    function unwrap(node) {
+        return ts.isParenthesizedExpression(node) ? unwrap(node.expression) : node;
+    }
+
+    // `node.member`, or `(node as UnionMember).member` when TS has to name the union member the access is valid
+    // on. The C# emitter resolves the access against the concrete class instead; `cast` only tells it which
+    // kinds can have the member at all (`questionDotToken` exists on CallExpression, not on NewExpression).
+    function memberOf(node) {
+        if (ts.isPropertyAccessExpression(node)) {
+            let receiver = node.expression;
+            let cast = null;
+            if (ts.isParenthesizedExpression(receiver) && ts.isAsExpression(receiver.expression)) {
+                cast = receiver.expression.type.getText(source);
+                receiver = receiver.expression.expression;
+            }
+
+            if (ts.isIdentifier(receiver) && receiver.text === "node") {
+                return { member: node.name.getText(source), cast };
+            }
+        }
+
+        fail(node, "unexpected forEachChildTable access");
+    }
+
+    function classifyVisit(node) {
+        const line = lineOf(node);
+
+        if (ts.isConditionalExpression(node)) {
+            return classifyConditional(node, line);
+        }
+
+        if (!ts.isCallExpression(node) || !ts.isIdentifier(node.expression)) {
+            fail(node, "unexpected forEachChild visitor expression");
+        }
+
+        const callee = node.expression.text;
+        if (callee === "visitNode" && node.arguments.length === 2) {
+            const access = memberOf(node.arguments[1]);
+            return { form: "node", member: access.member, cast: access.cast, line };
+        }
+
+        if (callee === "visitNodes" && node.arguments.length === 3) {
+            const access = memberOf(node.arguments[2]);
+            return { form: "nodes", member: access.member, cast: access.cast, guard: "notNull", line };
+        }
+
+        // `forEach` is core.ts's array helper: element-wise, and it never calls `cbNodes` even when one was
+        // passed. visitNodes falls back to that same walk when `cbNodes` is missing, but here it is never called.
+        if (callee === "forEach" && node.arguments.length === 2 && written(node.arguments[1]) === "cbNode") {
+            const access = memberOf(unwrap(node.arguments[0]));
+            return { form: "elements", member: access.member, cast: access.cast, line };
+        }
+
+        fail(node, `unexpected forEachChild visitor call '${callee}'`);
+    }
+
+    function classifyConditional(node, line) {
+        const condition = unwrap(node.condition);
+
+        // `typeof node.comment === "string" ? undefined : visitNodes(cbNode, cbNodes, node.comment)`: the member is
+        // `string | NodeArray<…>`, and only the array half is visited.
+        if (ts.isBinaryExpression(condition)
+            && condition.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken
+            && ts.isTypeOfExpression(condition.left)) {
+            if (!ts.isStringLiteral(condition.right) || condition.right.text !== "string") {
+                fail(condition, "unsupported typeof guard");
+            }
+
+            if (!(ts.isIdentifier(node.whenTrue) && node.whenTrue.text === "undefined")) {
+                fail(node.whenTrue, "unsupported typeof guard consequent");
+            }
+
+            const whenFalse = unwrap(node.whenFalse);
+            if (!ts.isCallExpression(whenFalse) || !ts.isIdentifier(whenFalse.expression) || whenFalse.expression.text !== "visitNodes"
+                || whenFalse.arguments.length !== 3) {
+                fail(whenFalse, "unsupported typeof guard alternative");
+            }
+
+            const guarded = memberOf(condition.left.expression);
+            const visited = memberOf(whenFalse.arguments[2]);
+            if (guarded.member !== visited.member || guarded.cast !== visited.cast) {
+                fail(node, "typeof guard does not visit the member it tests");
+            }
+
+            return { form: "nodes", member: guarded.member, cast: guarded.cast, guard: "notString", line };
+        }
+
+        return {
+            form: "if",
+            line,
+            condition: classifyCondition(condition),
+            whenTrue: classifyChain(unwrap(node.whenTrue)),
+            whenFalse: classifyChain(unwrap(node.whenFalse)),
+        };
+    }
+
+    function classifyCondition(node) {
+        // `node.typeExpression && node.typeExpression.kind === SyntaxKind.X`
+        if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) {
+            const owned = memberOf(node.left);
+            const right = node.right;
+            if (!ts.isBinaryExpression(right) || right.operatorToken.kind !== ts.SyntaxKind.EqualsEqualsEqualsToken
+                || !ts.isPropertyAccessExpression(right.left) || right.left.name.getText(source) !== "kind"
+                || !ts.isPropertyAccessExpression(right.right) || !ts.isIdentifier(right.right.expression)
+                || right.right.expression.text !== "SyntaxKind") {
+                fail(node, "unsupported forEachChild condition");
+            }
+
+            const tested = memberOf(right.left.expression);
+            if (tested.member !== owned.member || tested.cast !== owned.cast) {
+                fail(node, "forEachChild condition tests a different member than it guards");
+            }
+
+            return { form: "kindIs", member: owned.member, kind: right.right.name.getText(source) };
+        }
+
+        // A boolean member such as `node.isNameFirst`.
+        return { form: "member", member: memberOf(node).member };
+    }
 }
 
 // -----------------------------------------------------------------------------------------------

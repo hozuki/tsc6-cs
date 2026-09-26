@@ -231,26 +231,29 @@ internal partial class CatchClause : Node, ILocalsContainer, IReadonlyTextRange
 }
 
 /// <summary>ported from types.ts: <c>ClassDeclaration</c>.</summary>
-internal partial class ClassDeclaration : ClassLikeDeclarationBase, IDeclaration, IDeclarationStatement, IJSDocContainer, INamedDeclaration, IReadonlyTextRange, IStatement
+internal partial class ClassDeclaration : Node, IClassLikeDeclarationBase, IDeclaration, IDeclarationStatement, IJSDocContainer, INamedDeclaration, IReadonlyTextRange, IStatement
 {
     public override SyntaxKind Kind => SyntaxKind.ClassDeclaration;
 
     public NodeArray<Node>? Modifiers { get; set; }
+    public Identifier? Name { get; set; }
+    public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
+    public NodeArray<HeritageClause>? HeritageClauses { get; set; }
+    public NodeArray<IClassElement>? Members { get; set; }
+    public ISymbol? Symbol { get; set; }
+    public ISymbol? LocalSymbol { get; set; }
+    public IJSDocArray? JsDoc { get; set; }
+
+    // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
+    Node? INamedDeclaration.Name => (Node?)(object?)Name;
 }
 
 /// <summary>ported from types.ts: <c>ClassExpression</c>.</summary>
-internal partial class ClassExpression : ClassLikeDeclarationBase, IDeclaration, IJSDocContainer, INamedDeclaration, IPrimaryExpression, IReadonlyTextRange
+internal partial class ClassExpression : MemberExpression, IClassLikeDeclarationBase, IDeclaration, IJSDocContainer, INamedDeclaration, IPrimaryExpression, IReadonlyTextRange
 {
     public override SyntaxKind Kind => SyntaxKind.ClassExpression;
 
     public NodeArray<Node>? Modifiers { get; set; }
-}
-
-/// <summary>ported from types.ts: <c>ClassLikeDeclarationBase</c>.</summary>
-internal partial class ClassLikeDeclarationBase : Node, IDeclaration, IJSDocContainer, INamedDeclaration, IReadonlyTextRange
-{
-    public override SyntaxKind Kind => SyntaxKind.ClassDeclaration | SyntaxKind.ClassExpression;
-
     public Identifier? Name { get; set; }
     public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
     public NodeArray<HeritageClause>? HeritageClauses { get; set; }

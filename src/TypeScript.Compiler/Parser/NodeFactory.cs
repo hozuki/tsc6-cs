@@ -247,6 +247,12 @@ internal partial class NodeFactory
         SyntaxKind.TrueKeyword => CreateBaseNode<TrueLiteral>(token),
         SyntaxKind.FalseKeyword => CreateBaseNode<FalseLiteral>(token),
 
+        // TS declares `ImportExpression extends PrimaryExpression` with no members of its own, so its runtime object is a
+        // bare token and only the *type* makes it an expression — which is what lets `import("x")` use the token as a
+        // callee. The port needs the class to carry that chain; a plain `Token` here cannot flow into a
+        // `CallExpression.Expression` (and `ParseTokenNode<MemberExpression>()` would throw on every dynamic import).
+        SyntaxKind.ImportKeyword => CreateBaseNode<ImportExpression>(token),
+
         // TS's `createToken(token: TKind extends PunctuationSyntaxKind)` answers a `PunctuationToken<TKind>`; the port's
         // token classes carry the kind at run time, so the range is what picks the class (Model/Token.cs).
         _ when token >= SyntaxKind.FirstPunctuation && token <= SyntaxKind.LastPunctuation => new PunctuationToken(token),
@@ -3666,6 +3672,13 @@ internal partial class NodeFactory
             case JSDocOptionalType optional: optional.Type = type; break;
             case JSDocVariadicType variadic: variadic.Type = type; break;
             case JSDocNamepathType namepath: namepath.Type = type; break;
+
+            // The two nullable kinds reach this switch through `CreateJSDocUnaryTypeWorker` as well — the pre/postfix
+            // worker stores the operand here and the `postfix` bit through `SetJSDocTypeAndPostfix`. Leaving them out
+            // silently dropped the operand of `?string`/`!string`/`string?`/`string!` (found by the type-grammar slice's
+            // probe, not by a failing build).
+            case JSDocNullableType nullable: nullable.Type = type; break;
+            case JSDocNonNullableType nonNullable: nonNullable.Type = type; break;
         }
     }
 
@@ -3723,6 +3736,9 @@ internal partial class NodeFactory
             case JSDocReturnTag returns: returns.TypeExpression = typeExpression; break;
             case JSDocThisTag thisTag: thisTag.TypeExpression = typeExpression; break;
             case JSDocSatisfiesTag satisfies: satisfies.TypeExpression = typeExpression; break;
+            // `@throws {T}` reaches this switch through the same worker; without the arm the tag silently lost its type
+            // expression (found by a differential run against lib/typescript.js).
+            case JSDocThrowsTag throws: throws.TypeExpression = typeExpression; break;
         }
     }
 

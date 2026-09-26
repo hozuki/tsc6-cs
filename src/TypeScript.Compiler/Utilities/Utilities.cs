@@ -50,6 +50,43 @@ internal static partial class Utilities
         return range;
     }
 
+    /// <summary>ported from: src/compiler/factory/utilitiesPublic.ts:14 — <c>canHaveModifiers</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's guard narrows the node to <c>HasModifiers</c> so a caller can read <c>node.modifiers</c>; the port
+    /// answers <c>bool</c>, because C# cannot narrow through a predicate. <c>HasModifiers</c> is an intersection alias
+    /// and has no generated interface, so a caller that needs the list reads <c>Modifiers</c> off the node class it
+    /// narrowed to (the same treatment as <see cref="IsNamedDeclaration"/>).
+    /// </remarks>
+    public static bool CanHaveModifiers(Node node) => node.Kind switch
+    {
+        SyntaxKind.TypeParameter
+            or SyntaxKind.Parameter
+            or SyntaxKind.PropertySignature
+            or SyntaxKind.PropertyDeclaration
+            or SyntaxKind.MethodSignature
+            or SyntaxKind.MethodDeclaration
+            or SyntaxKind.Constructor
+            or SyntaxKind.GetAccessor
+            or SyntaxKind.SetAccessor
+            or SyntaxKind.IndexSignature
+            or SyntaxKind.ConstructorType
+            or SyntaxKind.FunctionExpression
+            or SyntaxKind.ArrowFunction
+            or SyntaxKind.ClassExpression
+            or SyntaxKind.VariableStatement
+            or SyntaxKind.FunctionDeclaration
+            or SyntaxKind.ClassDeclaration
+            or SyntaxKind.InterfaceDeclaration
+            or SyntaxKind.TypeAliasDeclaration
+            or SyntaxKind.EnumDeclaration
+            or SyntaxKind.ModuleDeclaration
+            or SyntaxKind.ImportEqualsDeclaration
+            or SyntaxKind.ImportDeclaration
+            or SyntaxKind.ExportAssignment
+            or SyntaxKind.ExportDeclaration => true,
+        _ => false,
+    };
+
     /// <summary>ported from: src/compiler/utilitiesPublic.ts:842 — <c>escapeLeadingUnderscores</c>.</summary>
     /// <remarks>
     /// An identifier that starts with two underscores gets a third one, so it cannot collide with a magic name such as
@@ -201,9 +238,19 @@ internal static partial class Utilities
         => NodeTests.IsCallExpression(node) && (node.Flags & NodeFlags.OptionalChain) != 0;
 
     /// <summary>ported from: src/compiler/utilities.ts:5343 — <c>isSuperProperty</c>.</summary>
-    public static bool IsSuperProperty(Node node)
-        => node.Kind is SyntaxKind.PropertyAccessExpression or SyntaxKind.ElementAccessExpression
-            && ((PropertyAccessExpression)node).Expression?.Kind == SyntaxKind.SuperKeyword;
+    /// <remarks>
+    /// PORT-NOTE: TS casts to the *union* <c>PropertyAccessExpression | ElementAccessExpression</c> and reads
+    /// <c>.expression</c> from both arms — legal there because both declare the member, so the cast never fails. C# has
+    /// no union cast: the earlier port spelled it as one cast to <c>PropertyAccessExpression</c>, which threw
+    /// <c>InvalidCastException</c> the first time a real file called it with <c>super[x]</c>. The kind switch keeps TS's
+    /// order (kind first, then the member).
+    /// </remarks>
+    public static bool IsSuperProperty(Node node) => node.Kind switch
+    {
+        SyntaxKind.PropertyAccessExpression => ((PropertyAccessExpression)node).Expression is { Kind: SyntaxKind.SuperKeyword },
+        SyntaxKind.ElementAccessExpression => ((ElementAccessExpression)node).Expression is { Kind: SyntaxKind.SuperKeyword },
+        _ => false,
+    };
 
     /// <summary>ported from: src/compiler/utilities.ts:2274-2287 — <c>nodeIsSynthesized</c>.</summary>
     /// <remarks>

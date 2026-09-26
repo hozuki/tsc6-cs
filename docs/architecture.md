@@ -655,6 +655,10 @@ StringLiteral → LiteralExpression → MemberExpression → LeftHandSideExpress
 
 `CallExpression` / `Identifier` / `ArrayLiteralExpression` 的链不受影响。**这份清单是维护点**：TS 增一个新的"能力基"时要补进来，否则那一族的链会静默失效 —— 它不会编译错，只会让下游的多态判断答错。
 
+M4e 期间它又发作一次，这次的形态是**分类台阶被能力基挤掉**而不是断链：`ClassExpression extends ClassLikeDeclarationBase, PrimaryExpression`，`ClassLikeDeclarationBase` 排首位、被判成类，于是类表达式满足不了 `Expression`，`new` 之外的任何地方都用不了它 —— 而 `Utilities.IsExpression`（kind 判断）一直答 true。清单因此加了 `"ClassLikeDeclarationBase"`（`ClassDeclaration`/`ClassExpression` 都改用 `IClassLikeDeclarationBase` 接口）。
+
+同一族在 M4e 一共出现 3 次（另两次是 `ImportExpression` 不被工厂实例化、`NonNullExpression` 不是 `MemberExpression` 的兄弟判断被写成硬转换），三者都不会编译错，所以新增 `tests/…/Model/NodeChainTests.cs`（§15.10）把"kind 谓词 ↔ 类链 ↔ 工厂产出"三方钉住：谓词认可的东西必须真是那个类，工厂必须造得出谓词认可的东西。
+
 ### 12.9 分类接口的共同锚点：`INode`
 
 §12.4 的位置规则把一部分分类台阶留成了接口（`TypeNode`、`Statement`、`Declaration`、`JSDocContainer`…），因为它们在别处出现在非首位。于是这些"节点"在 C# 里没有共同类型：`Expression` 是类，`Statement` 是接口，而 C# 的接口继承不了类 —— 那条链到这里就断了。
@@ -737,7 +741,7 @@ M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质�
 | M4b | `factory/emitNode.ts` → `Parser/EmitNodes.cs`；`factory/nodeChildren.ts` → `Parser/NodeChildren.cs`；提前移植 `getSourceFileOfNode`/`isParseTreeNode`/`getParseTreeNode` | 442 + 3 个函数 | 已完成（§15.5） |
 | M4c | `factory/nodeFactory.ts` → `Parser/NodeFactory.cs`（最大单件，再按 create/update 家族细分） | 7,542 | 已完成（§15.8：生成物已纳入编译，428 个成员里 417 个已移植，余 11 个逐条指名等 M4d/M5/M7/M4e） |
 | M4d | `factory/utilities.ts` + `nodeConverters.ts` + `parenthesizerRules.ts`，以及 `nodeFactory.ts` 里生成器表达不了的那半 | 2,656 | **已完成**（§15.9：三个文件全部移植；工厂尾部补齐，生成的 11 个存根清零；残留逐条指名） |
-| M4e | `parser.ts` → `Parser/*`（递归下降主体：声明 / 语句 / 表达式 / 类型 / JSDoc 各自成批） | 10,823 | |
+| M4e | `parser.ts` → `Parser/*`（递归下降主体：声明 / 语句 / 表达式 / 类型 / JSDoc 各自成批） | 10,823 | **已完成**（§15.10：九个 partial 文件、JSDoc 与增量重解析都在；与真编译器的差分验证逐字节一致；集成期抓出并修掉 6 个真 bug） |
 | M4f | `emitHelpers.ts` + `expressionToTypeNode.ts` | 2,821 | |
 | M4g | baseline 外环（§7 的 P1：先只比 `.errors.txt` 与 `.js`，不含类型检查） | — | |
 
@@ -909,6 +913,92 @@ M4c 期间每个工厂都拿它当 `Parenthesizer`（工厂里约 25 处 `parent
 `cloneNode` 的等价物是 `MemberwiseClone` + 重置（`Node.ShallowClone`）：TS 把源节点的 own 属性拷到一个**裸**节点上，于是范围、`id`、`parent`、`modifierFlagsCache` 保留新节点的值，其余（含 `emitNode` 与 binder/checker 留下的链接）都跟着源走；C# 没有 prototype/own 之分，逐个字段拷贝 + 显式重置那五个槽正是同一件事。`emitNode` 是复用引用，随后 `setOriginalNode` 的合并对它是自合并 —— TS 的同一段代码也是这么做的（`clone.emitNode` 先被拷进来，再被 `mergeEmitNode` 合到它自己上）。
 
 `createAssignment` 的返回类型是 `BinaryExpression`，不是 TS 的 `AssignmentExpression<EqualsToken>`：`types.ts` 那个接口在移植版里生成了一个**抽象类**（没有任何具体子类继承它），TS 靠结构类型让每个 `x = y` 都满足它，C# 没有这层结构兼容，所以工厂造出来的对象就是 `BinaryExpression`，把它 cast 到抽象类型会抛。`INodeFactory` 里那条 `AssignmentExpression<PunctuationToken>` 签名因此属于"接口比工厂大"的那一类（§15.7 开头那段的同一种情况），`PORT-NOTE` 记在方法上。
+
+---
+
+## 15.10 M4e：`parser.ts` 全量移植
+
+### 交付
+
+`parser.ts`（10,823 行）落到 9 个 partial 文件里，按 TS 注释里的分节切：
+
+| 文件 | 行数 | 对应 `parser.ts` |
+|---|---|---|
+| `Parser/Parser.cs` | 654 | 状态与入口（`initializeState` 折叠进构造函数）、上下文标志族、`ParseErrorAt*`、token 族（含 `ReScan*`/`ScanJsx*`）、`SpeculationHelper`/`LookAhead`/`TryParse`、`WithJSDoc` |
+| `Parser/Parser.Entry.cs` | 992 | `CreateSourceFile` ×2、`ParseJsonText`、`UpdateSourceFile`、模块判定（`IsExternalModule`/`IsFileProbablyExternalModule` 及其 6 个辅助）、pragma 处理（`ProcessCommentPragmas`/`ExtractPragmas`）、`ReparseTopLevelAwait`、`IsDeclarationFileName`/`GetDeclarationFileExtension`/`ParseResolutionMode` |
+| `Parser/Parser.NodeCreation.cs` | 734 | `CreateNodeArray`/`FinishNode`/`CreateMissingNode`、identifier 家族、可选 token 与分号族、上下文修饰符辅助 |
+| `Parser/Parser.Lists.cs` | 1,300 | 列表机制（`ParseList`/`ParseDelimitedList`/`ParseBracketedList` 与复用）、`ParseEntityName`、模板与字面量片段族 |
+| `Parser/Parser.Statements.cs` | 999 | 语句产生式、`IsStartOfStatement`/`IsDeclaration`、`ParseDeclarationWorker` |
+| `Parser/Parser.Declarations.cs` | 1,651 | 声明产生式（变量/函数/类/接口/类型别名/枚举/模块/import/export）、`ParseModifiers` |
+| `Parser/Parser.Expressions.cs` | 2,472 | 表达式产生式（含箭头函数的括号化推测）、JSX |
+| `Parser/Parser.Types.cs` | 1,693 | 类型产生式、参数与签名成员 |
+| `Parser/JSDocParser.cs` | 1,818 | 嵌套的 `internal static class JSDocParser`（TS 的 `namespace JSDocParser`）与 `CommentParser` |
+| `Parser/IncrementalParser.cs` | 1,004 | `ISyntaxCursor`、`CreateSyntaxCursor`、`UpdateSourceFile`、`MarkAsIntersectingIncrementalChange` |
+| `Parser/ForEachChildTable.cs` | 3,957 | 生成物：`forEachChild` 的 175 个 kind 分派 |
+| `Utilities/Utilities.Parser.cs` | 768 | `utilities.ts` 里解析器依赖的那批（`CanHaveModifiers`、`SupportedDeclarationExtensions` 等） |
+| `Parser/ParserEnums.cs` | 107 | `ParsingContext`（**顺序**枚举，掩码是 `1 << (int)ctx`）、`SpeculationKind`、`ParserSignatureFlags`、`Tristate` |
+
+配套新增：`Core/Pragmas.cs`、`Core/SourceFileReferences.cs`、`Core/TextSpan.cs`、`Core/TextChangeRange.cs`、`Parser/CreateSourceFileOptions.cs`、`Parser/JsDocWithDiagnostics.cs`、`Model/JSDocArray.cs`、`Model/NodeArray.cs` 的 `INodeArray<out T>` 协变视图。
+
+### parser 是实例类，不是静态状态
+
+TS 用 `namespace Parser` + 模块级 `var`，靠 `initializeState` 每次重置。移植版是**每个源文件一个 `Parser` 实例**：`initializeState` 折进构造函数，`ClearState()` 只做引用释放。与 `Scanner` 同一处理（§14.2），并行测试因此安全 —— `_notParenthesizedArrow` 这类状态不会跨次解析泄漏，`Parser.ParseSourceFile`/`ParseJsonText`/`ParseIsolatedEntityName` 与 `IncrementalParser.UpdateSourceFile` 每个入口都新建实例。
+
+`objectAllocator`/`baseNodeFactory`/节点计数不移植（§15.2）：`SourceFile.NodeCount` 记 **0**（`PORT-NOTE` 指明），`identifierCount` 是解析器侧的真值，照常精确。
+
+### 与真编译器的差分验证（本批最强证据）
+
+`artifacts/ts-ast-dump.cjs`（用 `lib/typescript.js`）与一次性端口侧导出对同一份源文本各打印一份规范化 AST —— 每个节点的 **kind 数值、pos、end、NodeFlags、标识符与字面量文本**，外加每条解析诊断的 **code/start/length** —— 然后逐字节 diff：
+
+| 语料 | dump 行数 | 结果 |
+|---|---|---|
+| 10 个手写片段（变量/函数/类/类型与枚举与命名空间/模块/表达式与类表达式与动态 import/JSDoc/JSX/JSON/故意报错） | 各 11–108 | 全部一致 |
+| `src/compiler/`：`binder.ts`、`scanner.ts`、`nodeFactory.ts`、`parser.ts`、`utilities.ts`、`checker.ts` | 17,877 / 22,526 / 37,864 / 50,766 / 54,317 / 298,061 | 全部一致 |
+| `lib/typescript.d.ts`（声明文件与 pragma 路径）、两个 `.tsx`、一个 `.js` | 48,389 / 71 / 101 / 11 | 全部一致 |
+
+`checker.ts` 一份就是 29.8 万行 dump —— 这同时压过了条件类型、JSDoc、装饰器、修饰符与声明合并的语法面。两侧遍历都用 `forEachChild`（端口是生成表，TS 是真实现），所以**子槽集合**也在比较范围内。
+
+### 集成期修掉的 6 个真 bug
+
+前四个都是「编译通过、测试通过、行为错」，第 3、4 个更是**真崩溃**（`InvalidCastException`），只有差分验证能抓到：
+
+1. **每个文件都被当成声明文件。** `IsDeclarationFileName` 把 `GetDeclarationFileExtension` 的结果按 `is not null` 判空，而 `Paths.GetAnyExtensionFromPath` 在移植版里对"没有该扩展名"答 `""`（TS 是 `undefined`）—— 空串非 null，于是 `test.ts` 也是声明文件，全文件节点成了 ambient、隐式导出、不做函数体检查。TS 里这个 helper 只有一份（`parser.ts:10561`），但 `path.ts` 会 import 它（`changeFullExtension`），C# 表达不了这条上行边，所以唯一实现留在 `Core/Paths.cs`，解析器委托过去。
+2. **两个 JSDoc 工厂成员丢槽。** `NodeFactory.SetJSDocType` 少 `JSDocNullableType`/`JSDocNonNullableType`（`?T`/`!T`/`T?`/`T!` 的操作数静默变 null）；`SetJSDocTypeExpression` 少 `JSDocThrowsTag`（`@throws {T}` 丢类型表达式）。两者都是「TS 用结构类型表达的槽，移植版必须写成 switch」，各补一个 case 加一条回归。
+3. **`ParseMemberExpressionOrHigher` 的硬转换。** TS 声明它返回 `MemberExpression`，但它内部那个循环的 `!` 分支会把输入包成 `NonNullExpression` —— 在 TS 的类型图里那是 `MemberExpression` 的**兄弟**（都继承 `LeftHandSideExpression`），所以 TS 的声明是个谎，靠类型断言蒙过去。移植版照抄了这个断言，于是 `const x = y!;` 直接抛。改成 `LeftHandSideExpression`（分支能产出的诚实上界）。
+4. **`Utilities.IsSuperProperty` 的联合转换。** TS 转的是**联合** `PropertyAccessExpression | ElementAccessExpression` 再读 `.expression`，两边都有该成员所以永不失败；移植版只转前者，`super[x]` 一调就抛。改成 kind switch。
+5. **`ClassExpression` 不在 `Expression` 链上。** §12.8 的能力基维护点又发作一次：`ClassExpression extends ClassLikeDeclarationBase, PrimaryExpression` 里能力基占了类槽，类表达式无法构造，而 `IsExpression`（kind 判断）一直答 true。修 `s_capabilityBases` 加 `"ClassLikeDeclarationBase"`。
+6. **`ImportExpression` 从不被实例化。** `createToken(ImportKeyword)` 应该给出 `ImportExpression`（它有自己的类），端口只给了裸 `Token`，而谓词按 kind 说它是表达式 —— 动态 `import()` 一到就崩。
+
+### 新增守卫（永久，与 §12.8 的维护点配套）
+
+那 6 个 bug 里有 3 个属于「谓词答 X、而模型或工厂根本造不出 X」这一族，且都不会编译错，所以本批把三方（kind 谓词 ↔ 类链 ↔ 工厂产出）钉成了反射测试 `Model/NodeChainTests.cs`：
+
+- `EveryKindTheExpressionPredicatesAccept_IsAnExpressionClass` 与 `EveryExpressionSubclass_IsAlsoAnExpressionKind` 双向比对；
+- `EveryKindTheStatementPredicateAccepts_IsAStatement`；
+- `EveryTokenKindTheFactoryBuilds_AgreesWithTheExpressionPredicates` 遍历 `CreateToken` 接受的每个 kind，问工厂造出的对象是不是谓词说的那个类。
+
+两份豁免清单是**显式且钉死**的，都逐个用 `lib/typescript.js` 验过，并且测试断言"清单恰好等于模型今天产出的集合"（多一条、少一条都失败）：
+
+- 真实现的类型图与它自己手写的 `isExpression`（kind 列表）**本来就不一致**的 7 个 kind：`JsxAttributes`/`JsxOpeningElement`/`JsxOpeningFragment`/`JsxClosingFragment`/`JsxExpression`（JSX 的结构节点，是 `JsxElement` 的子件）与 `SyntheticExpression`/`SyntheticReferenceExpression`（transformer 层构造）。`ts.isExpression({kind})` 对这 7 个都答 false，对 `JsxElement`/`JsxSelfClosingElement` 答 true —— 端口两侧都照实复刻。
+- `PrivateIdentifier`：`ts.factory.createToken` 对它返回**裸 token**（`escapedText` 为 undefined，而 `createPrivateIdentifier("#x").escapedText` 是 `"#x"`），因为 TS 的 `createToken` 对任何 kind 都造 `Token`、只用重载表达返回型；解析器从不把该 kind 走 `createToken`，端口照实复刻而不臆造 TS 不造的类。
+
+`Parser/ParserSmokeTests.cs`（17 条）是端到端解析断言：文件范围与输入回填、各类声明的形状、诊断与恢复（含与真编译器对齐的 2 条 1134 及其位置）、`@ts-check`、`/// <reference>`、模块判定、JSON、父链、`identifierCount` 精确而 `nodeCount` 记 0、`.d.ts` ambient、`NonNullExpression` 的两种位置。
+
+### 残留（指名，不留半成品）
+
+| 项 | 卡在 | 归属 |
+|---|---|---|
+| `convertToJson`（`parseJsonText` 的分支） | 它住在 `commandLineParser.ts`，建立在 M8 的选项模型上；解析器唯一那次调用的 `jsonConversionNotifier` 是 `null`，选项驱动的分支不可达 —— 调用点删掉并记 `PORT-NOTE` | M8 |
+| `FactoryUtilities.IsJSDocTypeAssertion` | `getJSDocTypeTag` → JSDoc 归属与父链遍历（§15.9 同条） | M5 |
+| `SourceFile.NodeCount` | 节点计数属于 `baseNodeFactory`（§15.2 不移植），解析器侧记 0 | 不移植 |
+| `Utilities.SupportedDeclarationExtensions` | 目前只有 `Paths` 的私有副本在用；`utilities.ts:9982` 的忠实位置在 `Utilities`，等 M5 的 `moduleNameResolver` 一起来 | M5 |
+
+### 取舍
+
+- **`TryParse`/`SpeculationHelper` 的泛型不受约束**：TS 的 `tryParse(f)` 用 `!result` 判空，而 `result` 可能是 `0`/`false`/`""` —— 那是**真值**判断，不是 null 判断。端口用 `!Js.IsTruthy(result)` 表达同一件事，因此 `T` 不能加 `where T : class`（那会改变语义）。
+- **`AsName` 返回 `Node?`**（§15.9 bug 3 的收尾）：生成器按赋值目标槽的类型给收窄转换，手写的创建成员里有 4 个因此自己转到 `Identifier?`。
+- **`convertToJson` 之外，`parseJsonText` 的表达式调用是无参的**：`parseArrayLiteralExpression`/`parseObjectLiteralExpression` 在 TS 里有可选参数，但**没有任何调用点**传它们（装饰器路径走的是别的成员），所以端口声明成无参。
+- **`ProcessCommentPragmas`/`ProcessPragmasIntoFields` 收 `IReadonlyPragmaContext`**：TS 写 `sourceFile as {} as PragmaContext`，端口里 `SourceFile` 就实现该接口、八个槽可写，不需要转换。
 
 ---
 

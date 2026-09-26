@@ -587,4 +587,39 @@ public class NodeFactoryTailTests
         EmitNodes.AddEmitFlags(declaration, EmitFlags.CustomPrologue);
         return declaration;
     }
+
+    [Fact]
+    public void JSDocUnaryTypes_KeepTheirOperand()
+    {
+        // Every one of these kinds stores its operand through the same worker; the switch that did it used to handle only
+        // optional/variadic/namepath, so `?string`/`!string`/`string?`/`string!` all came out with a null operand.
+        var operand = (ITypeNode)_factory.CreateTypeReferenceNode("T", null);
+
+        Assert.Same(operand, _factory.CreateJSDocOptionalType(operand).Type);
+        Assert.Same(operand, _factory.CreateJSDocVariadicType(operand).Type);
+        Assert.Same(operand, _factory.CreateJSDocNamepathType(operand).Type);
+        Assert.Same(operand, _factory.CreateJSDocNullableType(operand, /*postfix*/ true).Type);
+        Assert.Same(operand, _factory.CreateJSDocNonNullableType(operand, /*postfix*/ false).Type);
+
+        // …and the pre/postfix worker keeps the `postfix` bit next to it.
+        Assert.True(_factory.CreateJSDocNullableType(operand, true).Postfix);
+        Assert.False(_factory.CreateJSDocNonNullableType(operand, false).Postfix);
+    }
+
+    [Fact]
+    public void JSDocTypeLikeTags_KeepTheirTypeExpression()
+    {
+        // Five tag kinds carry a `typeExpression` and reach the factory through the same worker; the switch behind it used
+        // to miss `@throws` (found by a differential run against the reference compiler).
+        var typeExpression = _factory.CreateJSDocTypeExpression(_factory.CreateTypeReferenceNode("T", null));
+
+        Assert.Same(typeExpression, _factory.CreateJSDocTypeTag(null, typeExpression, null).TypeExpression);
+        Assert.Same(typeExpression, _factory.CreateJSDocReturnTag(null, typeExpression, null).TypeExpression);
+        Assert.Same(typeExpression, _factory.CreateJSDocThisTag(null, typeExpression, null).TypeExpression);
+        // `@satisfies` and `@throws` have no default tag name: `getDefaultTagNameForKind` in the reference compiler ends
+        // at `@import`, exactly like this port's switch, so both factories need the name from the caller (the parser
+        // passes the one it scanned).
+        Assert.Same(typeExpression, _factory.CreateJSDocSatisfiesTag(_factory.CreateIdentifier("satisfies"), typeExpression, null).TypeExpression);
+        Assert.Same(typeExpression, _factory.CreateJSDocThrowsTag(_factory.CreateIdentifier("throws"), typeExpression, null).TypeExpression);
+    }
 }

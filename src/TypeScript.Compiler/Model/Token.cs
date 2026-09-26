@@ -15,7 +15,7 @@ namespace TypeScript.Compiler;
 /// every use site switches on <see cref="Node.Kind"/> anyway.
 /// </para>
 /// </remarks>
-internal class Token : Node
+internal class Token : Node, IJSDocContainer
 {
     private readonly SyntaxKind _kind;
 
@@ -23,9 +23,14 @@ internal class Token : Node
 
     public override SyntaxKind Kind => _kind;
 
-    // ported from: types.ts:957-960 (JSDocContainer). The container is a mixin interface, but a token needs
-    // no other capability, so the slot is declared directly rather than pulling in the interface.
-    public List<JSDoc>? JsDoc { get; set; }
+    // ported from: types.ts:957-960 (JSDocContainer) and types.ts:1596 (`EndOfFileToken = Token<…> & JSDocContainer`)
+    /// <remarks>
+    /// PORT-NOTE: TS reaches this through an intersection type — the end-of-file token is the one token that carries
+    /// JSDoc, and it gets the slot structurally. The port declares the interface on the class instead, which is the same
+    /// trade the keyword-type tokens got (see <c>KeywordTypeToken</c>): every token then has the slot, and the parser is
+    /// what fills it (only for the end-of-file token).
+    /// </remarks>
+    public IJSDocArray? JsDoc { get; set; }
 }
 
 /// <summary>ported from: src/compiler/types.ts:1602-1603 — TS: <c>PunctuationToken&lt;TKind&gt;</c>.</summary>
