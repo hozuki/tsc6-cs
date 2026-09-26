@@ -357,6 +357,7 @@ P1 自身再分两半，因为两半的前置完全不同（M4e 收口时定的�
 - **可以**用作**机械/类型层**参考：凡 TS 里靠**结构类型**成立、而 C#/Go 这类（更）名义化的语言无法照抄的写法——兄弟类之间的 `as` 强转、联合类型读取、可选槽、稀疏数组槽、以基类为入口的遍历、`Kind` 判别、`Node`/`NodeArray` 的泛化面等。Go 端被**同一类**问题逼出过答案，直接借形状可省大量试错。
 - **不可以**当**行为**参考：`release-6.0` 的 `checker.ts`/`program.ts`/`utilities.ts` 是语义的唯一真源；TSGO 与 6.0.3 不一致处**一律以 6.0.3 为准**（7.0 是重写，有真实行为差异）。
 - 借此修出的每个缺陷仍须给出 **6.0.3 的行号**，并在 PORT-NOTE 里注明"形状参考 `tsc/internal/...:<行>`"，以便日后核对。
+- **泛型反指示（`AGENTS.md` 新版原文：Go 的泛型设计不好；移植到 C# 时可以更激进地使用泛型）**：Go 端为了绕开其弱泛型而做的**退化写法不要照抄**——典型如 `any`/空接口 + 类型断言、按具体类型复制多份辅助函数、把本可参数化的槽位统一降到基类。C# 侧应当用泛型表达（`where T : Node` 约束、`IList<T>`、`Func<T, …>`、`NodeArray<T>`），形状参考只借"同一类问题被怎么想清楚"，不借其语法退化。已就位的正面例子：`Core.Map<T,U>`、`NodeArray<T>`、`GetParseTreeNode<T>(…) where T : Node`、`Core.Some<T>(IList<T>?, Func<T,int,bool>)`。
 - **已验证实例**：`NewExpression → CallExpression` 兄弟类强转（该崩溃类 362 条）在 Go 端的解法是 **kind 判别 + 共享槽位读取**——`case ast.KindCallExpression, ast.KindNewExpression, ast.KindTaggedTemplateExpression, ast.KindDecorator, ast.KindJsxOpeningElement:`（`tsc/internal/checker/checker.go:2553`）与 `ast.IsNewExpression(expr)` 谓词（`checker.go:7547/7946/8506`）。这正是端口那 11 处结构型转换崩溃该采用的形状。
 
 ## 10. 累积差异与决策清单
