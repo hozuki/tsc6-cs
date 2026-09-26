@@ -247,6 +247,30 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:2166 — <c>anyFunctionType</c>.</summary>
     internal ResolvedType _anyFunctionType = null!;
 
+    // ported from: src/compiler/checker.ts:2257/2260/2261/2267 — the global type slots `initializeTypeChecker` fills.
+    // PORT-NOTE: TS declares them `var x: T;` (non-null by type, `undefined` until checker.ts:51624/51633/51641 assigns
+    // them); the port spells that `= null!`, the same convention the sibling slots above use. Three landed files already
+    // read them (Checker.TypeReferences.cs:810/812/1429, Checker.Queries.cs:157/234, Checker.Members.cs:729), so they
+    // are declared here rather than left to the slice that lands `initializeTypeChecker`.
+    internal ObjectType _globalFunctionType = null!;
+    internal GenericType _globalArrayType = null!;
+    internal GenericType _globalReadonlyArrayType = null!;
+    internal Type _anyArrayType = null!;
+
+    // ported from: src/compiler/checker.ts:2256-2268 — the rest of the global type slots with landed readers.
+    // PORT-NOTE: same `= null!` convention and the same reason as the four above; each of these is read by a file that
+    // is already landed (`Checker.Queries.cs:158/159/170/455/456/458`, `Checker.TypeOfSymbols.cs:522`), so they cannot
+    // wait for M6-5's `initializeTypeChecker`. `_globalRegExpType` (:2265) and `_globalThisType` (:2266) are deliberately
+    // NOT declared: no reader exists yet, so they are recorded in §15.16 as recorded-not-ported and land with the slice
+    // that first needs them.
+    internal ObjectType _globalObjectType = null!;
+    internal ObjectType _globalCallableFunctionType = null!;
+    internal ObjectType _globalNewableFunctionType = null!;
+    internal ObjectType _globalStringType = null!;
+    internal ObjectType _globalNumberType = null!;
+    internal ObjectType _globalBooleanType = null!;
+    internal Type _autoArrayType = null!;
+
     /// <summary>ported from: src/compiler/checker.ts:2171 — <c>noConstraintType</c>.</summary>
     internal ResolvedType _noConstraintType = null!;
 
@@ -477,6 +501,31 @@ internal sealed partial class Checker
     // The type constructors (checker.ts:5510-5573)
     // ---------------------------------------------------------------------------------------------
 
+    // ---------------------------------------------------------------------------------------------
+    // List-face adapters (see the PORT-NOTE)
+    // ---------------------------------------------------------------------------------------------
+
+    // PORT-NOTE: the port's list-taking members (`CreateTypeReference`, `GetUnionType`, `GetIntersectionType`,
+    // `GetTypeListId`, `CreateTypeMapper`, `Instantiate*`, …) are declared with the concrete `List<T>` face, while the
+    // reference takes `readonly T[]` and the port's `Core` helpers answer `IList<T>?`. These adapters hand a value
+    // straight through when it already is a `List<T>` (every `Core` helper builds one) and copy only where a face
+    // conversion is genuinely needed — the covariance the reference gets for free and C# does not have.
+
+    /// <summary>PORT-NOTE: `IList&lt;IType&gt;` where a `List&lt;IType&gt;` is required (no copy in the common case).</summary>
+    private static List<IType> TypeList(IList<IType>? types) => types as List<IType> ?? [.. (types ?? [])];
+
+    /// <summary>PORT-NOTE: as <see cref="TypeList"/>, for type-parameter lists.</summary>
+    private static List<ITypeParameter> TypeParameterList(IList<ITypeParameter>? typeParameters)
+        => typeParameters as List<ITypeParameter> ?? [.. (typeParameters ?? [])];
+
+    /// <summary>PORT-NOTE: a type-parameter list seen as a type list — the reference passes one where the other is expected (TS's array covariance); C# has no such conversion for `List&lt;T&gt;`, so this one projects.</summary>
+    private static List<IType> TypeListOfParameters(IList<ITypeParameter>? typeParameters)
+        => [.. (typeParameters ?? []).Select(parameter => (IType)parameter)];
+
+    /// <summary>PORT-NOTE: as <see cref="TypeListOfParameters"/>, for index-infos: the generated slot is the `IIndexInfo` face, the port's `CreateIndexInfo`/`InstantiateIndexInfos` use the class.</summary>
+    private static List<IndexInfo> IndexInfoList(IList<IIndexInfo>? indexInfos)
+        => [.. (indexInfos ?? []).Select(info => (IndexInfo)info)];
+
     /// <summary>ported from: src/compiler/checker.ts:5510-5515 — <c>symbolIsValue</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: the body calls <c>getSymbolFlags</c> (checker.ts:4351, the alias/type-only block), which is not this
@@ -583,8 +632,17 @@ internal sealed partial class Checker
     {
         var keys = new List<string>(s_typeofNEFacts.Keys);
         // checker.ts:5564 — `[...typeofNEFacts.keys()].sort()` under stableTypeOrdering, the insertion order otherwise.
-        IList<string> names = _stableTypeOrdering ? Core.ToSorted(keys, (a, b) => Core.CompareStringsCaseSensitive(a, b))! : keys;
-        return GetUnionType(Core.Map(names, (string name, int _) => GetStringLiteralType(name)));
+        // PORT-NOTE: `Array.prototype.sort` is stable; `Core.StableSort` keeps that (the eight names are distinct, so
+        // the two orders coincide, but the port does not rely on that).
+        IList<string> names = keys;
+        if (_stableTypeOrdering)
+        {
+            var sorted = new List<string>(keys);
+            Core.StableSort(sorted, (a, b) => Core.CompareStringsCaseSensitive(a, b));
+            names = sorted;
+        }
+
+        return GetUnionType(Core.Map<string, IType>(names, (string name, int _) => GetStringLiteralType(name))!);
     }
 
     /// <summary>ported from: src/compiler/checker.ts:5567-5569 — <c>createTypeParameter</c>.</summary>
@@ -657,8 +715,12 @@ internal sealed partial class Checker
             }
         });
 
-        contained?.Sort(CompareSymbols);
-        nonContained?.Sort(CompareSymbols);
+        // PORT-NOTE: TS's `contained?.sort(compareSymbols)` is a `Array.prototype.sort`, which is stable since ES2019;
+        // the BCL's `List<T>.Sort` is not, so the port goes through `Core.StableSort` (which breaks ties on the
+        // original index). This order is what `properties` — and therefore union reduction and member display — is
+        // built from under stableTypeOrdering.
+        if (contained is not null) Core.StableSort(contained, (a, b) => Core.CompareValues(CompareSymbols(a, b), 0));
+        if (nonContained is not null) Core.StableSort(nonContained, (a, b) => Core.CompareValues(CompareSymbols(a, b), 0));
         if (contained is null) return nonContained ?? [];
         if (nonContained is null) return contained;
         return [.. contained, .. nonContained];
@@ -752,8 +814,9 @@ internal sealed partial class Checker
     // block around <c>initializeTypeChecker</c>), but <c>getNamedMembers</c>' stableTypeOrdering arm is their first
     // caller and the source of the member order the rest of the checker sees, so they are landed here rather than
     // referenced. They are <c>private</c>: M6-5's members of this same class can call them, and no other file needs
-    // them. TS returns a JS sort number; the port returns the same ordering as an <c>int</c>, which is what
-    // <see cref="List{T}.Sort(Comparison{T})"/> takes.
+    // them. TS returns a JS sort number (<c>number</c>); the port returns the same ordering as an <c>int</c>, and the
+    // one caller adapts it to the port's Comparison-returning <c>Core.Comparer&lt;T&gt;</c> through
+    // <c>Core.CompareValues</c> so that the sort can be made stable (<c>Core.StableSort</c>).
 
     /// <summary>ported from: src/compiler/checker.ts:53821-53833 — <c>compareSymbols</c>.</summary>
     private int CompareSymbols(ISymbol? s1, ISymbol? s2)
