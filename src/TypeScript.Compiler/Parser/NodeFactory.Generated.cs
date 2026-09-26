@@ -2686,62 +2686,6 @@ internal partial class NodeFactory
         throw new NotImplementedException("the port has not reached `updateJSDocImportTag` yet");
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJsxSelfClosingElement</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateJsxSelfClosingElement(Node? tagName, List<ITypeNode>? typeArguments, JsxAttributes? attributes)
-    {
-        throw new NotImplementedException("the port has not reached `createJsxSelfClosingElement` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJsxSelfClosingElement</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public JsxSelfClosingElement UpdateJsxSelfClosingElement(JsxSelfClosingElement? node, Node? tagName, List<ITypeNode>? typeArguments, JsxAttributes? attributes)
-    {
-        throw new NotImplementedException("the port has not reached `updateJsxSelfClosingElement` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJsxOpeningElement</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateJsxOpeningElement(Node? tagName, List<ITypeNode>? typeArguments, JsxAttributes? attributes)
-    {
-        throw new NotImplementedException("the port has not reached `createJsxOpeningElement` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJsxOpeningElement</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public JsxOpeningElement UpdateJsxOpeningElement(JsxOpeningElement? node, Node? tagName, List<ITypeNode>? typeArguments, JsxAttributes? attributes)
-    {
-        throw new NotImplementedException("the port has not reached `updateJsxOpeningElement` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateJsxExpression</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public JsxExpression UpdateJsxExpression(JsxExpression? node, Expression? expression)
-    {
-        throw new NotImplementedException("the port has not reached `updateJsxExpression` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updatePropertyAssignment</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? UpdatePropertyAssignment(PropertyAssignment? node, Node? name, Expression? initializer)
-    {
-        throw new NotImplementedException("the port has not reached `updatePropertyAssignment` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateShorthandPropertyAssignment</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? UpdateShorthandPropertyAssignment(ShorthandPropertyAssignment? node, Identifier? name, Expression? objectAssignmentInitializer)
-    {
-        throw new NotImplementedException("the port has not reached `updateShorthandPropertyAssignment` yet");
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createTypeCheck</c>.</summary>
     /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
     /// it yet (docs/architecture.md §15.7).</remarks>

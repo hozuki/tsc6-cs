@@ -231,22 +231,6 @@ internal sealed class NodeFactoryEmitter
         sb.AppendLine("{");
     }
 
-    /// <summary>Members whose fixed shape still needs a C# conversion only the hand-written half can spell.</summary>
-    private static readonly HashSet<string> s_handWritten = new(StringComparer.Ordinal)
-    {
-        // `NodeArray<TypeNode>` does not convert to a `NodeArray<Node>` slot: C# generics are invariant, while TS's
-        // `TypeNode` is a subtype of both `Node` and the `NamedTupleMember` the target slot also allows.
-        "createTupleTypeNode",
-
-        // `node.exclamationToken ?? node.type` reads two unrelated node types through one operator, so the result has
-        // no C# type the generated shape could name.
-        "createVariableDeclaration",
-
-        // `node.dotDotDotToken` is a `Token` where `createJsxExpression` takes a `DotDotDotToken`. TS accepts a wider
-        // value for a narrower parameter in the places its types overlap; C# does not.
-        "updateJsxExpression",
-    };
-
     /// <summary>Helpers the factory can hand over as a method group rather than call.</summary>
     /// <remarks>
     /// <c>sameFlatMap(elements, flattenCommaElements)</c> passes the helper itself, so the name has to be translated at
@@ -390,6 +374,13 @@ internal sealed class NodeFactoryEmitter
         "createObjectGetOwnPropertyDescriptorCall",
         "createReflectGetCall",
         "createReflectSetCall",
+        "createJsxSelfClosingElement",
+        "updateJsxSelfClosingElement",
+        "createJsxOpeningElement",
+        "updateJsxOpeningElement",
+        "updateJsxExpression",
+        "updatePropertyAssignment",
+        "updateShorthandPropertyAssignment",
         "createPropertyDescriptor",
         "createYieldExpression",
         "createBaseIdentifier",
@@ -430,11 +421,6 @@ internal sealed class NodeFactoryEmitter
     /// </remarks>
     private void RefuseUnrepresentable(TsFactoryMember member)
     {
-        if (s_handWritten.Contains(member.Name))
-        {
-            throw new Untranslatable("listed as needing the hand-written half (see the emitter's s_handWritten)");
-        }
-
         // A generic member reaches its type argument's members through TS's constraint, which C# only carries when the
         // constraint is a type the port models; the rest would have to be re-derived at each use.
         if (member.TypeParameters.Count != 0 && member.TypeParameters.Any(parameter => parameter.Constraint is not null))

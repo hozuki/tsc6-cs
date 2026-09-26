@@ -3427,4 +3427,144 @@ internal partial class NodeFactory
 
         return CreateObjectLiteralExpression(properties.Cast<Node>().ToList(), singleLine != true);
     }
+
+    //
+    // JSX and property assignments (the hand-written half)
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:5624 — <c>createJsxSelfClosingElement</c>.</summary>
+    public JsxSelfClosingElement CreateJsxSelfClosingElement(
+        Node? tagName,
+        List<ITypeNode>? typeArguments,
+        JsxAttributes? attributes)
+    {
+        var node = CreateBaseNode<JsxSelfClosingElement>(SyntaxKind.JsxSelfClosingElement);
+        node.TagName = tagName;
+        node.TypeArguments = AsNodeArray(typeArguments);
+        node.Attributes = attributes;
+        node.TransformFlags |= PropagateChildFlags(node.TagName)
+            | PropagateChildrenFlags(node.TypeArguments)
+            | PropagateChildFlags(node.Attributes)
+            | TransformFlags.ContainsJsx;
+
+        if (node.TypeArguments is not null) node.TransformFlags |= TransformFlags.ContainsTypeScript;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5641 — <c>updateJsxSelfClosingElement</c>.</summary>
+    public JsxSelfClosingElement UpdateJsxSelfClosingElement(
+        JsxSelfClosingElement? node,
+        Node? tagName,
+        List<ITypeNode>? typeArguments,
+        JsxAttributes? attributes)
+    {
+        return node!.TagName != tagName
+            || !ReferenceEquals(node!.TypeArguments, typeArguments)
+            || node!.Attributes != attributes
+            ? Update(CreateJsxSelfClosingElement(tagName, typeArguments, attributes), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5649 — <c>createJsxOpeningElement</c>.</summary>
+    public JsxOpeningElement CreateJsxOpeningElement(
+        Node? tagName,
+        List<ITypeNode>? typeArguments,
+        JsxAttributes? attributes)
+    {
+        var node = CreateBaseNode<JsxOpeningElement>(SyntaxKind.JsxOpeningElement);
+        node.TagName = tagName;
+        node.TypeArguments = AsNodeArray(typeArguments);
+        node.Attributes = attributes;
+        node.TransformFlags |= PropagateChildFlags(node.TagName)
+            | PropagateChildrenFlags(node.TypeArguments)
+            | PropagateChildFlags(node.Attributes)
+            | TransformFlags.ContainsJsx;
+
+        if (typeArguments is not null) node.TransformFlags |= TransformFlags.ContainsTypeScript;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5666 — <c>updateJsxOpeningElement</c>.</summary>
+    public JsxOpeningElement UpdateJsxOpeningElement(
+        JsxOpeningElement? node,
+        Node? tagName,
+        List<ITypeNode>? typeArguments,
+        JsxAttributes? attributes)
+    {
+        return node!.TagName != tagName
+            || !ReferenceEquals(node!.TypeArguments, typeArguments)
+            || node!.Attributes != attributes
+            ? Update(CreateJsxOpeningElement(tagName, typeArguments, attributes), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:3780 — <c>updateJsxExpression</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: <c>JsxExpression.dotDotDotToken</c> is typed <c>Token</c> while the create side takes a
+    /// <c>PunctuationToken</c>. The cast is safe because the factory builds a punctuation token for that kind (see
+    /// <see cref="CreateTokenNode"/>), and a <c>null</c> token stays <c>null</c>.
+    /// </remarks>
+    public JsxExpression UpdateJsxExpression(JsxExpression? node, Expression? expression)
+    {
+        return node!.Expression != expression
+            ? Update(CreateJsxExpression(node.DotDotDotToken as PunctuationToken, expression), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5938 — <c>updatePropertyAssignment</c>.</summary>
+    public PropertyAssignment UpdatePropertyAssignment(
+        PropertyAssignment? node,
+        Node? name,
+        Expression? initializer)
+    {
+        return node!.Name != name || node!.Initializer != initializer
+            ? FinishUpdatePropertyAssignment(CreatePropertyAssignment(name, initializer), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5948 — <c>finishUpdatePropertyAssignment</c>.</summary>
+    private PropertyAssignment FinishUpdatePropertyAssignment(
+        PropertyAssignment updated,
+        PropertyAssignment original)
+    {
+        if (!ReferenceEquals(updated, original))
+        {
+            // Copy the children TS keeps only for error reporting.
+            updated.Modifiers = original.Modifiers;
+            updated.QuestionToken = original.QuestionToken;
+            updated.ExclamationToken = original.ExclamationToken;
+        }
+
+        return Update(updated, original);
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5974 — <c>updateShorthandPropertyAssignment</c>.</summary>
+    public ShorthandPropertyAssignment UpdateShorthandPropertyAssignment(
+        ShorthandPropertyAssignment? node,
+        Identifier? name,
+        Expression? objectAssignmentInitializer)
+    {
+        return node!.Name != name || node!.ObjectAssignmentInitializer != objectAssignmentInitializer
+            ? FinishUpdateShorthandPropertyAssignment(
+                CreateShorthandPropertyAssignment(name, objectAssignmentInitializer),
+                node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5984 — <c>finishUpdateShorthandPropertyAssignment</c>.</summary>
+    private ShorthandPropertyAssignment FinishUpdateShorthandPropertyAssignment(
+        ShorthandPropertyAssignment updated,
+        ShorthandPropertyAssignment original)
+    {
+        if (!ReferenceEquals(updated, original))
+        {
+            // Copy the children TS keeps only for error reporting.
+            updated.Modifiers = original.Modifiers;
+            updated.QuestionToken = original.QuestionToken;
+            updated.ExclamationToken = original.ExclamationToken;
+            updated.EqualsToken = original.EqualsToken;
+        }
+
+        return Update(updated, original);
+    }
 }
