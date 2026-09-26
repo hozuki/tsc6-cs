@@ -1,35 +1,21 @@
 namespace TypeScript.Compiler.Tests;
 
-// ported from: src/compiler/checker.ts:1134 (visitEachChildWorker), 1552 (syntacticNodeBuilder)
+// ported from: src/compiler/checker.ts:1552 (syntacticNodeBuilder)
 // ported from: src/compiler/checker.ts:6169/6202/6240/11175 (the four printer-gated string converters)
 /// <summary>
-/// The node builder's one remaining loud, named blocker (docs/architecture.md §15.15 ruling 1), the syntactic node
-/// builder checker.ts:1552 assigns, and the shape of the four printer-gated string converters.
+/// The syntactic node builder <c>checker.ts:1552</c> assigns, and the shape of the four printer-gated string converters.
 /// </summary>
 /// <remarks>
-/// PORT-NOTE: <c>VisitEachChildWorker_IsALoudNamedBlocker</c> pins a blocker rather than output because it depends on a module
-/// this milestone does not port: <c>visitorPublic.ts</c> (<c>visitEachChild</c>, aliased at checker.ts:1134, Layer 6/M7).
-/// The syntactic builder it used to sit beside is landed (<c>expressionToTypeNode.ts</c>, 1,330 lines) and is pinned by
-/// the facts below instead. The four <c>…ToString</c> members are printer-gated (<c>emitter.ts:1200-1211</c>, M7) and
-/// build their node before throwing, so they cannot be exercised without checker state; the fact here pins what M7 has
-/// to keep — the member set and its exact <see cref="ITypeChecker"/> signatures.
+/// PORT-NOTE: <c>VisitEachChildWorker_IsALoudNamedBlocker</c> stood here while <c>visitorPublic.ts</c> was unported
+/// (<c>visitEachChild</c>, aliased at <c>checker.ts:1134</c>, Layer 6/M7). That module landed with the M7 visitor slice,
+/// so the blocker the fact pinned no longer exists and it is deleted rather than re-pinned; the visitor's behaviour is
+/// pinned by the full-corpus <c>tools/TypeDiff</c> differential, which the clone/reuse paths it unblocked are part of.
+/// The four <c>…ToString</c> members are still printer-gated (<c>emitter.ts:1200-1211</c>, M7) and build their node
+/// before throwing, so they cannot be exercised without checker state; the fact here pins what M7 has to keep — the
+/// member set and its exact <see cref="ITypeChecker"/> signatures.
 /// </remarks>
 public sealed class CheckerNodeBuilderTests
 {
-    /// <summary>ported from: src/compiler/checker.ts:1134 — <c>visitEachChildWorker</c> (visitorPublic.ts).</summary>
-    [Fact]
-    public void VisitEachChildWorker_IsALoudNamedBlocker()
-    {
-        var node = new Identifier();
-
-        var error = Assert.Throws<NotSupportedException>(
-            () => Utilities.VisitEachChildWorker(node, n => n, /*context*/ null));
-
-        Assert.Contains("visitEachChildWorker", error.Message, StringComparison.Ordinal);
-        Assert.Contains("visitorPublic.ts", error.Message, StringComparison.Ordinal);
-        Assert.Contains("not ported", error.Message, StringComparison.Ordinal);
-    }
-
     /// <summary>ported from: src/compiler/checker.ts:1552 — <c>syntacticNodeBuilder</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: checker.ts:1552 evaluates

@@ -1346,8 +1346,8 @@ internal sealed partial class Checker
                 name.Symbol = sym!; // for quickinfo, which uses identifier symbol information
                 return (T)(Node)SetTextRange(context, EmitNodes.SetEmitFlags(name, EmitFlags.NoAsciiEscaping), node);
             }
-        // PORT-NOTE: Utilities.VisitEachChildWorker is the loud, named M7 blocker for visitorPublic.ts's
-        // visitEachChild (aliased at checker.ts:1134); its owner is the visitorPublic.ts slice (Layer 6/M7).
+        // PORT-NOTE: the walker is visitorPublic.ts's visitEachChild (aliased at checker.ts:1134), landed as
+        // Utilities.VisitEachChildWorker with the M7 visitor slice.
             var updated = Utilities.VisitEachChildWorker(node, c => AttachSymbolToLeftmostIdentifier(c), /*context*/ null);
             return (T)(Node)SetTextRange(context, updated, node);
         }

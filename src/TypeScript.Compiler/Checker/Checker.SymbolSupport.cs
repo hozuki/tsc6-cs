@@ -2262,12 +2262,12 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:2501-2504 — <c>markAsSynthetic</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: loud, named blocker. The reference resets the just-parsed entity name's range and then walks it with
-    /// visitorPublic.ts's <c>visitEachChild</c> (aliased as <c>visitEachChildWorker</c>, checker.ts:1134), which the port
-    /// holds as the loud M7 blocker <see cref="VisitEachChildWorker"/> — resetting only the root and returning would
-    /// leave the name's sub-nodes pointing into the temporary parse, so the blocker is reached instead of degrading
-    /// silently. Only the pragma/option paths of <see cref="GetJsxNamespace"/> and <see cref="GetLocalJsxNamespace"/>
-    /// can reach it (a file with a <c>jsx</c>/<c>jsxfrag</c> pragma or a <c>jsxFactory</c> option).
+    /// PORT-NOTE: the reference resets the just-parsed entity name's range and then walks it with visitorPublic.ts's
+    /// <c>visitEachChild</c> (aliased as <c>visitEachChildWorker</c>, checker.ts:1134), landed as
+    /// <see cref="VisitEachChildWorker"/> with the M7 visitor slice — resetting only the root and returning would leave
+    /// the name's sub-nodes pointing into the temporary parse, which is what the walk prevents. Only the pragma/option
+    /// paths of <see cref="GetJsxNamespace"/> and <see cref="GetLocalJsxNamespace"/> can reach it (a file with a
+    /// <c>jsx</c>/<c>jsxfrag</c> pragma or a <c>jsxFactory</c> option).
     /// </remarks>
     private T MarkAsSynthetic<T>(T node) where T : Node
     {

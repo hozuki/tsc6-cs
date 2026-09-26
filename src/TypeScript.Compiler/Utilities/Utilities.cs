@@ -1625,38 +1625,6 @@ internal static partial class Utilities
         return result;
     }
 
-    /// <summary>ported from: src/compiler/visitorPublic.ts's <c>visitEachChild</c> family — the alias the checker reads at
-    /// src/compiler/checker.ts:1134 — <c>visitEachChildWorker</c>.</summary>
-    /// <remarks>
-    /// PORT-NOTE: loud, named blocker (M6NodeBuilder's note, moved with the member). <c>visitorPublic.ts</c> (1,808 lines,
-    /// Layer 6) is not ported, and <c>checker.ts:1134</c> merely aliases its <c>visitEachChild</c>. The node builder's
-    /// callers (checker.ts:7345, 8420, 9271) are all reuse/elision paths — they clone a subtree with initializers elided,
-    /// or attach a symbol to the leftmost identifier — and returning a partially visited node would silently corrupt
-    /// declaration emit, so the port throws a <see cref="NotSupportedException"/> naming <c>visitorPublic.ts</c> and
-    /// Layer 6/M7 instead of guessing. Pinned by
-    /// <c>CheckerNodeBuilderTests.VisitEachChildWorker_IsALoudNamedBlocker</c>.
-    /// <para>
-    /// PORT-NOTE: the member is non-generic, where TS's <c>visitEachChild</c>/<c>visitEachChildWorker</c> is generic in the
-    /// node type: every caller passes a <c>Node</c>, and the one member that needs its input's type back
-    /// (<see cref="GetSynthesizedDeepCloneWorker"/>) states the cast TS's inference supplied. The reference's
-    /// <c>context</c>/<c>nodesVisitor</c>/<c>nodeVisitor</c> slots keep their shapes and their defaults.
-    /// </para>
-    /// <para>
-    /// PORT-NOTE: its home is <c>Utilities</c> — §15.15 rules that a <c>visitorPublic.ts</c> member lands on the class named
-    /// after its module and is called qualified, so the earlier <c>Checker</c> copy was deleted when its four call sites
-    /// were requalified. M6's reflection guard (the two classes must not declare the same name) depends on that.
-    /// </para>
-    /// </remarks>
-    public static Node VisitEachChildWorker(
-        Node node,
-        Func<Node, Node?> cbNode,
-        object? context,
-        Func<NodeArray<Node>?, Func<Node, object?>, Func<Node, bool>?, int?, int?, NodeArray<Node>?>? nodesVisitor = null,
-        Func<Node, Node?>? nodeVisitor = null)
-        => throw new NotSupportedException(
-            "visitEachChildWorker (checker.ts:1134 → visitorPublic.ts visitEachChild) is not ported — Layer 6/M7. "
-            + "The node builder's reuse/elision paths (checker.ts:7345, 8420, 9271) cannot run until it lands.");
-
     /// <summary>ported from: src/compiler/utilities.ts:12321-12326 — <c>getSynthesizedDeepClone</c>.</summary>
     /// <remarks>
     /// Creates a deep, memberwise clone of a node with no source map location.
@@ -1666,9 +1634,8 @@ internal static partial class Utilities
     /// </para>
     /// <para>
     /// PORT-NOTE: the reference body is ported whole; its traversal bottoms out in
-    /// <see cref="VisitEachChildWorker"/> (checker.ts:1134 → <c>visitorPublic.ts</c>'s <c>visitEachChild</c>, Layer 6/M7 —
-    /// that member is §15.15's named loud blocker for the unported visitor). Everything above the traversal is the
-    /// reference's own code, so the visitor landing makes this member work with no rewrite.
+    /// <see cref="VisitEachChildWorker{TNode}"/> (checker.ts:1134 → <c>visitorPublic.ts</c>'s <c>visitEachChild</c>),
+    /// which landed with the M7 visitor slice — the member this doc used to call the loud blocker.
     /// </para>
     /// <para>
     /// PORT-NOTE: TS's signature is <c>&lt;T extends Node | undefined&gt;(node: T, includeTrivia = true): T</c>; the port's
@@ -1709,17 +1676,18 @@ internal static partial class Utilities
 
     /// <summary>ported from: src/compiler/utilities.ts:12345-12368 — <c>getSynthesizedDeepCloneWorker</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS declares <c>nodeClone</c>/<c>nodesClone</c> as locally inferred generic function types; the port
-    /// states the faces the visitor call takes — <c>Func&lt;Node, Node?&gt;</c> and
-    /// <c>Func&lt;INodeArray&lt;INode&gt;, INodeArray&lt;INode&gt;&gt;</c>. The port's <c>visitNodes</c> hands a
-    /// <c>NodeArray&lt;Node&gt;</c> over as <c>INodeArray&lt;INode&gt;</c> (§12.9), so the array arm downcasts — the same
-    /// shape <see cref="Utilities.SetParentRecursive"/>'s PORT-NOTE records. TS's module-level <c>factory</c> is
-    /// <see cref="NodeFactory.Factory"/> and its <c>(visited as Mutable&lt;T&gt;).parent = undefined</c> write is the
+    /// PORT-NOTE: TS declares <c>nodeClone</c>/<c>nodesClone</c> as locally inferred generic function types. The port
+    /// states <c>nodeClone</c> as the <c>Func&lt;Node, Node?&gt;</c> face the visitor slot takes, and <c>nodesClone</c> as
+    /// <see cref="DeepCloneNodesVisitor"/> — the port's <c>NodesVisitor</c> is exactly the capability TS's
+    /// <c>&lt;T extends Node&gt;(ns: NodeArray&lt;T&gt; | undefined) =&gt; NodeArray&lt;T&gt; | undefined</c> names, and that
+    /// class keeps the array's own element type instead of downcasting it (C# generics are invariant, so a
+    /// <c>NodeArray&lt;ParameterDeclaration&gt;</c> is not a <c>NodeArray&lt;Node&gt;</c>). TS's module-level <c>factory</c>
+    /// is <see cref="NodeFactory.Factory"/> and its <c>(visited as Mutable&lt;T&gt;).parent = undefined</c> write is the
     /// port's settable <c>Node.Parent</c>.
     /// <para>
     /// PORT-NOTE: TS's <c>visitEachChild</c> is generic and hands the node's own type back; the port's
-    /// <see cref="VisitEachChildWorker"/> is the non-generic blocker, so the non-leaf arm states the <c>(T)</c> cast TS's
-    /// inference supplied.
+    /// <c>VisitEachChildWorker&lt;TNode&gt;</c> is generic the same way, so the <c>(T)</c> on the non-leaf arm is the cast
+    /// the port's non-null <c>T</c> needs and TS's inference supplied.
     /// </para>
     /// </remarks>
     private static T GetSynthesizedDeepCloneWorker<T>(T node, Func<Node, Node?>? replaceNode = null) where T : Node
@@ -1727,16 +1695,11 @@ internal static partial class Utilities
         Func<Node, Node?> nodeClone = replaceNode is not null
             ? n => GetSynthesizedDeepCloneWithReplacements(n, /*includeTrivia*/ true, replaceNode)
             : n => GetSynthesizedDeepClone(n);
-        Func<INodeArray<INode>, INodeArray<INode>> nodesClone = replaceNode is not null
-            ? ns => GetSynthesizedDeepClonesWithReplacements((NodeArray<Node>)ns, /*includeTrivia*/ true, replaceNode)
-            : ns => GetSynthesizedDeepClones((NodeArray<Node>)ns)!;
-        // PORT-NOTE: TS passes `nodesClone` (a one-parameter function) where `visitEachChild`'s `nodesVisitor` declares
-        // the six-parameter `NodesVisitor`; a JS function with fewer parameters is assignable to one with more, while a
-        // C# delegate is not, so the port states the adapter that drops the four parameters the reference never reads
-        // here (`token`, `nodesVisitor`, `start`, `count`). `VisitEachChildWorker` is the §15.15 named loud blocker, so
-        // this call cannot run yet; the adapter keeps the call's shape exactly as the reference has it.
-        var visited = VisitEachChildWorker(node, nodeClone, /*context*/ null,
-            (NodeArray<Node>? nodes, Func<Node, object?> _, Func<Node, bool>? _, int? _, int? _) => (NodeArray<Node>?)nodesClone(nodes!), nodeClone);
+        // PORT-NOTE: TS passes `nodesClone` where `visitEachChild` declares the six-parameter `NodesVisitor`; a JS
+        // function with fewer parameters is assignable to one with more, while a C# delegate is not, so the port states
+        // the `NodesVisitor` implementation that reads only the array — which is all the reference's `nodesClone` reads
+        // (`visitor`, `test`, `start` and `count`, which it never names).
+        var visited = VisitEachChildWorker(node, nodeClone, /*context*/ null, new DeepCloneNodesVisitor(replaceNode), nodeClone);
 
         if (ReferenceEquals(visited, node))
         {
@@ -1762,22 +1725,30 @@ internal static partial class Utilities
     /// do not overload, so the port keeps the widened <c>NodeArray&lt;T&gt;?</c> form of the implementation, which covers
     /// both — the reference's <c>return nodes</c> is the null arm. TS's <c>factory.createNodeArray</c> is
     /// <see cref="NodeFactory.CreateNodeArray{T}"/> over the mapped list and <c>nodes.hasTrailingComma</c>.
+    /// <para>
+    /// PORT-NOTE: the constraint is <see cref="INode"/>, not <see cref="Node"/>, because the port's arrays are typed by
+    /// the element a call actually holds — <c>NodeArray&lt;IStatement&gt;</c>, <c>NodeArray&lt;ITypeNode&gt;</c> — which
+    /// TS's structurally-typed <c>Node</c> accepted and C#'s nominal one does not; the element is converted to the class
+    /// the clone walks (contract §3) and cast back to <c>T</c>, which is the type the array still has. The alternative —
+    /// a <c>(NodeArray&lt;Node&gt;)</c> cast at the call site, which is what stood here — is unsound at runtime for every
+    /// array whose element type is not <c>Node</c>.
+    /// </para>
     /// </remarks>
-    public static NodeArray<T>? GetSynthesizedDeepClones<T>(NodeArray<T>? nodes, bool includeTrivia = true) where T : Node
+    public static NodeArray<T>? GetSynthesizedDeepClones<T>(NodeArray<T>? nodes, bool includeTrivia = true) where T : INode
     {
         if (nodes is null) return null;
 
         // Ensure we explicitly make a copy of an empty array; visitNodes will not do this unless the array has elements,
         // so we may end up reusing the same node array if no elements were cloned.
-        var cloned = NodeFactory.Factory.CreateNodeArray(Core.Map(nodes, (n, _) => GetSynthesizedDeepClone(n, includeTrivia)), nodes.HasTrailingComma);
+        var cloned = NodeFactory.Factory.CreateNodeArray(Core.Map(nodes, (n, _) => (T)(object)GetSynthesizedDeepClone((Node)(object)n!, includeTrivia)), nodes.HasTrailingComma);
         SetTextRange(cloned, nodes);
         return cloned;
     }
 
     /// <summary>ported from: src/compiler/utilities.ts:12384-12390 — <c>getSynthesizedDeepClonesWithReplacements</c>.</summary>
-    public static NodeArray<T> GetSynthesizedDeepClonesWithReplacements<T>(NodeArray<T> nodes, bool includeTrivia, Func<Node, Node?> replaceNode) where T : Node
+    public static NodeArray<T> GetSynthesizedDeepClonesWithReplacements<T>(NodeArray<T> nodes, bool includeTrivia, Func<Node, Node?> replaceNode) where T : INode
         => NodeFactory.Factory.CreateNodeArray(
-            Core.Map(nodes, (n, _) => GetSynthesizedDeepCloneWithReplacements(n, includeTrivia, replaceNode)),
+            Core.Map(nodes, (n, _) => (T)(object)GetSynthesizedDeepCloneWithReplacements((Node)(object)n!, includeTrivia, replaceNode)),
             nodes.HasTrailingComma);
 
     /// <summary>ported from: src/compiler/utilities.ts:12397-12400 — <c>suppressLeadingAndTrailingTrivia</c>.</summary>

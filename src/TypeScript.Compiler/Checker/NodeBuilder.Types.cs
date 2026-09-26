@@ -823,6 +823,11 @@ internal sealed partial class Checker
     /// </remarks>
     internal ITypeNode VisitAndTransformType(IType type, Func<IType, ITypeNode> transform, NodeBuilderContext context)
     {
+        // PORT-NOTE: TS declares `deepCloneOrReuseNodes` as a nested function beside `deepCloneOrReuseNode`, so the order
+        // of the two does not matter there; a C# local variable must be assigned before the recursive local function
+        // reads it, so the `NodesVisitor` value is created first and the reference's declaration site keeps only that
+        // assignment.
+        var deepCloneOrReuseNodes = new DeepCloneOrReuseNodesVisitor(_factory);
         var typeId = type.Id;
         var isConstructorObject = (GetObjectFlags(type) & ObjectFlags.Anonymous) != 0 && type.Symbol is not null && (type.Symbol.Flags & SymbolFlags.Class) != 0;
         var id = (GetObjectFlags(type) & ObjectFlags.Reference) != 0 && ((TypeReference)type).Node is not null ? "N" + Utilities.GetNodeId(((TypeReference)type).Node!) :
@@ -912,21 +917,41 @@ internal sealed partial class Checker
             {
                 return node;
             }
-        // PORT-NOTE: Utilities.VisitEachChildWorker is the loud, named M7 blocker for visitorPublic.ts's
-        // visitEachChild (aliased at checker.ts:1134); its owner is the visitorPublic.ts slice (Layer 6/M7).
-            return SetTextRange(context, _factory.CloneNode(Utilities.VisitEachChildWorker(node, n => DeepCloneOrReuseNode(n), /*context*/ null, DeepCloneOrReuseNodes, n => DeepCloneOrReuseNode(n))), node);
+        // PORT-NOTE: the walker is visitorPublic.ts's visitEachChild (aliased at checker.ts:1134), landed as
+        // Utilities.VisitEachChildWorker with the M7 visitor slice; `deepCloneOrReuseNodes` is its nodes visitor and
+        // `deepCloneOrReuseNode` its token visitor, the fourth and fifth arguments checker.ts:7345 passes.
+            return SetTextRange(context, _factory.CloneNode(Utilities.VisitEachChildWorker(node, n => DeepCloneOrReuseNode(n), /*context*/ null, deepCloneOrReuseNodes, n => DeepCloneOrReuseNode(n))), node);
         }
 
-        // PORT-NOTE: the parameter types follow the visitor convention the port already uses for a visitor's result
-        // (<c>Func&lt;Node, object?&gt;</c>); <c>visitNodes</c>'s first parameter is a <c>NodeArray&lt;Node&gt;</c>, the
-        // concrete face, so the empty-array copy can read <c>hasTrailingComma</c> off it directly.
-        NodeArray<Node>? DeepCloneOrReuseNodes(NodeArray<Node>? nodes, Func<Node, object?> visitor, Func<Node, bool>? test, int? start, int? count)
+    }
+
+    /// <summary>ported from: src/compiler/checker.ts:7347-7353 — the nested <c>deepCloneOrReuseNodes</c>, as a
+    /// <c>NodesVisitor</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS declares it over <c>NodeArray&lt;Node&gt;</c> and hands it to <c>visitEachChildWorker</c>'s generic
+    /// <c>nodesVisitor</c> slot, which TS accepts and C# cannot (a delegate is not a generic function), so the port
+    /// states it as the <c>NodesVisitor</c> whose <c>Visit</c> carries the array's own element type. The body is the
+    /// reference's: the empty-array special case (a copy, so the same empty <c>NodeArray</c> is not reused twice in one
+    /// tree) and otherwise <c>visitNodes</c>.
+    /// </remarks>
+    private sealed class DeepCloneOrReuseNodesVisitor : NodesVisitor
+    {
+        private readonly NodeFactory _factory;
+
+        public DeepCloneOrReuseNodesVisitor(NodeFactory factory) => _factory = factory;
+
+        public override NodeArray<TNode>? Visit<TNode>(
+            NodeArray<TNode>? nodes,
+            Func<Node, object?>? visitor,
+            Func<Node, bool>? test = null,
+            int? start = null,
+            int? count = null)
         {
             if (nodes is not null && nodes.Count == 0)
             {
                 // Ensure we explicitly make a copy of an empty array; visitNodes will not do this unless the array has elements,
                 // which can lead to us reusing the same empty NodeArray more than once within the same AST during type noding.
-                return Utilities.SetTextRange(_factory.CreateNodeArray<Node>(/*elements*/ null, nodes.HasTrailingComma), nodes);
+                return Utilities.SetTextRange(_factory.CreateNodeArray<TNode>(/*elements*/ null, nodes.HasTrailingComma), nodes);
             }
             return Utilities.VisitNodes(nodes, visitor, test, start, count);
         }

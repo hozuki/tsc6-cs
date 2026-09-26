@@ -615,9 +615,9 @@ internal sealed partial class Checker
     /// <c>return elideInitializerAndSetEmitFlags(node) as BindingName</c> therefore returns the same node unchanged.
     /// </para>
     /// <para>
-    /// PORT-NOTE: <c>visitEachChildWorker</c> is the coordinator's loud blocker for the unported
-    /// <c>visitorPublic.ts</c> (checker.ts:1134), so this elision path throws by name instead of returning a partially
-    /// visited node.
+    /// PORT-NOTE: <c>visitEachChildWorker</c> is <c>visitorPublic.ts</c>'s <c>visitEachChild</c> (checker.ts:1134),
+    /// landed as <c>Utilities.VisitEachChildWorker</c> with the M7 visitor slice, so this elision path walks the subtree
+    /// exactly as the reference does instead of stopping at a blocker.
     /// </para>
     /// </remarks>
     internal object? ParameterToParameterDeclarationName(ISymbol parameterSymbol, Node? parameterDeclaration, NodeBuilderContext context)
@@ -647,8 +647,9 @@ internal sealed partial class Checker
             {
                 TrackComputedName(((ComputedPropertyName)node).Expression!, context.EnclosingDeclaration, context);
             }
-        // PORT-NOTE: Utilities.VisitEachChildWorker is the loud, named M7 blocker for visitorPublic.ts's
-        // visitEachChild (aliased at checker.ts:1134); its owner is the visitorPublic.ts slice (Layer 6/M7).
+        // PORT-NOTE: the walker is visitorPublic.ts's visitEachChild (aliased at checker.ts:1134), landed as
+        // Utilities.VisitEachChildWorker with the M7 visitor slice; `elideInitializerAndSetEmitFlags` is its token
+        // visitor, which is the fifth argument checker.ts:8420 passes.
             var visited = Utilities.VisitEachChildWorker(node, ElideInitializerAndSetEmitFlags, /*context*/ null, null, ElideInitializerAndSetEmitFlags);
             if (NodeTests.IsBindingElement(visited))
             {

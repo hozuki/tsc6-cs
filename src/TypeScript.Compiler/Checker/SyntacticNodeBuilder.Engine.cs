@@ -23,20 +23,19 @@ namespace TypeScript.Compiler;
 /// four members, with <c>hadError</c> as the property <c>HadError</c>).
 /// </para>
 /// <para>
-/// PORT-NOTE (<c>visitNode</c>): the reference imports <c>visitNode</c> from <c>visitorPublic.ts</c> (148-192), which the
-/// port has not landed — that module's <c>visitEachChild</c> is the loud <c>Utilities.VisitEachChildWorker</c> blocker,
-/// and its <c>visitNodes</c> is the landed <c>Utilities.VisitNodes</c>. <c>visitNode</c> is the traversal this half of
-/// the file cannot start without, so <see cref="VisitNode{T}"/> states it here, faithfully and file-locally (it
-/// collides with nothing: the future <c>Utilities</c> member is a different class). <see cref="VisitNodes{T}"/> is the
-/// same port of <c>visitorPublic.ts:223-271</c> made generic, because the landed <c>Utilities.VisitNodes</c> is fixed to
-/// <c>NodeArray&lt;Node&gt;</c> and C# generic invariance forbids the <c>NodeArray&lt;ITypeNode&gt;</c>/
-/// <c>NodeArray&lt;TypeParameterDeclaration&gt;</c> this file visits. Both must be deleted when the <c>visitorPublic.ts</c>
-/// slice lands and <c>Utilities.VisitNodes</c> becomes generic.
+/// PORT-NOTE (<c>visitNode</c>/<c>visitNodes</c>): the reference imports both from <c>visitorPublic.ts</c>, which landed
+/// with the M7 visitor slice, so this file now calls <c>Utilities.VisitNode</c> and <c>Utilities.VisitNodes</c> — the
+/// file-local copies this class carried while that module was unported are deleted (the M7-0 report had flagged them as
+/// the duplication to fold away). The generic <c>Utilities.VisitNodes</c> keeps the array's element type, which is what
+/// the <c>NodeArray&lt;ITypeNode&gt;</c>/<c>NodeArray&lt;TypeParameterDeclaration&gt;</c>/<c>NodeArray&lt;ModifierToken&gt;</c>
+/// slots here need, and, unlike the file-local copy, it also zeroes <c>pos</c>/<c>end</c> for a visited fragment, exactly
+/// as the reference does.
 /// </para>
 /// <para>
 /// PORT-NOTE (<c>visitEachChild</c>): the reference's local wrapper passes <c>visitNodesWithoutCopyingPositions</c> as the
-/// nodes visitor; the port calls the blocker with the same two arguments, so a reuse walk that reaches a kind this file
-/// does not special-case throws by name instead of returning a partially visited node.
+/// nodes visitor and leaves the token and node visitors at their defaults; the port states that function as
+/// <see cref="VisitNodesWithoutCopyingPositionsVisitor"/>, the <c>NodesVisitor</c> whose generic
+/// <c>Visit</c> is the same function, and passes it in the same slot.
 /// </para>
 /// </remarks>
 internal sealed partial class SyntacticNodeBuilder
@@ -78,7 +77,7 @@ internal sealed partial class SyntacticNodeBuilder
     private ITypeNode? TryReuseExistingTypeNodeWorker(ISyntacticTypeNodeBuilderContext context, ITypeNode existing)
     {
         var boundary = CreateRecoveryBoundary(context);
-        var transformed = VisitNode(existing, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode);
+        var transformed = Utilities.VisitNode(existing, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode);
         if (!boundary.FinalizeBoundary())
         {
             return null;
@@ -138,7 +137,7 @@ internal sealed partial class SyntacticNodeBuilder
                 }
                 break;
         }
-        return VisitNode(node, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode);
+        return Utilities.VisitNode(node, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode);
     }
 
     /// <summary>ported from: src/compiler/expressionToTypeNode.ts:251-257 — <c>tryVisitIndexedAccess</c>.</summary>
@@ -149,7 +148,7 @@ internal sealed partial class SyntacticNodeBuilder
         {
             return null;
         }
-        return _factory.UpdateIndexedAccessTypeNode(node, resultObjectType, VisitNode(node.IndexType, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode)!);
+        return _factory.UpdateIndexedAccessTypeNode(node, resultObjectType, Utilities.VisitNode(node.IndexType, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode)!);
     }
 
     /// <summary>ported from: src/compiler/expressionToTypeNode.ts:259-266 — <c>tryVisitKeyOf</c>.</summary>
@@ -173,7 +172,7 @@ internal sealed partial class SyntacticNodeBuilder
             return _factory.UpdateTypeQueryNode(
                 node,
                 exprName,
-                VisitNodes(node.TypeArguments, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode));
+                Utilities.VisitNodes(node.TypeArguments, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode));
         }
 
         var serializedName = _resolver.SerializeTypeName(context, node.ExprName, /*isTypeOf*/ true, null);
@@ -190,7 +189,7 @@ internal sealed partial class SyntacticNodeBuilder
         if (_resolver.CanReuseTypeNode(context, node))
         {
             var (introducesError, newName) = TrackExistingEntityName(context, node.TypeName!);
-            var typeArguments = VisitNodes(node.TypeArguments, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode);
+            var typeArguments = Utilities.VisitNodes(node.TypeArguments, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode);
 
             if (!introducesError)
             {
@@ -218,7 +217,7 @@ internal sealed partial class SyntacticNodeBuilder
         if (NodeTests.IsJSDocTypeExpression(node))
         {
             // Unwrap JSDocTypeExpressions
-            return (Node?)VisitNode(((JSDocTypeExpression)node).Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode);
+            return (Node?)Utilities.VisitNode(((JSDocTypeExpression)node).Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode);
         }
         // We don't _actually_ support jsdoc namepath types, emit `any` instead
         if (NodeTests.IsJSDocAllType(node) || node.Kind == SyntaxKind.JSDocNamepathType)
@@ -231,33 +230,33 @@ internal sealed partial class SyntacticNodeBuilder
         }
         if (NodeTests.IsJSDocNullableType(node))
         {
-            return (Node)_factory.CreateUnionTypeNode(new List<ITypeNode> { (ITypeNode)VisitNode(((JSDocNullableType)node).Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode)!, _factory.CreateLiteralTypeNode(_factory.CreateNull()) });
+            return (Node)_factory.CreateUnionTypeNode(new List<ITypeNode> { (ITypeNode)Utilities.VisitNode(((JSDocNullableType)node).Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode)!, _factory.CreateLiteralTypeNode(_factory.CreateNull()) });
         }
         if (NodeTests.IsJSDocOptionalType(node))
         {
-            return (Node)_factory.CreateUnionTypeNode(new List<ITypeNode> { (ITypeNode)VisitNode(((JSDocOptionalType)node).Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode)!, _factory.CreateKeywordTypeNode(SyntaxKind.UndefinedKeyword) });
+            return (Node)_factory.CreateUnionTypeNode(new List<ITypeNode> { (ITypeNode)Utilities.VisitNode(((JSDocOptionalType)node).Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode)!, _factory.CreateKeywordTypeNode(SyntaxKind.UndefinedKeyword) });
         }
         if (NodeTests.IsJSDocNonNullableType(node))
         {
-            return (Node?)VisitNode(((JSDocNonNullableType)node).Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context));
+            return (Node?)Utilities.VisitNode(((JSDocNonNullableType)node).Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context));
         }
         if (NodeTests.IsJSDocVariadicType(node))
         {
-            return _factory.CreateArrayTypeNode(VisitNode(((JSDocVariadicType)node).Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode)!);
+            return _factory.CreateArrayTypeNode(Utilities.VisitNode(((JSDocVariadicType)node).Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode)!);
         }
         if (NodeTests.IsJSDocTypeLiteral(node))
         {
             var jsDocTypeLiteral = (JSDocTypeLiteral)node;
             return _factory.CreateTypeLiteralNode(Core.Map<JSDocPropertyLikeTag, ITypeElement>(jsDocTypeLiteral.JsDocPropertyTags, (t, _) =>
             {
-                var name = VisitNode(NodeTests.IsIdentifier(t.Name!) ? t.Name! : ((QualifiedName)t.Name!).Right, n => VisitExistingNodeTreeSymbols(n!, boundary, context), NodeTests.IsIdentifier)!;
+                var name = Utilities.VisitNode(NodeTests.IsIdentifier(t.Name!) ? t.Name! : ((QualifiedName)t.Name!).Right, n => VisitExistingNodeTreeSymbols(n!, boundary, context), NodeTests.IsIdentifier)!;
                 var overrideTypeNode = _resolver.GetJsDocPropertyOverride(context, jsDocTypeLiteral, t);
 
                 return _factory.CreatePropertySignature(
                     /*modifiers*/ null,
                     name,
                     t.IsBracketed || t.TypeExpression is not null && NodeTests.IsJSDocOptionalType((Node)t.TypeExpression.Type!) ? (PunctuationToken)_factory.CreateToken(SyntaxKind.QuestionToken) : null,
-                    overrideTypeNode ?? (t.TypeExpression is not null ? VisitNode(t.TypeExpression.Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode) : null) ?? _factory.CreateKeywordTypeNode(SyntaxKind.AnyKeyword));
+                    overrideTypeNode ?? (t.TypeExpression is not null ? Utilities.VisitNode(t.TypeExpression.Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode) : null) ?? _factory.CreateKeywordTypeNode(SyntaxKind.AnyKeyword));
             }));
         }
         if (NodeTests.IsTypeReferenceNode(node) && NodeTests.IsIdentifier(((TypeReferenceNode)node).TypeName!) && ((Identifier)((TypeReferenceNode)node).TypeName!).EscapedText == "")
@@ -274,9 +273,9 @@ internal sealed partial class SyntacticNodeBuilder
                     /*dotDotDotToken*/ null,
                     "x",
                     /*questionToken*/ null,
-                    VisitNode(typeArguments[0], n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode),
+                    Utilities.VisitNode(typeArguments[0], n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode),
                     /*initializer*/ null)],
-                VisitNode(typeArguments[1], n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode))]);
+                Utilities.VisitNode(typeArguments[1], n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode))]);
         }
         if (NodeTests.IsJSDocFunctionType(node))
         {
@@ -286,7 +285,7 @@ internal sealed partial class SyntacticNodeBuilder
                 ITypeNode? newTypeNode = null;
                 return _factory.CreateConstructorTypeNode(
                     /*modifiers*/ null,
-                    VisitNodes(jsDocFunctionType.TypeParameters, n => VisitExistingNodeTreeSymbols(n!, boundary, context), NodeTests.IsTypeParameterDeclaration),
+                    Utilities.VisitNodes(jsDocFunctionType.TypeParameters, n => VisitExistingNodeTreeSymbols(n!, boundary, context), NodeTests.IsTypeParameterDeclaration),
                     Core.MapDefined<ParameterDeclaration, ParameterDeclaration>(jsDocFunctionType.Parameters, (p, i) =>
                     {
                         if (p.Name is not null && NodeTests.IsIdentifier(p.Name) && ((Identifier)p.Name).EscapedText == "new")
@@ -299,24 +298,24 @@ internal sealed partial class SyntacticNodeBuilder
                             GetEffectiveDotDotDotForParameter(p),
                             _resolver.MarkNodeReuse(context, _factory.CreateIdentifier(GetNameForJSDocFunctionParameter(p, i)), p),
                             _factory.CloneNode(p.QuestionToken),
-                            VisitNode(p.Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode),
+                            Utilities.VisitNode(p.Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode),
                             /*initializer*/ null);
                     }),
-                    VisitNode(newTypeNode ?? jsDocFunctionType.Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode) ?? _factory.CreateKeywordTypeNode(SyntaxKind.AnyKeyword));
+                    Utilities.VisitNode(newTypeNode ?? jsDocFunctionType.Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode) ?? _factory.CreateKeywordTypeNode(SyntaxKind.AnyKeyword));
             }
             else
             {
                 return _factory.CreateFunctionTypeNode(
-                    VisitNodes(jsDocFunctionType.TypeParameters, n => VisitExistingNodeTreeSymbols(n!, boundary, context), NodeTests.IsTypeParameterDeclaration),
+                    Utilities.VisitNodes(jsDocFunctionType.TypeParameters, n => VisitExistingNodeTreeSymbols(n!, boundary, context), NodeTests.IsTypeParameterDeclaration),
                     Core.Map(jsDocFunctionType.Parameters, (p, i) =>
                         _factory.CreateParameterDeclaration(
                             /*modifiers*/ null,
                             GetEffectiveDotDotDotForParameter(p),
                             _resolver.MarkNodeReuse(context, _factory.CreateIdentifier(GetNameForJSDocFunctionParameter(p, i)), p),
                             _factory.CloneNode(p.QuestionToken),
-                            VisitNode(p.Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode),
+                            Utilities.VisitNode(p.Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode),
                             /*initializer*/ null)),
-                    VisitNode(jsDocFunctionType.Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode) ?? _factory.CreateKeywordTypeNode(SyntaxKind.AnyKeyword));
+                    Utilities.VisitNode(jsDocFunctionType.Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode) ?? _factory.CreateKeywordTypeNode(SyntaxKind.AnyKeyword));
             }
         }
         if (NodeTests.IsThisTypeNode(node))
@@ -334,11 +333,11 @@ internal sealed partial class SyntacticNodeBuilder
             var (_, newName) = TrackExistingEntityName(context, typeParameter.Name!);
             return _factory.UpdateTypeParameterDeclaration(
                 typeParameter,
-                VisitNodes(typeParameter.Modifiers, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsModifier),
+                Utilities.VisitNodes(typeParameter.Modifiers, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsModifier),
                 // _resolver.MarkNodeReuse(context, TypeParameterToName(GetDeclaredTypeOfSymbol(GetSymbolOfDeclaration(node)), context), node),
                 newName,
-                VisitNode(typeParameter.Constraint, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode),
-                VisitNode(typeParameter.Default, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode));
+                Utilities.VisitNode(typeParameter.Constraint, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode),
+                Utilities.VisitNode(typeParameter.Default, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode));
         }
         if (NodeTests.IsIndexedAccessTypeNode(node))
         {
@@ -381,9 +380,9 @@ internal sealed partial class SyntacticNodeBuilder
             return _factory.UpdateImportTypeNode(
                 importType,
                 ReferenceEquals(literal, argument.Literal) ? ReuseNode(context, argument) : _factory.CreateLiteralTypeNode(literal),
-                (ImportAttributes?)VisitNode(importType.Attributes, n => VisitExistingNodeTreeSymbols(n!, boundary, context), NodeTests.IsImportAttributes),
-                VisitNode(importType.Qualifier, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsEntityName),
-                VisitNodes(importType.TypeArguments, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode),
+                (ImportAttributes?)Utilities.VisitNode(importType.Attributes, n => VisitExistingNodeTreeSymbols(n!, boundary, context), NodeTests.IsImportAttributes),
+                Utilities.VisitNode(importType.Qualifier, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsEntityName),
+                Utilities.VisitNodes(importType.TypeArguments, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode),
                 importType.IsTypeOf);
         }
         if (Utilities.IsNamedDeclaration(node) && Utilities.GetNamedDeclarationName(node)!.Kind == SyntaxKind.ComputedPropertyName && !HasLateBindableName(node))
@@ -489,7 +488,7 @@ internal sealed partial class SyntacticNodeBuilder
             {
                 parameterName = _factory.CloneNode(typePredicate.ParameterName!);
             }
-            return _factory.UpdateTypePredicateNode(typePredicate, _factory.CloneNode(typePredicate.AssertsModifier!), parameterName, VisitNode(typePredicate.Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode));
+            return _factory.UpdateTypePredicateNode(typePredicate, _factory.CloneNode(typePredicate.AssertsModifier!), parameterName, Utilities.VisitNode(typePredicate.Type, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode));
         }
 
         if (NodeTests.IsTupleTypeNode(node) || NodeTests.IsTypeLiteralNode(node) || NodeTests.IsMappedTypeNode(node))
@@ -510,13 +509,13 @@ internal sealed partial class SyntacticNodeBuilder
         if (NodeTests.IsConditionalTypeNode(node))
         {
             var conditionalType = (ConditionalTypeNode)node;
-            var checkType = VisitNode(conditionalType.CheckType, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode)!;
+            var checkType = Utilities.VisitNode(conditionalType.CheckType, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode)!;
 
             var disposeScope = _resolver.EnterNewScope(context, node);
-            var extendType = VisitNode(conditionalType.ExtendsType, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode)!;
-            var trueType = VisitNode(conditionalType.TrueType, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode)!;
+            var extendType = Utilities.VisitNode(conditionalType.ExtendsType, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode)!;
+            var trueType = Utilities.VisitNode(conditionalType.TrueType, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode)!;
             disposeScope();
-            var falseType = VisitNode(conditionalType.FalseType, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode)!;
+            var falseType = Utilities.VisitNode(conditionalType.FalseType, n => VisitExistingNodeTreeSymbols(n!, boundary, context), Utilities.IsTypeNode)!;
             return _factory.UpdateConditionalTypeNode(
                 conditionalType,
                 checkType,
@@ -554,38 +553,54 @@ internal sealed partial class SyntacticNodeBuilder
     /// <summary>ported from: src/compiler/expressionToTypeNode.ts:580-583 — the nested <c>visitEachChild</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: the reference's local wrapper keeps <c>context</c> undefined and only replaces the nodes visitor when
-    /// the node comes from another file; <c>Utilities.VisitEachChildWorker</c> is the port's loud, named blocker for
-    /// <c>visitorPublic.ts</c>'s <c>visitEachChild</c> (aliased at checker.ts:1134, Layer 6/M7), so a reuse walk that
-    /// reaches this arm throws by name instead of returning a partially visited node — the same statement the landed
-    /// node builder makes at <c>NodeBuilder.Names.cs:1350</c>.
+    /// the node comes from another file; the token and node visitors stay at <c>visitEachChild</c>'s defaults, which is
+    /// what the reference's four-argument call passes too. The earlier port passed
+    /// <c>visitExistingNodeTreeSymbols</c> a fifth time (the <c>tokenVisitor</c> slot); the reference does not, so token
+    /// children are reused untouched here — the slot is dropped.
     /// </remarks>
     private Node VisitEachChild(Node node, IRecoveryBoundary boundary, ISyntacticTypeNodeBuilderContext context)
     {
         var nonlocalNode = context.EnclosingFile is null || !ReferenceEquals(context.EnclosingFile, Utilities.GetSourceFileOfNode(node));
-        return Utilities.VisitEachChildWorker(node, n => VisitExistingNodeTreeSymbols(n!, boundary, context), /*context*/ null, nonlocalNode ? VisitNodesWithoutCopyingPositions : null, n => VisitExistingNodeTreeSymbols(n!, boundary, context));
+        return Utilities.VisitEachChildWorker(node, n => VisitExistingNodeTreeSymbols(n!, boundary, context), /*context*/ null, nonlocalNode ? VisitNodesWithoutCopyingPositionsVisitor.Instance : null);
     }
 
     /// <summary>ported from: src/compiler/expressionToTypeNode.ts:585-602 — <c>visitNodesWithoutCopyingPositions</c>.</summary>
-    private static NodeArray<Node>? VisitNodesWithoutCopyingPositions(
-        NodeArray<Node>? nodes,
-        Func<Node, object?> visitor,
-        Func<Node, bool>? test = null,
-        int? start = null,
-        int? count = null)
+    /// <remarks>
+    /// PORT-NOTE: TS's local function is declared over <c>NodeArray&lt;Node&gt;</c> yet assigned to <c>visitEachChild</c>'s
+    /// generic <c>nodesVisitor</c> slot, which TS accepts and C# cannot: the port states it as the
+    /// <c>NodesVisitor</c> whose <c>Visit</c> carries the array's own element type. Everything below the
+    /// signature is the reference's own steps — including that the copy it makes when the visited array is the input is a
+    /// fresh <c>NodeArray</c> whose range is <c>(-1, -1)</c>.
+    /// </remarks>
+    private sealed class VisitNodesWithoutCopyingPositionsVisitor : NodesVisitor
     {
-        var result = Utilities.VisitNodes(nodes, visitor, test, start, count);
-        if (result is not null)
+        public static readonly VisitNodesWithoutCopyingPositionsVisitor Instance = new();
+
+        private VisitNodesWithoutCopyingPositionsVisitor()
         {
-            if (result.Pos != -1 || result.End != -1)
-            {
-                if (ReferenceEquals(result, nodes))
-                {
-                    result = NodeFactory.Factory.CreateNodeArray<Node>([.. nodes!], nodes!.HasTrailingComma);
-                }
-                Utilities.SetTextRangePosEnd(result, -1, -1);
-            }
         }
-        return result;
+
+        public override NodeArray<TNode>? Visit<TNode>(
+            NodeArray<TNode>? nodes,
+            Func<Node, object?>? visitor,
+            Func<Node, bool>? test = null,
+            int? start = null,
+            int? count = null)
+        {
+            var result = Utilities.VisitNodes(nodes, visitor, test, start, count);
+            if (result is not null)
+            {
+                if (result.Pos != -1 || result.End != -1)
+                {
+                    if (ReferenceEquals(result, nodes))
+                    {
+                        result = NodeFactory.Factory.CreateNodeArray([.. nodes!], nodes!.HasTrailingComma);
+                    }
+                    Utilities.SetTextRangePosEnd(result, -1, -1);
+                }
+            }
+            return result;
+        }
     }
 
     /// <summary>ported from: src/compiler/expressionToTypeNode.ts:604-607 — <c>getEffectiveDotDotDotForParameter</c>.</summary>
@@ -777,193 +792,5 @@ internal sealed partial class SyntacticNodeBuilder
         }
         ReportInferenceFallback(context, targetNode ?? (Node)typeNode);
         return _resolver.SerializeExistingTypeNode(context, typeNode, addUndefined) ?? _factory.CreateKeywordTypeNode(SyntaxKind.AnyKeyword);
-    }
-
-    // ---------------------------------------------------------------------------------------------
-    // visitorPublic.ts:148-192 (visitNode) and :223-271 (visitNodes, generic — see the class remarks)
-    // ---------------------------------------------------------------------------------------------
-
-    /// <summary>ported from: src/compiler/visitorPublic.ts:148-192 — <c>visitNode</c>.</summary>
-    /// <remarks>
-    /// <para>
-    /// PORT-NOTE: <c>visitorPublic.ts</c> (Layer 6) is not ported — the checker's node builder reads
-    /// <c>visitEachChild</c> through the loud <c>Utilities.VisitEachChildWorker</c> blocker and calls this member
-    /// nowhere else — so this file states the overload the reference uses: every caller passes a <c>Visitor</c> that
-    /// answers a node or <c>undefined</c> (never an array) plus the <c>test</c> the reference hands to
-    /// <c>Debug.assertNode</c>.
-    /// </para>
-    /// <para>
-    /// PORT-NOTE: TS's <c>TIn | TVisited | TOut</c> collapses to the type variable <c>T</c> the caller names, with the
-    /// one conversion the model's class/interface split needs (a <c>NodeArray&lt;ITypeNode&gt;</c> element is an
-    /// <c>ITypeNode</c>, which is not a <c>Node</c>): §3's boundary, stated once here instead of at ~30 call sites. The
-    /// member is private to this class, so it collides with nothing when the <c>visitorPublic.ts</c> slice lands.
-    /// </para>
-    /// </remarks>
-    private static T? VisitNode<T>(T? node, Func<Node, object?> visitor, Func<Node, bool>? test = null, Func<IReadOnlyList<Node>, Node>? lift = null)
-    {
-        if (node is null)
-        {
-            // If the input type is undefined, then the output type can be undefined.
-            return default;
-        }
-
-        var visited = visitor((Node)(object)node);
-
-        Node? visitedNode;
-        if (visited is null)
-        {
-            // If the visited node is undefined, then the visitor must have returned undefined,
-            // so the visitor must have been declared as able to return undefined, so TOut must be
-            // potentially undefined.
-            return default;
-        }
-        else if (visited is IReadOnlyList<Node> visitedArray)
-        {
-            visitedNode = (lift ?? ExtractSingleNode)(visitedArray);
-        }
-        else
-        {
-            visitedNode = (Node)visited;
-        }
-
-        Debug.AssertNode(visitedNode, test);
-        return visitedNode is null ? default : (T)(object)visitedNode;
-    }
-
-    /// <summary>ported from: src/compiler/visitorPublic.ts:1246-1249 — <c>extractSingleNode</c>.</summary>
-    private static Node ExtractSingleNode(IReadOnlyList<Node> nodes)
-    {
-        Debug.Assert(nodes.Count <= 1, "Too many nodes returned from a visiting function");
-        return nodes.Count > 0 ? nodes[0] : null!;
-    }
-
-    /// <summary>ported from: src/compiler/visitorPublic.ts:223-271 — <c>visitNodes</c>, generic in the array's element type.</summary>
-    /// <remarks>
-    /// <para>
-    /// PORT-NOTE: the same member is landed as <c>Utilities.VisitNodes</c> (<c>Checker/Utilities.Checker.cs:665</c>),
-    /// fixed to <c>NodeArray&lt;Node&gt;</c>. C# generics are invariant, so that member cannot take the
-    /// <c>NodeArray&lt;ITypeNode&gt;</c>/<c>NodeArray&lt;TypeParameterDeclaration&gt;</c>/<c>NodeArray&lt;ModifierToken&gt;</c>
-    /// this file visits without materializing a copy — which would lose the reference's "the input array comes back
-    /// unchanged when every element is reused" identity and turn every <c>updateX</c> into a rebuild. This generic
-    /// sibling keeps the reference's element type and its identity behaviour, and must be deleted (with its callers
-    /// re-pointed at <c>Utilities.VisitNodes</c>) when that member is generalized.
-    /// </para>
-    /// <para>
-    /// PORT-NOTE: the element type is unconstrained because a <c>NodeArray&lt;ITypeNode&gt;</c> is not a
-    /// <c>NodeArray&lt;Node&gt;</c>; the reads and writes go through the <c>Node</c> the visitor and the factory use,
-    /// which is the class/interface conversion §3 fixes (<c>NodeFactory.CopyCustomPrologue</c> states the same one).
-    /// </para>
-    /// </remarks>
-    private static NodeArray<T>? VisitNodes<T>(
-        NodeArray<T>? nodes,
-        Func<Node, object?>? visitor,
-        Func<Node, bool>? test = null,
-        int? start = null,
-        int? count = null)
-        where T : INode
-    {
-        if (nodes is null)
-        {
-            // If the input type is undefined, then the output type can be undefined.
-            return nodes;
-        }
-
-        // Ensure start and count have valid values
-        var length = nodes.Count;
-        if (start is null || start < 0)
-        {
-            start = 0;
-        }
-
-        if (count is null || count > length - start)
-        {
-            count = length - start;
-        }
-
-        var pos = nodes.Pos;
-        var end = nodes.End;
-        var hasTrailingComma = nodes.HasTrailingComma;
-
-        var updated = VisitArrayWorker(nodes, visitor, test, start.Value, count.Value);
-        if (updated is not null)
-        {
-            var updatedArray = NodeFactory.Factory.CreateNodeArray(updated, hasTrailingComma);
-            Utilities.SetTextRangePosEnd(updatedArray, pos, end);
-            return updatedArray;
-        }
-
-        // If we are here, updated === undefined. This means that it's still a NodeArray,
-        // and also that its contents passed the tests in visitArrayWorker, so has contents
-        // of type TOut.
-        return nodes;
-
-        static List<T>? VisitArrayWorker(
-            NodeArray<T> nodes,
-            Func<Node, object?>? visitor,
-            Func<Node, bool>? test,
-            int start,
-            int count)
-        {
-            List<T>? updated = null;
-
-            var length = nodes.Count;
-            if (start > 0 || count < length)
-            {
-                // If we are not visiting all of the original nodes, we must always create a new array.
-                updated = [];
-            }
-
-            // Visit each original node.
-            for (var i = 0; i < count; i++)
-            {
-                var node = nodes[i + start];
-                var visited = visitor is not null ? visitor((Node)(object)node!) : (object?)node;
-                if (updated is not null || visited is null || !ReferenceEquals(visited, node))
-                {
-                    if (updated is null)
-                    {
-                        // Ensure we have a copy of `nodes`, up to the current index.
-                        updated = [];
-                        for (var j = 0; j < i; j++)
-                        {
-                            updated.Add(nodes[j]!);
-                        }
-                        AssertEachNode(nodes.Take(i), test);
-                    }
-                    if (visited is not null)
-                    {
-                        updated.Add((T)(object)visited);
-                    }
-                    else
-                    {
-                        // PORT-NOTE: a `VisitResult` of `undefined` means "reuse this node"; the port's visitor slot is
-                        // `object?`, so TS's `undefined` is its `null`.
-                        updated.Add(nodes[i + start]!);
-                    }
-                }
-                else if (updated is not null)
-                {
-                    updated.Add((T)(object)visited!);
-                }
-            }
-
-            if (updated is not null)
-            {
-                AssertEachNode(nodes.Skip(start).Take(count), test);
-            }
-
-            return updated;
-
-            static void AssertEachNode(IEnumerable<T> nodes, Func<Node, bool>? test)
-            {
-                foreach (var node in nodes)
-                {
-                    AssertNode(node, test);
-                }
-            }
-
-            static void AssertNode(T node, Func<Node, bool>? test)
-                => Debug.Assert(test is null || test((Node)(object)node!), "visited node must pass the test");
-        }
     }
 }

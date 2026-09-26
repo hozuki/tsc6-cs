@@ -987,9 +987,13 @@ internal sealed partial class Checker
     internal ISymbol? GetApplicableIndexSymbol(IType type, IType keyType)
     {
         var infos = GetApplicableIndexInfos(type, keyType);
-        if (infos.Count > 0 && ((UnionOrIntersectionType)type).Members is not null)
+        // PORT-NOTE: the reference's `(type as ObjectType).members` (checker.ts:50135) is a structural read JS answers
+        // `undefined` for a type that does not have the slot (a type parameter, for instance), which skips the whole
+        // branch; the port states that as a safe cast whose null short-circuits the same way.
+        var objectType = type as UnionOrIntersectionType;
+        if (infos.Count > 0 && objectType?.Members is not null)
         {
-            var symbol = GetIndexSymbolFromSymbolTable(ResolveStructuredTypeMembers((UnionOrIntersectionType)type).Members!);
+            var symbol = GetIndexSymbolFromSymbolTable(ResolveStructuredTypeMembers(objectType).Members!);
             if (ReferenceEquals(infos, GetIndexInfosOfType(type)))
             {
                 return symbol;

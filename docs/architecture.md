@@ -1771,3 +1771,15 @@ printer 落地后，语料从"崩溃"变成"能跑"，此前被门控掩盖的�
 **M7-0 之后的剩余（下一步的起点）**：`port-crash=63` **全部**是同一个门控 `visitEachChildWorker`（`checker.ts:1134 → visitorPublic.ts` 的 `visitEachChild`，Layer 6 的公共 visitor 基础设施 —— 一个自包含切片即可全部退掉）；`diverged=7` = 4 条同属该门控的单侧 `=!` + 1 条诊断码错配（`interfaces/interfaceDeclarations/interfaceExtendsObjectIntersectionErrors.ts`：端口 `2416@758` 对参考 `2612@709`）+ 2 条类型 id 偏移（`genericCallToOverloadedMethodWithOverloadedArguments.ts` 332/340、`discriminatedUnionTypes2.ts` 178/179，即类型创建计数差，与本轮改动无关，已用 A/B 排除）。
 
 **教训（写入纪律）**：M7-0 的三次测量都证明同一件事 —— 打开一道门控会**成批**显形下一层的缺陷（printer → 4 处 JS 越界读；syntacticBuilder → `visitEachChildWorker`），因此每一道门控拆除后必须重跑全语料并把新显形的项分类（真缺陷 / 下一道门控），不要按上一轮的分组继续做。
+
+### 17.8 M7-0 收尾（二）：`visitorPublic.ts` 全量移植 —— 全语料 `same=5905 diverged=3 port-crash=0`
+
+**`src/compiler/visitorPublic.ts`（1,808 行）→ `Utilities/Utilities.Visitor.cs`**，并删除 `Utilities/Utilities.cs` 的 `VisitEachChildWorker` 门控（第三个也是最后一个 checker 侧门控）。它一次退掉上一节剩下的**全部 63 条崩溃**与 4 条同源 `=!` 分歧。两处形状决策（都有参考行）：TS 的 `NodeVisitor`/`NodesVisitor` 是**泛型调用签名接口**（一等泛型函数），C# 里改为各带一个泛型方法的抽象类，135 张表项都由实参推断同一个类型变量（正是 TS 的推断结果），槽位名与位置（`nodesVisitor`/`tokenVisitor`/`nodeVisitor`）照旧；`TransformationContext` 槽改用 `IVisitorTransformationContext`（生成的 `ITransformationContext.Factory` 要求 `INodeFactory`，而端口没有任何类型实现它，见 §15.9 —— 与 `IEmitHelperFactoryContext` 同一条裁定）。
+
+**去重（本次一并收口）**：`Checker/SyntacticNodeBuilder.Engine.cs` 的**文件内** `VisitNode<T>`/`VisitNodes<T>`/`ExtractSingleNode`（M7-0 移植时因 visitorPublic 未落地而临时声明）全部删除，31 处调用改走 `Utilities.VisitNode`/`Utilities.VisitNodes`；`VisitNodesWithoutCopyingPositions` 与 `NodeBuilder.Types.cs` 的 `DeepCloneOrReuseNodes`（**票面之外的第 4 个调用点**）各自落成 `NodesVisitor` 子类；`GetSynthesizedDeepClones*` 的约束由 `where T : Node` 放宽为 `where T : INode`（旧的 `(NodeArray<Node>)ns` 强转对非 Node 元素在运行期不成立）。这次替换顺带修掉两处**朝向参考**的行为差：被访问过的片段获得 `pos/end = (-1,-1)` 且只有含末元素才带 `hasTrailingComma`；访问器返回 null 的元素**被丢弃**而不是复用（参考 `if (visited) push(...)` 没有 else，`visitorPublic.ts:328-376`）。
+
+**另一处真缺陷（本次显形并修）**：`Checker.GetApplicableIndexSymbol`（`Checker.Check.Source.cs:988`）把 `type` 强转 `UnionOrIntersectionType` 再读 `Members`，遇到类型参数直接抛 `InvalidCastException`（`privateNameAndIndexSignature.ts`、`keyofAndIndexedAccess2.ts` 的 `sym=!` 分歧就是这个）；参考的 `(type as ObjectType).members`（checker.ts:50135）是**结构读取**，对没有该槽的类型答 `undefined` 因而整支跳过 —— 改为安全转换 + null 短路。
+
+**全语料（5,908 文件）三轮总账**：M6 末 `3637/80/2191` → printer 落地 `5516/11/381` → 本节收尾 **`5905/3/0`**（`same` +2,268、`diverged` −77、崩溃 −2,191）。build 0/0、测试 1,053/1,053。
+
+**剩余 3 条分歧（下一轮的起点，均有现场）**：① `interfaces/interfaceDeclarations/interfaceExtendsObjectIntersectionErrors.ts` 诊断码错配（端口 `2416@758` 对参考 `2612@709` —— 两者都不只是码不同，span 也不同）；②③ 两条类型 id 偏移（`genericCallToOverloadedMethodWithOverloadedArguments.ts` 332/340、`discriminatedUnionTypes2.ts` 178/179），已用 A/B 确认与 `Js.ToNumber`/printer/visitor 都无关，属类型创建计数差。

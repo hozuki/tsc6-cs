@@ -47,14 +47,12 @@ internal readonly record struct SyntacticResult(ITypeNode? Type, bool ReportFall
 /// reference's nullability and the slot getter applies the <c>!</c> the generated face implies.
 /// </para>
 /// <para>
-/// PORT-NOTE (<c>visitNode</c>): the reference's <c>visitNode</c> is <c>visitorPublic.ts:148-192</c>'s, which the port
-/// has not landed (<c>Utilities.VisitEachChildWorker</c> is the loud blocker for that module); every call in this file
-/// goes to the file-local <see cref="VisitNode"/> port instead — see its remarks. <c>visitNodes</c> *is* landed
-/// (<c>Utilities.VisitNodes</c>, <c>visitorPublic.ts:223-271</c>) but is fixed to <c>NodeArray&lt;Node&gt;</c>, which C#'s
-/// invariant generics cannot feed a <c>NodeArray&lt;ITypeNode&gt;</c>, so this file carries the generic sibling
-/// <see cref="VisitNodes{T}"/>; <c>visitEachChild</c> has no port at all and is called through the blocker
-/// (<c>Utilities.VisitEachChildWorker</c>), exactly as the landed node builder does
-/// (<c>NodeBuilder.Names.cs:1350</c>).
+/// PORT-NOTE (<c>visitNode</c>): the reference's <c>visitNode</c>/<c>visitNodes</c>/<c>visitEachChild</c> are
+/// <c>visitorPublic.ts</c>'s, which landed with the M7 visitor slice
+/// (<c>Utilities.VisitNode</c>, <c>Utilities.VisitNodes</c>, <c>Utilities.VisitEachChildWorker</c>) — the file-local
+/// ports this class carried while that module was unported are deleted, and <c>SyntacticNodeBuilder.Engine.cs</c> calls
+/// the landed members, which keep the array's own element type (so the <c>NodeArray&lt;ITypeNode&gt;</c> slots need no
+/// copy).
 /// </para>
 /// </remarks>
 internal sealed partial class SyntacticNodeBuilder : ISyntacticNodeBuilder
