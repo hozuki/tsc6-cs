@@ -423,7 +423,10 @@ dotnet run --project tools/Gen -- --check    # 只校验不写入（CI / 本地�
 - **保证**：单元测试 `GeneratedTablesTests` 直接调用 `Generator.Generate` 与仓库内文件逐字节比对，所以 `--check` 的约束在 `dotnet test` 里同样成立；TS 源更新后忘记重跑生成器会立刻失败。
 - **边界**：生成器只理解 TS 写这些表用的形态（成员名、可选 `=` 表达式、`/** */`、`//`、跨行的 `|` 链）。遇到别的写法会**报错退出**，不猜测。
 
-**生成过程中确认的两处 C# enum 差异（生成器已处理）**：
+**生成过程中确认的三处 TS enum → C# 的差异（生成器已处理）**：
 
 1. TS 的 `const enum` 在编译期内联，别名不占运行时位置；C# 的 enum 保留别名成员，于是 `Enum.GetValues` 会返回重复值，`ToString()` 对别名也不可靠。**调试输出必须用独立的名称表**（`formatSyntaxKind`，随 M2 的 model 层实现），不能依赖 `Enum.GetName`。
 2. C# 的 enum **不支持一元 `~`**，所以 `ModifierFlags.Modifier = All & ~Decorator` 这类表达式在生成期求值为十六进制字面量，原表达式保留在行尾注释里以便追溯。同理 `1 << 31` 会溢出 `int`，相关枚举（`TypeFlags`/`TransformFlags`）的底层类型为 `uint`。
+3. **字符串值枚举不生成 C# enum，而是 `internal static class` + `public const string`。** TS 里有 4 个这样的枚举（`Extension`、`InternalSymbolName`、`PrivateIdentifierKind`、`ForegroundColorEscapeSequences`），它们在每个调用点都当普通 `string` 用（比较 `symbol.escapedName`、把 `Extension.Ts` 传给接受 `readonly string[]` 的函数、把颜色码直接写进输出流）。用 C# enum 会在每个这样的位置强制转换，而且无法表示 `"__call"`、`"export="`、`"\u001b[90m"` 这类值。代价是失去名义类型（`Extension` 与任意 `string` 不可区分）—— 但 TS 的 `const enum` 内联之后本来也没有这个约束。
+   - 与之相关：生成器**不照抄**字符串字面量。JS 的 `\x` 是定长两位、`\0`/`\'` 的规则也与 C# 不同，所以字面量先解码成实际字符，再按 C# 规则重新编码；遇到不认识的转义会中止生成而不是猜。
+4. 另外还有一类**字符串字面量联合类型**（`TypeOfTag`、`BufferEncoding`、`OrganizeImportsTypeOrder`）。它们没有成员名，C# 中直接用 `string` 表示、值在调用点内联；到实际用到时（`TypeOfTag` 在 checker，`BufferEncoding` 在 `sys.ts`）再评估是否需要命名常量。

@@ -17,6 +17,9 @@ internal sealed record TsEnumMember(
 
     /// <summary>True when the value expression is a bare reference to another member.</summary>
     public bool IsAlias { get; init; }
+
+    /// <summary>Decoded value when the member's value is a string literal; otherwise <c>null</c>.</summary>
+    public string? StringValue { get; init; }
 }
 
 /// <summary>A parsed TS <c>const enum</c> with evaluated member values.</summary>
@@ -33,6 +36,9 @@ internal sealed class TsEnum
     public required List<TsEnumMember> Members { get; init; }
 
     public long MaxValue => Members.Count == 0 ? 0 : Members.Max(static m => m.Value);
+
+    /// <summary>True when every member's value is a string literal — i.e. TS's string-valued enum form.</summary>
+    public bool IsStringValued => Members.Count != 0 && Members.All(static m => m.StringValue is not null);
 }
 
 /// <summary>
@@ -45,16 +51,24 @@ internal sealed class TsEnum
 /// </remarks>
 internal static class TsEnumParser
 {
+    /// <summary>Matches `export const enum X` / `export enum X` headers (group 1 = "const", group 2 = name).</summary>
+    private static readonly System.Text.RegularExpressions.Regex HeaderPattern =
+        new(@"^export\s+(?:(const)\s+)?enum\s+(\w+)",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
     public static TsEnum Parse(string sourceText, string enumName)
     {
         var lines = sourceText.Replace("\r\n", "\n").Split('\n');
-        var header = $"export const enum {enumName}";
 
         var headerLine = -1;
         for (var i = 0; i < lines.Length; i++)
         {
-            if (!lines[i].StartsWith(header, StringComparison.Ordinal)) continue;
-            var after = lines[i].AsSpan(header.Length).TrimStart();
+            // Accepts both `export const enum X` (the common form) and `export enum X`
+            // (ForegroundColorEscapeSequences is a plain enum whose members are still string constants).
+            var match = HeaderPattern.Match(lines[i]);
+            if (!match.Success || match.Groups[2].Value != enumName) continue;
+
+            var after = lines[i].AsSpan(match.Length).TrimStart();
             if (after.Length == 0 || after[0] == '{')
             {
                 headerLine = i;
@@ -64,7 +78,7 @@ internal static class TsEnumParser
 
         if (headerLine < 0)
         {
-            throw new InvalidOperationException($"Could not find `{header}` in the TS source.");
+            throw new InvalidOperationException($"Could not find `export [const] enum {enumName}` in the TS source.");
         }
 
         // The body is flat (none of the enums we generate nest braces), so the first line whose trimmed
@@ -170,11 +184,16 @@ internal static class TsEnumParser
                     $"Unsupported member syntax at {enumName} line {i + 1}: {raw.Trim()}");
             }
 
-            long value;
+            string? stringValue = null;
+            long value = 0;
             var isAlias = false;
             if (valueExpression is null)
             {
                 value = nextImplicit;
+            }
+            else if (TsStringLiteral.TryParse(valueExpression, out var parsedString))
+            {
+                stringValue = parsedString;
             }
             else
             {
@@ -188,8 +207,16 @@ internal static class TsEnumParser
             {
                 Value = value,
                 IsAlias = isAlias,
+                StringValue = stringValue,
             });
             pendingDoc = null;
+        }
+
+        var stringMembers = members.Count(static m => m.StringValue is not null);
+        if (stringMembers != 0 && stringMembers != members.Count)
+        {
+            throw new InvalidOperationException(
+                $"{enumName} mixes string and non-string member values; this generator does not model that.");
         }
 
         return new TsEnum

@@ -40,6 +40,17 @@ internal static class Generator
             "Flags describing what a subtree contains, used to skip unnecessary transforms."),
         new("EmitFlags", "src/compiler/types.ts", "uint", Flags: true,
             "Flags that guide the emitter for a single node."),
+
+        // 字符串值枚举。TS 把它们声明为 <c>const enum</c>，但成员值是字符串，调用点一律当作 string 使用，
+        // 因此生成的是常量类而非 C# enum —— 理由见 EnumEmitter.EmitStringTable 的 remarks。
+        new("Extension", "src/compiler/types.ts", null, Flags: false,
+            "Well-known file extensions, as used by module resolution and by <c>changeFullExtension</c>."),
+        new("InternalSymbolName", "src/compiler/types.ts", null, Flags: false,
+            "Names of compiler-internal symbols (the <c>__call</c>-style names that cannot collide with user identifiers)."),
+        new("PrivateIdentifierKind", "src/compiler/factory/emitHelpers.ts", null, Flags: false,
+            "The single-letter marker the emitter writes to describe an erased <c>#private</c> member."),
+        new("ForegroundColorEscapeSequences", "src/compiler/program.ts", null, Flags: false,
+            "ANSI escape sequences used when colorizing compiler output."),
     ];
 
     /// <summary>Default output root for generated files, relative to the repo root.</summary>
@@ -73,6 +84,9 @@ internal static class Generator
 
     private static EnumSpec WidenIfNeeded(EnumSpec spec, TsEnum parsed, Action<string>? warn)
     {
+        // String-valued enums have no width.
+        if (spec.UnderlyingType is null) return spec;
+
         var max = parsed.MaxValue;
         var required = max <= int.MaxValue ? "int"
             : max <= uint.MaxValue ? "uint"
