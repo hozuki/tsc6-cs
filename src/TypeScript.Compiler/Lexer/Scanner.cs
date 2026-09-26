@@ -1854,4 +1854,423 @@ internal sealed partial class Scanner
 
         return null;
     }
+
+    // ---- Re-scanning (scanner.ts:2438-2465, 3658-3693). ----
+
+    // ported from: src/compiler/scanner.ts:2438-2459
+    public SyntaxKind ReScanGreaterToken()
+    {
+        if (_token == SyntaxKind.GreaterThanToken)
+        {
+            if (CharCodeUnchecked(_pos) == CharacterCodes.GreaterThan)
+            {
+                if (CharCodeUnchecked(_pos + 1) == CharacterCodes.GreaterThan)
+                {
+                    if (CharCodeUnchecked(_pos + 2) == CharacterCodes.EqualsSign)
+                    {
+                        _pos += 3;
+                        return _token = SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken;
+                    }
+
+                    _pos += 2;
+                    return _token = SyntaxKind.GreaterThanGreaterThanGreaterThanToken;
+                }
+
+                if (CharCodeUnchecked(_pos + 1) == CharacterCodes.EqualsSign)
+                {
+                    _pos += 2;
+                    return _token = SyntaxKind.GreaterThanGreaterThanEqualsToken;
+                }
+
+                _pos++;
+                return _token = SyntaxKind.GreaterThanGreaterThanToken;
+            }
+
+            if (CharCodeUnchecked(_pos) == CharacterCodes.EqualsSign)
+            {
+                _pos++;
+                return _token = SyntaxKind.GreaterThanEqualsToken;
+            }
+        }
+
+        return _token;
+    }
+
+    // ported from: src/compiler/scanner.ts:2461-2465
+    public SyntaxKind ReScanAsteriskEqualsToken()
+    {
+        Debug.Assert(_token == SyntaxKind.AsteriskEqualsToken, "'reScanAsteriskEqualsToken' should only be called on a '*='");
+        _pos = _tokenStart + 1;
+        return _token = SyntaxKind.EqualsToken;
+    }
+
+    // ported from: src/compiler/scanner.ts:3655-3661
+    /// <summary>Unconditionally backs up and scans a template expression portion.</summary>
+    public SyntaxKind ReScanTemplateToken(bool isTaggedTemplate)
+    {
+        _pos = _tokenStart;
+        return _token = ScanTemplateAndSetTokenValue(!isTaggedTemplate);
+    }
+
+    // ported from: src/compiler/scanner.ts:3663-3666
+    public SyntaxKind ReScanTemplateHeadOrNoSubstitutionTemplate()
+    {
+        _pos = _tokenStart;
+        return _token = ScanTemplateAndSetTokenValue(shouldEmitInvalidEscapeError: true);
+    }
+
+    // ported from: src/compiler/scanner.ts:3668-3671
+    public SyntaxKind ReScanJsxToken(bool allowMultilineJsxText = true)
+    {
+        _pos = _tokenStart = _fullStartPos;
+        return _token = ScanJsxToken(allowMultilineJsxText);
+    }
+
+    // ported from: src/compiler/scanner.ts:3673-3679
+    public SyntaxKind ReScanLessThanToken()
+    {
+        if (_token == SyntaxKind.LessThanLessThanToken)
+        {
+            _pos = _tokenStart + 1;
+            return _token = SyntaxKind.LessThanToken;
+        }
+
+        return _token;
+    }
+
+    // ported from: src/compiler/scanner.ts:3681-3687
+    public SyntaxKind ReScanHashToken()
+    {
+        if (_token == SyntaxKind.PrivateIdentifier)
+        {
+            _pos = _tokenStart + 1;
+            return _token = SyntaxKind.HashToken;
+        }
+
+        return _token;
+    }
+
+    // ported from: src/compiler/scanner.ts:3689-3693
+    public SyntaxKind ReScanQuestionToken()
+    {
+        Debug.Assert(_token == SyntaxKind.QuestionQuestionToken, "'reScanQuestionToken' should only be called on a '??'");
+        _pos = _tokenStart + 1;
+        return _token = SyntaxKind.QuestionToken;
+    }
+
+    // ---- JSX (scanner.ts:3695-3811). ----
+
+    // ported from: src/compiler/scanner.ts:3695-3766
+    public SyntaxKind ScanJsxToken(bool allowMultilineJsxText = true)
+    {
+        _fullStartPos = _tokenStart = _pos;
+
+        if (_pos >= _end) return _token = SyntaxKind.EndOfFileToken;
+
+        var charCode = CharCodeUnchecked(_pos);
+        if (charCode == CharacterCodes.LessThan)
+        {
+            if (CharCodeUnchecked(_pos + 1) == CharacterCodes.Slash)
+            {
+                _pos += 2;
+                return _token = SyntaxKind.LessThanSlashToken;
+            }
+
+            _pos++;
+            return _token = SyntaxKind.LessThanToken;
+        }
+
+        if (charCode == CharacterCodes.OpenBrace)
+        {
+            _pos++;
+            return _token = SyntaxKind.OpenBraceToken;
+        }
+
+        // First non-whitespace character on this line.
+        var firstNonWhitespace = 0;
+
+        // These initial values are special because the first line is: firstNonWhitespace = 0 to indicate that we
+        // want leading whitespace.
+        while (_pos < _end)
+        {
+            charCode = CharCodeUnchecked(_pos);
+            if (charCode == CharacterCodes.OpenBrace) break;
+
+            if (charCode == CharacterCodes.LessThan)
+            {
+                if (ScannerUtilities.IsConflictMarkerTrivia(_text, _pos))
+                {
+                    _pos = ScannerUtilities.ScanConflictMarkerTrivia(
+                        _text,
+                        _pos,
+                        (message, errPos, length) => Error(message, errPos, length));
+                    return _token = SyntaxKind.ConflictMarkerTrivia;
+                }
+
+                break;
+            }
+
+            if (charCode == CharacterCodes.GreaterThan) Error(Diagnostics.Unexpected_token_Did_you_mean_or_gt, _pos, 1);
+            if (charCode == CharacterCodes.CloseBrace) Error(Diagnostics.Unexpected_token_Did_you_mean_or_rbrace, _pos, 1);
+
+            // firstNonWhitespace is 0 when only whitespace has been seen so far; a line break then makes us ignore
+            // that whitespace, so `<div>----\n</div>` becomes `<div></div>` while `<div>----</div>` keeps its text.
+            if (ScannerUtilities.IsLineBreak(charCode) && firstNonWhitespace == 0)
+            {
+                firstNonWhitespace = -1;
+            }
+            else if (!allowMultilineJsxText && ScannerUtilities.IsLineBreak(charCode) && firstNonWhitespace > 0)
+            {
+                // Stop JsxText on each line during formatting, so the formatter can indent each line.
+                break;
+            }
+            else if (!ScannerUtilities.IsWhiteSpaceLike(charCode))
+            {
+                firstNonWhitespace = _pos;
+            }
+
+            _pos++;
+        }
+
+        _tokenValue = _text[_fullStartPos.._pos];
+
+        return firstNonWhitespace == -1 ? SyntaxKind.JsxTextAllWhiteSpaces : SyntaxKind.JsxText;
+    }
+
+    // ported from: src/compiler/scanner.ts:3768-3792
+    /// <summary>Scans a JSX identifier, which — unlike a normal one — may contain dashes.</summary>
+    public SyntaxKind ScanJsxIdentifier()
+    {
+        if (ScannerUtilities.TokenIsIdentifierOrKeyword(_token))
+        {
+            // An identifier or keyword has already been parsed: check for a `-` or a single `:` and then append it
+            // and everything after it to the token. Note that this effectively *mutates* the visible token without
+            // advancing to a new one, so a caller should only read the position or token value afterwards.
+            while (_pos < _end)
+            {
+                var ch = CharCodeUnchecked(_pos);
+                if (ch == CharacterCodes.Minus)
+                {
+                    _tokenValue += "-";
+                    _pos++;
+                    continue;
+                }
+
+                var oldPos = _pos;
+                _tokenValue += ScanIdentifierParts(); // reuse scanIdentifierParts so unicode escapes are handled
+                if (_pos == oldPos) break;
+            }
+
+            return GetIdentifierToken();
+        }
+
+        return _token;
+    }
+
+    // ported from: src/compiler/scanner.ts:3794-3806
+    public SyntaxKind ScanJsxAttributeValue()
+    {
+        _fullStartPos = _pos;
+
+        switch (CharCodeUnchecked(_pos))
+        {
+            case CharacterCodes.DoubleQuote:
+            case CharacterCodes.SingleQuote:
+                _tokenValue = ScanString(jsxAttributeString: true);
+                return _token = SyntaxKind.StringLiteral;
+            default:
+                // If this scans anything other than `{`, it's a parse error.
+                return Scan();
+        }
+    }
+
+    // ported from: src/compiler/scanner.ts:3808-3811
+    public SyntaxKind ReScanJsxAttributeValue()
+    {
+        _pos = _tokenStart = _fullStartPos;
+        return ScanJsxAttributeValue();
+    }
+
+    // ---- JSDoc (scanner.ts:3813-3928). ----
+
+    // ported from: src/compiler/scanner.ts:3813-3839
+    public SyntaxKind ScanJSDocCommentTextToken(bool inBackticks)
+    {
+        _fullStartPos = _tokenStart = _pos;
+        _tokenFlags = TokenFlags.None;
+        if (_pos >= _end) return _token = SyntaxKind.EndOfFileToken;
+
+        for (var ch = CharCodeUnchecked(_pos);
+            _pos < _end && !ScannerUtilities.IsLineBreak(ch) && ch != CharacterCodes.Backtick;
+            ch = CodePointUnchecked(++_pos))
+        {
+            if (inBackticks) continue;
+
+            if (ch == CharacterCodes.OpenBrace) break;
+
+            if (ch == CharacterCodes.At &&
+                _pos - 1 >= 0 && ScannerUtilities.IsWhiteSpaceSingleLine(CharCodeUnchecked(_pos - 1)) &&
+                !(_pos + 1 < _end && ScannerUtilities.IsWhiteSpaceLike(CharCodeUnchecked(_pos + 1))))
+            {
+                // @ doesn't start a new tag inside ``, and elsewhere only after whitespace and before non-whitespace
+                break;
+            }
+        }
+
+        if (_pos == _tokenStart) return ScanJsDocToken();
+
+        _tokenValue = _text[_tokenStart.._pos];
+        return _token = SyntaxKind.JSDocCommentTextToken;
+    }
+
+    // ported from: src/compiler/scanner.ts:3841-3928
+    public SyntaxKind ScanJsDocToken()
+    {
+        _fullStartPos = _tokenStart = _pos;
+        _tokenFlags = TokenFlags.None;
+        if (_pos >= _end) return _token = SyntaxKind.EndOfFileToken;
+
+        var ch = CodePointUnchecked(_pos);
+        _pos += ScannerUtilities.CharSize(ch);
+        switch (ch)
+        {
+            case CharacterCodes.Tab:
+            case CharacterCodes.VerticalTab:
+            case CharacterCodes.FormFeed:
+            case CharacterCodes.Space:
+                while (_pos < _end && ScannerUtilities.IsWhiteSpaceSingleLine(CharCodeUnchecked(_pos))) _pos++;
+                return _token = SyntaxKind.WhitespaceTrivia;
+
+            case CharacterCodes.At:
+                return _token = SyntaxKind.AtToken;
+
+            case CharacterCodes.CarriageReturn:
+                if (CharCodeUnchecked(_pos) == CharacterCodes.LineFeed) _pos++;
+                goto case CharacterCodes.LineFeed;
+
+            case CharacterCodes.LineFeed:
+                _tokenFlags |= TokenFlags.PrecedingLineBreak;
+                return _token = SyntaxKind.NewLineTrivia;
+
+            case CharacterCodes.Asterisk: return _token = SyntaxKind.AsteriskToken;
+            case CharacterCodes.OpenBrace: return _token = SyntaxKind.OpenBraceToken;
+            case CharacterCodes.CloseBrace: return _token = SyntaxKind.CloseBraceToken;
+            case CharacterCodes.OpenBracket: return _token = SyntaxKind.OpenBracketToken;
+            case CharacterCodes.CloseBracket: return _token = SyntaxKind.CloseBracketToken;
+            case CharacterCodes.OpenParen: return _token = SyntaxKind.OpenParenToken;
+            case CharacterCodes.CloseParen: return _token = SyntaxKind.CloseParenToken;
+            case CharacterCodes.LessThan: return _token = SyntaxKind.LessThanToken;
+            case CharacterCodes.GreaterThan: return _token = SyntaxKind.GreaterThanToken;
+            case CharacterCodes.EqualsSign: return _token = SyntaxKind.EqualsToken;
+            case CharacterCodes.Comma: return _token = SyntaxKind.CommaToken;
+            case CharacterCodes.Dot: return _token = SyntaxKind.DotToken;
+            case CharacterCodes.Backtick: return _token = SyntaxKind.BacktickToken;
+            case CharacterCodes.Hash: return _token = SyntaxKind.HashToken;
+
+            case CharacterCodes.Backslash:
+            {
+                _pos--;
+                var extendedCookedChar = PeekExtendedUnicodeEscape();
+                if (extendedCookedChar >= 0 && ScannerUtilities.IsIdentifierStart(extendedCookedChar, _languageVersion))
+                {
+                    _tokenValue = ScanExtendedUnicodeEscape(shouldEmitInvalidEscapeError: true) + ScanIdentifierParts();
+                    return _token = GetIdentifierToken();
+                }
+
+                var cookedChar = PeekUnicodeEscape();
+                if (cookedChar >= 0 && ScannerUtilities.IsIdentifierStart(cookedChar, _languageVersion))
+                {
+                    _pos += 6;
+                    _tokenFlags |= TokenFlags.UnicodeEscape;
+                    _tokenValue = ((char)cookedChar).ToString() + ScanIdentifierParts();
+                    return _token = GetIdentifierToken();
+                }
+
+                _pos++;
+                return _token = SyntaxKind.Unknown;
+            }
+        }
+
+        if (ScannerUtilities.IsIdentifierStart(ch, _languageVersion))
+        {
+            var charCode = ch;
+            while (_pos < _end &&
+                (ScannerUtilities.IsIdentifierPart(charCode = CodePointUnchecked(_pos), _languageVersion) ||
+                    charCode == CharacterCodes.Minus))
+            {
+                _pos += ScannerUtilities.CharSize(charCode);
+            }
+
+            _tokenValue = _text[_tokenStart.._pos];
+            if (charCode == CharacterCodes.Backslash) _tokenValue += ScanIdentifierParts();
+            return _token = GetIdentifierToken();
+        }
+
+        return _token = SyntaxKind.Unknown;
+    }
+
+    // ---- Speculation (scanner.ts:3930-3983). ----
+
+    // ported from: src/compiler/scanner.ts:3930-3950
+    private T SpeculationHelper<T>(Func<T> callback, bool isLookahead)
+    {
+        var savePos = _pos;
+        var saveStartPos = _fullStartPos;
+        var saveTokenPos = _tokenStart;
+        var saveToken = _token;
+        var saveTokenValue = _tokenValue;
+        var saveTokenFlags = _tokenFlags;
+        var result = callback();
+
+        // If the callback returned something falsy, or we are just looking ahead, restore unconditionally. TS writes
+        // `!result`; with an unconstrained T the closest equivalent is "is the default" (see IterateCommentRanges).
+        if (System.Collections.Generic.EqualityComparer<T>.Default.Equals(result, default!) || isLookahead)
+        {
+            _pos = savePos;
+            _fullStartPos = saveStartPos;
+            _tokenStart = saveTokenPos;
+            _token = saveToken;
+            _tokenValue = saveTokenValue;
+            _tokenFlags = saveTokenFlags;
+        }
+
+        return result;
+    }
+
+    // ported from: src/compiler/scanner.ts:3952-3975
+    /// <summary>Runs <paramref name="callback"/> against a sub-range of the text, then restores the scanner.
+    /// </summary>
+    public T ScanRange<T>(int start, int length, Func<T> callback)
+    {
+        var saveEnd = _end;
+        var savePos = _pos;
+        var saveStartPos = _fullStartPos;
+        var saveTokenPos = _tokenStart;
+        var saveToken = _token;
+        var saveTokenValue = _tokenValue;
+        var saveTokenFlags = _tokenFlags;
+        var saveCommentDirectives = _commentDirectives;
+
+        SetText(_text, start, length);
+        var result = callback();
+
+        _end = saveEnd;
+        _pos = savePos;
+        _fullStartPos = saveStartPos;
+        _tokenStart = saveTokenPos;
+        _token = saveToken;
+        _tokenValue = saveTokenValue;
+        _tokenFlags = saveTokenFlags;
+        _commentDirectives = saveCommentDirectives;
+
+        return result;
+    }
+
+    // ported from: src/compiler/scanner.ts:3977-3979
+    /// <summary>Runs the callback and always restores the scanner afterwards.</summary>
+    public T LookAhead<T>(Func<T> callback) => SpeculationHelper(callback, isLookahead: true);
+
+    // ported from: src/compiler/scanner.ts:3981-3983
+    /// <summary>Runs the callback, restoring the scanner only when it came back empty.</summary>
+    public T TryScan<T>(Func<T> callback) => SpeculationHelper(callback, isLookahead: false);
 }
