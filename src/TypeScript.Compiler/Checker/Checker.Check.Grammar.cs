@@ -2556,13 +2556,30 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:53396-53454 — <c>checkGrammarProperty</c>.</summary>
     /// <remarks>PORT-NOTE: TS's parameter is <c>PropertyDeclaration | PropertySignature</c>; the port takes
     /// <see cref="Node"/>, reads <c>name</c>/<c>questionToken</c> off the class the kind selects, and asserts the
-    /// <c>PropertySignature</c> arm with <c>Debug.AssertNode</c> exactly as the reference does.</remarks>
+    /// <c>PropertySignature</c> arm with <c>Debug.AssertNode</c> exactly as the reference does.
+    /// PORT-NOTE: TS's <c>node.parent.members[0]</c> (checker.ts:53398) reads whatever parent its guard admitted, and
+    /// the two parameter types admit three faces — <c>ClassLikeDeclaration</c> for <c>PropertyDeclaration</c>
+    /// (types.ts:1934) and <c>TypeLiteralNode | InterfaceDeclaration</c> for <c>PropertySignature</c> (types.ts:1921) —
+    /// so no one of them can carry the read, though all three declare <c>members</c>. The parser also hangs trailing
+    /// members off the <c>MappedTypeNode</c> it builds for a mapped type (parser.ts:4433, types.ts:2353), whose own
+    /// members <c>checkGrammarMappedType</c> reports (checker.ts:42979-42983). The port's faces name two different list
+    /// types (<c>IClassElement</c> against <c>ITypeElement</c>), so the read is a pattern over the five concrete
+    /// declarations instead of a cast to one of them; the reported node and diagnostic are unchanged.</remarks>
     internal bool CheckGrammarProperty(Node node)
     {
         var name = ((INamedDeclaration)node).Name!;
         if (name.Kind == SyntaxKind.ComputedPropertyName && ((ComputedPropertyName)name).Expression!.Kind == SyntaxKind.BinaryExpression && ((BinaryExpression)((ComputedPropertyName)name).Expression!).OperatorToken!.Kind == SyntaxKind.InKeyword)
         {
-            return GrammarErrorOnNode((Node)((TypeLiteralNode)node.Parent!).Members![0], Diagnostics.A_mapped_type_may_not_declare_properties_or_methods);
+            var firstMember = node.Parent switch
+            {
+                ClassDeclaration declaration => (Node)declaration.Members![0],
+                ClassExpression declaration => (Node)declaration.Members![0],
+                InterfaceDeclaration declaration => (Node)declaration.Members![0],
+                TypeLiteralNode declaration => (Node)declaration.Members![0],
+                MappedTypeNode declaration => (Node)declaration.Members![0],
+                _ => Debug.Fail<Node>($"CheckGrammarProperty: an 'in' name's parent is {node.Parent!.Kind}"),
+            };
+            return GrammarErrorOnNode(firstMember, Diagnostics.A_mapped_type_may_not_declare_properties_or_methods);
         }
         if (Utilities.IsClassLike(node.Parent!))
         {

@@ -473,10 +473,14 @@ internal sealed partial class Checker
         if (NodeTests.IsBindingElement(node))
         {
             var bindingElement = (BindingElement)node;
+            // PORT-NOTE: the same absent-slot read as the parameter arm above — the reference's
+            // `(getContainingFunction(node) as FunctionLikeDeclaration).body` (checker.ts:45100-45104) yields
+            // `undefined` for a containing signature that has no body (call/construct/method signature, function type),
+            // which `nodeIsMissing` reports as missing; C# needs the safe cast and `?.Body` to state that.
             if (bindingElement.PropertyName is not null
                 && NodeTests.IsIdentifier(nodeName)
                 && Utilities.IsPartOfParameterDeclaration(node)
-                && Utilities.NodeIsMissing(((IFunctionLikeDeclarationBase)Utilities.GetContainingFunction(node)!).Body))
+                && Utilities.NodeIsMissing((Utilities.GetContainingFunction(node) as IFunctionLikeDeclarationBase)?.Body))
             {
                 // type F = ({a: string}) => void;
                 //               ^^^^^^
@@ -537,7 +541,12 @@ internal sealed partial class Checker
             }
         }
         // For a parameter declaration with an initializer, error and exit if the containing function doesn't have a body
-        if (nodeInitializer is not null && Utilities.IsPartOfParameterDeclaration(node) && Utilities.NodeIsMissing(((IFunctionLikeDeclarationBase)Utilities.GetContainingFunction(node)!).Body))
+        // PORT-NOTE: `as` is C#'s safe cast, and that is exactly what the reference's `(getContainingFunction(node) as
+        // FunctionLikeDeclaration)` is. For a containing signature with no body slot (call/construct/index signature,
+        // function type) an *unchecked* cast throws in C# where TS's read yields `undefined`, which `nodeIsMissing`
+        // reports as missing (utilities.ts:1079-1085); `?.Body` states that absent-slot read.
+        if (nodeInitializer is not null && Utilities.IsPartOfParameterDeclaration(node)
+            && Utilities.NodeIsMissing((Utilities.GetContainingFunction(node) as IFunctionLikeDeclarationBase)?.Body))
         {
             Error(node, Diagnostics.A_parameter_initializer_is_only_allowed_in_a_function_or_constructor_implementation);
             return;
@@ -551,13 +560,15 @@ internal sealed partial class Checker
             }
             var needCheckInitializer = Utilities.HasOnlyExpressionInitializer(node) && nodeInitializer is not null && node.Parent!.Parent!.Kind != SyntaxKind.ForInStatement;
             // PORT-NOTE: the reference's !some(node.name.elements, not(isOmittedExpression)); the two binding-pattern
-            // classes share no IList<Node> face in the model, so the port walks the same list instead.
-            var needCheckWidenedType = false;
+            // classes share no IList<Node> face in the model, so the port walks the same list instead. The predicate is
+            // true when *no* element is a real one (the pattern is empty or all holes), so it starts true and the first
+            // non-omitted element clears it — the reference's leading `!`.
+            var needCheckWidenedType = true;
             foreach (var element in ElementsOfBindingPattern(nodeName)!)
             {
                 if (!NodeTests.IsOmittedExpression(element))
                 {
-                    needCheckWidenedType = true;
+                    needCheckWidenedType = false;
                     break;
                 }
             }

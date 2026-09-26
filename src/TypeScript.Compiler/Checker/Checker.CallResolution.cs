@@ -81,7 +81,7 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:35573-35595 — <c>resolveUntypedCall</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: <c>forEach(node.typeArguments, checkSourceElement)</c> reads the union slot through the guard above;
-    /// the port spells the same narrowing as a switch over the four arms <c>callLikeExpressionMayHaveTypeArguments</c>
+    /// the port spells the same narrowing as a switch over the five arms <c>callLikeExpressionMayHaveTypeArguments</c>
     /// admits, and the <c>argument =&gt; checkExpression(argument)</c> callback keeps <see cref="Core.ForEach"/>'s
     /// callback shape.
     /// </remarks>
@@ -3307,15 +3307,24 @@ internal sealed partial class Checker
     // The union slots this file reads through a kind guard
     // ---------------------------------------------------------------------------------------------
 
-    /// <summary>ported from: src/compiler/checker.ts:35574, :36334, :36909 and :36956 — the <c>node.typeArguments</c> reads.</summary>
+    /// <summary>ported from: src/compiler/checker.ts:35577, :36578, :36755, :36960 and :37552-:37554 — the <c>node.typeArguments</c> reads.</summary>
     /// <remarks>
     /// PORT-NOTE: this accessor has no reference counterpart. TS reads <c>node.typeArguments</c> off the
     /// <c>CallLikeExpression</c> union, whose object types answer the slot structurally; the port's node classes
-    /// declare it on four separate classes and the union has no capability interface (see the class remarks), so the
-    /// reference's reads — <c>resolveUntypedCall</c> (:35574), <c>resolveCall</c> (:36334 and the
-    /// <c>candidateForTypeArgumentError</c> branch at :36909) and <c>pickLongestCandidateSignature</c> (:36956,
-    /// through <c>callLikeExpressionMayHaveTypeArguments</c>) — go through this switch. It answers the arm's own array
-    /// (no copy) and <c>null</c> where the reference sees <c>undefined</c>.
+    /// declare it on five separate classes and the union has no capability interface (see the class remarks), so the
+    /// reference's reads — <c>resolveUntypedCall</c> (:35577), <c>resolveCall</c> (:36578 and the
+    /// <c>candidateForTypeArgumentError</c> branch at :36755), <c>pickLongestCandidateSignature</c> (:36960, through
+    /// <c>callLikeExpressionMayHaveTypeArguments</c>) and <c>resolveJsxOpeningLikeElement</c> (:37552-:37554) — go
+    /// through this switch. It answers the arm's own array (no copy) and <c>null</c> where the reference sees
+    /// <c>undefined</c>.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: <c>JsxSelfClosingElement.typeArguments</c> is types.ts:3250's own slot, and every reference read above
+    /// reaches it: <c>callLikeExpressionMayHaveTypeArguments</c> (:35569-35571) admits the kind through
+    /// <c>isJsxOpeningLikeElement</c> (the guard's type predicate names only <c>JsxOpeningElement</c> — a
+    /// declaration-vs-body mismatch in the reference, and the body is what runs), the :36755 cast's
+    /// <c>JsxOpeningLikeElement</c> is types.ts:3199-3201's two-element union, and <c>resolveJsxOpeningLikeElement</c>
+    /// takes <c>JsxCallLike</c>. So the self-closing arm belongs to the mapping, not to a port-only extra.
     /// </remarks>
     internal static NodeArray<ITypeNode>? TypeArgumentsOfUnion(Node node) => node switch
     {
@@ -3323,6 +3332,7 @@ internal sealed partial class Checker
         NewExpression @new => @new.TypeArguments,
         TaggedTemplateExpression tagged => tagged.TypeArguments,
         JsxOpeningElement jsx => jsx.TypeArguments,
+        JsxSelfClosingElement jsx => jsx.TypeArguments,
         _ => null,
     };
 

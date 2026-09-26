@@ -2710,7 +2710,11 @@ internal sealed partial class Checker
         }
         // Cached contextual types are obtained with no ContextFlags, so we can only consult them for
         // requests with no ContextFlags.
-        var index = FindContextualNode(node, /*includeCaches*/ contextFlags is null);
+        // PORT-NOTE: the reference's guard is `!contextFlags` (checker.ts:32788), a *falsy* test: it is true for the
+        // absent flags and for `ContextFlags.None` (0), which callers such as `isConstContext` (checker.ts:41491)
+        // pass explicitly. The port's nullable enum cannot express that with `is null` alone — `None` would skip the
+        // cache and recompute the binding pattern's type — so the zero member is spelled out.
+        var index = FindContextualNode(node, /*includeCaches*/ contextFlags is null || contextFlags == ContextFlags.None);
         if (index >= 0)
         {
             return _contextualTypes[index];
@@ -2878,7 +2882,7 @@ internal sealed partial class Checker
     {
         if (NodeTests.IsJsxOpeningElement(node) && contextFlags != ContextFlags.IgnoreNodeInferences)
         {
-            var index = FindContextualNode(node.Parent!, /*includeCaches*/ contextFlags is null);
+            var index = FindContextualNode(node.Parent!, /*includeCaches*/ contextFlags is null || contextFlags == ContextFlags.None);
             if (index >= 0)
             {
                 // Contextually applied type is moved from attributes up to the outer jsx attributes so when walking up from the children they get hit
@@ -9444,6 +9448,12 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:35083-35113 — <c>checkPropertyNotUsedBeforeDeclaration</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>isAccessExpression(node.expression)</c> guard (checker.ts:35094) reads the access
+    /// expression's operand after the first <c>isAccessExpression(node)</c> established the kind; C# cannot narrow
+    /// through that predicate, so the port reads the same slot through the union read
+    /// <see cref="GetAccessExpressionOperand"/>, as <see cref="GetFlowTypeOfAccessExpression"/> does.
+    /// </remarks>
     private void CheckPropertyNotUsedBeforeDeclaration(ISymbol prop, Node node, Node right)
     {
         var valueDeclaration = prop.ValueDeclaration;
@@ -9458,7 +9468,7 @@ internal sealed partial class Checker
         if (
             IsInPropertyInitializerOrClassStaticBlock(node)
             && !IsOptionalPropertyDeclaration(valueDeclarationNode)
-            && !(Utilities.IsAccessExpression(node) && Utilities.IsAccessExpression(node.Parent!))
+            && !(Utilities.IsAccessExpression(node) && Utilities.IsAccessExpression(GetAccessExpressionOperand(node)))
             && !IsBlockScopedNameDeclaredBeforeUse(valueDeclaration, right)
             && !(NodeTests.IsMethodDeclaration(valueDeclarationNode) && (GetCombinedModifierFlagsCached(valueDeclaration) & ModifierFlags.Static) != 0)
             && (Js.IsTruthy(_useDefineForClassFields) || !IsPropertyDeclaredInAncestorClass(prop))

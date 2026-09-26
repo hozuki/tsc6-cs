@@ -1594,10 +1594,12 @@ internal sealed class EvaluatorResultValue<T> : IEvaluatorResult<T>
     /// <remarks>
     /// PORT-NOTE: not an entry of the assignment, but <c>isTypeOnlyImportOrExportDeclaration</c> is defined in terms
     /// of it and no file declares it. The reference's <c>ImportSpecifier</c> arm reads
-    /// <c>node.parent.parent.phaseModifier</c>, i.e. <c>ImportDeclaration.phaseModifier</c>, which the generated model
-    /// does not carry (<c>Model/NodeClasses.cs</c> declares <c>PhaseModifier</c> on <c>ImportClause</c> alone); the arm
-    /// therefore reads the <c>ImportClause</c>'s slot, which the parser fills from the same `type` token
-    /// (<c>NodeFactory.cs:1892</c>). The other two arms are the reference's, verbatim.
+    /// <c>node.parent.parent.phaseModifier</c>, whose parent chain is <c>NamedImports</c> → <c>ImportClause</c>
+    /// (types.ts:3790-3794 — <c>NamedImports.parent</c> is the clause, not the import declaration — and
+    /// types.ts:3724 declares that clause's <c>phaseModifier</c>), i.e. the <c>ImportClause</c>'s slot, which the
+    /// generated model carries and the parser fills from the same <c>type</c> token (<c>NodeFactory.cs:1892</c>); the
+    /// arm reads that same clause through the <c>ImportClause</c> face. The other two arms are the reference's,
+    /// verbatim.
     /// </remarks>
     public static bool IsTypeOnlyImportDeclaration(Node node)
     {
@@ -1605,7 +1607,7 @@ internal sealed class EvaluatorResultValue<T> : IEvaluatorResult<T>
         {
             case SyntaxKind.ImportSpecifier:
                 return ((ImportSpecifier)node).IsTypeOnly
-                    || (((ImportSpecifier)node).Parent!.Parent as ImportDeclaration)?.ImportClause?.PhaseModifier == SyntaxKind.TypeKeyword;
+                    || ((ImportClause)((ImportSpecifier)node).Parent!.Parent!).PhaseModifier == SyntaxKind.TypeKeyword;
             case SyntaxKind.NamespaceImport:
                 return ((ImportClause)((NamespaceImport)node).Parent!).PhaseModifier == SyntaxKind.TypeKeyword;
             case SyntaxKind.ImportClause:

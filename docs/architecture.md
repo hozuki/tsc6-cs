@@ -1518,6 +1518,28 @@ printer 门控的 `TypeToString`/`SymbolToString`/`SignatureToString`/`TypePredi
 
 (c) 的 2,197 条崩溃里，按异常类型仍是 `TypeToString` 1,617 / `SymbolToString` 460 / `syntacticNodeBuilder` 114，另有 **6 条 `InvalidCastException`**（非门控，是这次才跑到的新现场，须逐条修）；按首崩机制，(b) 时实测的 `DiagnosticCollection.Add` 平局读文本仍然是主导（前提 1 与参考自己的比较器相撞，M7 才能解除）。
 
+### M6-late 第六轮：A″ 解锁出的真缺陷（8 个切片）与收敛边界
+
+**同一命令全语料 5,908 文件：`same=3637 diverged=80 port-crash=2191`（(c) 为 3551/160/2197）。** 构成：**69 条 id-only 类型分歧全部消失**；**80/80 条分歧都是"M7 printer 门控"**（单侧 `=!`，全部 `NotSupportedException`）；**2,191/2,191 条崩溃都是门控**（`TypeToString` 1,620 / `SymbolToString` 460 / `syntacticNodeBuilder` 111）——**非门控分歧与崩溃均为 0**，即 M6 的收敛已到达 M7 边界，工作树内不再剩可修项（除下面两项需显式裁定的选项）。零回归：build 0/0、测试 **1,049/1,049**、`AstDiff` **19,585/19,585**、`BindDiff` **19,233 文件 / same 19,230 / diverged 0 / port-crash 0**（余 3 条 `ts-error` 是参考自身栈溢出，与 §15.16 基线一致）。
+
+| # | 缺陷（端口 vs 参考） | 参考依据 | 效果 |
+|---|---|---|---|
+| 1 | `needCheckWidenedType` 掉了参考的前导 `!`：`!some(elements, not(isOmittedExpression))` 被译成 `some(...)`（谓词整个反转） | checker.ts:45139 | 解构组 16 文件：缺 `2322`/`2532`，且空模式不再在检查期计算模式类型 ⇒ 缺 `2318`（`Iterable`） |
+| 2 | `StructuredTypeRelatedToWorker` 把参考的三项**析取**折成一个 `sourceFlags & (…)` 掩码：第二项丢掉 `&& targetFlags & Union`，第三项因 `TypeFlags.Intersection` 不在 `Object\|Union\|Instantiable` 掩码内而在 C# 里恒为 0 | checker.ts:23621-23627 | 语义 + 类型 id（少建 `getTypeWithThisArgument`/`getIntersectionType`） |
+| 3 | `GetContextualType` / `GetContextualJsxElementAttributesType` 把参考的 falsy `!contextFlags` 写成 `contextFlags is null`，漏掉显式传入的 `ContextFlags.None`(0) ⇒ 缓存失效、重复创建类型 | checker.ts:32788 / :32949 | 类型 id（每个字面量多建 2-3 个类型） |
+| 4 | `IsTypeOnlyImportDeclaration` 的 `ImportSpecifier` 支多走一层父链（读 `ImportDeclaration.ImportClause`），而参考是 `specifier.parent.parent`＝`NamedImports.parent`＝`ImportClause` | utilitiesPublic.ts:1536-1548 + types.ts:3790-3794 | `externalModules/typeOnly/*` 4 文件缺 `1361` |
+| 5 | `TypeArgumentsOfUnion` 少 `JsxSelfClosingElement` 支（参考 5 支、端口 4 支）⇒ 自闭合 JSX 的类型实参丢失、签名实例化全部命中同一 memo | types.ts:3250 + checker.ts:35569-35571 / :36755 | `tsxTypeArgumentsJsxPreserveOutput` 记录错位 |
+| 6 | 三处 unchecked 强转：参数属性→`PropertyDeclaration`（checker.ts:3166 的并集）、`node.Parent`→`TypeLiteralNode`（:53398）、`GetContainingFunction`→`IFunctionLikeDeclarationBase`（:45100-45104 / :45129 读无 `body` 的签名） | 见左 | 6 条 `InvalidCastException` + 1 处潜在现场，全部改为安全形状后归零 |
+| 7 | `CheckPropertyNotUsedBeforeDeclaration` 的第三个 guard 读错槽位：端口读 `IsAccessExpression(node.Parent!)`，参考是 `isAccessExpression(node.expression)`（checker.ts:35094）⇒ 整个 `2729` 分支被跳过 | checker.ts:35094 | 语料最后一条真分歧 `initializationOrdering1.ts` 回到 same |
+| 8 | `InitializerOfNode` 的并集（前一轮已修，见上） | checker.ts:11942 + types.ts:1287-1291 | same +248 / crash −210 |
+
+**两项有意不落地的选项（留给下一次显式裁定，均有实测）：**
+
+1. `Utilities.DiagnosticsEqualityComparer`（`Utilities/Utilities.Diagnostics.cs:321-332`）在入口处 hoist 了两次 `GetDiagnosticMessage`，因此**每次插入非空诊断集合都会强制格式化消息文本**；把它们移到 file/start/length/code 四项比较之后（谓词可证不变——文本只在四项全等时才参与判断）可让 `callSignaturesWithParameterInitializers{,_2}.ts` 由崩溃转为 `same`。但 `utilities.ts:8917-8926` 正是 §15.16 前提 4 指名的"平局读取点"，参考自己也在入口 hoist（那里文本是普通字符串，端口是 A′ 的惰性 getter），**移动它就是新偏差**，故未落地。
+2. `GetTypeNamesForErrorDisplay`（`Checker/Checker.Stringify.cs:576-586`）：参考返回前要**比较**两个渲染名并据此回退到全限定名，`ReportRelationError`（`Checker.Relations.Structured.cs:500`）还再比较一次 ⇒ 无法用实参级延迟消除，属 M7 边界（`types/mapped/*` 等多文件即因此崩溃）。
+
+**排障要点（写入纪律）：** 本轮出现过一次 `same=4781 / port-crash=558` 的"in-flight"读数，它是某个切片临时把门控改成不抛（`// TEMP-PRINTER-STUB`）的树上测得的，**不可用作进度**——任何测量都必须在工作树静止、`git diff tools/` 为空、无临时插桩时重跑（本轮最终读数即 (d)）。同理，`Take(24)` 这类为了取更深栈帧的一次性工具改动会改变工具输出，测量前必须确认已还原。
+
 ## 16. `const enum` 成员作类型：typed enum
 
 ### 16.1 TS 的两条路径

@@ -3703,7 +3703,7 @@ internal sealed partial class Checker
             else if (NodeTests.IsPropertyDeclaration((Node)declaration))
             {
                 // still might be illegal if a self-referencing property initializer (eg private x = this.x)
-                return !IsPropertyImmediatelyReferencedWithinDeclaration((PropertyDeclaration)declaration, usage, /*stopAtAnyPropertyDeclaration*/ false);
+                return !IsPropertyImmediatelyReferencedWithinDeclaration((Node)declaration, usage, /*stopAtAnyPropertyDeclaration*/ false);
             }
             else if (Utilities.IsParameterPropertyDeclaration((Node)declaration, ((Node)declaration).Parent!))
             {
@@ -3743,7 +3743,7 @@ internal sealed partial class Checker
                 && (NodeTests.IsPropertyDeclaration((Node)declaration) || Utilities.IsParameterPropertyDeclaration((Node)declaration, ((Node)declaration).Parent!))
             )
             {
-                return !IsPropertyImmediatelyReferencedWithinDeclaration((PropertyDeclaration)declaration, usage, /*stopAtAnyPropertyDeclaration*/ true);
+                return !IsPropertyImmediatelyReferencedWithinDeclaration((Node)declaration, usage, /*stopAtAnyPropertyDeclaration*/ true);
             }
             else
             {
@@ -3881,6 +3881,14 @@ internal sealed partial class Checker
     /// (a local function of <c>isBlockScopedNameDeclaredBeforeUse</c>).</summary>
     /// <remarks>
     /// <c>stopAtAnyPropertyDeclaration</c> is used for detecting ES-standard class field use-before-def errors.
+    /// <para>
+    /// PORT-NOTE: the reference types <c>declaration</c> as
+    /// <c>PropertyDeclaration | ParameterPropertyDeclaration</c> (checker.ts:3166) — the true-call site at
+    /// checker.ts:3081 enters with a constructor parameter property, so the union is load-bearing. C# cannot narrow
+    /// through <see cref="Utilities.IsParameterPropertyDeclaration"/>, so the port states the parameter as the
+    /// <c>Node</c> that both call sites already hold: the body reads only <c>usage.end > declaration.end</c>, the node
+    /// identity, and the two Node-level guards, so no <c>PropertyDeclaration</c> assertion is honest at the call.
+    /// </para>
     /// <para>
     /// PORT-NOTE: the reference's visitor answers <c>true | "quit" | false</c>, which is the port's quit-capable
     /// <c>FindAncestor</c> overload; the final <c>ancestorChangingReferenceScope === undefined</c> is that overload's

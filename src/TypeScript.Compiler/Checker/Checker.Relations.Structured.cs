@@ -1727,9 +1727,16 @@ internal sealed partial class Checker
                 // Source is an intersection, target is a union (e.g. { a } & { b: boolean } <=> { a, b: true } | { a, b: false }).
                 // Source is an intersection, target instantiable (e.g. string & { tag } <=> T["a"] constrained to string & { tag }).
                 if (
-                    (sourceFlags & (TypeFlags.Instantiable |
-                        TypeFlags.Object & targetFlags |
-                        TypeFlags.Intersection & (TypeFlags.Object | TypeFlags.Union | TypeFlags.Instantiable))) == 0
+                    // PORT-NOTE: the reference is the single negation of a three-way *disjunction*
+                    // (checker.ts:23621-23627). Folding the three cases into one `sourceFlags & (…)` mask cannot express
+                    // it: the second case tests `targetFlags & Union` and the third `targetFlags & (Object | Union |
+                    // Instantiable)`, neither of which is a mask on `sourceFlags` — C#'s `&` binding tighter than `|`
+                    // would also annihilate the third disjunct, since `TypeFlags.Intersection` is not one of the
+                    // `Object | Union | Instantiable` bits. The three tests are therefore spelled out separately, which
+                    // is the reference's `!(A || (B && C) || (D && E))` under De Morgan.
+                    (sourceFlags & TypeFlags.Instantiable) == 0
+                    && ((sourceFlags & TypeFlags.Object) == 0 || (targetFlags & TypeFlags.Union) == 0)
+                    && ((sourceFlags & TypeFlags.Intersection) == 0 || (targetFlags & (TypeFlags.Object | TypeFlags.Union | TypeFlags.Instantiable)) == 0)
                 )
                 {
                     return Ternary.False;
