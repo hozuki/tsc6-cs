@@ -1,6 +1,8 @@
+using System.Text.RegularExpressions;
+
 namespace TypeScript.Compiler;
 
-// ported from: src/compiler/scanner.ts:42-49, 358-638, 966-999, 4034-4072
+// ported from: src/compiler/scanner.ts:42-49, 358-638, 641-1000, 4034-4072
 /// <summary>
 /// The parts of <c>scanner.ts</c> that are not the scanner itself: spelling lookups, line/character arithmetic,
 /// character classification and identifier tests.
@@ -13,7 +15,7 @@ namespace TypeScript.Compiler;
 /// port's hand-written table is PascalCase (a M1 naming decision), so the constants below are spelled that way.
 /// </para>
 /// </remarks>
-internal static class ScannerUtilities
+internal static partial class ScannerUtilities
 {
     // ---------------------------------------------------------------------------------------------
     // Spelling lookups
@@ -402,6 +404,484 @@ internal static class ScannerUtilities
     /// code point, so the difference is not reachable.
     /// </remarks>
     public static string Utf16EncodeAsString(int codePoint) => char.ConvertFromUtf32(codePoint);
+
+    // ---------------------------------------------------------------------------------------------
+    // Trivia
+    // ---------------------------------------------------------------------------------------------
+
+    // ported from: src/compiler/utilities.ts:10265 — TS: `positionIsSynthesized`
+    /// <summary>Whether a position is not a real offset into the text.</summary>
+    /// <remarks>TS writes <c>!(pos &gt;= 0)</c>, which is also true for <c>undefined</c> and <c>NaN</c>; with an
+    /// <see cref="int"/> the negation covers only the negative case.</remarks>
+    public static bool PositionIsSynthesized(int pos) => !(pos >= 0);
+
+    // All conflict markers consist of the same character repeated seven times. If it is a <<<<<<< or >>>>>>>
+    // marker then it is also followed by a space.
+    /// <remarks>TS writes <c>"<<<<<<<".length</c>; a <c>string</c> member is not a constant expression in C#.</remarks>
+    private const int MergeConflictMarkerLength = 7;
+
+    // ported from: src/compiler/scanner.ts:641-734
+    /// <summary>
+    /// Skips trivia — white space, line breaks and comments — starting at <paramref name="pos"/>.
+    /// </summary>
+    /// <param name="stopAfterLineBreak">Stop as soon as a line break has been consumed (and its \n, when it was a
+    /// \r\n).</param>
+    /// <param name="stopAtComments">Stop at a comment instead of consuming it.</param>
+    /// <param name="inJSDoc">Whether a leading <c>*</c> counts as trivia.</param>
+    public static int SkipTrivia(
+        string text,
+        int pos,
+        bool stopAfterLineBreak = false,
+        bool stopAtComments = false,
+        bool inJSDoc = false)
+    {
+        if (PositionIsSynthesized(pos)) return pos;
+
+        var canConsumeStar = false;
+        // Keep in sync with CouldStartTrivia
+        while (true)
+        {
+            var ch = CharCodeAt(text, pos);
+            switch (ch)
+            {
+                case CharacterCodes.CarriageReturn:
+                    if (CharCodeAt(text, pos + 1) == CharacterCodes.LineFeed) pos++;
+                    goto case CharacterCodes.LineFeed;
+                case CharacterCodes.LineFeed:
+                    pos++;
+                    if (stopAfterLineBreak) return pos;
+                    canConsumeStar = inJSDoc;
+                    continue;
+                case CharacterCodes.Tab:
+                case CharacterCodes.VerticalTab:
+                case CharacterCodes.FormFeed:
+                case CharacterCodes.Space:
+                    pos++;
+                    continue;
+                case CharacterCodes.Slash:
+                    if (stopAtComments) break;
+                    if (CharCodeAt(text, pos + 1) == CharacterCodes.Slash)
+                    {
+                        pos += 2;
+                        while (pos < text.Length)
+                        {
+                            if (IsLineBreak(CharCodeAt(text, pos))) break;
+                            pos++;
+                        }
+
+                        canConsumeStar = false;
+                        continue;
+                    }
+
+                    if (CharCodeAt(text, pos + 1) == CharacterCodes.Asterisk)
+                    {
+                        pos += 2;
+                        while (pos < text.Length)
+                        {
+                            if (CharCodeAt(text, pos) == CharacterCodes.Asterisk &&
+                                CharCodeAt(text, pos + 1) == CharacterCodes.Slash)
+                            {
+                                pos += 2;
+                                break;
+                            }
+
+                            pos++;
+                        }
+
+                        canConsumeStar = false;
+                        continue;
+                    }
+
+                    break;
+
+                case CharacterCodes.LessThan:
+                case CharacterCodes.Bar:
+                case CharacterCodes.EqualsSign:
+                case CharacterCodes.GreaterThan:
+                    if (IsConflictMarkerTrivia(text, pos))
+                    {
+                        pos = ScanConflictMarkerTrivia(text, pos);
+                        canConsumeStar = false;
+                        continue;
+                    }
+
+                    break;
+
+                case CharacterCodes.Hash:
+                    if (pos == 0 && IsShebangTrivia(text, pos))
+                    {
+                        pos = ScanShebangTrivia(text, pos);
+                        canConsumeStar = false;
+                        continue;
+                    }
+
+                    break;
+
+                case CharacterCodes.Asterisk:
+                    if (canConsumeStar)
+                    {
+                        pos++;
+                        canConsumeStar = false;
+                        continue;
+                    }
+
+                    break;
+
+                default:
+                    if (ch > CharacterCodes.MaxAsciiCharacter && IsWhiteSpaceLike(ch))
+                    {
+                        pos++;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            return pos;
+        }
+    }
+
+    // ported from: src/compiler/scanner.ts:740-760
+    private static bool IsConflictMarkerTrivia(string text, int pos)
+    {
+        Debug.Assert(pos >= 0);
+
+        // Conflict markers must be at the start of a line.
+        if (pos == 0 || IsLineBreak(CharCodeAt(text, pos - 1)))
+        {
+            var ch = CharCodeAt(text, pos);
+
+            if (pos + MergeConflictMarkerLength < text.Length)
+            {
+                for (var i = 0; i < MergeConflictMarkerLength; i++)
+                {
+                    if (CharCodeAt(text, pos + i) != ch) return false;
+                }
+
+                return ch == CharacterCodes.EqualsSign ||
+                    CharCodeAt(text, pos + MergeConflictMarkerLength) == CharacterCodes.Space;
+            }
+        }
+
+        return false;
+    }
+
+    // ported from: src/compiler/scanner.ts:762-790
+    /// <summary>Consumes a merge-conflict marker, reporting it through <paramref name="error"/>.</summary>
+    private static int ScanConflictMarkerTrivia(
+        string text,
+        int pos,
+        Action<DiagnosticMessage, int?, int?>? error = null)
+    {
+        error?.Invoke(Diagnostics.Merge_conflict_marker_encountered, pos, MergeConflictMarkerLength);
+
+        var ch = CharCodeAt(text, pos);
+        var len = text.Length;
+
+        if (ch == CharacterCodes.LessThan || ch == CharacterCodes.GreaterThan)
+        {
+            while (pos < len && !IsLineBreak(CharCodeAt(text, pos))) pos++;
+        }
+        else
+        {
+            Debug.Assert(ch == CharacterCodes.Bar || ch == CharacterCodes.EqualsSign);
+            // Consume everything from the start of a ||||||| or ======= marker to the start of the next
+            // ======= or >>>>>>> marker.
+            while (pos < len)
+            {
+                var currentChar = CharCodeAt(text, pos);
+                if ((currentChar == CharacterCodes.EqualsSign || currentChar == CharacterCodes.GreaterThan) &&
+                    currentChar != ch &&
+                    IsConflictMarkerTrivia(text, pos))
+                {
+                    break;
+                }
+
+                pos++;
+            }
+        }
+
+        return pos;
+    }
+
+    // ported from: src/compiler/scanner.ts:792
+    /// <remarks>
+    /// PORT-NOTE: JS's <c>.</c> matches no line terminator at all, while .NET's matches everything but <c>\n</c>,
+    /// so the class spells the four terminators out.
+    /// </remarks>
+    [GeneratedRegex(@"^#![^\n\r\u2028\u2029]*")]
+    private static partial Regex ShebangTriviaRegex();
+
+    // ported from: src/compiler/scanner.ts:794-798
+    private static bool IsShebangTrivia(string text, int pos)
+    {
+        // Shebangs check must only be done at the start of the file
+        Debug.Assert(pos == 0);
+        return ShebangTriviaRegex().IsMatch(text);
+    }
+
+    // ported from: src/compiler/scanner.ts:800-804
+    private static int ScanShebangTrivia(string text, int pos)
+        => pos + ShebangTriviaRegex().Match(text).Value.Length;
+
+    // ported from: src/compiler/scanner.ts:965-971
+    /// <summary>The shebang line of a file, when it has one.</summary>
+    public static string? GetShebang(string text)
+    {
+        var match = ShebangTriviaRegex().Match(text);
+        return match.Success ? match.Value : null;
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Comment ranges
+    // ---------------------------------------------------------------------------------------------
+
+    // ported from: src/compiler/scanner.ts:826-930
+    /// <summary>
+    /// Invokes <paramref name="cb"/> for each comment range following <paramref name="pos"/>.
+    /// </summary>
+    /// <remarks>
+    /// Single-line ranges include the leading <c>//</c> but not the line break; multi-line ranges include both
+    /// delimiters.
+    /// </remarks>
+    /// <param name="reduce">When true the callback's result is accumulated (like <c>reduceLeft</c>); when false,
+    /// iteration stops at the first one that comes back set.</param>
+    /// <param name="trailing">When false, white space is skipped up to the first line break and the comments
+    /// between there and the next token are reported. When true, the comments between <paramref name="pos"/> and
+    /// the next line break are.</param>
+    public static U? IterateCommentRanges<T, U>(
+        bool reduce,
+        string text,
+        int pos,
+        bool trailing,
+        Func<int, int, SyntaxKind, bool, T, U?, U?> cb,
+        T state,
+        U? initial = default)
+    {
+        var pendingPos = 0;
+        var pendingEnd = 0;
+        var pendingKind = SyntaxKind.SingleLineCommentTrivia;
+        var pendingHasTrailingNewLine = false;
+        var hasPendingCommentRange = false;
+        var collecting = trailing;
+        var accumulator = initial;
+        if (pos == 0)
+        {
+            collecting = true;
+            var shebang = GetShebang(text);
+            if (shebang is not null) pos = shebang.Length;
+        }
+
+        // TS labels this loop `scan` and leaves it with `break scan`; the label after it is the same exit.
+        while (pos >= 0 && pos < text.Length)
+        {
+            var ch = CharCodeAt(text, pos);
+            switch (ch)
+            {
+                case CharacterCodes.CarriageReturn:
+                    if (CharCodeAt(text, pos + 1) == CharacterCodes.LineFeed) pos++;
+                    goto case CharacterCodes.LineFeed;
+                case CharacterCodes.LineFeed:
+                    pos++;
+                    if (trailing) goto scanDone;
+
+                    collecting = true;
+                    if (hasPendingCommentRange) pendingHasTrailingNewLine = true;
+                    continue;
+                case CharacterCodes.Tab:
+                case CharacterCodes.VerticalTab:
+                case CharacterCodes.FormFeed:
+                case CharacterCodes.Space:
+                    pos++;
+                    continue;
+                case CharacterCodes.Slash:
+                {
+                    var nextChar = CharCodeAt(text, pos + 1);
+                    var hasTrailingNewLine = false;
+                    if (nextChar == CharacterCodes.Slash || nextChar == CharacterCodes.Asterisk)
+                    {
+                        var kind = nextChar == CharacterCodes.Slash
+                            ? SyntaxKind.SingleLineCommentTrivia
+                            : SyntaxKind.MultiLineCommentTrivia;
+                        var startPos = pos;
+                        pos += 2;
+                        if (nextChar == CharacterCodes.Slash)
+                        {
+                            while (pos < text.Length)
+                            {
+                                if (IsLineBreak(CharCodeAt(text, pos)))
+                                {
+                                    hasTrailingNewLine = true;
+                                    break;
+                                }
+
+                                pos++;
+                            }
+                        }
+                        else
+                        {
+                            while (pos < text.Length)
+                            {
+                                if (CharCodeAt(text, pos) == CharacterCodes.Asterisk &&
+                                    CharCodeAt(text, pos + 1) == CharacterCodes.Slash)
+                                {
+                                    pos += 2;
+                                    break;
+                                }
+
+                                pos++;
+                            }
+                        }
+
+                        if (collecting)
+                        {
+                            if (hasPendingCommentRange)
+                            {
+                                accumulator = cb(pendingPos, pendingEnd, pendingKind, pendingHasTrailingNewLine, state, accumulator);
+
+                                // TS tests the accumulator for truthiness; with an unconstrained U the closest
+                                // equivalent is "not the default" — null for the reference types this is used
+                                // with, false for bool. (The BCL comparer has to be spelled out: this namespace
+                                // declares its own EqualityComparer<T> delegate.)
+                                if (!reduce &&
+                                    !System.Collections.Generic.EqualityComparer<U>.Default.Equals(accumulator, default))
+                                {
+                                    return accumulator;
+                                }
+                            }
+
+                            pendingPos = startPos;
+                            pendingEnd = pos;
+                            pendingKind = kind;
+                            pendingHasTrailingNewLine = hasTrailingNewLine;
+                            hasPendingCommentRange = true;
+                        }
+
+                        continue;
+                    }
+
+                    goto scanDone;
+                }
+
+                default:
+                    if (ch > CharacterCodes.MaxAsciiCharacter && IsWhiteSpaceLike(ch))
+                    {
+                        if (hasPendingCommentRange && IsLineBreak(ch)) pendingHasTrailingNewLine = true;
+                        pos++;
+                        continue;
+                    }
+
+                    goto scanDone;
+            }
+        }
+
+    scanDone:
+        if (hasPendingCommentRange)
+        {
+            accumulator = cb(pendingPos, pendingEnd, pendingKind, pendingHasTrailingNewLine, state, accumulator);
+        }
+
+        return accumulator;
+    }
+
+    // ported from: src/compiler/scanner.ts:932-936
+    /// <summary>Invokes the callback for each comment range leading up to the token at
+    /// <paramref name="pos"/>.</summary>
+    public static U? ForEachLeadingCommentRange<T, U>(
+        string text,
+        int pos,
+        Func<int, int, SyntaxKind, bool, T, U?, U?> cb,
+        T state)
+        => IterateCommentRanges(reduce: false, text, pos, trailing: false, cb, state);
+
+    /// <summary>ported from: src/compiler/scanner.ts:932-936 — the overload whose callback takes no state.
+    /// </summary>
+    public static U? ForEachLeadingCommentRange<U>(string text, int pos, Func<int, int, SyntaxKind, bool, U?> cb)
+        => IterateCommentRanges<object?, U>(
+            reduce: false,
+            text,
+            pos,
+            trailing: false,
+            (start, end, kind, hasTrailingNewLine, _, _) => cb(start, end, kind, hasTrailingNewLine),
+            state: null);
+
+    // ported from: src/compiler/scanner.ts:938-942
+    /// <summary>Invokes the callback for each comment range between <paramref name="pos"/> and the next line
+    /// break.</summary>
+    public static U? ForEachTrailingCommentRange<T, U>(
+        string text,
+        int pos,
+        Func<int, int, SyntaxKind, bool, T, U?, U?> cb,
+        T state)
+        => IterateCommentRanges(reduce: false, text, pos, trailing: true, cb, state);
+
+    /// <summary>ported from: src/compiler/scanner.ts:938-942 — the overload whose callback takes no state.
+    /// </summary>
+    public static U? ForEachTrailingCommentRange<U>(string text, int pos, Func<int, int, SyntaxKind, bool, U?> cb)
+        => IterateCommentRanges<object?, U>(
+            reduce: false,
+            text,
+            pos,
+            trailing: true,
+            (start, end, kind, hasTrailingNewLine, _, _) => cb(start, end, kind, hasTrailingNewLine),
+            state: null);
+
+    // ported from: src/compiler/scanner.ts:944-946
+    public static U? ReduceEachLeadingCommentRange<T, U>(
+        string text,
+        int pos,
+        Func<int, int, SyntaxKind, bool, T, U?, U?> cb,
+        T state,
+        U? initial)
+        => IterateCommentRanges(reduce: true, text, pos, trailing: false, cb, state, initial);
+
+    // ported from: src/compiler/scanner.ts:948-950
+    public static U? ReduceEachTrailingCommentRange<T, U>(
+        string text,
+        int pos,
+        Func<int, int, SyntaxKind, bool, T, U?, U?> cb,
+        T state,
+        U? initial)
+        => IterateCommentRanges(reduce: true, text, pos, trailing: true, cb, state, initial);
+
+    // ported from: src/compiler/scanner.ts:952-955
+    private static IList<CommentRange> AppendCommentRange(
+        int pos,
+        int end,
+        SyntaxKind kind,
+        bool hasTrailingNewLine,
+        object? state,
+        IList<CommentRange>? comments)
+    {
+        comments ??= [];
+        comments.Add(new CommentRange
+        {
+            Kind = kind,
+            Pos = pos,
+            End = end,
+            HasTrailingNewLine = hasTrailingNewLine,
+        });
+
+        return comments;
+    }
+
+    // ported from: src/compiler/scanner.ts:957-959
+    public static IList<CommentRange>? GetLeadingCommentRanges(string text, int pos)
+        => ReduceEachLeadingCommentRange<object?, IList<CommentRange>>(
+            text,
+            pos,
+            AppendCommentRange,
+            state: null,
+            initial: null);
+
+    // ported from: src/compiler/scanner.ts:961-963
+    public static IList<CommentRange>? GetTrailingCommentRanges(string text, int pos)
+        => ReduceEachTrailingCommentRange<object?, IList<CommentRange>>(
+            text,
+            pos,
+            AppendCommentRange,
+            state: null,
+            initial: null);
 
     /// <summary>JS's <c>charCodeAt</c>: a position outside the text reads as <c>NaN</c>, which compares equal to
     /// no character code. The port uses <see cref="CharacterCodes.EOF"/> for the same effect.</summary>
