@@ -50,6 +50,17 @@ internal sealed class TsTypeMapper
         // enums remain to be added.
     };
 
+    /// <summary>
+    /// The generated enums, by TS name.
+    /// </summary>
+    /// <remarks>
+    /// The interface/alias model does not contain enums — they are emitted from their own declarations into
+    /// their own files — so a member typed by one has to be recognised here, or it falls through to the
+    /// "unknown name" degradation and loses its type (<c>watchFile?: WatchFileKind</c> would become
+    /// <c>object?</c>).
+    /// </remarks>
+    private readonly HashSet<string> _enumNames;
+
     /// <param name="valueTypeNames">
     /// Names that are C# value types on the generated side — the enums. Passing them in keeps this class
     /// from having to know about the extracted model's enum list.
@@ -57,7 +68,8 @@ internal sealed class TsTypeMapper
     public TsTypeMapper(TsTypeModel model, IEnumerable<string> valueTypeNames)
     {
         _model = model;
-        foreach (var name in valueTypeNames) _valueTypes.Add(name);
+        _enumNames = new HashSet<string>(valueTypeNames, StringComparer.Ordinal);
+        foreach (var name in _enumNames) _valueTypes.Add(name);
     }
 
     /// <summary>Whether a mapped C# type is a value type (and therefore must not be nullable-annotated).</summary>
@@ -230,6 +242,11 @@ internal sealed class TsTypeMapper
         if (text.StartsWith('{')) return "object?";
 
         if (s_overrides.TryGetValue(text, out var overridden)) return overridden;
+
+        // A generated enum: TS enums are nominal and the port keeps them as C# enums, so a member typed by one
+        // keeps that type rather than degrading to object. Enums are not in the interface/alias model, hence
+        // the separate lookup.
+        if (_enumNames.Contains(text)) return text;
 
         // A non-generic alias is transparent: map its body.
         if (_model.AliasOf(text) is { TypeParameters.Count: 0 } alias) return Map(alias.Value);

@@ -486,7 +486,7 @@ internal abstract class Diagnostic : DiagnosticRelatedInformation
 /// <summary>ported from types.ts: <c>DiagnosticRelatedInformation</c>.</summary>
 internal abstract class DiagnosticRelatedInformation : Node
 {
-    public object? Category { get; set; }
+    public DiagnosticCategory Category { get; set; }
     public int Code { get; set; }
     public SourceFile? File { get; set; }
     public int Start { get; set; }
@@ -817,7 +817,7 @@ internal sealed class FunctionTypeNode : FunctionOrConstructorTypeNodeBase, IDec
 internal abstract class GenericType : InterfaceType, ITypeReference
 {
     public Dictionary<string, ITypeReference>? Instantiations { get; set; }
-    public List<object?>? Variances { get; set; }
+    public List<VarianceFlags>? Variances { get; set; }
     public GenericType? Target { get; set; }
     public Node? Node { get; set; }
     public object? Mapper { get; set; }
@@ -1881,7 +1881,7 @@ internal sealed class NoSubstitutionTemplateLiteral : LiteralExpression, IDeclar
 {
     public override SyntaxKind Kind => SyntaxKind.NoSubstitutionTemplateLiteral;
 
-    public object? TemplateFlags { get; set; }
+    public TokenFlags? TemplateFlags { get; set; }
     public string? RawText { get; set; }
     public Symbol? Symbol { get; set; }
     public Symbol? LocalSymbol { get; set; }
@@ -1926,7 +1926,7 @@ internal sealed class NumericLiteral : LiteralExpression, IDeclaration, IPrimary
 {
     public override SyntaxKind Kind => SyntaxKind.NumericLiteral;
 
-    public object? NumericLiteralFlags { get; }
+    public TokenFlags NumericLiteralFlags { get; }
     public Symbol? Symbol { get; set; }
     public Symbol? LocalSymbol { get; set; }
 }
@@ -1959,7 +1959,7 @@ internal abstract class ObjectLiteralExpressionBase<T> : Node, IDeclaration, IPr
 /// <summary>ported from types.ts: <c>ObjectType</c>.</summary>
 internal abstract class ObjectType : Type
 {
-    public object? ObjectFlags { get; set; }
+    public ObjectFlags ObjectFlags { get; set; }
     public Dictionary<string, Symbol>? Members { get; set; }
     public List<Symbol>? Properties { get; set; }
     public IReadOnlyList<ISignature>? CallSignatures { get; set; }
@@ -2134,7 +2134,7 @@ internal sealed class QualifiedName : Node, IFlowContainer, IReadonlyTextRange
 /// <summary>ported from types.ts: <c>ReadonlyPragmaContext</c>.</summary>
 internal abstract class ReadonlyPragmaContext : Node
 {
-    public object? LanguageVersion { get; set; }
+    public ScriptTarget LanguageVersion { get; set; }
     public IReadonlyPragmaMap? Pragmas { get; set; }
     public ICheckJsDirective? CheckJsDirective { get; set; }
     public IReadOnlyList<IFileReference>? ReferencedFiles { get; set; }
@@ -2329,7 +2329,7 @@ internal abstract class Symbol : Node
     public int MergeId { get; set; }
     public Symbol? ExportSymbol { get; set; }
     public bool ConstEnumOnlyModule { get; set; }
-    public object? IsReferenced { get; set; }
+    public SymbolFlags? IsReferenced { get; set; }
     public int? LastAssignmentPos { get; set; }
     public bool? IsReplaceableByMethod { get; set; }
     public Dictionary<int, IDeclaration>? AssignmentDeclarationMembers { get; set; }
@@ -2366,7 +2366,7 @@ internal abstract class SymbolLinks : Node
     public Dictionary<object, string>? SpecifierCache { get; set; }
     public List<Symbol>? ExtendedContainers { get; set; }
     public Dictionary<int, List<Symbol>>? ExtendedContainersByFile { get; set; }
-    public List<object?>? Variances { get; set; }
+    public List<VarianceFlags>? Variances { get; set; }
     public List<Type>? DeferralConstituents { get; set; }
     public List<Type>? DeferralWriteConstituents { get; set; }
     public Type? DeferralParent { get; set; }
@@ -2378,13 +2378,13 @@ internal abstract class SymbolLinks : Node
     public Node? TupleLabelDeclaration { get; set; }
     public Dictionary<string, List<Symbol>>? AccessibleChainCache { get; set; }
     public Dictionary<string, Symbol>? FilteredIndexSymbolCache { get; set; }
-    public object? RequestedExternalEmitHelpers { get; set; }
+    public ExternalEmitHelpers? RequestedExternalEmitHelpers { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SymbolVisibilityResult</c>.</summary>
 internal abstract class SymbolVisibilityResult : Node
 {
-    public object? Accessibility { get; set; }
+    public SymbolAccessibility Accessibility { get; set; }
     public List<object?>? AliasesToMakeVisible { get; set; }
     public string? ErrorSymbolName { get; set; }
     public Node? ErrorNode { get; set; }
@@ -2446,7 +2446,7 @@ internal sealed class TemplateHead : Node, IReadonlyTextRange, ITemplateLiteralL
 {
     public override SyntaxKind Kind => SyntaxKind.TemplateHead;
 
-    public object? TemplateFlags { get; set; }
+    public TokenFlags? TemplateFlags { get; set; }
     public string? RawText { get; set; }
 }
 
@@ -2473,7 +2473,7 @@ internal sealed class TemplateMiddle : Node, IReadonlyTextRange, ITemplateLitera
 {
     public override SyntaxKind Kind => SyntaxKind.TemplateMiddle;
 
-    public object? TemplateFlags { get; set; }
+    public TokenFlags? TemplateFlags { get; set; }
     public string? RawText { get; set; }
 }
 
@@ -2491,7 +2491,7 @@ internal sealed class TemplateTail : Node, IReadonlyTextRange, ITemplateLiteralL
 {
     public override SyntaxKind Kind => SyntaxKind.TemplateTail;
 
-    public object? TemplateFlags { get; set; }
+    public TokenFlags? TemplateFlags { get; set; }
     public string? RawText { get; set; }
 }
 
@@ -2529,7 +2529,7 @@ internal abstract class TransientSymbol : Symbol
 /// <summary>ported from types.ts: <c>TransientSymbolLinks</c>.</summary>
 internal abstract class TransientSymbolLinks : SymbolLinks
 {
-    public object? CheckFlags { get; set; }
+    public CheckFlags CheckFlags { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TrueLiteral</c>.</summary>
