@@ -39,13 +39,19 @@ internal interface ILoggingHost
 /// so no runtime counterpart to <c>Debug.type&lt;T&gt;()</c> is emitted.
 /// </para>
 /// <para>
-/// Not yet ported (needs <c>Node</c>/<c>Symbol</c>/<c>SyntaxKind</c> from the model layer, Milestone M2):
-/// <c>failBadSyntaxKind</c>, <c>assertEachNode</c>, <c>assertNode</c>, <c>assertNotNode</c>,
-/// <c>assertOptionalNode</c>, <c>assertOptionalToken</c>, <c>assertMissingNode</c>,
-/// <c>formatSymbol</c>, <c>formatEnum</c>, <c>formatSyntaxKind</c>.
+/// The members that need the model layer are the other half of the partial, <c>Debug.Model.cs</c>:
+/// <c>failBadSyntaxKind</c>, <c>assertNode</c>, <c>assertNotNode</c>, <c>formatEnum</c>/<c>getEnumMembers</c>,
+/// <c>formatSyntaxKind</c>, <c>formatFlowFlags</c> and <c>attachFlowNodeDebugInfo</c>.
+/// </para>
+/// <para>
+/// Still not ported, each because nothing has needed it yet: <c>assertEachNode</c> (first called by the
+/// transformers' destructuring visitor, M7), <c>assertOptionalNode</c> and <c>formatSymbol</c> (checker, M6),
+/// <c>assertMissingNode</c> (transformers' class-fields visitor, M7), <c>assertOptionalToken</c> (no caller in
+/// release-6.0), <c>attachNodeArrayDebugInfo</c> (factory's <c>createNodeArray</c>, which has no <c>NodeArray</c>
+/// debug surface in the port yet) and <c>formatControlFlowGraph</c>.
 /// </para>
 /// </remarks>
-internal static class Debug
+internal static partial class Debug
 {
     /// <summary>ported from: src/compiler/debug.ts:115.</summary>
     public static AssertionLevel CurrentAssertionLevel { get; private set; } = AssertionLevel.None;
@@ -211,15 +217,24 @@ internal static class Debug
         return value;
     }
 
-    // ported from: src/compiler/debug.ts:273-276
-
-    // ported from: src/compiler/debug.ts:273-276
-    // TODO(M2): TS special-cases `Node` members by formatting `member.kind` via formatSyntaxKind.
-    // Reintroduce that branch once the model layer defines Node/SyntaxKind.
+    /// <summary>ported from: src/compiler/debug.ts:273-276 — <c>assertNever</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS tests <c>typeof member === "object" &amp;&amp; hasProperty(member, "kind") &amp;&amp;
+    /// hasProperty(member, "pos")</c>; the port has no <c>hasProperty</c>, and the nominal question "is this a node"
+    /// is the <see cref="INode"/> interface — which is what carries <c>Kind</c>, and whose implementors all carry
+    /// <c>Pos</c> as well.
+    /// <para>
+    /// PORT-NOTE: the other branch of TS's conditional is <c>JSON.stringify(member)</c>; no port of it exists yet,
+    /// so <c>ToString()</c> — <c>"null"</c> for a null member — stands in unchanged.
+    /// </para>
+    /// </remarks>
     [DoesNotReturn]
     public static void AssertNever(object? member, string message = "Illegal value:")
     {
-        Fail($"{message} {member?.ToString() ?? "null"}");
+        var detail = member is INode node
+            ? "SyntaxKind: " + FormatSyntaxKind(node.Kind)
+            : member?.ToString() ?? "null";
+        Fail($"{message} {detail}");
     }
 
     // ported from: src/compiler/debug.ts:368-380

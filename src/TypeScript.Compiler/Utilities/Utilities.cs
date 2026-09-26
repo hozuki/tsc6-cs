@@ -974,8 +974,8 @@ internal static partial class Utilities
     /// <c>is IFunctionLikeDeclarationBase</c> where TS writes <c>as FunctionLikeDeclaration</c>: both answer
     /// <c>Invalid</c> for a signature that has no body, because the missing member reads <c>undefined</c> on that side.
     /// <para>
-    /// PORT-NOTE: TS asks <c>hasSyntacticModifier(node, ModifierFlags.Async)</c>; that family is spelled out for the four
-    /// kinds this member admits in <c>HasAsyncModifier</c> — see its note.
+    /// PORT-NOTE: TS asks <c>hasSyntacticModifier(node, ModifierFlags.Async)</c>, which is the ported
+    /// <see cref="HasSyntacticModifier"/>; the four kinds below are the ones <c>canHaveModifiers</c> admits.
     /// </para>
     /// </remarks>
     public static FunctionFlags GetFunctionFlags(Node? node)
@@ -996,7 +996,7 @@ internal static partial class Utilities
                 goto case SyntaxKind.ArrowFunction;
 
             case SyntaxKind.ArrowFunction:
-                if (HasAsyncModifier(node))
+                if (HasSyntacticModifier(node, ModifierFlags.Async))
                 {
                     flags |= FunctionFlags.Async;
                 }
@@ -1011,27 +1011,6 @@ internal static partial class Utilities
 
         return flags;
     }
-
-    /// <summary>The port of TS's <c>hasSyntacticModifier(node, ModifierFlags.Async)</c> for the kinds
-    /// <see cref="GetFunctionFlags"/> admits.</summary>
-    /// <remarks>
-    /// PORT-NOTE: TS reaches the answer through the cached modifier-flag family (<c>hasSyntacticModifier</c> →
-    /// <c>getSyntacticModifierFlags</c> → <c>getModifierFlagsWorker</c> and the <c>modifierFlagsCache</c> bits), which
-    /// belongs with <c>getEffectiveModifierFlags</c> and the <c>HasModifiers</c> alias — a union of ~25 types with no C#
-    /// anchor, so M5 has to bring it in together with the effective-modifier family. For the four function-like kinds
-    /// <c>canHaveModifiers</c> answers true, so <c>getSyntacticModifierFlagsNoCache</c> reduces to
-    /// <c>modifiersToFlags(node.modifiers)</c> and the cached value is the same bit; the question is spelled out here
-    /// rather than moving that family into this batch. A kind outside the four answers <c>false</c>, because
-    /// <see cref="GetFunctionFlags"/> never asks about one.
-    /// </remarks>
-    private static bool HasAsyncModifier(Node node) => node switch
-    {
-        FunctionDeclaration declaration => (ModifiersToFlags(declaration.Modifiers) & ModifierFlags.Async) != 0,
-        FunctionExpression declaration => (ModifiersToFlags(declaration.Modifiers) & ModifierFlags.Async) != 0,
-        MethodDeclaration declaration => (ModifiersToFlags(declaration.Modifiers) & ModifierFlags.Async) != 0,
-        ArrowFunction declaration => (ModifiersToFlags(declaration.Modifiers) & ModifierFlags.Async) != 0,
-        _ => false,
-    };
 
     /// <summary>ported from: src/compiler/utilities.ts:12218-12222 — <c>isNewScopeNode</c>.</summary>
     /// <remarks>

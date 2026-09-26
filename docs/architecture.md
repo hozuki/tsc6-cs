@@ -1059,6 +1059,28 @@ dotnet run --project tools/AstDiff -- --cases <dir> [--filter <glob>] [--out art
 
 ---
 
+## 15.12 M5 计划：`binder.ts`（Layer 4）
+
+`binder.ts` 3,916 行，导出只有 7 个（全部 `/** @internal */`）：`ModuleInstanceState`、`ContainerFlags`、`getModuleInstanceState`、`createFlowNode`、`bindSourceFile`、`isExportsOrModuleExportsOrAlias`、`getContainerFlags`。其余是 `createBinder()` 里的 3,277 行（占 84%）—— 一次侦察（file:line 逐条核对）给出的分片：
+
+| 片 | 内容 | 行数 | 依赖 |
+|---|---|---|---|
+| **M5-0** 前置 | `Symbol`/`SymbolTable` 具体类、flow 节点形状（`FlowNodeBase` + `SwitchClauseData`/`ReduceLabelData`）与 `IFlowContainer.FlowNode`/`SourceFile.EndFlowNode` 的改型、`Debug` 的 `AssertNode`/`FormatSyntaxKind`/`AttachFlowNodeDebugInfo`、`Utilities/Utilities.Binder.cs` 的 utilities 前瞻切片、binder 的 5 个叶导出 | 288（binder.ts 内）+ 其它文件 | 无（**瓶颈**） |
+| **M5-1** 骨架 | binder 状态与 `bindSourceFile`、符号/声明助手（`createSymbol`/`addDeclarationToSymbol`/`declareSymbol`/`declareModuleMember`/`getDeclarationName`）、`bindContainer`、`bindChildren`、`bindEach*`、声明绑定器、`bind`/`bindJSDoc`、`lookupSymbolForName` | 1,548 | M5-0 |
+| **M5-2** 流图 | narrowing 谓词、flow 节点工厂、语句/表达式流绑定、`createBindBinaryExpressionFlow`、optional-chain 流 | 976 | M5-0/M5-1 |
+| **M5-3** 严格模式 + JSDoc 延迟绑定 | `checkStrictMode*` 全家族 + `bindJSDocTypeAlias`/`delayedBindJSDocTypedefTag`/`bindJSDocImports` | 330 | M5-1 |
+| **M5-4** 模块/导出/JS 动态赋值 | `bindSourceFileIfExternalModule`…、`bindObjectDefinePropertyExport`/expando 家族、`bindCallExpression` | 496 | M5-1 |
+| **M5-5** 收口 | `bindWorker` 的 `switch (node.kind)`（784 行的唯一串行点；可考虑改成 kind→handler 表以便各片真正并行）+ 集成 + 验证 | 250 | M5-2/3/4 |
+
+M5-1 之后的 M5-2/3/4 互不依赖，可并行；M5-5 是唯一的汇合点。
+
+### 两个规划发现
+
+1. **选项模型要提前**：binder 一开局就读 `getEmitScriptTarget(options)`（`binder.ts:571-618`）与 `getAlwaysStrict(options)`（620-628），而 `CompilerOptions` 在 §8 里属 M8。TS 的 `CompilerOptions` 是约 120 个可选槽的**接口**，真正庞大的是 `CommandLineOption` 的解析元数据（M8 的 CLI/tsconfig）。因此 M5 需要的是**接口本身 + 少量读选项的辅助**（`getEmitScriptTarget`/`getStrictOptionValue`/`getAlwaysStrict`），不是那套解析器 —— 这也顺带解掉 M4f 的两处阻塞（§15.11 末尾）。
+2. **M5 的验证怎么办**：`.symbols` baseline 属 §7 的 P2（依赖 checker）。P1a 的做法可以直接搬：先用真 `lib/typescript.js` 绑一个文件、把符号表与流节点图 dump 出来，与端口的 binder 逐字节比 —— 与 `tools/AstDiff` 同形，等 M5-1 落地后加一条 `BindDiff`。
+
+---
+
 ## 16. `const enum` 成员作类型：typed enum
 
 ### 16.1 TS 的两条路径

@@ -970,7 +970,7 @@ internal partial interface IFlowCondition : IFlowNodeBase
 /// <summary>ported from types.ts: <c>FlowContainer</c>.</summary>
 internal partial interface IFlowContainer : INode
 {
-    Node? FlowNode { get; set; }
+    FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>FlowLabel</c>.</summary>
@@ -997,7 +997,7 @@ internal partial interface IFlowReduceLabel : IFlowNodeBase
 internal partial interface IFlowReduceLabelData
 {
     IFlowLabel? Target { get; set; }
-    List<Node>? Antecedents { get; set; }
+    List<FlowNode>? Antecedents { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>FlowStart</c>.</summary>
@@ -1056,8 +1056,8 @@ internal partial interface IFunctionLikeDeclarationBase : INode, ISignatureDecla
     PunctuationToken? QuestionToken { get; }
     PunctuationToken? ExclamationToken { get; }
     Node? Body { get; }
-    Node? EndFlowNode { get; set; }
-    Node? ReturnFlowNode { get; set; }
+    FlowNode? EndFlowNode { get; set; }
+    FlowNode? ReturnFlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>FutureSourceFile</c>.</summary>

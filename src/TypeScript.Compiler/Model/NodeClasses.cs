@@ -47,8 +47,8 @@ internal partial class ArrowFunction : Expression, IDeclaration, IFlowContainer,
     public PunctuationToken? AsteriskToken { get; set; }
     public PunctuationToken? QuestionToken { get; set; }
     public PunctuationToken? ExclamationToken { get; set; }
-    public Node? EndFlowNode { get; set; }
-    public Node? ReturnFlowNode { get; set; }
+    public FlowNode? EndFlowNode { get; set; }
+    public FlowNode? ReturnFlowNode { get; set; }
     public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
     public NodeArray<ParameterDeclaration>? Parameters { get; set; }
     public ITypeNode? Type { get; set; }
@@ -58,7 +58,7 @@ internal partial class ArrowFunction : Expression, IDeclaration, IFlowContainer,
     public IJSDocArray? JsDoc { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
     Node? IFunctionLikeDeclarationBase.Body => (Node?)(object?)Body;
@@ -123,7 +123,7 @@ internal partial class BindingElement : Node, IDeclaration, IFlowContainer, INam
     public Expression? Initializer { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
     Node? INamedDeclaration.Name => (Node?)(object?)Name;
@@ -148,7 +148,7 @@ internal partial class BreakStatement : Node, IFlowContainer, IJSDocContainer, I
 
     public Identifier? Label { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>Bundle</c>.</summary>
@@ -215,7 +215,7 @@ internal partial class CaseClause : Node, IJSDocContainer, IReadonlyTextRange
 
     public Expression? Expression { get; set; }
     public NodeArray<IStatement>? Statements { get; set; }
-    public Node? FallthroughFlowNode { get; set; }
+    public FlowNode? FallthroughFlowNode { get; set; }
     public IJSDocArray? JsDoc { get; set; }
 }
 
@@ -272,8 +272,8 @@ internal partial class ClassStaticBlockDeclaration : Node, IClassElement, IDecla
     public override SyntaxKind Kind => SyntaxKind.ClassStaticBlockDeclaration;
 
     public Block? Body { get; set; }
-    public Node? EndFlowNode { get; set; }
-    public Node? ReturnFlowNode { get; set; }
+    public FlowNode? EndFlowNode { get; set; }
+    public FlowNode? ReturnFlowNode { get; set; }
     public NodeArray<Node>? Modifiers { get; set; }
     public Node? Name { get; set; }
     public ISymbol? Symbol { get; set; }
@@ -309,8 +309,8 @@ internal partial class ConditionalExpression : Expression, IReadonlyTextRange
     public Expression? WhenTrue { get; set; }
     public PunctuationToken? ColonToken { get; set; }
     public Expression? WhenFalse { get; set; }
-    public Node? FlowNodeWhenTrue { get; set; }
-    public Node? FlowNodeWhenFalse { get; set; }
+    public FlowNode? FlowNodeWhenTrue { get; set; }
+    public FlowNode? FlowNodeWhenFalse { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ConditionalTypeNode</c>.</summary>
@@ -356,8 +356,8 @@ internal partial class ConstructorDeclaration : Node, IClassElement, IDeclaratio
     public PunctuationToken? AsteriskToken { get; set; }
     public PunctuationToken? QuestionToken { get; set; }
     public PunctuationToken? ExclamationToken { get; set; }
-    public Node? EndFlowNode { get; set; }
-    public Node? ReturnFlowNode { get; set; }
+    public FlowNode? EndFlowNode { get; set; }
+    public FlowNode? ReturnFlowNode { get; set; }
     public Node? Name { get; set; }
     public NodeArray<ParameterDeclaration>? Parameters { get; set; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
@@ -388,7 +388,7 @@ internal partial class ContinueStatement : Node, IFlowContainer, IJSDocContainer
 
     public Identifier? Label { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>DebuggerStatement</c>.</summary>
@@ -397,7 +397,7 @@ internal partial class DebuggerStatement : Node, IFlowContainer, IJSDocContainer
     public override SyntaxKind Kind => SyntaxKind.DebuggerStatement;
 
     public IJSDocArray? JsDoc { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>Decorator</c>.</summary>
@@ -414,7 +414,7 @@ internal partial class DefaultClause : Node, IReadonlyTextRange
     public override SyntaxKind Kind => SyntaxKind.DefaultClause;
 
     public NodeArray<IStatement>? Statements { get; set; }
-    public Node? FallthroughFlowNode { get; set; }
+    public FlowNode? FallthroughFlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>DeleteExpression</c>.</summary>
@@ -431,7 +431,7 @@ internal partial class DoStatement : IterationStatement, IFlowContainer, IJSDocC
     public override SyntaxKind Kind => SyntaxKind.DoStatement;
 
     public Expression? Expression { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>DynamicNamedBinaryExpression</c>.</summary>
@@ -466,7 +466,7 @@ internal partial class ElementAccessExpression : MemberExpression, IDeclaration,
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>EmptyStatement</c>.</summary>
@@ -573,7 +573,7 @@ internal partial class ExpressionStatement : Node, IFlowContainer, IJSDocContain
 
     public Expression? Expression { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ExpressionWithTypeArguments</c>.</summary>
@@ -609,7 +609,7 @@ internal partial class ForInStatement : IterationStatement, IFlowContainer, IJSD
     public Expression? Expression { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ForOfStatement</c>.</summary>
@@ -622,7 +622,7 @@ internal partial class ForOfStatement : IterationStatement, IFlowContainer, IJSD
     public Expression? Expression { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ForStatement</c>.</summary>
@@ -635,7 +635,7 @@ internal partial class ForStatement : IterationStatement, IFlowContainer, IJSDoc
     public Expression? Incrementor { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>FunctionDeclaration</c>.</summary>
@@ -649,8 +649,8 @@ internal partial class FunctionDeclaration : Node, IDeclaration, IDeclarationSta
     public PunctuationToken? AsteriskToken { get; set; }
     public PunctuationToken? QuestionToken { get; set; }
     public PunctuationToken? ExclamationToken { get; set; }
-    public Node? EndFlowNode { get; set; }
-    public Node? ReturnFlowNode { get; set; }
+    public FlowNode? EndFlowNode { get; set; }
+    public FlowNode? ReturnFlowNode { get; set; }
     public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
     public NodeArray<ParameterDeclaration>? Parameters { get; set; }
     public ITypeNode? Type { get; set; }
@@ -677,8 +677,8 @@ internal partial class FunctionExpression : MemberExpression, IDeclaration, IFlo
     public PunctuationToken? AsteriskToken { get; set; }
     public PunctuationToken? QuestionToken { get; set; }
     public PunctuationToken? ExclamationToken { get; set; }
-    public Node? EndFlowNode { get; set; }
-    public Node? ReturnFlowNode { get; set; }
+    public FlowNode? EndFlowNode { get; set; }
+    public FlowNode? ReturnFlowNode { get; set; }
     public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
     public NodeArray<ParameterDeclaration>? Parameters { get; set; }
     public ITypeNode? Type { get; set; }
@@ -688,7 +688,7 @@ internal partial class FunctionExpression : MemberExpression, IDeclaration, IFlo
     public IJSDocArray? JsDoc { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
     Node? IFunctionLikeDeclarationBase.Body => (Node?)(object?)Body;
@@ -735,8 +735,8 @@ internal partial class GetAccessorDeclaration : Node, IClassElement, IDeclaratio
     public PunctuationToken? AsteriskToken { get; set; }
     public PunctuationToken? QuestionToken { get; set; }
     public PunctuationToken? ExclamationToken { get; set; }
-    public Node? EndFlowNode { get; set; }
-    public Node? ReturnFlowNode { get; set; }
+    public FlowNode? EndFlowNode { get; set; }
+    public FlowNode? ReturnFlowNode { get; set; }
     public NodeArray<ParameterDeclaration>? Parameters { get; set; }
     public ITypeNode? Type { get; set; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
@@ -745,7 +745,7 @@ internal partial class GetAccessorDeclaration : Node, IClassElement, IDeclaratio
     public IJSDocArray? JsDoc { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
     Node? IFunctionLikeDeclarationBase.Body => (Node?)(object?)Body;
@@ -770,7 +770,7 @@ internal partial class Identifier : MemberExpression, IDeclaration, IFlowContain
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>IfStatement</c>.</summary>
@@ -782,7 +782,7 @@ internal partial class IfStatement : Node, IFlowContainer, IJSDocContainer, IRea
     public IStatement? ThenStatement { get; set; }
     public IStatement? ElseStatement { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ImportAttribute</c>.</summary>
@@ -1514,7 +1514,7 @@ internal partial class LabeledStatement : Node, IFlowContainer, IJSDocContainer,
     public Identifier? Label { get; set; }
     public IStatement? Statement { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>LeftHandSideExpression</c>.</summary>
@@ -1567,7 +1567,7 @@ internal partial class MetaProperty : MemberExpression, IFlowContainer, IPrimary
 
     public SyntaxKind KeywordToken { get; set; }
     public Identifier? Name { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>MethodDeclaration</c>.</summary>
@@ -1581,8 +1581,8 @@ internal partial class MethodDeclaration : Node, IClassElement, IDeclaration, IF
     public PunctuationToken? ExclamationToken { get; set; }
     public PunctuationToken? AsteriskToken { get; set; }
     public PunctuationToken? QuestionToken { get; set; }
-    public Node? EndFlowNode { get; set; }
-    public Node? ReturnFlowNode { get; set; }
+    public FlowNode? EndFlowNode { get; set; }
+    public FlowNode? ReturnFlowNode { get; set; }
     public NodeArray<TypeParameterDeclaration>? TypeParameters { get; set; }
     public NodeArray<ParameterDeclaration>? Parameters { get; set; }
     public ITypeNode? Type { get; set; }
@@ -1592,7 +1592,7 @@ internal partial class MethodDeclaration : Node, IClassElement, IDeclaration, IF
     public IJSDocArray? JsDoc { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
     Node? IFunctionLikeDeclarationBase.Body => (Node?)(object?)Body;
@@ -1927,7 +1927,7 @@ internal partial class PropertyAccessExpression : MemberExpression, IDeclaration
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
     Node? INamedDeclaration.Name => (Node?)(object?)Name;
@@ -1995,7 +1995,7 @@ internal partial class QualifiedName : Node, IFlowContainer, IReadonlyTextRange
 
     public Node? Left { get; set; }
     public Identifier? Right { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>RegularExpressionLiteral</c>.</summary>
@@ -2020,7 +2020,7 @@ internal partial class ReturnStatement : Node, IFlowContainer, IJSDocContainer, 
 
     public Expression? Expression { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SatisfiesExpression</c>.</summary>
@@ -2056,8 +2056,8 @@ internal partial class SetAccessorDeclaration : Node, IClassElement, IDeclaratio
     public PunctuationToken? AsteriskToken { get; set; }
     public PunctuationToken? QuestionToken { get; set; }
     public PunctuationToken? ExclamationToken { get; set; }
-    public Node? EndFlowNode { get; set; }
-    public Node? ReturnFlowNode { get; set; }
+    public FlowNode? EndFlowNode { get; set; }
+    public FlowNode? ReturnFlowNode { get; set; }
     public NodeArray<ParameterDeclaration>? Parameters { get; set; }
     public NodeArray<ITypeNode>? TypeArguments { get; set; }
     public ISymbol? Symbol { get; set; }
@@ -2065,7 +2065,7 @@ internal partial class SetAccessorDeclaration : Node, IClassElement, IDeclaratio
     public IJSDocArray? JsDoc { get; set; }
     public Dictionary<string, ISymbol>? Locals { get; set; }
     public Node? NextContainer { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 
     // TS narrows these on the class but widens them on the interface; C# needs both spelled out.
     Node? IFunctionLikeDeclarationBase.Body => (Node?)(object?)Body;
@@ -2146,7 +2146,7 @@ internal partial class SourceFile : Node, IDeclaration, ILocalsContainer, IReado
     public string? LocalJsxFragmentNamespace { get; set; }
     public Node? LocalJsxFactory { get; set; }
     public Node? LocalJsxFragmentFactory { get; set; }
-    public Node? EndFlowNode { get; set; }
+    public FlowNode? EndFlowNode { get; set; }
     public JSDocParsingMode? JsDocParsingMode { get; set; }
     public ISymbol? Symbol { get; set; }
     public ISymbol? LocalSymbol { get; set; }
@@ -2193,7 +2193,7 @@ internal partial class SuperExpression : MemberExpression, IFlowContainer, IPrim
 {
     public override SyntaxKind Kind => SyntaxKind.SuperKeyword;
 
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SwitchStatement</c>.</summary>
@@ -2205,7 +2205,7 @@ internal partial class SwitchStatement : Node, IFlowContainer, IJSDocContainer, 
     public CaseBlock? CaseBlock { get; set; }
     public bool? PossiblyExhaustive { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>SyntaxList</c>.</summary>
@@ -2322,7 +2322,7 @@ internal partial class ThisExpression : MemberExpression, IFlowContainer, IPrima
 {
     public override SyntaxKind Kind => SyntaxKind.ThisKeyword;
 
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>ThisTypeNode</c>.</summary>
@@ -2339,7 +2339,7 @@ internal partial class ThrowStatement : Node, IFlowContainer, IJSDocContainer, I
 
     public Expression? Expression { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TrueLiteral</c>.</summary>
@@ -2358,7 +2358,7 @@ internal partial class TryStatement : Node, IFlowContainer, IJSDocContainer, IRe
     public CatchClause? CatchClause { get; set; }
     public Block? FinallyBlock { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>TupleTypeNode</c>.</summary>
@@ -2521,7 +2521,7 @@ internal partial class VariableStatement : Node, IFlowContainer, IJSDocContainer
     public NodeArray<Node>? Modifiers { get; set; }
     public VariableDeclarationList? DeclarationList { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>VoidExpression</c>.</summary>
@@ -2538,7 +2538,7 @@ internal partial class WhileStatement : IterationStatement, IFlowContainer, IJSD
     public override SyntaxKind Kind => SyntaxKind.WhileStatement;
 
     public Expression? Expression { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>WithStatement</c>.</summary>
@@ -2549,7 +2549,7 @@ internal partial class WithStatement : Node, IFlowContainer, IJSDocContainer, IR
     public Expression? Expression { get; set; }
     public IStatement? Statement { get; set; }
     public IJSDocArray? JsDoc { get; set; }
-    public Node? FlowNode { get; set; }
+    public FlowNode? FlowNode { get; set; }
 }
 
 /// <summary>ported from types.ts: <c>YieldExpression</c>.</summary>
