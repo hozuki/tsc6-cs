@@ -9,8 +9,8 @@ namespace TypeScript.Compiler;
 /// </summary>
 /// <remarks>
 /// The state lives in <c>Program/Program.State.cs</c>, the interface implementation in
-/// <c>Program/Program.IProgram.cs</c>, the file graph in <c>Program/Program.Graph.cs</c> and the emit boundary in
-/// <c>Program/Program.EmitBoundary.cs</c>.
+/// <c>Program/Program.IProgram.cs</c>, the file graph in <c>Program/Program.Graph.cs</c> and the emit surface in
+/// <c>Program/Program.Emit.cs</c>.
 /// <para>
 /// PORT-NOTE: TS's <c>createProgram</c> falls back to <c>createCompilerHost(options)</c> when no host is given, which
 /// needs the <c>sys</c> singleton (§13.5 drops it). There is therefore no host to fall back to:

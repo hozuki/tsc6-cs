@@ -1869,8 +1869,7 @@ internal sealed partial class Program
     /// <summary>ported from: src/compiler/program.ts:5060-5097 — <c>handleNoEmitOptions</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: TS's generic <c>Program | T</c> (with <c>T extends BuilderProgram</c>, M8) folds to the port's
-    /// <see cref="IProgram"/>, whose <c>emitBuildInfo</c> is the M7 boundary <c>Program/Program.EmitBoundary.cs</c>
-    /// implements.
+    /// <see cref="IProgram"/>, whose <c>emitBuildInfo</c> is <c>Program/Program.Emit.cs</c>'s.
     /// </remarks>
     internal static IEmitResult? HandleNoEmitOptions(
         IProgram program,

@@ -9,7 +9,7 @@ namespace TypeScript.Compiler;
 /// over one. The port keeps the same table, but as the members of <see cref="IProgram"/> and of the host interfaces it
 /// extends, because <c>Program</c> <em>is</em> the object the reference returns. The bodies live in the slices that own
 /// them (<c>Program.cs</c>, <c>Program.Graph.cs</c>, <c>Program.Verify.cs</c>,
-/// <c>Program.DiagnosticsAggregation.cs</c>, <c>Program.ProjectReferences.cs</c>, <c>Program.EmitBoundary.cs</c>), so
+/// <c>Program.DiagnosticsAggregation.cs</c>, <c>Program.ProjectReferences.cs</c>, <c>Program.Emit.cs</c>), so
 /// every member here is an <em>explicit</em> implementation forwarding to the slice's own member under TS's name.
 /// <para>
 /// PORT-NOTE: explicit rather than public, because the slices declare their members <c>internal</c>: a public member
@@ -144,8 +144,8 @@ internal sealed partial class Program
         => GetSuggestionDiagnostics(sourceFile, cancellationToken);
 
     /// <summary>ported from: src/compiler/program.ts:1891 — <c>getDeclarationDiagnostics</c>.</summary>
-    /// <remarks>PORT-NOTE: the M7 boundary; the forward reaches <c>Program.EmitBoundary.cs</c>, which throws
-    /// <c>EmitNotLanded</c> until the emitter lands.</remarks>
+    /// <remarks>PORT-NOTE: the forward reaches <c>Program.Emit.cs</c>'s <c>GetDeclarationDiagnostics</c>, which is real
+    /// down to the declaration transformer (<c>transformers/declarations.ts:221</c>, M7-B7's named blocker).</remarks>
     List<IDiagnosticWithLocation> IProgram.GetDeclarationDiagnostics(SourceFile? sourceFile, ICancellationToken? cancellationToken)
         => GetDeclarationDiagnostics(sourceFile, cancellationToken);
 
@@ -167,8 +167,8 @@ internal sealed partial class Program
     string IModuleSpecifierResolutionHost.GetCommonSourceDirectory() => GetCommonSourceDirectory();
 
     /// <summary>ported from: src/compiler/program.ts:1897 — <c>emit</c>.</summary>
-    /// <remarks>PORT-NOTE: the M7 boundary; the forward reaches <c>Program.EmitBoundary.cs</c>, which throws
-    /// <c>EmitNotLanded</c> until the emitter lands.</remarks>
+    /// <remarks>PORT-NOTE: the forward reaches <c>Program.Emit.cs</c>'s <c>Emit</c>, whose transformer list is
+    /// <c>Transformer.GetTransformers</c> — the named M7-B blocker until the transform batches land.</remarks>
     IEmitResult IProgram.Emit(
         SourceFile? targetSourceFile,
         Action<string, string, bool, Action<string>, List<SourceFile>, IWriteFileCallbackData, object?>? writeFile,
@@ -460,8 +460,8 @@ internal sealed partial class Program
     bool IProgram.ShouldTransformImportCall(SourceFile? sourceFile) => ShouldTransformImportCall(sourceFile!);
 
     /// <summary>ported from: src/compiler/program.ts:1945 — <c>emitBuildInfo</c>.</summary>
-    /// <remarks>PORT-NOTE: the M7 boundary; the forward reaches <c>Program.EmitBoundary.cs</c>, which throws
-    /// <c>EmitNotLanded</c> until the emitter lands.</remarks>
+    /// <remarks>PORT-NOTE: the forward reaches <c>Program.Emit.cs</c>'s <c>EmitBuildInfo</c>, which is real (it needs no
+    /// transformer list).</remarks>
     IEmitResult IProgram.EmitBuildInfo(
         Action<string, string, bool, Action<string>, List<SourceFile>, IWriteFileCallbackData, object?>? writeFile,
         ICancellationToken? cancellationToken)
@@ -534,8 +534,9 @@ internal sealed partial class Program
 
     /// <summary>ported from: src/compiler/program.ts:1955 — <c>writeFile</c>.</summary>
     /// <remarks>PORT-NOTE: TS's slot is the local <c>writeFile</c> wrapper (<c>program.ts:2639-2648</c>) and the
-    /// literal hands it out for the builder to replace; the port keeps the same settable storage — the M7 emit path in
-    /// <c>Program.EmitBoundary.cs</c> reads it — so the slot is one public auto-property rather than a forwarder.</remarks>
+    /// literal hands it out for the builder to replace; the port keeps the same settable storage — <c>Program.Emit.cs</c>'s
+    /// emit host reads it as <c>writeFileCallback || writeFile</c> — so the slot is one public auto-property rather than
+    /// a forwarder.</remarks>
     public Action<string, string, bool, Action<string>, List<SourceFile>, IWriteFileCallbackData, object?>? WriteFile { get; set; }
 
     /// <summary>ported from: src/compiler/program.ts:1956 —
@@ -596,11 +597,12 @@ internal sealed partial class Program
     /// <summary>ported from: src/compiler/types.ts:4934 — <c>getBuildInfo?(): BuildInfo</c>.</summary>
     /// <remarks>PORT-NOTE: TS's member is optional and <c>createProgram</c> never assigns it: only a builder program
     /// does (<c>builder.ts:1686</c>, read back by the emit host at <c>program.ts:2628</c>) — <b>M8's builder owns that
-    /// assignment</b>, so this slot belongs to the residual table with M8 as its owner. The generated slot is a required
-    /// non-nullable <c>IBuildInfo</c>, which cannot express "this program has no build info", so the slot reports the
-    /// contract gap instead of inventing an empty <c>BuildInfo</c>.</remarks>
+    /// assignment</b>. The port's slot for it is <see cref="Program.BuildInfo"/> (a nullable property, `Program.Emit.cs`),
+    /// which is what the emit host reads; the generated slot here is a required non-nullable <c>IBuildInfo</c>, which
+    /// cannot express "this program has no build info", so an unassigned slot still reports the contract gap rather than
+    /// inventing an empty <c>BuildInfo</c>.</remarks>
     IBuildInfo IProgram.GetBuildInfo()
-        => throw new GeneratedContractException(
+        => BuildInfo ?? throw new GeneratedContractException(
             "IProgram.GetBuildInfo() is required but TS declares it optional (getBuildInfo?(), types.ts:4934), and only a builder "
             + "program assigns it (builder.ts:1686 — M8's builder owns that assignment): a createProgram Program has none, and the "
             + "generated shape cannot express the absence (tools/Gen).");

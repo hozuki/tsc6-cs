@@ -134,10 +134,10 @@ internal sealed class LibResolution<T> : ILibResolution<T>
 /// <remarks>
 /// PORT-NOTE: the generator emits interfaces from <c>types.ts</c> only (it extracts a few named enums from
 /// <c>utilities.ts</c> — see <c>tools/Gen/Generator.cs</c>'s table), so this shape has no generated counterpart to sit
-/// beside, and it is declared here because the one M6 member that consumes it,
-/// <see cref="Program.ForEachEmittedFile"/>, is the M7 boundary member <c>Program.EmitBoundary.cs</c> carries. M7's
-/// emitter (the <c>getOutputPathsFor</c>/<c>getOutputPathsForBundle</c> pair that builds it) must reuse this
-/// declaration rather than open a second one.
+/// beside, and it is declared here because the M6 member that first consumed it,
+/// <see cref="Program.ForEachEmittedFile"/>, is a facade over <c>Emitter.ForEachEmittedFile</c>, which lives in
+/// <c>Emit/Emitter.cs</c> with the <c>getOutputPathsFor</c>/<c>getOutputPathsForBundle</c> pair that builds this shape
+/// (the emitter reuses this declaration rather than opening a second one).
 /// <para>
 /// PORT-NOTE: every slot is optional in the reference, hence <c>string?</c>; the two slots <c>verifyEmitFilePath</c>
 /// reads are <c>jsFilePath</c> and <c>declarationFilePath</c> (<c>Program.Verify.cs</c>).

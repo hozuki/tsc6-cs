@@ -136,6 +136,13 @@ internal sealed partial class Checker
         _noUncheckedSideEffectImports = _compilerOptions.NoUncheckedSideEffectImports != false;
         _stableTypeOrdering = Js.IsTruthy(_compilerOptions.StableTypeOrdering);
 
+        // checker.ts:1550 — `var emitResolver = createResolver();`
+        // PORT-NOTE: the reference assigns the resolver while building the checker's state, so every later reader
+        // (`getEmitResolver`, the emitter and the declaration emitter) finds it; the port left this slot to the
+        // assembly, which never filled it, and `getEmitResolver`'s `Debug.checkDefined(emitResolver)` then failed for
+        // every emit path.
+        _emitResolver = CreateResolver();
+
         // checker.ts:1553-1556 — `evaluate = createEvaluator({ evaluateElementAccessExpression, evaluateEntityNameExpression })`.
         _evaluate = Utilities.CreateEvaluator(
             EvaluateElementAccessExpression,

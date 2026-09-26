@@ -1783,3 +1783,20 @@ printer 落地后，语料从"崩溃"变成"能跑"，此前被门控掩盖的�
 **全语料（5,908 文件）三轮总账**：M6 末 `3637/80/2191` → printer 落地 `5516/11/381` → 本节收尾 **`5905/3/0`**（`same` +2,268、`diverged` −77、崩溃 −2,191）。build 0/0、测试 1,053/1,053。
 
 **剩余 3 条分歧（下一轮的起点，均有现场）**：① `interfaces/interfaceDeclarations/interfaceExtendsObjectIntersectionErrors.ts` 诊断码错配（端口 `2416@758` 对参考 `2612@709` —— 两者都不只是码不同，span 也不同）；②③ 两条类型 id 偏移（`genericCallToOverloadedMethodWithOverloadedArguments.ts` 332/340、`discriminatedUnionTypes2.ts` 178/179），已用 A/B 确认与 `Js.ToNumber`/printer/visitor 都无关，属类型创建计数差。
+
+### 17.9 M7-B 前置：发射管线外壳 + `tools/EmitDiff` + transform 公共工具（checker 零回归）
+
+| 切片 | 内容 | 交付 |
+|---|---|---|
+| 批次 1（公共工具） | `transformers/utilities.ts`(886) + `destructuring.ts`(626) + `taggedTemplate.ts`(132) | `Transforms/TransformationUtilities.cs`、`Transforms/Destructuring.cs`、`Transforms/TaggedTemplate.cs`（~2,470 行）+ 43 例单测 |
+| 发射管线外壳 | `transformer.ts`(696) 的驱动与 `TransformationContext/Result` + `emitter.ts:1-1190`（输出路径族、`emitFiles`、`printSourceFileOrBundle`、build info）+ `Program.Emit/EmitBuildInfo/GetEmitHost/GetDeclarationDiagnostics` | `Transforms/Transformer.cs`、`Emit/Emitter.cs`、`Emit/Emitter.Model.cs`、`Program/Program.Emit.cs`、`Utilities/Utilities.EmitPaths.cs`；**`Program/Program.EmitBoundary.cs` 删除**（每条 M6 阻断要么落地要么改名） |
+| 发射差分工具 | `tools/EmitDiff` | `Program.cs`(972) + `ts-emit.cjs` + README + csproj；CLI/输出/退出码与 BindDiff/TypeDiff 同形，`port-crash` 与 `ts-error` 分离，绝不把"端口没发射"算作 same |
+
+**唯一保留的具名阻断**：`transformer.ts:120/127/192` 的 `getTransformers`/`getScriptTransformers`/`getDeclarationTransformers` —— 它们点名每一个具体 transform 工厂，属 M7-B2…B7；在落地前它们抛具名 `NotSupportedException`（不静默返回空清单）。
+
+**组装期发现并修的真缺陷**：`Checker._emitResolver` **从未被赋值**。参考在构造期 `var emitResolver = createResolver();`（checker.ts:1550），端口的 PORT-NOTE 把它留给"M6-5 的组装"，而那次从未落地 —— 于是任何 emit 路径的 `getEmitResolver` 都在 `Debug.CheckDefined(_emitResolver)` 上炸（新测试先撞上它）。修法：在 `Checker` 构造里按参考赋值。
+
+**另修三处新测试的期望（修正到参考行为，不是放宽）**：① `IEmitHost` 同时继承 `IScriptReferenceHost`/`ISourceFileMayBeEmittedHost` 的同名成员，C# 里通过派生接口调用有歧义 ⇒ 按基接口限定（端口既有写法）；② `emittedFiles` 只在 `listEmittedFiles` 打开时填充（参考 emitter.ts:767/790）⇒ 测试打开该选项；③ 端口的 `FakeSystem` 只记录写入路径不保存内容 ⇒ 断言 `system.Written`（与 `FilesTests` 一致）。
+
+**验收（实测）**：build 0 错误 0 警告、测试 **1,097/1,097**、`Gen --check` 无漂移、**TypeDiff 全语料仍 `same=5905 diverged=3 port-crash=0`（checker 零回归）**；`tools/EmitDiff` 全语料冒烟：参考半对该文件成功发射（8,964 字节），端口半如实报
+`port-crash: NotSupportedException: getTransformers (transformer.ts:120) … transform batches M7-B`。

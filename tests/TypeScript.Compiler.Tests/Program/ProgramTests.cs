@@ -1,9 +1,11 @@
 namespace TypeScript.Compiler.Tests;
 
-// ported from: src/compiler/program.ts:1514-1875 (createProgram end to end), 2688-2712, 2650-2666, 2827-2830 (the M7 boundary)
+// ported from: src/compiler/program.ts:1514-1875 (createProgram end to end), 2688-2712, 2650-2666, 2827-2830 (the emit
+// entry points) and src/compiler/emitter.ts:446-474, 481-497, 563-570 (the emit-path queries' bodies)
 /// <summary>
 /// The M6-1 acceptance proof: <c>createProgram</c> runs end to end over a file with an injected host and produces a
-/// bound source file, and the M7 boundary is loud.
+/// bound source file — plus the M7-B proof that the emit surface is real and the transformer chain is its named
+/// blocker.
 /// </summary>
 /// <remarks>
 /// PORT-NOTE: TS binds a program's files when the checker is created (<c>getTypeChecker</c>), and the port's checker
@@ -36,14 +38,14 @@ public class ProgramTests
     private static void AddStubDefaultLib(FakeSystem system, ICompilerHost host, ICompilerOptions options)
         => system.Files[host.GetDefaultLibFileName(options)] = "declare var undefined: undefined;\n";
 
-    private static (Program Program, ICompilerHost Host, FakeSystem System, FakeCompilerOptions Options) CreateProgramOverOneFile(string text)
+    private static (Program Program, ICompilerHost Host, FakeSystem System, FakeCompilerOptions Options) CreateProgramOverOneFile(string text, bool suppressOutputPathCheck = true)
     {
         // PORT-NOTE: `verifyCompilerOptions`'s emit-path check calls `Program.GetEmitHost` and
-        // `Program.ForEachEmittedFile`, both M7's loud blockers (`Program/Program.EmitBoundary.cs`), so a program over
-        // default options cannot finish `createProgram` until M7 lands. The tests take the option that skips exactly
-        // that check — `suppressOutputPathCheck`, the flag the reference's own build mode sets — and nothing else about
-        // the file graph or the queries below changes.
-        var options = new FakeCompilerOptions { SuppressOutputPathCheck = true };
+        // `Program.ForEachEmittedFile`, which M6 could not reach (`Program/Program.EmitBoundary.cs` was loud then).
+        // Both are real now — `TheEmitSurfaceIsRealAndTheTransformerChainIsItsNamedBlocker` runs the check unskipped —
+        // and the default here keeps the flag for the file-graph tests, which are about the graph rather than the
+        // output-path check the reference's own build mode also suppresses.
+        var options = new FakeCompilerOptions { SuppressOutputPathCheck = suppressOutputPathCheck };
         var system = CreateSystemWithRootFile(text);
         var host = Program.CreateCompilerHostWorker(options, /*setParentNodes*/ false, system);
         // The default library file the host asks for; a program with a root file always pulls one in unless noLib is set.
@@ -88,29 +90,88 @@ public class ProgramTests
     }
 
     [Fact]
-    public void EmitAndTheDeclarationDiagnosticsAreTheM7Boundary()
+    public void TheEmitSurfaceIsRealAndTheTransformerChainIsItsNamedBlocker()
     {
-        var (program, _, _, _) = CreateProgramOverOneFile("const x = 1;\n");
+        var (program, _, _, options) = CreateProgramOverOneFile("const x = 1;\n");
 
-        // Each boundary member names itself and the milestone in the failure, so a caller cannot mistake it for a
-        // silently empty result. These assertions turn into the emit tests when M7 lands, not into deleted tests.
-        foreach (var (what, action) in new (string, Action)[]
+        // The emit host is the object the emitter runs against: it answers the program's own queries, and a
+        // createProgram program has no build info (TS's `program.getBuildInfo?.()` is undefined until a builder
+        // assigns it).
+        var host = program.GetEmitHost();
+        // PORT-NOTE: `IEmitHost` inherits `GetCompilerOptions`/`GetCurrentDirectory`/`GetSourceFile` from both
+        // `IScriptReferenceHost` and `ISourceFileMayBeEmittedHost` (types.ts declares them on each), so a call through
+        // the derived interface is ambiguous in C#; the reference reads the one member, and the port picks a base
+        // interface — the same qualification `Program.EmitHost`'s own members use.
+        Assert.Same(options, ((IScriptReferenceHost)host).GetCompilerOptions());
+        Assert.Same(program.GetSourceFile("/a.ts"), host.GetSourceFile("/a.ts"));
+        Assert.False(host.IsEmitBlocked("/a.js"));
+        Assert.Null(host.GetBuildInfo());
+        Assert.EndsWith(Paths.DirectorySeparator, host.GetCommonSourceDirectory(), StringComparison.Ordinal);
+
+        // `forEachEmittedFile` walks the source files that may be emitted (the default library is a `.d.ts` and is
+        // not) and answers their output paths.
+        var emitted = new List<IEmitFileNames>();
+        Program.ForEachEmittedFile(host, (fileNames, _) => emitted.Add(fileNames));
+        var names = Assert.Single(emitted);
+        Assert.Equal("/a.js", names.JsFilePath);
+        Assert.Null(names.DeclarationFilePath);
+
+        // The two output-path queries answer from the options: a non-incremental program has no build-info path, an
+        // incremental one names it beside its config file, and the declaration path is the out dir plus `.d.ts`.
+        Assert.Null(Program.GetTsBuildInfoEmitOutputFilePath(options));
+        Assert.Equal(
+            "/tsconfig.tsbuildinfo",
+            Program.GetTsBuildInfoEmitOutputFilePath(new FakeCompilerOptions { Incremental = true, ConfigFilePath = "/tsconfig.json" }));
+        var configFile = new FakeParsedCommandLine
         {
-            ("emit (program.ts:2688)", () => program.Emit()),
-            ("emitBuildInfo (program.ts:2650)", () => program.EmitBuildInfo()),
-            ("getDeclarationDiagnostics (program.ts:2827)", () => program.GetDeclarationDiagnostics()),
-            ("getEmitHost (program.ts:2598)", () => program.GetEmitHost()),
-            // The three `emitter.ts` members `program.ts`'s own verify path calls (emitter.ts:446/481/563); their
-            // arguments are never read, because the throw is the whole body.
-            ("forEachEmittedFile (emitter.ts:446)", () => Program.ForEachEmittedFile(null!, static (_, _) => { })),
-            ("getTsBuildInfoEmitOutputFilePath (emitter.ts:481)", () => Program.GetTsBuildInfoEmitOutputFilePath(new FakeCompilerOptions())),
-            ("getOutputDeclarationFileName (emitter.ts:563)", () => Program.GetOutputDeclarationFileName("a.ts", null!, false)),
-        })
-        {
-            var exception = Assert.Throws<NotSupportedException>(action);
-            Assert.StartsWith(what, exception.Message, StringComparison.Ordinal);
-            Assert.Contains("M7", exception.Message, StringComparison.Ordinal);
-        }
+            Options = new FakeCompilerOptions { ConfigFilePath = "/tsconfig.json", OutDir = "/out" },
+            FileNames = ["/a.ts"],
+        };
+        Assert.Equal("/out/a.d.ts", Program.GetOutputDeclarationFileName("/a.ts", configFile, /*ignoreCase*/ false));
+
+        // The declaration diagnostics are real down to the declaration transformer: a declaration file answers the
+        // empty list, and a source file reaches the transform's entry point, which is the named M7-B7 blocker.
+        var sourceFile = program.GetSourceFile("/a.ts")!;
+        var declarationFile = program.GetSourceFiles().First(file => file.IsDeclarationFile);
+        Assert.Empty(program.GetDeclarationDiagnostics(declarationFile));
+        var declarationDiagnostics = Assert.Throws<NotSupportedException>(() => program.GetDeclarationDiagnostics(sourceFile));
+        Assert.StartsWith("getDeclarationDiagnostics (src/compiler/transformers/declarations.ts:221)", declarationDiagnostics.Message, StringComparison.Ordinal);
+        Assert.Contains("M7-B2", declarationDiagnostics.Message, StringComparison.Ordinal);
+
+        // The transformer list is the one named blocker left in the emit path.
+        var transformers = Assert.Throws<NotSupportedException>(() => Transformer.GetTransformers(options));
+        Assert.StartsWith("getTransformers (transformer.ts:120)", transformers.Message, StringComparison.Ordinal);
+        Assert.Contains("transform batches M7-B2", transformers.Message, StringComparison.Ordinal);
+
+        // `verifyCompilerOptions`'s emit-path check runs `GetEmitHost` and `forEachEmittedFile` for a program over
+        // default options — the path M6 could not reach — so `createProgram` now completes without the flag that
+        // skips it.
+        var (uncheckedProgram, _, _, _) = CreateProgramOverOneFile("const x = 1;\n", suppressOutputPathCheck: false);
+        Assert.Equal(["/a.ts"], uncheckedProgram.GetRootFileNames());
+    }
+
+    [Fact]
+    public void EmitBuildInfoWritesTheVersionOnlyBuildInfoThroughTheHost()
+    {
+        // `--incremental` gives the program a build-info path, and `emitBuildInfo` is the one emit entry point that
+        // needs no transformer list: it transforms nothing and writes `host.getBuildInfo() || { version }`.
+        // PORT-NOTE: the reference fills `emittedFiles` only when `listEmittedFiles` is set (emitter.ts:767/790), so the
+        // test turns it on to observe the written path — the reference's own condition, not a port deviation.
+        var options = new FakeCompilerOptions { SuppressOutputPathCheck = true, Incremental = true, ConfigFilePath = "/tsconfig.json", ListEmittedFiles = true };
+        var system = CreateSystemWithRootFile("const x = 1;\n");
+        var host = Program.CreateCompilerHostWorker(options, /*setParentNodes*/ false, system);
+        AddStubDefaultLib(system, host, options);
+        var program = Program.CreateProgram(["/a.ts"], options, host);
+
+        var result = program.EmitBuildInfo();
+
+        Assert.False(result.EmitSkipped);
+        Assert.Empty(result.Diagnostics!);
+        Assert.Equal(["/tsconfig.tsbuildinfo"], result.EmittedFiles!.ToArray());
+        // PORT-NOTE: the port's fake system records the paths it is asked to write (`FakeSystem.Written`) and keeps no
+        // content, which is the contract `FilesTests` asserts against too; the build-info text itself is checked by
+        // `getBuildInfoText`'s own tests.
+        Assert.Equal(["/tsconfig.tsbuildinfo"], system.Written);
     }
 
     [Fact]
@@ -134,5 +195,33 @@ public class ProgramTests
         Assert.False(program.IsSourceFileFromExternalLibrary(program.GetSourceFiles()[0]));
         Assert.Empty(program.GetMissingFilePaths());
         Assert.Equal(StructureIsReused.Not, program._structureIsReused);
+    }
+
+    /// <summary>The <c>ParsedCommandLine</c> object the emit-path queries take.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>ParsedCommandLine</c> is what <c>parseJsonConfigFileContent</c> returns, and that parser is
+    /// M8's (the builder/config slice), so the port has no constructible one yet — the interface is
+    /// <see cref="IParsedCommandLine"/> and every ported consumer takes it. This is the test double the emit-path
+    /// assertions need, with the two slots those queries read.
+    /// </remarks>
+    private sealed class FakeParsedCommandLine : IParsedCommandLine
+    {
+        public ICompilerOptions? Options { get; set; }
+
+        public ITypeAcquisition? TypeAcquisition { get; set; }
+
+        public List<string>? FileNames { get; set; }
+
+        public List<IProjectReference>? ProjectReferences { get; set; }
+
+        public IWatchOptions? WatchOptions { get; set; }
+
+        public object? Raw { get; set; }
+
+        public List<IDiagnostic>? Errors { get; set; }
+
+        public Dictionary<string, WatchDirectoryFlags>? WildcardDirectories { get; set; }
+
+        public bool? CompileOnSave { get; set; }
     }
 }

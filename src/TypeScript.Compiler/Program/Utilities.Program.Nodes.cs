@@ -547,8 +547,8 @@ internal static partial class Utilities
     /// <summary>ported from: src/compiler/utilities.ts:6661-6688 — <c>sourceFileMayBeEmitted</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: the reference's third parameter is <c>forceDtsEmit?: boolean</c> (utilities.ts:6661) and its body
-    /// short-circuits on it ("forcing dts emit =&gt; file needs to be emitted"); the assigned signature has no such
-    /// parameter, so that leg is not evaluated and the M7 emit paths that pass it must extend the signature.
+    /// short-circuits on it ("forcing dts emit =&gt; file needs to be emitted"); the M7 emit path that passes it is
+    /// <c>Utilities.GetSourceFilesToEmit</c>, so the parameter is stated here in the reference's position.
     /// <para>
     /// PORT-NOTE: the option string slots (<c>outFile</c>, <c>outDir</c>, <c>rootDir</c>, <c>configFilePath</c>) are
     /// tested with <c>is not null</c>, the spelling the emitter-boundary slice fixed for <c>rootDir</c> and
@@ -562,7 +562,7 @@ internal static partial class Utilities
     /// <c>() =&gt; []</c> and the host's canonical-name delegate).
     /// </para>
     /// </remarks>
-    public static bool SourceFileMayBeEmitted(SourceFile? sourceFile, ISourceFileMayBeEmittedHost? host)
+    public static bool SourceFileMayBeEmitted(SourceFile? sourceFile, ISourceFileMayBeEmittedHost? host, bool? forceDtsEmit = null)
     {
         var file = sourceFile!;
         var emitHost = host!;
@@ -574,7 +574,7 @@ internal static partial class Utilities
         // Source file from node_modules are not emitted
         if (emitHost.IsSourceFileFromExternalLibrary(file)) return false;
         // forcing dts emit => file needs to be emitted
-        // PORT-NOTE: `if (forceDtsEmit) return true;` is the dropped leg (see this member's remarks).
+        if (Js.IsTruthy(forceDtsEmit)) return true;
         // Check other conditions for file emit
         // Source files from referenced projects are not emitted
         if (emitHost.IsSourceOfProjectReferenceRedirect(file.FileName)) return false;

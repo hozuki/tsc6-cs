@@ -455,10 +455,10 @@ internal sealed partial class Program
 
         // If the emit is enabled make sure that every output file is unique and not overwriting any of the input files
         // PORT-NOTE: `forEachEmittedFile` (emitter.ts:446-474) and `getTsBuildInfoEmitOutputFilePath` (emitter.ts:481-497)
-        // are M7's. The port declares the emitter.ts members the program needs as static members of `Program` — the
-        // arrangement `Program.GetComputedCommonSourceDirectory` and `Program.GetCommonSourceDirectoryOfConfig` already
-        // record — so both are called unqualified here. A class named `Emit` would not be addressable from inside
-        // `Program` in any case: the M7-boundary method `Program.Emit` (program.ts:2688) hides the type name (CS0119).
+        // live in `Emit/Emitter.cs`; the port keeps the two static facades on `Program` — the arrangement
+        // `Program.GetComputedCommonSourceDirectory` and `Program.GetCommonSourceDirectoryOfConfig` already record — so
+        // both are called unqualified here. A class named `Emit` would not be addressable from inside `Program` in any
+        // case: the `Program.Emit` member (program.ts:2688) hides the type name (CS0119).
         if (!Js.IsTruthy(_options.NoEmit) && !Js.IsTruthy(_options.SuppressOutputPathCheck))
         {
             var emitHost = GetEmitHost();

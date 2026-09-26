@@ -783,11 +783,11 @@ internal sealed partial class Program
     /// result as the reference's own "resolved to nothing" case below. The second arm is an M8 dependency at
     /// program.ts:4024-4032; see the M6 report.
     /// <para>
-    /// PORT-NOTE: <c>getOutputDeclarationFileName</c> lives in <c>emitter.ts</c> (M7) and stays an unresolved name in
-    /// the port until that slice lands (the same treatment <c>Checker.CreateTypeChecker</c> gets);
-    /// <c>getCommonSourceDirectoryOfConfig</c> is the M6-1 slice's <c>Program/Program.EmitBoundary.cs</c>. Both are
-    /// called unqualified, as the reference calls them (a class named <c>Emit</c> is not addressable inside
-    /// <c>Program</c>, whose <c>IProgram.Emit</c> member hides the name).
+    /// PORT-NOTE: <c>getOutputDeclarationFileName</c> (emitter.ts:563) and <c>getCommonSourceDirectoryOfConfig</c>
+    /// (emitter.ts:685) are both declared on <c>Program</c> — the second by the M6-1 slice, the first by M7 as a facade
+    /// over <c>Emitter.GetOutputDeclarationFileName</c> — so both are called unqualified, as the reference calls them (a
+    /// class named <c>Emit</c> is not addressable inside <c>Program</c>, whose <c>IProgram.Emit</c> member hides the
+    /// name).
     /// </para>
     /// </remarks>
     private IResolvedProjectReference? ParseProjectReferenceConfigFile(IProjectReference @ref)
