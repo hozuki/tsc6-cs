@@ -21,9 +21,13 @@ namespace TypeScript.Compiler;
 /// <c>Node</c> type per assembly, so <c>new Identifier()</c> is already the right thing (see §15.2).
 /// </para>
 /// <para>
-/// This file grows in batches: the infrastructure first, then the <c>create*</c>/<c>update*</c> families. It picks up
-/// <c>INodeFactory</c> only once every member the generated interface declares is present — until then the compiler
-/// cannot tell a missing method from an unimplemented one, so the batches are checked by their own tests.
+/// PORT-NOTE: it does <em>not</em> yet declare <c>INodeFactory</c> — the generated interface with one member per
+/// declaration in <c>types.ts</c>. Its 503 members reach past this file: <c>createAdd</c>/<c>createBitwiseAnd</c>/
+/// <c>createAssignment</c>, <c>CloneNode</c> and the prologue copiers are declared by <c>factory/utilities.ts</c>
+/// (**M4d**), and <c>baseFactory</c>/<c>converters</c> belong to <c>baseNodeFactory.ts</c>, which is not ported at all
+/// (§15.2). Declaring it today buys 284 errors — 272 unimplemented members and 12 signature mismatches — that say
+/// nothing about the ported surface. The step belongs to M4d, once those members exist and the generator can drop the
+/// two that never will.
 /// </para>
 /// </remarks>
 internal partial class NodeFactory
