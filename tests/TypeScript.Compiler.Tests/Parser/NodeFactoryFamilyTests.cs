@@ -706,6 +706,153 @@ public class NodeFactoryFamilyTests
     }
 
     // ---------------------------------------------------------------------------------------------
+    // Parameters and functions
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// A parameter named `this` is TypeScript in its entirety — TS takes that early exit instead of aggregating.
+    /// </summary>
+    [Fact]
+    public void ParameterDeclaration_TreatsAThisParameterAsTypescriptOnly()
+    {
+        var factory = Factory();
+
+        var thisParameter = factory.CreateParameterDeclaration(null, null, Id("this"), null, null, null);
+        var plain = factory.CreateParameterDeclaration(null, null, Id("x"), null, null, null);
+
+        Assert.Equal(TransformFlags.ContainsTypeScript, thisParameter.TransformFlags);
+        Assert.Equal(TransformFlags.None, plain.TransformFlags);
+    }
+
+    [Fact]
+    public void FunctionExpression_DistinguishesAsyncFromGenerator()
+    {
+        var factory = Factory();
+        var body = factory.CreateBlock([], true);
+        var asterisk = (PunctuationToken)factory.CreateToken(SyntaxKind.AsteriskToken);
+
+        var plain = factory.CreateFunctionExpression(null, null, null, null, null, null, body);
+        var generator = factory.CreateFunctionExpression(null, asterisk, null, null, null, null, body);
+        var async = factory.CreateFunctionExpression(
+            [factory.CreateModifier(SyntaxKind.AsyncKeyword)],
+            null,
+            null,
+            null,
+            null,
+            null,
+            body);
+
+        Assert.Equal(TransformFlags.None, plain.TransformFlags & TransformFlags.ContainsGenerator);
+        Assert.NotEqual(TransformFlags.None, generator.TransformFlags & TransformFlags.ContainsGenerator);
+        Assert.NotEqual(TransformFlags.None, async.TransformFlags & TransformFlags.ContainsES2017);
+        Assert.Equal(TransformFlags.None, generator.TransformFlags & TransformFlags.ContainsES2018);
+
+        // The `async` modifier itself carries both flags — it may still turn out to be an async generator — so
+        // ES2018 shows up on a plain async function too. TS propagates the modifier's flags the same way.
+        Assert.NotEqual(TransformFlags.None, async.TransformFlags & TransformFlags.ContainsES2018);
+        Assert.NotEqual(
+            TransformFlags.None,
+            generator.TransformFlags & TransformFlags.ContainsHoistedDeclarationOrCompletion);
+    }
+
+    [Fact]
+    public void VariableStatement_AcceptsEitherADeclarationListOrAPlainArray()
+    {
+        var factory = Factory();
+        var declaration = factory.CreateVariableDeclaration("a", null, null, null);
+        var list = factory.CreateVariableDeclarationList([declaration], NodeFlags.Let);
+
+        var fromList = factory.CreateVariableStatement(null, list);
+        var fromArray = factory.CreateVariableStatement(null, new List<VariableDeclaration> { declaration });
+
+        Assert.Same(list, fromList.DeclarationList);
+        Assert.Single(fromArray.DeclarationList!.Declarations!);
+        Assert.Equal(NodeFlags.None, fromArray.DeclarationList!.Flags & NodeFlags.BlockScoped);
+        Assert.Equal(NodeFlags.Let, fromList.DeclarationList!.Flags & NodeFlags.BlockScoped);
+    }
+
+    [Fact]
+    public void ImportEqualsDeclaration_ClearsTheAwaitFlag()
+    {
+        var alias = Factory().CreateImportEqualsDeclaration(null, false, Id("a"), Id("m"));
+
+        Assert.NotEqual(TransformFlags.None, alias.TransformFlags & TransformFlags.ContainsTypeScript);
+        Assert.Equal(TransformFlags.None, alias.TransformFlags & TransformFlags.ContainsPossibleTopLevelAwait);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Type and class nodes
+    // ---------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ConstructorTypeNode_TakesBothShapes()
+    {
+        var factory = Factory();
+        var type = factory.CreateKeywordTypeNode(SyntaxKind.NumberKeyword);
+
+        var withModifiers = factory.CreateConstructorTypeNode(null, null, [], type);
+        var deprecated = factory.CreateConstructorTypeNode(null, [], type);
+
+        Assert.Equal(SyntaxKind.ConstructorType, withModifiers.Kind);
+        Assert.Equal(TransformFlags.ContainsTypeScript, withModifiers.TransformFlags);
+        Assert.Equal(SyntaxKind.ConstructorType, deprecated.Kind);
+    }
+
+    /// <summary>
+    /// The tuple widens its element type (<c>NodeArray&lt;TypeNode&gt;</c> into
+    /// <c>NodeArray&lt;TypeNode | NamedTupleMember&gt;</c>); the elements themselves are the same objects.
+    /// </summary>
+    [Fact]
+    public void TupleTypeNode_KeepsTheElementsItWasGiven()
+    {
+        var factory = Factory();
+        var element = factory.CreateKeywordTypeNode(SyntaxKind.NumberKeyword);
+
+        var node = factory.CreateTupleTypeNode([(Node)element]);
+
+        Assert.Single(node.Elements!);
+        Assert.Same(element, node.Elements![0]);
+        Assert.Equal(TransformFlags.ContainsTypeScript, node.TransformFlags);
+    }
+
+    [Fact]
+    public void IntersectionTypeNode_UsesTheIntersectionParenthesizer()
+    {
+        var factory = Factory();
+        var a = factory.CreateKeywordTypeNode(SyntaxKind.NumberKeyword);
+        var b = factory.CreateKeywordTypeNode(SyntaxKind.StringKeyword);
+
+        var node = factory.CreateIntersectionTypeNode([a, b]);
+
+        Assert.Equal(SyntaxKind.IntersectionType, node.Kind);
+        Assert.Equal(2, node.Types!.Count);
+        Assert.Equal(TransformFlags.ContainsTypeScript, node.TransformFlags);
+    }
+
+    [Fact]
+    public void ClassStaticBlockDeclaration_IsFoundationalToClassFields()
+    {
+        var node = Factory().CreateClassStaticBlockDeclaration(new Block());
+
+        Assert.NotEqual(TransformFlags.None, node.TransformFlags & TransformFlags.ContainsClassFields);
+        Assert.Null(node.Modifiers);
+    }
+
+    [Fact]
+    public void JSDocWorkers_TakeTheKindAndUseItsDefaultName()
+    {
+        var factory = Factory();
+
+        var typeTag = factory.CreateJSDocTypeLikeTagWorker<JSDocTypeTag>(SyntaxKind.JSDocTypeTag, null, null, null);
+        var authorTag = factory.CreateJSDocSimpleTagWorker<JSDocAuthorTag>(SyntaxKind.JSDocAuthorTag, null, null);
+
+        Assert.Equal("type", typeTag.TagName!.EscapedText);
+        Assert.Equal(SyntaxKind.JSDocTypeTag, typeTag.Kind);
+        Assert.Equal("author", authorTag.TagName!.EscapedText);
+        Assert.Equal(SyntaxKind.JSDocAuthorTag, authorTag.Kind);
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // The stubs
     // ---------------------------------------------------------------------------------------------
 
