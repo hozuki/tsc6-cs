@@ -45,6 +45,10 @@ const tableSources = [
 const enumSources = [
     ["src/compiler/utilities.ts", "Associativity"],
     ["src/compiler/utilities.ts", "OperatorPrecedence"],
+    // §9: `const enum`s are generated rather than hand-copied. `AssignmentKind` was hand-written during M6
+    // (`Model/AssignmentKind.cs`) because a namespace-level enum cannot live inside the `Utilities` class; the
+    // generator writes that same file, so the hand-written half is replaced by the generated one.
+    ["src/compiler/utilities.ts", "AssignmentKind"],
 ];
 
 const ts = require(path.join(tsRoot, "lib", "typescript.js"));
