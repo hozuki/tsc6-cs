@@ -345,14 +345,17 @@ internal sealed partial class Checker
         }
         if (file is null && AmbientModuleSymbolRegex().IsMatch(symbol.EscapedName!))
         {
-            return symbol.EscapedName!.Substring(1, symbol.EscapedName!.Length - 1);
+            // CHECKER-FIX: checker.ts:8611/8617 pass JS `substring`'s *end index* (`name.substring(1, name.length - 1)`);
+            // the port read them as a length, so the synthesized `import("m")` literal kept the closing quote and every
+            // specifier for an ambient module printed as `m"`.
+            return symbol.EscapedName![1..^1];
         }
         if (context.EnclosingFile is null || context.Tracker?.ModuleResolverHost is null)
         {
             // If there's no context declaration, we can't lookup a non-ambient specifier, so we just use the symbol name
             if (AmbientModuleSymbolRegex().IsMatch(symbol.EscapedName!))
             {
-                return symbol.EscapedName!.Substring(1, symbol.EscapedName!.Length - 1);
+                return symbol.EscapedName![1..^1];
             }
             // A resolver may not be provided for baselines and errors - in those cases we use the fileName in full
             return Utilities.GetSourceFileOfNode(Utilities.GetNonAugmentationDeclaration(symbol)!)!.FileName!;

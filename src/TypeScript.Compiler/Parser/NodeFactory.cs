@@ -287,39 +287,51 @@ internal partial class NodeFactory
         return node;
     }
 
-    private Node CreateTokenNode(SyntaxKind token) => token switch
+    private Node CreateTokenNode(SyntaxKind token)
     {
-        SyntaxKind.SuperKeyword => CreateBaseNode<SuperExpression>(token),
-        SyntaxKind.ThisKeyword => CreateBaseNode<ThisExpression>(token),
-        SyntaxKind.NullKeyword => CreateBaseNode<NullLiteral>(token),
-        SyntaxKind.TrueKeyword => CreateBaseNode<TrueLiteral>(token),
-        SyntaxKind.FalseKeyword => CreateBaseNode<FalseLiteral>(token),
+        Node node = token switch
+        {
+            SyntaxKind.SuperKeyword => CreateBaseNode<SuperExpression>(token),
+            SyntaxKind.ThisKeyword => CreateBaseNode<ThisExpression>(token),
+            SyntaxKind.NullKeyword => CreateBaseNode<NullLiteral>(token),
+            SyntaxKind.TrueKeyword => CreateBaseNode<TrueLiteral>(token),
+            SyntaxKind.FalseKeyword => CreateBaseNode<FalseLiteral>(token),
 
-        // TS declares `ImportExpression extends PrimaryExpression` with no members of its own, so its runtime object is a
-        // bare token and only the *type* makes it an expression — which is what lets `import("x")` use the token as a
-        // callee. The port needs the class to carry that chain; a plain `Token` here cannot flow into a
-        // `CallExpression.Expression` (and `ParseTokenNode<MemberExpression>()` would throw on every dynamic import).
-        SyntaxKind.ImportKeyword => CreateBaseNode<ImportExpression>(token),
+            // TS declares `ImportExpression extends PrimaryExpression` with no members of its own, so its runtime object is a
+            // bare token and only the *type* makes it an expression — which is what lets `import("x")` use the token as a
+            // callee. The port needs the class to carry that chain; a plain `Token` here cannot flow into a
+            // `CallExpression.Expression` (and `ParseTokenNode<MemberExpression>()` would throw on every dynamic import).
+            SyntaxKind.ImportKeyword => CreateBaseNode<ImportExpression>(token),
 
-        // TS's `createToken(token: TKind extends PunctuationSyntaxKind)` answers a `PunctuationToken<TKind>`; the port's
-        // token classes carry the kind at run time, so the range is what picks the class (Model/Token.cs).
-        _ when token >= SyntaxKind.FirstPunctuation && token <= SyntaxKind.LastPunctuation => new PunctuationToken(token),
+            // TS's `createToken(token: TKind extends PunctuationSyntaxKind)` answers a `PunctuationToken<TKind>`; the port's
+            // token classes carry the kind at run time, so the range is what picks the class (Model/Token.cs).
+            _ when token >= SyntaxKind.FirstPunctuation && token <= SyntaxKind.LastPunctuation => new PunctuationToken(token),
 
-        // A keyword that is a type is a `KeywordTypeNode<TKind>` in TS — see KeywordTypeToken for why it needs a class.
-        _ when IsKeywordTypeKind(token) => new KeywordTypeToken(token),
+            // A keyword that is a type is a `KeywordTypeNode<TKind>` in TS — see KeywordTypeToken for why it needs a class.
+            _ when IsKeywordTypeKind(token) => new KeywordTypeToken(token),
 
-        // The modifier keywords are `ModifierToken<TKind>` in TS, and the port's model has `List<ModifierToken>` slots
-        // for them (`AsModifierTokens` casts). The parser builds them through `CreateModifier`, but the class has to
-        // follow the *kind*, not the call site: a `Token` here would break that cast.
-        _ when Utilities.IsModifierKind(token) => new ModifierToken(token),
+            // The modifier keywords are `ModifierToken<TKind>` in TS, and the port's model has `List<ModifierToken>` slots
+            // for them (`AsModifierTokens` casts). The parser builds them through `CreateModifier`, but the class has to
+            // follow the *kind*, not the call site: a `Token` here would break that cast.
+            _ when Utilities.IsModifierKind(token) => new ModifierToken(token),
 
-        // Every remaining keyword is a `KeywordToken<TKind>`. This arm is why `for await` works: `AwaitKeyword` reaches
-        // `ForOfStatement.awaitModifier`, whose C# type is `KeywordToken?`, through `parseTokenNode` — and `x as
-        // KeywordToken` on a plain `Token` answers **null instead of throwing**, so the statement silently lost its
-        // `await` modifier (27 corpus files, found by the P1a differential run).
-        _ when token >= SyntaxKind.FirstKeyword && token <= SyntaxKind.LastKeyword => new KeywordToken(token),
-        _ => new Token(token),
-    };
+            // Every remaining keyword is a `KeywordToken<TKind>`. This arm is why `for await` works: `AwaitKeyword` reaches
+            // `ForOfStatement.awaitModifier`, whose C# type is `KeywordToken?`, through `parseTokenNode` — and `x as
+            // KeywordToken` on a plain `Token` answers **null instead of throwing**, so the statement silently lost its
+            // `await` modifier (27 corpus files, found by the P1a differential run).
+            _ when token >= SyntaxKind.FirstKeyword && token <= SyntaxKind.LastKeyword => new KeywordToken(token),
+            _ => new Token(token),
+        };
+
+        // PORT-NOTE: the arms above build the token class directly, so they bypass the marking CreateBaseNode does. TS's
+        // `createBaseTokenNode` is wrapped in `makeSynthetic` (factory/nodeFactory.ts:7393-7405), so a factory token is
+        // synthesized exactly like every other factory node; without this, `nodeIsSynthesized` answers false for a
+        // synthesized keyword type, `Utilities.GetParseTreeNode` returns the token itself, and the harness's
+        // `nodeIsFullySynthetic` (src/harness/typeWriter.ts:35-37) underlines nothing — every `.types` line for a type
+        // the checker built would print spaces where the reference prints carets.
+        if (_synthesizedNodes) node.Flags |= NodeFlags.Synthesized;
+        return node;
+    }
 
     /// <summary>TS's <c>KeywordTypeSyntaxKind</c>: the keywords that are also types.</summary>
     private static bool IsKeywordTypeKind(SyntaxKind kind) => kind is

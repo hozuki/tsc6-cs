@@ -21,6 +21,9 @@
     <InternalsVisibleTo Include="BindDiff" />
     <InternalsVisibleTo Include="TypeDiff" />
     <InternalsVisibleTo Include="EmitDiff" />
+    <!-- tools/BaselineDiff（基线差分，M7-C 的最后一环）同样直接调用 internal 的 Program / Checker / 类型模型
+         与 Printer / PrintHandlers / EmitTextWriter（类型写入器的下划线打印机）。 -->
+    <InternalsVisibleTo Include="BaselineDiff" />
   </ItemGroup>
 
 </Project>
