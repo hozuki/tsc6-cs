@@ -2143,7 +2143,7 @@ dotnet run --project tools/BaselineDiff -- --cases D:/Source/GitHub/TypeScript/t
 
 1. ~~**`.js` 首注释丢失**（已修，见 §17.14.6）~~：`ambientModuleDeclarationWithReservedIdentifierInDottedPath.ts`（`@module: commonjs`）—— baseline 在 `"use strict";` 与 `Object.defineProperty(exports,"__esModule",…)` 之间保留文件首注释 `// https://github.com/microsoft/TypeScript/issues/7840`，端口丢掉它。机制属 `emitSourceFile` 的 detached-comment 路径（emitter.ts:4292-4306 的 `shouldEmitDetachedComment` 与 prologue 列表的写出顺序）；复现：`--filter "ambient/ambientModuleDeclarationWithReservedIdentifierInDottedPath.ts"`。
    临时插桩（已还原）得到的定位：`EmitDetachedCommentsAndUpdateCommentsInfo` 对**声明**发射的 source file 确实找到 detached 范围（`rangePos=0 rangeEnd=233`、`DetachedCommentInfo(0, 54)`）并按参考调用 `writeComment`，但该上下文里 `ShouldWriteComment` 答 false（`onlyPrintJsDocStyle` 生效）—— 对 `.d.ts` 是正确行为；而 **`.js` 发射这一侧没有出现任何一次 `writeComment`**，即 `.js` 的 `emitSourceFile` 根本没走 `EmitBodyWithDetachedComments`（或走了却没有注释范围）。下一步应在此处按参考对比 `.js` 发射时 `statements[0]` 的 `isPrologueDirective`/`nodeIsSynthesized` 与注释范围的来源。
-2. **`.types` 下划线中段空洞**（es6/** 分片 1 例）：`symbolProperty5.ts` —— baseline 是一条连续 `^^^^`，端口中间空 8 格 ⇒ 某个嵌套节点的 `nodeIsFullySynthetic`（`src/harness/typeWriter.ts:35-37`）答 false。与 `9dd4e37` 的 token 标记同族、不同节点类；复现产物在 `artifacts/bd-integration/port/symbolProperty5.types` 第 6/8 行。
+2. ~~**`.types` 下划线中段空洞**（已修，见 §17.14.8）~~：`symbolProperty5.ts` —— baseline 是一条连续 `^^^^`，端口中间空 8 格 ⇒ 某个嵌套节点的 `nodeIsFullySynthetic`（`src/harness/typeWriter.ts:35-37`）答 false。与 `9dd4e37` 的 token 标记同族、不同节点类；复现产物在 `artifacts/bd-integration/port/symbolProperty5.types` 第 6/8 行。
 3. ~~**`GetExports` 空引用（target=es5 降级路径）**（已修，见 §17.14.7）~~：`NullReferenceException @ ModuleTransformer.GetExports (ModuleTransforms/ModuleTransform.Substitution.cs:247) < SubstituteBinaryExpression (:203) < SubstituteExpression (:90) < OnSubstituteNode (:51) < ImpliedNodeFormatDependentTransformer.OnSubstituteNode (:146)`，仅在 `@target: es5` 的降级发射上出现（分片 1 例：`emitArrowFunction(target=es5).ts`；帧见该分片的 `report.txt`）。非单行根因，需按参考逐层比对替换路径。
 
 ### 17.14.6 遗留 1 已修：转换后的语句表丢文本范围 ⇒ 首注释被吞
@@ -2161,3 +2161,11 @@ dotnet run --project tools/BaselineDiff -- --cases D:/Source/GitHub/TypeScript/t
 修法：三处按参考的 `?.` 语义改写（前两处判空后返回 `null`/取 `null`，第三处用 `_currentModuleInfo?.ExportSpecifiers.Get(name)`）。
 
 实测：基线环 `emitArrowFunction.ts`（2 个用例）由 1 崩溃变为 **`same=8 diverged=0 port-crash=0`（VERDICT clean）**；三条既有外环零回归（build 0/0、测试 1,520/1,520、TypeDiff `same=5908/5908` clean、EmitDiff `same=5908/5908` clean）。
+
+### 17.14.8 遗留 2 已修：工厂造的修饰符 token 未标 `Synthesized` ⇒ `.types` 下划线中段空洞
+
+harness 的下划线规则是逐节点的 `nodeIsFullySynthetic(node) = nodeIsSynthesized(node) && !getParseTreeNode(node)`（`src/harness/typeWriter.ts:35-37`），而 `getParseTreeNode` 的第一步是**只看标志位**的 `isParseTreeNode(node) = (node.flags & NodeFlags.Synthesized) === 0`。端口的 `NodeFactory.CreateModifier` 直接 `new ModifierToken(kind)`，既没有走 `CreateBaseNode` 的标记，也没有 `9dd4e37` 给 `CreateTokenNode` 补的那一步 —— 于是 `readonly` 修饰符 token 虽然 `pos = -1`（`nodeIsSynthesized` 为真），却因标志位缺失被当成语法树节点，`nodeIsFullySynthetic` 答 false，打印器在它前后切换下划线 ⇒ `symbolProperty5.ts` 的 `.types` 第 6 行正好在 `readonly` 那 **8 个字符**上留出空洞（实测插桩：`kind=ReadonlyKeyword flags=None pos=-1 syn=True parseTree=node:ReadonlyKeyword fullySynthetic=False`）。
+
+修法：`CreateModifier` 与三处 `?? new PunctuationToken(...)` 默认 token 改走新的 `MarkSynthesized<T>`（照 `makeSynthetic`，factory/nodeFactory.ts:7393-7405；解析器自己的工厂 `_synthesizedNodes == false` 不标），并带 PORT-NOTE 记录实测。
+
+实测：es6/** 分片（120 文件 / 150 用例）`ARTIFACT types 148/1/1` → **`150/0/0`**，四类 artifact 全 150/150 ⇒ 该分片 **`cases=150 same=600 diverged=0 port-crash=0`（VERDICT clean）**；三条既有外环零回归（build 0/0、测试 1,520/1,520、TypeDiff `same=5908/5908` clean、EmitDiff `same=5908/5908` clean）。

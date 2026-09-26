@@ -396,6 +396,23 @@ internal partial class NodeFactory
     {
         var node = new ModifierToken(kind);
         node.TransformFlags |= TokenTransformFlagsOf(kind);
+        // PORT-NOTE: `createModifier` is `createBaseModifier` through the synthetic base factory, i.e. the modifier token
+        // is marked exactly like every other factory product (nodeFactory.ts:7393-7405). Without the flag the token is
+        // not "fully synthetic" (`nodeIsSynthesized` is true through its -1 position, but `getParseTreeNode` treats a
+        // token without the flag as a parse-tree node, utilitiesPublic.ts:isParseTreeNode), which the harness's
+        // `nodeIsFullySynthetic` sees as an underline boundary — measured on symbolProperty5.ts's `.types`, where the
+        // `readonly` modifier of a built property signature punched an 8-character hole in the underline run.
+        return MarkSynthesized(node);
+    }
+
+    /// <summary>The marking every factory product gets from the synthetic base factory.</summary>
+    /// <remarks>PORT-NOTE: the port's factory classes are constructed with <c>new</c> in the token members below, so the
+    /// base factory's `makeSynthetic` step (factory/nodeFactory.ts:7393-7405) is stated here; the parser's own factory
+    /// (<c>_synthesizedNodes == false</c>) leaves the flag clear, as the reference's `parseBaseNodeFactory` does.</remarks>
+    private T MarkSynthesized<T>(T node)
+        where T : Node
+    {
+        if (_synthesizedNodes) node.Flags |= NodeFlags.Synthesized;
         return node;
     }
 
@@ -2419,9 +2436,9 @@ internal partial class NodeFactory
     {
         var node = CreateBaseNode<ConditionalExpression>(SyntaxKind.ConditionalExpression);
         node.Condition = Parenthesizer.ParenthesizeConditionOfConditionalExpression(condition);
-        node.QuestionToken = questionToken ?? new PunctuationToken(SyntaxKind.QuestionToken);
+        node.QuestionToken = questionToken ?? MarkSynthesized(new PunctuationToken(SyntaxKind.QuestionToken));
         node.WhenTrue = Parenthesizer.ParenthesizeBranchOfConditionalExpression(whenTrue);
-        node.ColonToken = colonToken ?? new PunctuationToken(SyntaxKind.ColonToken);
+        node.ColonToken = colonToken ?? MarkSynthesized(new PunctuationToken(SyntaxKind.ColonToken));
         node.WhenFalse = Parenthesizer.ParenthesizeBranchOfConditionalExpression(whenFalse);
         node.TransformFlags |= PropagateChildFlags(node.Condition)
             | PropagateChildFlags(node.QuestionToken)
@@ -2870,7 +2887,7 @@ internal partial class NodeFactory
         node.TypeParameters = AsNodeArray(typeParameters);
         node.Parameters = CreateNodeArray(parameters, null);
         node.Type = type;
-        node.EqualsGreaterThanToken = equalsGreaterThanToken ?? new PunctuationToken(SyntaxKind.EqualsGreaterThanToken);
+        node.EqualsGreaterThanToken = equalsGreaterThanToken ?? MarkSynthesized(new PunctuationToken(SyntaxKind.EqualsGreaterThanToken));
         node.Body = Parenthesizer.ParenthesizeConciseBodyOfArrowFunction(body);
 
         var isAsync = (Utilities.ModifiersToFlags(node.Modifiers) & ModifierFlags.Async) != 0;
