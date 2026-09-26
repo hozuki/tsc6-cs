@@ -73,6 +73,9 @@ internal sealed class TsTypeMapper
     }
 
     /// <summary>Whether a mapped C# type is a value type (and therefore must not be nullable-annotated).</summary>
+    /// <summary>Type parameters of the member currently being mapped, so `T` stays `T`.</summary>
+    private ISet<string>? _currentTypeParameters;
+
     public bool IsValueType(string type)
     {
         var bare = type.TrimEnd('?');
@@ -80,13 +83,31 @@ internal sealed class TsTypeMapper
     }
 
     /// <summary>Maps a TS type expression, appending <c>?</c> when the member is optional.</summary>
-    public string MapMember(string tsType, bool optional)
+    /// <remarks>
+    /// <paramref name="typeParameters"/> are the type parameters in scope for the member being mapped. They are set
+    /// only for the duration of the call, because the mapping is recursive and single-threaded: without them a
+    /// generic member would lose its parameter and degrade to <c>object</c> (`createNodeArray&lt;T extends Node&gt;`
+    /// would emit <c>List&lt;object&gt;</c> instead of <c>List&lt;T&gt;</c>).
+    /// </remarks>
+    public string MapMember(string tsType, bool optional, IReadOnlyList<TsTypeParameter>? typeParameters = null)
     {
-        var mapped = Map(tsType);
-        if (!optional || mapped.EndsWith('?')) return mapped;
+        var previous = _currentTypeParameters;
+        _currentTypeParameters = typeParameters is null || typeParameters.Count == 0
+            ? null
+            : new HashSet<string>(typeParameters.Select(tp => tp.Name), StringComparer.Ordinal);
 
-        // Nullability annotation; legal on both reference types and value types.
-        return mapped + "?";
+        try
+        {
+            var mapped = Map(tsType);
+            if (!optional || mapped.EndsWith('?')) return mapped;
+
+            // Nullability annotation; legal on both reference types and value types.
+            return mapped + "?";
+        }
+        finally
+        {
+            _currentTypeParameters = previous;
+        }
     }
 
     public string Map(string tsType)
@@ -95,6 +116,10 @@ internal sealed class TsTypeMapper
         // the emitted type are both single-line.
         var text = CollapseWhitespace(tsType);
         if (text.Length == 0) return "object?";
+
+        // A type parameter of the member being emitted is already a legal C# name; mapping it would degrade it
+        // to `object` (see MapMember).
+        if (_currentTypeParameters?.Contains(text) == true) return text;
 
         // Parenthesised groups carry no information once the inner type is mapped.
         var unwrapped = StripOuterParentheses(text);
@@ -280,7 +305,7 @@ internal sealed class TsTypeMapper
         return "object?";
     }
 
-    private static string ConvertGeneric(string name, List<string> arguments) => name switch
+    private string ConvertGeneric(string name, List<string> arguments) => name switch
     {
         // A Dictionary key cannot be null, while the TS key type may be nullable.
         "Map" or "ReadonlyMap" => $"Dictionary<{arguments[0].TrimEnd('?')}, {arguments[1]}>",
@@ -293,9 +318,17 @@ internal sealed class TsTypeMapper
         "Required" or "Readonly" or "Partial" or "Pick" or "Omit" or "Record" or "Exclude" or "Extract" => "object?",
         // `MapLike<T>` is declared in corePublic.ts as a string-keyed object; that is a Dictionary here.
         "MapLike" => $"Dictionary<string, {arguments[0]}>",
+        // `MultiMap<K, V>` is a `Map<K, V[]>` in core.ts; spelled out because the port has no MultiMap type.
+        "MultiMap" => $"Dictionary<{arguments[0].TrimEnd('?')}, List<{arguments[1]}>>",
+        // `IterableIterator<T>` is IEnumerable in C#: the port only ever enumerates these. Returning IEnumerator
+        // would lose the ability to enumerate twice, which TS's iterators allow.
+        "IterableIterator" or "Iterator" or "Iterable" => $"IEnumerable<{arguments[0]}>",
         // Declared outside the extracted files; see MapReference for why unknown generics degrade.
         "ResolutionNameAndModeGetter" => "object?",
-        _ => $"{name}<{string.Join(", ", arguments)}>",
+        // Everything else is a model type. The name goes through TypeName, which is what puts the `I` prefix on a
+        // mixin interface — without it `KeywordTypeNode<TKind>` came out unprefixed while the generator emitted
+        // `IKeywordTypeNode<TKind>`.
+        _ => $"{TypeName(name)}<{string.Join(", ", arguments)}>",
     };
 
     /// <summary>The C# name for a TS type: mixin interfaces get the <c>I</c> prefix (porting decision D1).</summary>

@@ -56,7 +56,11 @@ internal sealed class TsTypeModel
     /// </summary>
     public IReadOnlyCollection<string> DualRoleClasses => _dualRole;
 
-    public TypeRole RoleOf(string name) => _roles.TryGetValue(name, out var role) ? role : TypeRole.Interface;
+    // A forced class is a class by construction (see s_forcedClasses), so it must not take the mixin `I` prefix even
+    // though the classification pass may have left it as an interface — `NodeArray<T>` is hand-written as a class.
+    public TypeRole RoleOf(string name) => s_forcedClasses.Contains(name)
+        ? TypeRole.Class
+        : _roles.TryGetValue(name, out var role) ? role : TypeRole.Interface;
 
     public bool IsKnown(string name) => _interfaces.ContainsKey(name) || _aliases.ContainsKey(name);
 
@@ -172,7 +176,7 @@ internal sealed class TsTypeModel
     /// the position rule cannot see them.
     /// </summary>
     private static readonly string[] s_forcedClasses =
-        ["Token", "PunctuationToken", "KeywordToken", "ModifierToken", "NodeArray", "MutableNodeArray"];
+        ["Token", "PunctuationToken", "KeywordToken", "ModifierToken", "NodeArray", "MutableNodeArray", "ModeAwareCache"];
 
     private void Classify()
     {

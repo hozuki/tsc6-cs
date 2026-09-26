@@ -102,17 +102,43 @@ function collect(source, sourceRelative) {
                 extends: (statement.heritageClauses || [])
                     .filter(clause => clause.token === ts.SyntaxKind.ExtendsKeyword)
                     .flatMap(clause => clause.types.map(t => t.getText(source))),
-                // Only property signatures become data members. Method signatures (`foo(x): void`) are
-                // skipped: TS declares them as interface methods, and the port models those as delegates
-                // where they are needed rather than as fields.
-                members: statement.members.filter(ts.isPropertySignature).map(member => ({
-                    name: memberName(member.name),
-                    type: member.type ? member.type.getText(source) : "any",
-                    isReadonly: hasModifier(member, ts.SyntaxKind.ReadonlyKeyword),
-                    isOptional: !!member.questionToken,
-                    doc: docOf(member),
-                    trailing: trailingCommentOf(member),
-                })),
+                // Property and method signatures both become members. Methods are part of the contract, not an
+                // implementation detail that can be left to delegates where needed: `NodeFactory` alone declares
+                // 520 of them (`createIdentifier(name: string): Identifier`), and `TypeChecker` another 181.
+                // Dropping them produced interfaces that no implementation could be checked against.
+                members: statement.members
+                    .filter(member => ts.isPropertySignature(member) || ts.isMethodSignature(member))
+                    .map(member => ts.isMethodSignature(member)
+                        ? {
+                            name: memberName(member.name),
+                            isMethod: true,
+                            type: member.type ? member.type.getText(source) : "void",
+                            parameters: member.parameters.map(parameter => ({
+                                name: parameter.name.getText(source),
+                                type: parameter.type ? parameter.type.getText(source) : "any",
+                                isOptional: !!parameter.questionToken,
+                                isRest: !!parameter.dotDotDotToken,
+                            })),
+                            typeParameters: (member.typeParameters ?? []).map(typeParameter => ({
+                                name: typeParameter.name.text,
+                                constraint: typeParameter.constraint ? typeParameter.constraint.getText(source) : null,
+                            })),
+                            isReadonly: false,
+                            isOptional: !!member.questionToken,
+                            doc: docOf(member),
+                            trailing: trailingCommentOf(member),
+                        }
+                        : {
+                            name: memberName(member.name),
+                            isMethod: false,
+                            type: member.type ? member.type.getText(source) : "any",
+                            parameters: [],
+                            typeParameters: [],
+                            isReadonly: hasModifier(member, ts.SyntaxKind.ReadonlyKeyword),
+                            isOptional: !!member.questionToken,
+                            doc: docOf(member),
+                            trailing: trailingCommentOf(member),
+                        }),
                 doc: docOf(statement),
                 concreteKind: kindMember ? kindMember.type.getText(source).slice("SyntaxKind.".length) : null,
                 source: sourceRelative,

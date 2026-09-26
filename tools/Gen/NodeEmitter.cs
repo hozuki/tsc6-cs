@@ -104,11 +104,33 @@ internal static class NodeEmitter
         // conflicting redeclaration in C#, and implementors would have to satisfy both.
         var inherited = new HashSet<string>(StringComparer.Ordinal);
         CollectInheritedNames(model, iface, inherited);
+        var extendsNode = model.ReachesNode(iface.Name);
 
-        foreach (var member in iface.Members)
+        // C# cannot overload on return type alone, but TS does: `createToken` has 20+ declarations that differ
+        // only in what they return (`createToken(token: SyntaxKind.EndOfFileToken): EndOfFileToken`, …). Members
+        // that would collide are merged into a single signature whose return type is the common base of the
+        // candidates — the type a caller can rely on whichever declaration TS resolved to.
+        foreach (var group in iface.Members
+            .Where(member => !Skip(member, extendsNode) && !inherited.Contains(member.Name))
+            .GroupBy(member => MemberKey(member, mapper)))
         {
-            if (Skip(member, model.ReachesNode(iface.Name)) || inherited.Contains(member.Name)) continue;
-            sb.AppendLine($"    {Declaration(member, mapper, inInterface: true)}");
+            var candidates = group.ToList();
+            var member = candidates[0];
+            string? forcedReturnType = null;
+            if (candidates.Count > 1 && member.IsMethod)
+            {
+                var names = candidates
+                    .Select(candidate => TsTypeMapper.BareName(candidate.Type))
+                    .Where(model.IsKnown)
+                    .Distinct()
+                    .ToList();
+                if (names.Count > 1)
+                {
+                    forcedReturnType = mapper.Map(model.CommonBase(names));
+                }
+            }
+
+            sb.AppendLine($"    {Declaration(member, mapper, inInterface: true, forceType: forcedReturnType)}");
         }
 
         sb.AppendLine("}");
@@ -251,19 +273,105 @@ internal static class NodeEmitter
 
     private static string Declaration(TsMember member, TsTypeMapper mapper, bool inInterface, string? forceType = null)
     {
+        var name = PascalCase(member.Name);
+        // Interface members are implicitly public; class members must say so to satisfy the interface.
+        var accessibility = inInterface ? "" : "public ";
+
+        if (member.IsMethod)
+        {
+            return $"{accessibility}{MethodDeclaration(member, mapper, name, forceType)}";
+        }
+
         var type = forceType ?? mapper.MapMember(member.Type, member.IsOptional);
 
         // Generated code runs under `#nullable enable`, and TS's non-optional properties are set by the
         // parser/factory rather than at construction, so reference-typed members are declared nullable to
-        // match how the field is actually populated.
+        // match how the field is actually populated. Return types are not: a method produces its result, so a
+        // non-nullable TS return type maps to a non-nullable C# one.
         if (!type.EndsWith('?') && type != "void" && !mapper.IsValueType(type)) type += "?";
 
-        var name = PascalCase(member.Name);
         var accessors = member.IsReadonly ? "{ get; }" : "{ get; set; }";
-        // Interface members are implicitly public; class members must say so to satisfy the interface.
-        var accessibility = inInterface ? "" : "public ";
         return $"{accessibility}{type} {name} {accessors}";
     }
+
+    /// <summary>
+    /// A C# method signature for a TS method member.
+    /// </summary>
+    /// <remarks>
+    /// PORT-NOTE: <c>this</c> as a return type (TS's fluent setters, e.g. <c>ModeAwareCache.set</c>) has no C#
+    /// equivalent; it maps to <c>object</c>, which every implementation satisfies.
+    /// <para>
+    /// PORT-NOTE: a type parameter keeps its constraint only when the constraint names a type the port models
+    /// (<c>T extends Node</c>). Constraints that map to <c>object</c> are dropped rather than guessed at, and the
+    /// implementation must match whatever is emitted here — an inaccurate constraint would fail to compile at the
+    /// one place that cannot be worked around.
+    /// </para>
+    /// </remarks>
+    private static string MethodDeclaration(TsMember member, TsTypeMapper mapper, string name, string? forceReturnType)
+    {
+        var sb = new StringBuilder();
+        var returnType = forceReturnType ?? (member.Type == "this" ? "object" : mapper.MapMember(member.Type, false, member.TypeParameters));
+        sb.Append(returnType).Append(' ').Append(name);
+
+        if (member.TypeParameters.Count != 0)
+        {
+            sb.Append('<').Append(string.Join(", ", member.TypeParameters.Select(tp => tp.Name))).Append('>');
+        }
+
+        sb.Append('(');
+        sb.Append(string.Join(", ", member.Parameters.Select(parameter =>
+        {
+            var parameterType = mapper.MapMember(parameter.Type, parameter.IsOptional, member.TypeParameters);
+            if (!parameterType.EndsWith('?') && !parameterType.Contains("params ") && !mapper.IsValueType(parameterType))
+            {
+                parameterType += "?";
+            }
+
+            // TS's `...args: T[]` is C#'s `params T[] args`; the element type is already an array by then.
+            // TS's `...args: T[]` is C#'s `params T[] args`, and a parameter name keeps its TS spelling
+            // (camelCase) — which occasionally lands on a C# keyword (`createTypeOperatorNode(operator, type)`),
+            // so it is escaped rather than renamed.
+            var parameterName = s_csharpKeywords.Contains(parameter.Name) ? "@" + parameter.Name : parameter.Name;
+            return $"{(parameter.IsRest ? "params " : "")}{parameterType} {parameterName}";
+        })));
+        sb.Append(')');
+
+        foreach (var typeParameter in member.TypeParameters)
+        {
+            if (typeParameter.Constraint is null) continue;
+            var constraint = mapper.MapMember(typeParameter.Constraint, false, member.TypeParameters).TrimEnd('?');
+            if (constraint == "object" || mapper.IsValueType(constraint)) continue;
+            sb.Append($" where {typeParameter.Name} : {constraint}");
+        }
+
+        return sb.Append(';').ToString();
+    }
+
+    /// <summary>C# reserved keywords, so a parameter name that collides is escaped with `@`.</summary>
+    private static readonly HashSet<string> s_csharpKeywords = new(StringComparer.Ordinal)
+    {
+        "abstract", "as", "base", "bool", "break", "byte", "case", "catch", "char", "checked", "class", "const",
+        "continue", "decimal", "default", "delegate", "do", "double", "else", "enum", "event", "explicit", "extern",
+        "false", "finally", "fixed", "float", "for", "foreach", "goto", "if", "implicit", "in", "int", "interface",
+        "internal", "is", "lock", "long", "namespace", "new", "null", "object", "operator", "out", "override",
+        "params", "private", "protected", "public", "readonly", "ref", "return", "sbyte", "sealed", "short",
+        "sizeof", "stackalloc", "static", "string", "struct", "switch", "this", "throw", "true", "try", "typeof",
+        "uint", "ulong", "unchecked", "unsafe", "ushort", "using", "virtual", "void", "volatile", "while",
+    };
+
+    /// <summary>
+    /// Groups members that C# would consider the same signature: a property by name, a method by name and
+    /// parameter types (return type is deliberately excluded — that is what has to be reconciled).
+    /// </summary>
+    /// <remarks>
+    /// The parameter types are the *mapped* ones, with any nullability annotation stripped. Two reasons: TS's
+    /// `createToken` overloads take `SyntaxKind.EndOfFileToken`, `SyntaxKind.Unknown` and so on, which are distinct
+    /// TS types but all map to `SyntaxKind`; and C#'s overload resolution ignores nullable annotations, so
+    /// `string` and `string?` are one signature to the compiler.
+    /// </remarks>
+    private static string MemberKey(TsMember member, TsTypeMapper mapper) => member.IsMethod
+        ? $"m:{member.Name}({string.Join(",", member.Parameters.Select(p => mapper.MapMember(p.Type, false, member.TypeParameters).TrimEnd('?')))})"
+        : $"p:{member.Name}";
 
     private static bool Skip(TsMember member, bool extendsNode)
     {

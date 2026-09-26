@@ -51,8 +51,15 @@ internal sealed class TsMember
 {
     public string Name { get; set; } = "";
 
-    /// <summary>Raw TS type expression, not yet mapped to C#.</summary>
+    /// <summary>Raw TS type expression, not yet mapped to C#. For a method this is the return type.</summary>
     public string Type { get; set; } = "";
+
+    /// <summary>True for a method signature (<c>createIdentifier(name: string): Identifier</c>).</summary>
+    public bool IsMethod { get; set; }
+
+    public List<TsParameter> Parameters { get; set; } = [];
+
+    public List<TsTypeParameter> TypeParameters { get; set; } = [];
 
     public bool IsReadonly { get; set; }
 
@@ -61,6 +68,27 @@ internal sealed class TsMember
     public string? Doc { get; set; }
 
     public string? Trailing { get; set; }
+}
+
+/// <summary>A parameter of a method signature.</summary>
+internal sealed class TsParameter
+{
+    public string Name { get; set; } = "";
+
+    public string Type { get; set; } = "";
+
+    public bool IsOptional { get; set; }
+
+    public bool IsRest { get; set; }
+}
+
+/// <summary>A type parameter of a method signature.</summary>
+internal sealed class TsTypeParameter
+{
+    public string Name { get; set; } = "";
+
+    /// <summary>The raw <c>extends</c> clause, or null.</summary>
+    public string? Constraint { get; set; }
 }
 
 /// <summary>A TS <c>interface</c>.</summary>
