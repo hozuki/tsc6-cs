@@ -1375,7 +1375,17 @@ printer 门控的 `TypeToString`/`SymbolToString`/`SignatureToString`/`TypePredi
 
 ### `tools/TypeDiff`（最强验收）首次端口侧运行
 
-首次运行已打通 node 参考侧（`files=20 same=0 diverged=20 ts-error=0 typescript=6.0.3`），端口侧却在 `Program.VerifyCompilerOptions`（`Program.Verify.cs:464`）撞上 `getEmitHost` 的 M7 阻断——与上面 `getTsBuildInfoEmitOutputFilePath` 同一类**可达性**缺陷（参考仅在 `!noEmit && !suppressOutputPathCheck` 时走 emit 路径检查，program.ts:4392-4395）；`TypeDiff` 还在报告 20 个 port-crash 的同时返回 **exit 0**，与本工具自己声明的语义（0 = 全部匹配）相悖。两项均已交回同一个修复者，修好后按其格式补记首轮 `same/diverged` 清单与首个分歧的定性。
+首轮已跑通并**给出了实测清单**（本工具此前从未在端口侧执行过）。同一棵树上的结果：
+
+| 语料 | files | same | diverged | port-crash | ts-error | 耗时 |
+|---|---|---|---|---|---|---|
+| `conformance`，`--filter classes/** --limit 20` | 20 | 2 | 0 | 18 | 0 | <1 s |
+| 同上 `--limit 200` | 200 | 23 | 37 | 140 | 0 | — |
+| **全 `conformance`（5,908 文件）** | 5,908 | **1,058** | **801** | **4,049** | 0 | 32 s（端口峰值 69-241 MiB） |
+
+**判定语义先修正过：** 工具原先在"什么都没比成"时返回 exit 0（本该是 1），且 `Program.VerifyCompilerOptions` 撞 M7 阻断是**参考的真实路径**（`program.ts:4392` 的 `if (!noEmit && !suppressOutputPathCheck)` 就是端口 `Program.Verify.cs:462-472` 的原文，删除它会静默丢掉 `verifyEmitFilePath` 的输出路径校验），因此修的是 harness 而**不是**那个守卫：`tools/TypeDiff` 的端口侧与 node 侧现在都设 `SuppressOutputPathCheck = true`（保持两半选项集一致），并打印可审计的一行 `typediff: VERDICT …`。
+
+**崩溃分类（4,049）**：printer 门控的 `TypeToString`（checker.ts:6262）**1,220** 条 = §15.15 裁定 1 的 M7 边界（语料约 38% 对该工具是里程碑门控而非缺陷）；`NullReferenceException` **492** 条（端口缺陷，待定性）；**362 条 `InvalidCastException: NewExpression → CallExpression`**（同一类端口缺陷，最值得先修——参考的 `case SyntaxKind.NewExpression: return checkCallExpression(node as CallExpression, checkMode)` 是**结构型**转换：`NewExpression extends PrimaryExpression`、`CallExpression extends LeftHandSideExpression` 且共享 `expression/typeArguments/arguments`，而 C# 无法在兄弟类间转换，须按槽位结构化读取；现场 `Checker.Check.Expressions.cs:500`）；其余为更小的类。**801 条 same≠diverged 与上述崩溃类的定性，就是 M6-late 的工作清单。**
 
 ## 16. `const enum` 成员作类型：typed enum
 
