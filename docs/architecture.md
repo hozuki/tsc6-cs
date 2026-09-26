@@ -1244,7 +1244,17 @@ SourceFile(0,131) symbol=ValueModule:"/p" locals=[C=Class:C:1,a=BlockScopedVaria
 | `GetCheckFlags`（`utilities.ts:8040-8042`）、`GetObjectFlags`（`utilities.ts:8280`） | `utilities.ts` | **`Checker`**（`Checker.Symbols.cs` / `Checker.Support.cs`），登记为偏差 | 约四十处既有调用点都是**未限定**的，声明到 `Utilities` 要在正在写的文件里改四十处；`Checker.Support.cs:52` 的 PORT-NOTE 本就计划这个家 |
 | `GetNodeId` | `checker.ts:1460` | **`Utilities.GetNodeId`**（`Utilities/Utilities.cs:480`），登记为反方向偏差 | 工厂自 M4 起就需要它，端口的家比本里程碑更早且有意为之；不因"参考声明在 checker.ts"被改回 |
 
-集成期新增的反射守卫（"`Utilities` 与 `Checker` 不得声明同名成员"）以这张表为**显式允许清单**：被测试钉住的偏差是决定，没登记的偏差才是漂移。**M6-3 起规则收紧**：参考声明在 `utilities.ts`/`utilitiesPublic.ts` 的成员一律落 `Utilities`（类），调用点带限定。
+集成期新增的反射守卫（"`Utilities` 与 `Checker` 不得声明同名成员"）以这张表为**显式允许清单**：被测试钉住的偏差是决定，没登记的偏差才是漂移。**M6-4 待办（本轮定位）**：`checker.ts:53816` 的 `array.sort(compareSymbols)` 是 `sortSymbolsIfTSGoCompat`（53812-53819）的函数体，调用点在 35290/35300 的 `getSpellingSuggestion`，属 M6-4 的 34740-37809 范围（`Checker/Checker.Inference.cs`，尚未落地）；端口应写成 `_stableTypeOrdering && array is not null ? Core.StableSort(array, (a, b) => Core.CompareValues(CompareSymbols(a, b), 0)) : array`（参考实现是原地排序）。
+
+**M6-3 起规则收紧**：参考声明在 `utilities.ts`/`utilitiesPublic.ts` 的成员一律落 `Utilities`（类），调用点带限定。
+
+### 快照验证的掩蔽效应（M6 的方法学发现）
+
+Roslyn 只要在任何一处遇到**声明级**错误，就跳过**整个编译**的方法体绑定。于是"排除掉某个含声明级错误的文件后，我的文件零诊断"是**不可信**的读数：你会只看到那一处错误，而所有 CS0103/CS1061 一律消失。
+
+本轮两个实例：`Program/Program.Verify.cs` 的 `SymlinkCache` CS0246；以及更隐蔽的一个——生成的 `Model/NodeInterfaces.cs` 引用了两个 Program 侧接口（`IFileIncludeReason`/`IFilePreprocessingDiagnostics`，声明在 `Program/Program.ProgramDiagnostics.cs`），所以"排除 `Program/**`"这一常见做法会让那两个 CS0246 变成全编译的声明级错误。它甚至骗过了有经验的切片：`M6Program` 据此报过"我的文件零诊断"，随后在解除掩蔽的运行里撤回，实测约 85 条机械性错误。
+
+**判别法（照此读任何快照日志）**：声明级代码集合（CS0246/0101/0102/0111/0535/1513/1733/1002/1026）为空，**且**文件里有非零的 CS0103/CS1061/CS1593 —— 二者同时成立才说明方法体确实绑定了。反过来，只要有声明级代码，文件里为零就什么都不能说明。修法：快照里把 `Program.ProgramDiagnostics.cs` 显式包含回来（或等整个 Program 切片能编译后整块包含），而不是只删 `Program.Verify.cs`。
 
 ### 生成器缺口（M6 期间修掉）
 
