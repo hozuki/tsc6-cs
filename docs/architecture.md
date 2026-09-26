@@ -1385,19 +1385,16 @@ printer 门控的 `TypeToString`/`SymbolToString`/`SignatureToString`/`TypePredi
 
 **判定语义先修正过：** 工具原先在"什么都没比成"时返回 exit 0（本该是 1），且 `Program.VerifyCompilerOptions` 撞 M7 阻断是**参考的真实路径**（`program.ts:4392` 的 `if (!noEmit && !suppressOutputPathCheck)` 就是端口 `Program.Verify.cs:462-472` 的原文，删除它会静默丢掉 `verifyEmitFilePath` 的输出路径校验），因此修的是 harness 而**不是**那个守卫：`tools/TypeDiff` 的端口侧与 node 侧现在都设 `SuppressOutputPathCheck = true`（保持两半选项集一致），并打印可审计的一行 `typediff: VERDICT …`。
 
-**崩溃分类（4,049）**：printer 门控的 `TypeToString`（checker.ts:6262）**1,220** 条 = §15.15 裁定 1 的 M7 边界（语料约 38% 对该工具是里程碑门控而非缺陷）；`NullReferenceException` **492** 条（端口缺陷，待定性）；**362 条 `InvalidCastException: NewExpression → CallExpression`**（同一类端口缺陷，最值得先修——参考的 `case SyntaxKind.NewExpression: return checkCallExpression(node as CallExpression, checkMode)` 是**结构型**转换：`NewExpression extends PrimaryExpression`、`CallExpression extends LeftHandSideExpression` 且共享 `expression/typeArguments/arguments`，而 C# 无法在兄弟类间转换，须按槽位结构化读取；现场 `Checker.Check.Expressions.cs:500`）；其余为更小的类。**801 条 same≠diverged 与上述崩溃类的定性，就是 M6-late 的工作清单。**
+**崩溃分类（首轮 4,049 → M6-late 第一轮后 2,682，实测再分类）：** 其中 **2,671 条（99.6%）就是 M7 门控本身**（按 §15.15 裁定 1、非缺陷）：`TypeToString` 2,080、`SymbolToString` 489、`SyntacticNodeBuilder` 102；**非 printer 的只有 11 处**，现场已定位：
+- 7 处 `JsxAttribute -> INamedDeclaration` @ `Checker.Relations.Structured.cs:955`（`HasExcessProperties`，参考 `checker.ts:36386` 的联合读取）
+- 1 处 `ClassExpression -> ClassDeclaration` @ `Checker.Queries.cs:422`（`GetReturnTypeFromAnnotation`）
+- 1 处 InvalidCast @ `Checker.Conditional.cs:1381`
+- 1 处 `TypeReferenceNode/TupleTypeNode -> IDeclaration` @ `Checker.Instantiation.cs:431`（`GetObjectTypeInstantiation`）
+- 1 处 `QualifiedName -> Expression` @ `Checker.Check.cs:1840`（`CheckNonNullExpression`）
 
-**M6-late 第一轮（同一棵树、同一命令）：`same=2588 diverged=638 port-crash=2682`（`same` +1,530 / `diverged` −163 / `port-crash` −1,367，零回归：测试 1,044/1,044、AstDiff 19,585/19,585、BindDiff 19,230/19,230）。关掉的类与参考依据：**
+**638 条分歧的分组（降序）：** 200 条诊断码错配（**主导且是真缺陷**：端口在 `getCannotFindNameDiagnosticForName`（`checker.ts:27734-27742`）该报**定位过的 2583** 时报了**全局 2318** `Cannot find global type`，经 async/Promise 全局取值可达）；191 条类型标志（56 条仅 id 不同 + props/obj）；91 + 23 条记录种类 `(diagnostics vs diagnostic)`（同一行上"诊断数组 vs 单个诊断"的形态错配）；43 条 node-vs-symbol；38 条符号标志；20 条单侧放弃；14 条 type-vs-node；8；5；3。
 
-| 类 | 数量 | 参考依据与修法 |
-|---|---|---|
-| `InvalidCastException NewExpression → CallExpression` | 362 | `checker.ts:37810` `checkCallExpression(node: CallExpression \| NewExpression)`——该转换是**结构型**的（共享 `expression/typeArguments/arguments`，`questionDotToken` 在新表达式上为 undefined）；去掉兄弟类强制转换，入口按并集读槽位 |
-| `NullReferenceException @ Utilities.IsClassLike` | 480 | `utilitiesPublic.ts:1744-1746` 的 `node && (…)` 就是该函数的契约（`checker.ts:3408` 会向上走到根的 parent 为 undefined）；参数改 `Node?`，缺失节点答 false |
-| `Debug.Fail "已绑定的声明必有 symbol"` | 338 | `checker.ts:5314-5316` 的 `!` 是**谎言**：未绑定声明（非法 `await` 绑定、解析恢复、赋值目标的 PropertyAccessExpression）确会给出 undefined，参考的调用方（`checker.ts:5322-5324` 在 `canHaveSymbol` 之后、`:41091` 的 `symbol?.exports`）本就宽容；删除端口自加断言，签名与函数体不变 |
-| 类型阶段 `ImportClause` 的"gave up" | 110 | 同上一根源 + `utilities.ts:11025-11045` 的 `isTypeDeclaration`、`checker.ts:50382-50408` |
-| `Identifier/QualifiedName/NullLiteral → ITypeNode` 强转 | ~211 | `checker.ts:50394-50396`（`isPartOfTypeNode(node)` 后 `getTypeFromTypeNode(node as TypeNode)`），其获准的 kind 本身不是 `TypeNode`（`checker.ts:20530-20532`）；worker 参数改用基类 `Node` |
-| 仅 id 不同的 "type flags mismatch" 文件 | 526 → 56 | `checker.ts:49710-49721` 的 `checkSourceFileWithEagerDiagnostics` 把 `addLazyDiagnostic` 换成 `cb => cb()`，故延迟诊断在**推迟点**即执行，而 id 在创建时分配（`checker.ts:5517-5523`）→ 走完再 drain 会重排 id；`addLazyDiagnostic` 改为可替换委托，去掉尾部 drain |
-| symbol flags 缺 `Transient`（`__index`） | 38+ | `checker.ts:16044-16046` 的 `.filter` **总是分配**，`checker.ts:50121-50126` 的 `infos === getIndexInfosOfType(type)` 恒等测试正依赖该分配；端口改为总是分配（`Core.Filter` 会返回入参列表而使恒等永真） |
+**printer 门控 dump 的裁定（A′，无格式变更）：** 端口死在 `createFileDiagnostic` 的**急切 `FormatMessage`** 上（其类型/符号实参触发打印），而 dump **不需要该字符串**（`D#` 仅 code/start/len/cat，N/S/T/G 都不含类型名）。故：让 `Diagnostic.MessageText` **惰性 + 记忆化**（存消息与实参、首次读取时格式化），并让排序/去重比较器**只在参考的平局分支内**（code 与位置相等之后，同 `compareDiagnostics`）读取它——排序语义因此与参考一致（**无偏差**），门控保持响亮、仅在其文本确实被需要时触发。预期解锁 2,682 中的约 2,600 个文件；格式 v1 **保持冻结**，不引入 v2。
 
 ## 16. `const enum` 成员作类型：typed enum
 
