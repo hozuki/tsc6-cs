@@ -310,7 +310,7 @@ TS 官方 baseline 由 `src/harness` 生成。我们要复刻**输出格式**，
 | **M2b** | 节点模型：`types.ts` 的接口/类型别名 → 235 个类 + 302 个接口（见 §12） | 生成物编译通过；继承链与能力接口单测 |
 | **M2c** | Layer 0 其余：`sys.ts` 的宿主接口与纯逻辑（`getNodeSystem` 除外，见 §13）、`performance.ts` | 宿主抽象与计时埋点单测 |
 | **M3a** | Layer 1 补充：诊断基础设施 —— 全量诊断表由 `tools/Gen` 从 `diagnosticMessages.json` 生成（2,130 条），加 `DiagnosticMessage` | 生成物编译通过；名字改写规则与全表不变量单测 |
-| **M3** | Layer 2：`Scanner` 全量 | 单测：token 流、trivia、错误恢复、关键字表 |
+| **M3** | Layer 2：`Scanner` 全量（见 §14） | 单测：token 流、trivia、错误恢复、关键字表 |
 | **M4** | Layer 3：`Parser` + `NodeFactory` | 能对 conformance 用例产出 AST；语法诊断 baseline 对齐 |
 | **M5** | Layer 4：`Binder` | `.symbols` baseline 对齐（作用域/符号） |
 | **M6** | Layer 5：`Program` + `Checker`（分期：基础类型 → 泛型 → 高级特性） | `.types` / `.errors.txt` 语义 baseline 对齐 |
@@ -524,6 +524,32 @@ TS 允许子接口**收窄**成员类型 —— `FunctionDeclaration.body` 是 `
 修正：位置规则之上再加一条**必要条件** —— 该接口的 `extends` 链必须能到达 `Node`（`NodeArray`/`MutableNodeArray` 是显式强制的类，不走这条路径）。于是 268 类 / 269 接口 → **235 类 / 302 接口**，节点链不受影响（`CallExpression → LeftHandSideExpression → UpdateExpression → UnaryExpression → Expression → Node` 依旧）。
 
 代价：`MapUnion` 的 `CommonBase` 对"到不了 `Node`"的成员会落到 `Node`，于是这类 union 的映射从"某个具体类"退化成 `Node`。这些 union 本来也只能降级（C# 里它们没有共同基类），M4/M5 真正用到时再收紧。
+
+---
+
+## 14. 词法：`Scanner`（M3，已完成）
+
+### 14.1 交付
+
+| 项 | 结果 |
+|---|---|
+| 数据表 | `Lexer/ScannerTables.cs`（生成）：4 张 Unicode 范围表（4,454 个端点）、关键字与 token 拼写、正则 flag 表、Unicode 属性表 |
+| 纯函数 | `Lexer/ScannerUtilities.cs`：拼写查找、行列换算、字符分类、标识符判定（含范围表二分）、trivia 与注释范围、码点编解码 |
+| Scanner | `Lexer/Scanner.cs`：`Scan`、`reScan*`、JSX、JSDoc、speculation 与正则字面量的完整语法走查 |
+| 支撑类型 | `Core/CommentRange.cs`、`Core/CommentDirective.cs`、`Core/TextRange.cs`、`Core/LineAndCharacter.cs` |
+| 验收 | `ScannerTests`（14 个）：token 流、运算符最长匹配与 `reScanGreaterToken`、trivia、数字与 bigint 的规范化拼写、字符串与转义、模板分片、正则字面量、未终止字符串/正则、错误回调、JSX 文本与 JSX 标识符、JSDoc 标记、`ScriptTarget` 对标识符字符的影响、注释指令、`lookAhead` 回退 |
+
+### 14.2 与 TS 的结构差异
+
+- TS 的 `createScanner` 是一个闭包；移植版是 `Scanner` 的字段（状态）与方法。公开契约一一对应。
+- `scanRegularExpressionWorker` 在 TS 里是**一个函数套 19 个嵌套函数**（约 1,000 行）。C# 的局部函数跨不了这么大的主体，所以那 19 个语法辅助落成 `Scanner` 的私有方法，TS 的闭包变量（`anyUnicodeMode`、`mayContainStrings`、命名捕获组作用域栈…）随之成为私有字段 —— 这是本次移植里唯一一处"为语言限制而改结构"的地方。
+- `CommentKind` 在 TS 是字面量联合（`SyntaxKind.SingleLineCommentTrivia | SyntaxKind.MultiLineCommentTrivia`），C# 里直接用 `SyntaxKind`；`CommentRange`/`CommentDirective`/`TextRange` 在 TS 是接口 + 对象字面量，需要可构造的具体类型。
+- 三处 JS↔C# 的固定套路：`return pos += 3, token = X;` 拆成两步；switch 的 fall-through 用 `goto case`；对泛型结果的 truthy 判断落成"不等于 `default`"。
+
+### 14.3 测试抓到的两处真 bug
+
+- `Js.ToNumber` 最初只认十进制，而 JS 的一元 `+` 认 `0x` 前缀 —— 于是 `0x1F` 的字面量值成了 `NaN`。
+- `ScannerUtilities.CodePointAt` 用 `s[i]`，越界抛异常；JS 的 `codePointAt` 越界返回 `undefined`，而调用点依赖它表现为"不是标识符字符"（`checkForIdentifierStartAfterNumericLiteral` 会在文本末尾读一次）。
 
 ### 12.3 其他映射规则（都由生成器自动应用）
 
