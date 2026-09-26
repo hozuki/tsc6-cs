@@ -2089,8 +2089,10 @@ internal partial class ShorthandPropertyAssignment : Node, IDeclaration, IJSDocC
 }
 
 /// <summary>ported from types.ts: <c>SourceFile</c>.</summary>
-internal abstract partial class SourceFile : Node, IDeclaration, ILocalsContainer, IReadonlyPragmaContext, IReadonlyTextRange
+internal partial class SourceFile : Node, IDeclaration, ILocalsContainer, IReadonlyPragmaContext, IReadonlyTextRange
 {
+    public override SyntaxKind Kind => SyntaxKind.SourceFile;
+
     public NodeArray<IStatement>? Statements { get; set; }
     public Token? EndOfFileToken { get; set; }
     public string? FileName { get; set; }

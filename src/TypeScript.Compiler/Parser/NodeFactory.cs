@@ -3000,4 +3000,265 @@ internal partial class NodeFactory
             ? Update(CreateHeritageClause(node!.Token, types), node)
             : node!;
     }
+
+    //
+    // Modules (the hand-written half)
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:4544 — <c>createModuleDeclaration</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS leaves <c>flags</c> unannotated — its type is <c>any</c> — and defaults it to <c>NodeFlags.None</c>.
+    /// The port takes it as <c>object?</c> and narrows to the enum, an absent value meaning <c>None</c>.
+    /// </remarks>
+    public ModuleDeclaration CreateModuleDeclaration(
+        List<Node>? modifiers,
+        MemberExpression? name,
+        Node? body,
+        object? flags = null)
+    {
+        var nodeFlags = flags is NodeFlags value ? value : NodeFlags.None;
+        var node = CreateBaseDeclaration<ModuleDeclaration>(SyntaxKind.ModuleDeclaration);
+        node.Modifiers = AsNodeArray(modifiers);
+        node.Flags |= nodeFlags & (NodeFlags.Namespace | NodeFlags.NestedNamespace | NodeFlags.GlobalAugmentation);
+        node.Name = name;
+        node.Body = body;
+
+        if ((Utilities.ModifiersToFlags(node.Modifiers) & ModifierFlags.Ambient) != 0)
+        {
+            node.TransformFlags = TransformFlags.ContainsTypeScript;
+        }
+        else
+        {
+            node.TransformFlags |= PropagateChildrenFlags(node.Modifiers)
+                | PropagateChildFlags(node.Name)
+                | PropagateChildFlags(node.Body)
+                | TransformFlags.ContainsTypeScript;
+        }
+
+        // A module declaration cannot contain `await`.
+        node.TransformFlags = CoreFlags.Clear(node.TransformFlags, TransformFlags.ContainsPossibleTopLevelAwait);
+
+        node.JsDoc = null;         // initialized by parser (JsDocContainer)
+        node.Locals = null;        // initialized by binder (LocalsContainer)
+        node.NextContainer = null; // initialized by binder (LocalsContainer)
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:4578 — <c>updateModuleDeclaration</c>.</summary>
+    public ModuleDeclaration UpdateModuleDeclaration(
+        ModuleDeclaration? node,
+        List<Node>? modifiers,
+        MemberExpression? name,
+        Node? body)
+    {
+        return !ReferenceEquals(node!.Modifiers, modifiers) || node!.Name != name || node!.Body != body
+            ? Update(CreateModuleDeclaration(modifiers, name, body, node!.Flags), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:4634 — <c>updateNamespaceExportDeclaration</c>.</summary>
+    public NamespaceExportDeclaration UpdateNamespaceExportDeclaration(
+        NamespaceExportDeclaration? node,
+        Identifier? name)
+    {
+        return node!.Name != name
+            ? FinishUpdateNamespaceExportDeclaration(CreateNamespaceExportDeclaration(name), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:4640 — <c>finishUpdateNamespaceExportDeclaration</c>.</summary>
+    private NamespaceExportDeclaration FinishUpdateNamespaceExportDeclaration(
+        NamespaceExportDeclaration updated,
+        NamespaceExportDeclaration original)
+    {
+        if (!ReferenceEquals(updated, original))
+        {
+            // Copy the child TS keeps only for error reporting.
+            updated.Modifiers = original.Modifiers;
+        }
+
+        return Update(updated, original);
+    }
+
+    //
+    // Top-level nodes (the hand-written half)
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:6041 — <c>createSourceFile</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the body is one long list of initial values — TS clears every field the parser or the binder fills in.
+    /// It reads differently in C# only because the fields are properties here; the set is the same.
+    /// </remarks>
+    public SourceFile CreateSourceFile(List<IStatement>? statements, Token? endOfFileToken, NodeFlags flags)
+    {
+        var node = CreateBaseNode<SourceFile>(SyntaxKind.SourceFile);
+        node.Statements = CreateNodeArray(statements, null);
+        node.EndOfFileToken = endOfFileToken;
+        node.Flags |= flags;
+        node.Text = "";
+        node.FileName = "";
+        node.Path = "";
+        node.ResolvedPath = "";
+        node.OriginalFileName = "";
+        node.LanguageVersion = ScriptTarget.LatestStandard;
+        node.LanguageVariant = LanguageVariant.Standard;
+        node.ScriptKind = ScriptKind.Unknown;
+        node.IsDeclarationFile = false;
+        node.HasNoDefaultLib = false;
+
+        node.TransformFlags |= PropagateChildrenFlags(node.Statements) | PropagateChildFlags(node.EndOfFileToken);
+
+        node.Locals = null;        // initialized by binder (LocalsContainer)
+        node.NextContainer = null; // initialized by binder (LocalsContainer)
+        node.EndFlowNode = null;
+
+        node.NodeCount = 0;
+        node.IdentifierCount = 0;
+        node.SymbolCount = 0;
+        node.ParseDiagnostics = null!;
+        node.BindDiagnostics = null!;
+        node.BindSuggestionDiagnostics = null;
+        node.LineMap = null!;
+        node.ExternalModuleIndicator = null;
+        node.SetExternalModuleIndicator = null;
+        node.Pragmas = null!;
+        node.CheckJsDirective = null;
+        node.ReferencedFiles = null!;
+        node.TypeReferenceDirectives = null!;
+        node.LibReferenceDirectives = null!;
+        node.AmdDependencies = null!;
+        node.CommentDirectives = null;
+        node.Identifiers = null!;
+        node.PackageJsonLocations = null;
+        node.PackageJsonScope = null;
+        node.Imports = null!;
+        node.ModuleAugmentations = null!;
+        node.AmbientModuleNames = null!;
+        node.ClassifiableNames = null;
+        node.ImpliedNodeFormat = null;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6095 — <c>createRedirectedSourceFile</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS builds an object whose prototype *is* the redirect target, so every property but <c>id</c> and
+    /// <c>symbol</c> reads through to it, and those two forward both ways. C# cannot forward per-object property access,
+    /// so the port hands back the target with the redirect info attached — a caller then reads the target's own members,
+    /// which is what the forwarding would have produced. The difference is visible only where something asks a source
+    /// file that is *not* redirected for its <c>RedirectInfo</c>.
+    /// </remarks>
+    public SourceFile CreateRedirectedSourceFile(IRedirectInfo? redirectInfo)
+    {
+        var target = redirectInfo!.RedirectTarget!;
+        target.RedirectInfo = redirectInfo;
+        return target;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6118 — <c>cloneRedirectedSourceFile</c>.</summary>
+    private SourceFile CloneRedirectedSourceFile(SourceFile source)
+    {
+        var node = CreateRedirectedSourceFile(source.RedirectInfo);
+        node.Flags |= source.Flags & ~NodeFlags.Synthesized;
+        node.FileName = source.FileName;
+        node.Path = source.Path;
+        node.ResolvedPath = source.ResolvedPath;
+        node.OriginalFileName = source.OriginalFileName;
+        node.PackageJsonLocations = source.PackageJsonLocations;
+        node.PackageJsonScope = source.PackageJsonScope;
+        node.EmitNode = null;
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6131 — <c>cloneSourceFileWorker</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS copies every own enumerable property of <c>source</c> onto a fresh file, skipping the ones the fresh
+    /// node already declares and dropping <c>emitNode</c>. A C# object always has all of its declared properties, so the
+    /// equivalent is to copy every writable public property — which is the explicit-assignment rewrite the TODO in the TS
+    /// source asks for anyway, done by reflection rather than by hand.
+    /// </remarks>
+    private static SourceFile CloneSourceFileWorker(SourceFile source)
+    {
+        var node = CreateBaseNode<SourceFile>(SyntaxKind.SourceFile);
+        node.Flags |= source.Flags & ~NodeFlags.Synthesized;
+
+        foreach (var property in typeof(SourceFile).GetProperties())
+        {
+            if (!property.CanRead || !property.CanWrite) continue;
+            if (property.Name == nameof(Node.EmitNode)) continue;
+
+            property.SetValue(node, property.GetValue(source));
+        }
+
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6143 — <c>cloneSourceFile</c>.</summary>
+    private SourceFile CloneSourceFile(SourceFile source)
+    {
+        var node = source.RedirectInfo is not null
+            ? CloneRedirectedSourceFile(source)
+            : CloneSourceFileWorker(source);
+        SetOriginal(node, source);
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6156 — <c>cloneSourceFileWithChanges</c>.</summary>
+    private SourceFile CloneSourceFileWithChanges(
+        SourceFile source,
+        List<IStatement>? statements,
+        bool isDeclarationFile,
+        List<IFileReference>? referencedFiles,
+        List<IFileReference>? typeReferences,
+        bool hasNoDefaultLib,
+        List<IFileReference>? libReferences)
+    {
+        var node = CloneSourceFile(source);
+        node.Statements = CreateNodeArray(statements, null);
+        node.IsDeclarationFile = isDeclarationFile;
+        node.ReferencedFiles = referencedFiles;
+        node.TypeReferenceDirectives = typeReferences;
+        node.HasNoDefaultLib = hasNoDefaultLib;
+        node.LibReferenceDirectives = libReferences;
+        node.TransformFlags = PropagateChildrenFlags(node.Statements) | PropagateChildFlags(node.EndOfFileToken);
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:6173 — <c>updateSourceFile</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS leaves every parameter after <c>statements</c> unannotated and defaults it to the corresponding
+    /// member of <c>node</c> — a default that reads another parameter, which C# has no way to express. The caller passes
+    /// what it means, and <c>null</c> means "keep the node's value".
+    /// </remarks>
+    public SourceFile UpdateSourceFile(
+        SourceFile? node,
+        List<IStatement>? statements,
+        object? isDeclarationFile,
+        object? referencedFiles,
+        object? typeReferenceDirectives,
+        object? _hasNoDefaultLib,
+        object? libReferenceDirectives)
+    {
+        var declarationFile = isDeclarationFile is bool declared ? declared : node!.IsDeclarationFile;
+        var referenced = referencedFiles as List<IFileReference> ?? node!.ReferencedFiles;
+        var typeReferences = typeReferenceDirectives as List<IFileReference> ?? node!.TypeReferenceDirectives;
+        var libReferences = libReferenceDirectives as List<IFileReference> ?? node!.LibReferenceDirectives;
+        var hasNoDefaultLib = _hasNoDefaultLib is bool noDefaultLib && noDefaultLib;
+
+        return !ReferenceEquals(node!.Statements, statements)
+            || node!.IsDeclarationFile != declarationFile
+            || !ReferenceEquals(node!.ReferencedFiles, referenced)
+            || !ReferenceEquals(node!.TypeReferenceDirectives, typeReferences)
+            || !ReferenceEquals(node!.LibReferenceDirectives, libReferences)
+            ? Update(
+                CloneSourceFileWithChanges(
+                    node,
+                    statements,
+                    declarationFile,
+                    referenced,
+                    typeReferences,
+                    hasNoDefaultLib,
+                    libReferences),
+                node)
+            : node!;
+    }
 }

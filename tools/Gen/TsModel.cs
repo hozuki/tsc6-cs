@@ -379,7 +379,35 @@ public List<TsTable> Tables { get; set; } = [];
             ?? throw new InvalidOperationException($"could not read the type model from {jsonPath}");
 
         foreach (var tsEnum in model.Enums) ComputeEnumValues(tsEnum);
+        FillConcreteKinds(model);
         return model;
+    }
+
+    /// <summary>
+    /// Fills in the kind of every concrete node, for the interfaces the extractor left without one.
+    /// </summary>
+    /// <remarks>
+    /// <c>SourceFile</c> is declared twice in <c>types.ts</c> (see docs/architecture.md §15.5), and the extractor reads the
+    /// pinned kind off one declaration — the later, member-less one can be the one it ends up looking at. The question is
+    /// answerable from the merged members, and a member typed by a <em>union</em> of kinds
+    /// (<c>SignatureDeclarationBase</c>) deliberately does not count: that is a categorisation step, not a node.
+    /// </remarks>
+    private static void FillConcreteKinds(TsModel model)
+    {
+        foreach (var iface in model.Interfaces)
+        {
+            if (iface.ConcreteKind is not null) continue;
+
+            foreach (var member in iface.Members)
+            {
+                if (member.IsMethod || member.Name != "kind") continue;
+                if (!member.Type.StartsWith("SyntaxKind.", StringComparison.Ordinal)) continue;
+                if (member.Type.Contains('|')) continue;
+
+                iface.ConcreteKind = member.Type["SyntaxKind.".Length..].Trim();
+                break;
+            }
+        }
     }
 
     /// <summary>

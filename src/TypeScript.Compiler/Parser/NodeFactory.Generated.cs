@@ -2390,30 +2390,6 @@ internal partial class NodeFactory
         throw new NotImplementedException("the port has not reached `updateBinaryExpression` yet");
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createModuleDeclaration</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateModuleDeclaration(List<Node>? modifiers, MemberExpression? name, Node? body, object? flags)
-    {
-        throw new NotImplementedException("the port has not reached `createModuleDeclaration` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateModuleDeclaration</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public ModuleDeclaration UpdateModuleDeclaration(ModuleDeclaration? node, List<Node>? modifiers, MemberExpression? name, Node? body)
-    {
-        throw new NotImplementedException("the port has not reached `updateModuleDeclaration` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateNamespaceExportDeclaration</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? UpdateNamespaceExportDeclaration(NamespaceExportDeclaration? node, Identifier? name)
-    {
-        throw new NotImplementedException("the port has not reached `updateNamespaceExportDeclaration` yet");
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createJSDocPrimaryTypeWorker</c>.</summary>
     /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
     /// it yet (docs/architecture.md §15.7).</remarks>
@@ -2764,30 +2740,6 @@ internal partial class NodeFactory
     public object? UpdateShorthandPropertyAssignment(ShorthandPropertyAssignment? node, Identifier? name, Expression? objectAssignmentInitializer)
     {
         throw new NotImplementedException("the port has not reached `updateShorthandPropertyAssignment` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createSourceFile</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateSourceFile(List<IStatement>? statements, Token? endOfFileToken, NodeFlags flags)
-    {
-        throw new NotImplementedException("the port has not reached `createSourceFile` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createRedirectedSourceFile</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateRedirectedSourceFile(IRedirectInfo? redirectInfo)
-    {
-        throw new NotImplementedException("the port has not reached `createRedirectedSourceFile` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateSourceFile</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public SourceFile UpdateSourceFile(SourceFile? node, List<IStatement>? statements, object? isDeclarationFile, object? referencedFiles, object? typeReferenceDirectives, object? _hasNoDefaultLib, object? libReferenceDirectives)
-    {
-        throw new NotImplementedException("the port has not reached `updateSourceFile` yet");
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createImmediatelyInvokedFunctionExpression</c>.</summary>
