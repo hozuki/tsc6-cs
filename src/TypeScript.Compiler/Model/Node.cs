@@ -75,6 +75,20 @@ internal abstract class Node : INode, IReadonlyTextRange, ITextRange
     /// <summary>Associated <see cref="IEmitNode"/>, initialized by transforms.</summary>
     public IEmitNode? EmitNode { get; set; }
 
+    // ported from: src/compiler/tracing.ts:373-375 — `interface TracingNode { tracingPath?: Path }`
+    /// <summary>
+    /// The source file the binder recorded on this node for a running trace, or <c>null</c> when there is none.
+    /// </summary>
+    /// <remarks>
+    /// PORT-NOTE: TS declares <c>TracingNode</c> as an interface of its own and has the binder cast a node to it
+    /// (<c>if (tracing) (node as TracingNode).tracingPath = file.path;</c>), because a JS object accepts an expando
+    /// property and <c>Node</c> itself has no such field. A C# instance cannot be extended that way, so the slot is
+    /// declared here and the interface collapses into it — every node carries one reference field. Written by
+    /// <c>binder.ts:2756</c> only, read by the checker's <c>Phase.Check</c> events. TS types it <c>Path</c>; the port's
+    /// <c>Path</c> is a <c>string</c> (see <c>Paths</c>), and <c>SourceFile.Path</c> is nullable here.
+    /// </remarks>
+    public string? TracingPath { get; set; }
+
     // ported from: types.ts:33-36 (ReadonlyTextRange)
     /// <remarks>
     /// PORT-NOTE: TS threads the initial range through the node constructor — <c>baseNodeFactory.ts</c> builds every

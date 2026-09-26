@@ -241,6 +241,14 @@ internal static partial class Debug
     /// </remarks>
     public static string FormatFlowFlags(FlowFlags? flags) => FormatEnum(flags ?? 0, isFlags: true);
 
+    /// <summary>ported from: src/compiler/debug.ts:480-482 — <c>formatTypeFlags</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: as in <see cref="FormatSyntaxKind"/>, TS's <c>undefined</c> reaches <c>formatEnum</c>'s default and
+    /// formats as <c>"0"</c> (TypeFlags has no zero member); <c>?? 0</c> reproduces that. The caller is
+    /// <c>tracing.ts</c>'s <c>dumpTypes</c>, which splits the result on <c>"|"</c>.
+    /// </remarks>
+    public static string FormatTypeFlags(TypeFlags? flags) => FormatEnum(flags ?? 0, isFlags: true);
+
     // ---------------------------------------------------------------------------------------------
     // Flow node debug info
     // ---------------------------------------------------------------------------------------------
