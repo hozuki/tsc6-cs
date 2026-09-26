@@ -12,6 +12,35 @@ namespace TypeScript.Compiler;
 /// </remarks>
 internal static partial class Utilities
 {
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:946 — <c>isNamedDeclaration</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS narrows to <c>NamedDeclaration &amp; { name: DeclarationName }</c>, which is what lets a caller
+    /// read <c>name</c> without another check. The port answers with the interface, and its <c>Name</c> is
+    /// <c>object?</c> — that is what <c>DeclarationName</c> maps to (§12.5) — so callers narrow once more.
+    /// </remarks>
+    public static bool IsNamedDeclaration(Node node) => node is INamedDeclaration { Name: not null };
+
+    /// <summary>ported from: src/compiler/utilitiesPublic.ts:1657 — <c>isPropertyName</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS writes five <c>kind ===</c> comparisons. The port asks the same question with a kind pattern
+    /// rather than an <c>is X</c> test: several of these kinds share a C# class (<c>StringLiteral</c> and
+    /// <c>NumericLiteral</c> are separate types here, but a test on the class would not be the question TS asks).
+    /// </remarks>
+    public static bool IsPropertyName(Node node)
+        => node.Kind is SyntaxKind.Identifier or SyntaxKind.PrivateIdentifier or SyntaxKind.StringLiteral
+            or SyntaxKind.NumericLiteral or SyntaxKind.ComputedPropertyName;
+
+    /// <summary>ported from: src/compiler/factory/utilitiesPublic.ts:10 — <c>setTextRange</c>.</summary>
+    public static T SetTextRange<T>(T range, ITextRange? location)
+        where T : ITextRange
+    {
+        if (location is null) return range;
+
+        range.Pos = location.Pos;
+        range.End = location.End;
+        return range;
+    }
+
     /// <summary>
     /// Walks up the parent chain to the enclosing source file.
     /// </summary>
