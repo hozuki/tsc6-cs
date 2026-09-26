@@ -130,10 +130,11 @@ internal sealed partial class Checker
                 (interfaceDeclaration is not null && !Core.Some(GetBaseTypes((InterfaceType)type), baseType => GetPropertyOfObjectType(baseType, prop.EscapedName!) is not null && GetIndexTypeOfType(baseType, info.KeyType!) is not null) ? interfaceDeclaration : null);
             if (errorNode is not null && !IsTypeAssignableTo(propType, info.Type))
             {
-                var diagnostic = CreateError(errorNode, Diagnostics.Property_0_of_type_1_is_not_assignable_to_2_index_type_3, SymbolToString(prop), TypeToString(propType), TypeToString(info.KeyType!), TypeToString(info.Type!));
+                // PORT-NOTE (A″): printer-gated stringifier arguments are deferred — see Core/Diagnostic.cs's `DiagnosticArgument`.
+                var diagnostic = CreateError(errorNode, Diagnostics.Property_0_of_type_1_is_not_assignable_to_2_index_type_3, Diagnostic.DeferArg(() => SymbolToString(prop)), Diagnostic.DeferArg(() => TypeToString(propType)), Diagnostic.DeferArg(() => TypeToString(info.KeyType!)), Diagnostic.DeferArg(() => TypeToString(info.Type!)));
                 if (propDeclaration is not null && !ReferenceEquals(errorNode, propDeclaration))
                 {
-                    Utilities.AddRelatedInfo(diagnostic, Utilities.CreateDiagnosticForNode(propDeclaration, Diagnostics._0_is_declared_here, SymbolToString(prop)));
+                    Utilities.AddRelatedInfo(diagnostic, Utilities.CreateDiagnosticForNode(propDeclaration, Diagnostics._0_is_declared_here, Diagnostic.DeferArg(() => SymbolToString(prop))));
                 }
                 _diagnostics.Add(diagnostic);
             }
@@ -158,7 +159,7 @@ internal sealed partial class Checker
                 (interfaceDeclaration is not null && !Core.Some(GetBaseTypes((InterfaceType)type), baseType => GetIndexInfoOfType(baseType, checkInfo.KeyType!) is not null && GetIndexTypeOfType(baseType, info.KeyType!) is not null) ? interfaceDeclaration : null);
             if (errorNode is not null && !IsTypeAssignableTo(checkInfo.Type, info.Type))
             {
-                Error(errorNode, Diagnostics._0_index_type_1_is_not_assignable_to_2_index_type_3, TypeToString(checkInfo.KeyType!), TypeToString(checkInfo.Type!), TypeToString(info.KeyType!), TypeToString(info.Type!));
+                Error(errorNode, Diagnostics._0_index_type_1_is_not_assignable_to_2_index_type_3, Diagnostic.DeferArg(() => TypeToString(checkInfo.KeyType!)), Diagnostic.DeferArg(() => TypeToString(checkInfo.Type!)), Diagnostic.DeferArg(() => TypeToString(info.KeyType!)), Diagnostic.DeferArg(() => TypeToString(info.Type!)));
             }
         }
     }
@@ -367,7 +368,7 @@ internal sealed partial class Checker
             if (!AreTypeParametersIdentical(declarations, type.LocalTypeParameters!, Utilities.GetEffectiveTypeParameterDeclarations))
             {
                 // Report an error on every conflicting declaration.
-                var name = SymbolToString(symbol);
+                var name = Diagnostic.DeferArg(() => SymbolToString(symbol));
                 foreach (var declaration in declarations)
                 {
                     Error(((INamedDeclaration)declaration).Name, Diagnostics.All_declarations_of_0_must_have_identical_type_parameters, name);
@@ -870,7 +871,7 @@ internal sealed partial class Checker
             var prop = GetPropertyOfType(thisType, member.EscapedName!);
             var baseProp = GetPropertyOfType(baseType, member.EscapedName!);
 
-            var baseClassName = TypeToString(baseWithThis);
+            var baseClassName = Diagnostic.DeferArg(() => TypeToString(baseWithThis));
             if (prop is not null && baseProp is null && memberHasOverrideModifier)
             {
                 if (errorNode is not null)
@@ -885,7 +886,7 @@ internal sealed partial class Checker
                                 Diagnostics.This_member_cannot_have_a_JSDoc_comment_with_an_override_tag_because_it_is_not_declared_in_the_base_class_0_Did_you_mean_1 :
                                 Diagnostics.This_member_cannot_have_an_override_modifier_because_it_is_not_declared_in_the_base_class_0_Did_you_mean_1,
                             baseClassName,
-                            SymbolToString(suggestion));
+                            Diagnostic.DeferArg(() => SymbolToString(suggestion)));
                     }
                     else
                     {
@@ -936,7 +937,7 @@ internal sealed partial class Checker
         {
             if (errorNode is not null)
             {
-                var className = TypeToString(type);
+                var className = Diagnostic.DeferArg(() => TypeToString(type));
                 Error(
                     errorNode,
                     isJs ?
@@ -973,9 +974,9 @@ internal sealed partial class Checker
                         Utilities.ChainDiagnosticMessages(
                             /*details*/ null,
                             Diagnostics.Property_0_in_type_1_is_not_assignable_to_the_same_property_in_base_type_2,
-                            SymbolToString(declaredProp),
-                            TypeToString(typeWithThis),
-                            TypeToString(baseWithThis));
+                            Diagnostic.DeferArg(() => SymbolToString(declaredProp)),
+                            Diagnostic.DeferArg(() => TypeToString(typeWithThis)),
+                            Diagnostic.DeferArg(() => TypeToString(baseWithThis)));
                     if (!CheckTypeAssignableTo(GetTypeOfSymbol(prop), GetTypeOfSymbol(baseProp), memberName ?? (Node)member, /*headMessage*/ null, rootChain))
                     {
                         issuedMemberError = true;
@@ -1201,7 +1202,7 @@ internal sealed partial class Checker
                         var overriddenMessage = overriddenInstanceProperty ?
                             Diagnostics._0_is_defined_as_an_accessor_in_class_1_but_is_overridden_here_in_2_as_an_instance_property :
                             Diagnostics._0_is_defined_as_a_property_in_class_1_but_is_overridden_here_in_2_as_an_accessor;
-                        Error(Utilities.GetNameOfDeclaration((Node?)derived.ValueDeclaration) as Node ?? (Node)derived.ValueDeclaration!, overriddenMessage, SymbolToString(baseSymbolTarget), TypeToString(baseType), TypeToString(type));
+                        Error(Utilities.GetNameOfDeclaration((Node?)derived.ValueDeclaration) as Node ?? (Node)derived.ValueDeclaration!, overriddenMessage, Diagnostic.DeferArg(() => SymbolToString(baseSymbolTarget)), Diagnostic.DeferArg(() => TypeToString(baseType)), Diagnostic.DeferArg(() => TypeToString(type)));
                     }
                     else if (_useDefineForClassFields)
                     {
@@ -1225,7 +1226,7 @@ internal sealed partial class Checker
                             )
                             {
                                 var overwriteMessage = Diagnostics.Property_0_will_overwrite_the_base_property_in_1_If_this_is_intentional_add_an_initializer_Otherwise_add_a_declare_modifier_or_remove_the_redundant_declaration;
-                                Error(Utilities.GetNameOfDeclaration((Node?)derived.ValueDeclaration) as Node ?? (Node)derived.ValueDeclaration!, overwriteMessage, SymbolToString(baseSymbolTarget), TypeToString(baseType));
+                                Error(Utilities.GetNameOfDeclaration((Node?)derived.ValueDeclaration) as Node ?? (Node)derived.ValueDeclaration!, overwriteMessage, Diagnostic.DeferArg(() => SymbolToString(baseSymbolTarget)), Diagnostic.DeferArg(() => TypeToString(baseType)));
                             }
                         }
                     }
@@ -1255,7 +1256,7 @@ internal sealed partial class Checker
                     errorMessage = Diagnostics.Class_0_defines_instance_member_property_1_but_extended_class_2_defines_it_as_instance_member_function;
                 }
 
-                Error(Utilities.GetNameOfDeclaration((Node?)derived.ValueDeclaration) as Node ?? (Node)derived.ValueDeclaration!, errorMessage, TypeToString(baseType), SymbolToString(baseSymbolTarget), TypeToString(type));
+                Error(Utilities.GetNameOfDeclaration((Node?)derived.ValueDeclaration) as Node ?? (Node)derived.ValueDeclaration!, errorMessage, Diagnostic.DeferArg(() => TypeToString(baseType)), Diagnostic.DeferArg(() => SymbolToString(baseSymbolTarget)), Diagnostic.DeferArg(() => TypeToString(type)));
             }
         }
 
@@ -1373,11 +1374,11 @@ internal sealed partial class Checker
                     {
                         ok = false;
 
-                        var typeName1 = TypeToString(existing.ContainingType);
-                        var typeName2 = TypeToString(baseType);
+                        var typeName1 = Diagnostic.DeferArg(() => TypeToString(existing.ContainingType));
+                        var typeName2 = Diagnostic.DeferArg(() => TypeToString(baseType));
 
-                        var errorInfo = Utilities.ChainDiagnosticMessages(/*details*/ null, Diagnostics.Named_property_0_of_types_1_and_2_are_not_identical, SymbolToString(prop), typeName1, typeName2);
-                        errorInfo = Utilities.ChainDiagnosticMessages(errorInfo, Diagnostics.Interface_0_cannot_simultaneously_extend_types_1_and_2, TypeToString(type), typeName1, typeName2);
+                        var errorInfo = Utilities.ChainDiagnosticMessages(/*details*/ null, Diagnostics.Named_property_0_of_types_1_and_2_are_not_identical, Diagnostic.DeferArg(() => SymbolToString(prop)), typeName1, typeName2);
+                        errorInfo = Utilities.ChainDiagnosticMessages(errorInfo, Diagnostics.Interface_0_cannot_simultaneously_extend_types_1_and_2, Diagnostic.DeferArg(() => TypeToString(type)), typeName1, typeName2);
                         _diagnostics.Add(Utilities.CreateDiagnosticForNodeFromMessageChain(Utilities.GetSourceFileOfNode(typeNode)!, typeNode, errorInfo));
                     }
                 }
@@ -1762,7 +1763,7 @@ internal sealed partial class Checker
         var declaration = symbol.ValueDeclaration;
         if (declaration is null || ReferenceEquals(declaration, location))
         {
-            Error(expr, Diagnostics.Property_0_is_used_before_being_assigned, SymbolToString(symbol));
+            Error(expr, Diagnostics.Property_0_is_used_before_being_assigned, Diagnostic.DeferArg(() => SymbolToString(symbol)));
             return Utilities.EvaluatorResult<object?>(/*value*/ null);
         }
         if (!IsBlockScopedNameDeclaredBeforeUse(declaration, (Node)location))

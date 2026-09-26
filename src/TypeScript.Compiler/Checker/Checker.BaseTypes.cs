@@ -237,7 +237,8 @@ internal sealed partial class Checker
     /// </remarks>
     internal void ReportCircularBaseType(Node node, IType type)
     {
-        Error(node, Diagnostics.Type_0_recursively_references_itself_as_a_base_type, TypeToString(type, /*enclosingDeclaration*/ null, TypeFormatFlags.WriteArrayAsGenericType));
+        // PORT-NOTE (A″): printer-gated stringifier arguments are deferred — see Core/Diagnostic.cs's `DiagnosticArgument`.
+        Error(node, Diagnostics.Type_0_recursively_references_itself_as_a_base_type, Diagnostic.DeferArg(() => TypeToString(type, /*enclosingDeclaration*/ null, TypeFormatFlags.WriteArrayAsGenericType)));
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -345,7 +346,7 @@ internal sealed partial class Checker
         if (!IsValidBaseType(reducedBaseType))
         {
             var elaboration = ElaborateNeverIntersection(/*errorInfo*/ null, baseType);
-            var diagnostic = Utilities.ChainDiagnosticMessages(elaboration, Diagnostics.Base_constructor_return_type_0_is_not_an_object_type_or_intersection_of_object_types_with_statically_known_members, TypeToString(reducedBaseType));
+            var diagnostic = Utilities.ChainDiagnosticMessages(elaboration, Diagnostics.Base_constructor_return_type_0_is_not_an_object_type_or_intersection_of_object_types_with_statically_known_members, Diagnostic.DeferArg(() => TypeToString(reducedBaseType)));
             _diagnostics.Add(Utilities.CreateDiagnosticForNodeFromMessageChain(Debug.CheckDefined(Utilities.GetSourceFileOfNode(baseTypeNode.Expression!)), baseTypeNode.Expression!, diagnostic));
             type.ResolvedBaseTypes = [];
             return;
@@ -353,7 +354,7 @@ internal sealed partial class Checker
 
         if (ReferenceEquals(type, reducedBaseType) || HasBaseType(reducedBaseType, type))
         {
-            Error((Node?)type.Symbol!.ValueDeclaration, Diagnostics.Type_0_recursively_references_itself_as_a_base_type, TypeToString(type, /*enclosingDeclaration*/ null, TypeFormatFlags.WriteArrayAsGenericType));
+            Error((Node?)type.Symbol!.ValueDeclaration, Diagnostics.Type_0_recursively_references_itself_as_a_base_type, Diagnostic.DeferArg(() => TypeToString(type, /*enclosingDeclaration*/ null, TypeFormatFlags.WriteArrayAsGenericType)));
             type.ResolvedBaseTypes = [];
             return;
         }

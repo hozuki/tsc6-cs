@@ -599,7 +599,8 @@ internal sealed partial class Checker
         GetBaseConstraintOfType(typeParameter);
         if (!HasNonCircularTypeParameterDefault(typeParameter))
         {
-            Error((Node?)node.Default, Diagnostics.Type_parameter_0_has_a_circular_default, TypeToString(typeParameter));
+            // PORT-NOTE (A″): the argument is a DiagnosticArgument (Core/Diagnostic.cs) so the printer-gated stringifier runs on the first read of the message text.
+            Error((Node?)node.Default, Diagnostics.Type_parameter_0_has_a_circular_default, Diagnostic.DeferArg(() => TypeToString(typeParameter)));
         }
 
         var constraintType = GetConstraintOfTypeParameter(typeParameter);
@@ -1276,7 +1277,7 @@ internal sealed partial class Checker
                 {
                     foreach (var declaration in entry.Declarations)
                     {
-                        Error(declaration, Diagnostics.Duplicate_index_signature_for_type_0, TypeToString(entry.Type));
+                        Error(declaration, Diagnostics.Duplicate_index_signature_for_type_0, Diagnostic.DeferArg(() => TypeToString(entry.Type)));
                     }
                 }
             }
@@ -2131,7 +2132,7 @@ internal sealed partial class Checker
                 (GetObjectFlags(objectType) & ObjectFlags.Mapped) != 0 && (GetMappedTypeModifiers((IMappedType)objectType) & MappedTypeModifiers.IncludeReadonly) != 0
             )
             {
-                Error(accessNode, Diagnostics.Index_signature_in_type_0_only_permits_reading, TypeToString(objectType));
+                Error(accessNode, Diagnostics.Index_signature_in_type_0_only_permits_reading, Diagnostic.DeferArg(() => TypeToString(objectType)));
             }
 
             return type;
@@ -2151,7 +2152,7 @@ internal sealed partial class Checker
             }
         }
 
-        Error(accessNode, Diagnostics.Type_0_cannot_be_used_to_index_type_1, TypeToString(indexType), TypeToString(objectType));
+        Error(accessNode, Diagnostics.Type_0_cannot_be_used_to_index_type_1, Diagnostic.DeferArg(() => TypeToString(indexType)), Diagnostic.DeferArg(() => TypeToString(objectType)));
         return _errorType;
     }
 
@@ -2258,7 +2259,7 @@ internal sealed partial class Checker
                 if (!AreTypeParametersIdentical(declarations, [typeParameter], declaration => [declaration]))
                 {
                     // Report an error on every conflicting declaration.
-                    var name = SymbolToString(symbol);
+                    var name = Diagnostic.DeferArg(() => SymbolToString(symbol));
                     foreach (var declaration in declarations)
                     {
                         Error(declaration.Name, Diagnostics.All_declarations_of_0_must_have_identical_constraints, name);

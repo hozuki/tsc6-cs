@@ -66,6 +66,55 @@ internal sealed class DiagnosticMessage : IDiagnosticMessage
     }
 }
 
+// ported from: src/compiler/types.ts:7667 — interface DiagnosticMessage's `args`, plus utilities.ts:8705-8712 (`formatMessage`)
+/// <summary>
+/// One argument of a diagnostic message whose text is computed on the first read of that message.
+/// </summary>
+/// <remarks>
+/// PORT-NOTE (deviation, ruling A″ of the M6-late plan): the reference computes every argument at the call site, and the
+/// four string converters (<c>typeToString</c> at checker.ts:6240-6265, <c>symbolToString</c> at 6169-6201,
+/// <c>signatureToString</c> at 6202-6239, <c>typePredicateToString</c> at 11175-11187) run the printer, which is M7's
+/// and therefore a loud blocker in the port. Wrapping such an argument in <see cref="Diagnostic.DeferArg"/> keeps the
+/// string bit-for-bit identical while moving its computation — and the node building inside it — to the first read of
+/// the message, which is the same point A′ already moved the <c>formatMessage</c> call to
+/// (<see cref="Diagnostic.Deferred"/>): a reader that never asks for the text no longer trips the gate, and every
+/// reader that does still does. The one ordering-observable reader is <c>compareMessageText</c>
+/// (utilities.ts:8807, read from <c>compareDiagnosticsSkipRelatedInformation</c> at utilities.ts:8787-8794), whose
+/// tie-break point does not move.
+/// <para>
+/// The value is memoised on first read, exactly like A′'s formatted text, so a message read more than once (a sort
+/// followed by a dump, for instance) stringifies once.
+/// </para>
+/// </remarks>
+internal sealed class DiagnosticArgument
+{
+    private Func<string?>? _factory;
+    private string? _text;
+
+    public DiagnosticArgument(Func<string?> factory) => _factory = factory;
+
+    /// <summary>
+    /// The argument's text, computed on the first call and remembered afterwards; <c>null</c> means the argument
+    /// itself would have been null, which <c>formatStringFromArgs</c> renders as <c>"undefined"</c>.
+    /// </summary>
+    internal string? Resolve()
+    {
+        if (_factory is not null)
+        {
+            _text = _factory();
+            _factory = null;
+        }
+
+        return _text;
+    }
+
+    /// <summary>
+    /// The same text, for the readers that stringify an argument themselves — <c>Convert.ToString</c> in
+    /// <c>Utilities.FormatStringFromArgs</c> reaches this by falling back to <see cref="object.ToString"/>.
+    /// </summary>
+    public override string ToString() => Resolve() ?? "";
+}
+
 // ported from: src/compiler/types.ts:7697-7705 — interfaces Diagnostic, DiagnosticWithDetachedLocation, DiagnosticWithLocation
 /// <summary>
 /// One diagnostic: what went wrong, where, and which message it is.
@@ -144,6 +193,17 @@ internal sealed class Diagnostic : IDiagnosticWithDetachedLocation, IDiagnosticW
             _deferredArgs = args,
         };
     }
+
+    /// <summary>
+    /// One argument of <see cref="Deferred"/> whose text is computed on the first read of the message rather than at
+    /// the call site — see <see cref="DiagnosticArgument"/> for why and for what it does not change.
+    /// </summary>
+    /// <remarks>
+    /// PORT-NOTE: the call sites are exactly the ones where the reference passes the result of a printer-gated
+    /// converter (<c>typeToString</c>, <c>symbolToString</c>, <c>signatureToString</c>, <c>typePredicateToString</c>)
+    /// as a message argument.
+    /// </remarks>
+    internal static DiagnosticArgument DeferArg(Func<string> factory) => new(factory);
 
     /// <summary>
     /// Hands this diagnostic's message to <paramref name="target"/> without formatting it, for the copies the
@@ -242,14 +302,75 @@ internal sealed class DiagnosticMessageChain : IDiagnosticMessageChain
     /// <summary>ported from: src/compiler/utilities.ts:8751-8765 — the <c>chainDiagnosticMessages</c> literal.</summary>
     public DiagnosticMessageChain(string? messageText, DiagnosticCategory category, int code, List<IDiagnosticMessageChain>? next = null)
     {
-        MessageText = messageText;
+        _messageText = messageText;
         Category = category;
         Code = code;
         Next = next;
     }
 
+    /// <summary>The message of a chain built by <see cref="Deferred"/> that nobody has read yet.</summary>
+    private DiagnosticMessage? _deferredMessage;
+
+    /// <summary>The arguments of a chain built by <see cref="Deferred"/> that nobody has read yet.</summary>
+    private object?[]? _deferredArgs;
+
+    /// <summary>The formatted message, or whatever the constructor was handed.</summary>
+    private string? _messageText;
+
+    /// <summary>
+    /// Builds a chain whose text is formatted on the first read of <see cref="MessageText"/>.
+    /// </summary>
+    /// <remarks>
+    /// PORT-NOTE (deviation, ruling A″ of the M6-late plan): the reference formats the message while building the
+    /// chain (<c>chainDiagnosticMessages</c>, utilities.ts:8759-8761), and its arguments are evaluated at the call site
+    /// before that. Deferring the same pair to the first read is what lets a caller pass
+    /// <see cref="Diagnostic.DeferArg"/> for the printer-gated converters; see <see cref="DiagnosticArgument"/>. The
+    /// string is identical and <c>compareMessageText</c> (utilities.ts:8807) reads it at the reference's own tie-break
+    /// point, so no ordering can differ.
+    /// </remarks>
+    internal static DiagnosticMessageChain Deferred(
+        DiagnosticMessage message,
+        object?[] args,
+        List<IDiagnosticMessageChain>? next = null)
+        => new(null, message.Category, message.Code, next)
+        {
+            _deferredMessage = message,
+            _deferredArgs = args,
+        };
+
     /// <summary>ported from: src/compiler/types.ts:4427 — <c>DiagnosticMessageChain.messageText</c>.</summary>
-    public string? MessageText { get; set; }
+    /// <remarks>
+    /// PORT-NOTE: formatted on the first read when the chain was built by <see cref="Deferred"/>, and remembered from
+    /// then on — the same treatment <see cref="Diagnostic.MessageText"/> gives a diagnostic (ruling A′).
+    /// </remarks>
+    public string? MessageText
+    {
+        get
+        {
+            if (_deferredMessage is null)
+            {
+                return _messageText;
+            }
+
+            var text = Utilities.GetLocaleSpecificMessage(_deferredMessage);
+            if (Core.Some(_deferredArgs))
+            {
+                text = Utilities.FormatStringFromArgs(text, _deferredArgs!);
+            }
+
+            _messageText = text;
+            _deferredMessage = null;
+            _deferredArgs = null;
+            return text;
+        }
+
+        set
+        {
+            _messageText = value;
+            _deferredMessage = null;
+            _deferredArgs = null;
+        }
+    }
 
     /// <summary>ported from: src/compiler/types.ts:4428 — <c>DiagnosticMessageChain.category</c>.</summary>
     public DiagnosticCategory Category { get; set; }

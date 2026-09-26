@@ -652,7 +652,8 @@ internal sealed partial class Checker
                 {
                     if (MaybeTypeOfKindConsideringBaseConstraint(operandType, TypeFlags.BigIntLike))
                     {
-                        Error(node.Operand, Diagnostics.Operator_0_cannot_be_applied_to_type_1, ScannerUtilities.TokenToString(node.Operator), TypeToString(GetBaseTypeOfLiteralType(operandType)));
+                        // PORT-NOTE (A″): the argument is a DiagnosticArgument (Core/Diagnostic.cs) so the printer-gated stringifier runs on the first read of the message text.
+                        Error(node.Operand, Diagnostics.Operator_0_cannot_be_applied_to_type_1, ScannerUtilities.TokenToString(node.Operator), Diagnostic.DeferArg(() => TypeToString(GetBaseTypeOfLiteralType(operandType))));
                     }
                     return _numberType;
                 }
@@ -919,7 +920,7 @@ internal sealed partial class Checker
             // since we already checked for that).
             if (HasEmptyObjectIntersection(rightType))
             {
-                Error(right, Diagnostics.Type_0_may_represent_a_primitive_value_which_is_not_permitted_as_the_right_operand_of_the_in_operator, TypeToString(rightType));
+                Error(right, Diagnostics.Type_0_may_represent_a_primitive_value_which_is_not_permitted_as_the_right_operand_of_the_in_operator, Diagnostic.DeferArg(() => TypeToString(rightType)));
             }
         }
         // The result is always of the Boolean primitive type.

@@ -4633,7 +4633,8 @@ internal sealed partial class Checker
                 }
                 if (diagnostic is not null)
                 {
-                    Utilities.AddRelatedInfo(diagnostic, Utilities.CreateDiagnosticForNode((Node)declaration, Diagnostics._0_needs_an_explicit_type_annotation, SymbolToString(symbol)));
+                    // PORT-NOTE (A″): printer-gated stringifier arguments are wrapped in Diagnostic.DeferArg (Core/Diagnostic.cs, DiagnosticArgument) so the M7 gate is reached only by a reader that asks for the message text.
+                    Utilities.AddRelatedInfo(diagnostic, Utilities.CreateDiagnosticForNode((Node)declaration, Diagnostics._0_needs_an_explicit_type_annotation, Diagnostic.DeferArg(() => SymbolToString(symbol))));
                 }
             }
         }
@@ -8499,18 +8500,18 @@ internal sealed partial class Checker
                     : (localOrExportSymbol.Flags & SymbolFlags.Alias) != 0 ? Diagnostics.Cannot_assign_to_0_because_it_is_an_import
                     : Diagnostics.Cannot_assign_to_0_because_it_is_not_a_variable;
 
-                Error(node, assignmentError, SymbolToString(symbol));
+                Error(node, assignmentError, Diagnostic.DeferArg(() => SymbolToString(symbol)));
                 return _errorType;
             }
             if (IsReadonlySymbol(localOrExportSymbol))
             {
                 if ((localOrExportSymbol.Flags & SymbolFlags.Variable) != 0)
                 {
-                    Error(node, Diagnostics.Cannot_assign_to_0_because_it_is_a_constant, SymbolToString(symbol));
+                    Error(node, Diagnostics.Cannot_assign_to_0_because_it_is_a_constant, Diagnostic.DeferArg(() => SymbolToString(symbol)));
                 }
                 else
                 {
-                    Error(node, Diagnostics.Cannot_assign_to_0_because_it_is_a_read_only_property, SymbolToString(symbol));
+                    Error(node, Diagnostics.Cannot_assign_to_0_because_it_is_a_read_only_property, Diagnostic.DeferArg(() => SymbolToString(symbol)));
                 }
                 return _errorType;
             }
@@ -8601,15 +8602,15 @@ internal sealed partial class Checker
             {
                 if (_noImplicitAny)
                 {
-                    Error(Utilities.GetNameOfDeclaration((Node)declaration) as Node, Diagnostics.Variable_0_implicitly_has_type_1_in_some_locations_where_its_type_cannot_be_determined, SymbolToString(symbol), TypeToString(flowType));
-                    Error(node, Diagnostics.Variable_0_implicitly_has_an_1_type, SymbolToString(symbol), TypeToString(flowType));
+                    Error(Utilities.GetNameOfDeclaration((Node)declaration) as Node, Diagnostics.Variable_0_implicitly_has_type_1_in_some_locations_where_its_type_cannot_be_determined, Diagnostic.DeferArg(() => SymbolToString(symbol)), Diagnostic.DeferArg(() => TypeToString(flowType)));
+                    Error(node, Diagnostics.Variable_0_implicitly_has_an_1_type, Diagnostic.DeferArg(() => SymbolToString(symbol)), Diagnostic.DeferArg(() => TypeToString(flowType)));
                 }
                 return ConvertAutoToAny(flowType);
             }
         }
         else if (!assumeInitialized && !ContainsUndefinedType(type) && ContainsUndefinedType(flowType))
         {
-            Error(node, Diagnostics.Variable_0_is_used_before_being_assigned, SymbolToString(symbol));
+            Error(node, Diagnostics.Variable_0_is_used_before_being_assigned, Diagnostic.DeferArg(() => SymbolToString(symbol)));
             // Return the declared type to reduce follow-on errors
             return type;
         }
@@ -9187,7 +9188,7 @@ internal sealed partial class Checker
                         right,
                         Diagnostics.The_property_0_cannot_be_accessed_on_type_1_within_this_class_because_it_is_shadowed_by_another_private_identifier_with_the_same_spelling,
                         diagName,
-                        TypeToString(leftType));
+                        Diagnostic.DeferArg(() => TypeToString(leftType)));
 
                     Utilities.AddRelatedInfo(
                         diagnostic,
@@ -9320,11 +9321,11 @@ internal sealed partial class Checker
                     var rightEscapedName = Utilities.IdText(right);
                     if (_globalThisSymbol!.Exports is { } globalThisExports && globalThisExports.TryGetValue(rightEscapedName, out var globalThisProp) && (globalThisProp.Flags & SymbolFlags.BlockScoped) != 0)
                     {
-                        Error(right, Diagnostics.Property_0_does_not_exist_on_type_1, Utilities.UnescapeLeadingUnderscores(rightEscapedName), TypeToString(leftType));
+                        Error(right, Diagnostics.Property_0_does_not_exist_on_type_1, Utilities.UnescapeLeadingUnderscores(rightEscapedName), Diagnostic.DeferArg(() => TypeToString(leftType)));
                     }
                     else if (_noImplicitAny)
                     {
-                        Error(right, Diagnostics.Element_implicitly_has_an_any_type_because_type_0_has_no_index_signature, TypeToString(leftType));
+                        Error(right, Diagnostics.Element_implicitly_has_an_any_type_because_type_0_has_no_index_signature, Diagnostic.DeferArg(() => TypeToString(leftType)));
                     }
                     return _anyType;
                 }
@@ -9336,7 +9337,7 @@ internal sealed partial class Checker
             }
             if (Js.IsTruthy(indexInfo.IsReadonly) && (Utilities.IsAssignmentTarget(node) || Utilities.IsDeleteTarget(node)))
             {
-                Error(node, Diagnostics.Index_signature_in_type_0_only_permits_reading, TypeToString(apparentType));
+                Error(node, Diagnostics.Index_signature_in_type_0_only_permits_reading, Diagnostic.DeferArg(() => TypeToString(apparentType)));
             }
 
             propType = indexInfo.Type!;
@@ -9545,7 +9546,7 @@ internal sealed partial class Checker
         var flowType = GetFlowTypeOfReference(node, propType, assumeUninitialized ? GetOptionalType(propType) : propType);
         if (assumeUninitialized && !ContainsUndefinedType(propType) && ContainsUndefinedType(flowType))
         {
-            Error(errorNode, Diagnostics.Property_0_is_used_before_being_assigned, SymbolToString(prop!));
+            Error(errorNode, Diagnostics.Property_0_is_used_before_being_assigned, Diagnostic.DeferArg(() => SymbolToString(prop!)));
             // Return the declared type to reduce follow-on errors
             return propType;
         }
@@ -9579,7 +9580,7 @@ internal sealed partial class Checker
             {
                 if (GetPropertyOfType(subtype, propEscapedText) is null && GetApplicableIndexInfoForName(subtype, propEscapedText) is null)
                 {
-                    errorInfo = Utilities.ChainDiagnosticMessages(errorInfo, Diagnostics.Property_0_does_not_exist_on_type_1, Utilities.DeclarationNameToString(propNode), TypeToString(subtype));
+                    errorInfo = Utilities.ChainDiagnosticMessages(errorInfo, Diagnostics.Property_0_does_not_exist_on_type_1, Utilities.DeclarationNameToString(propNode), Diagnostic.DeferArg(() => TypeToString(subtype)));
                     break;
                 }
             }
@@ -9587,21 +9588,22 @@ internal sealed partial class Checker
         if (TypeHasStaticProperty(propEscapedText, containingType))
         {
             var propName = Utilities.DeclarationNameToString(propNode);
-            var typeName = TypeToString(containingType);
-            errorInfo = Utilities.ChainDiagnosticMessages(errorInfo, Diagnostics.Property_0_does_not_exist_on_type_1_Did_you_mean_to_access_the_static_member_2_instead, propName, typeName, typeName + "." + propName);
+            // PORT-NOTE (A″): one memoised thunk for both arguments — the reference computes `typeToString` once here.
+            var typeName = Diagnostic.DeferArg(() => TypeToString(containingType));
+            errorInfo = Utilities.ChainDiagnosticMessages(errorInfo, Diagnostics.Property_0_does_not_exist_on_type_1_Did_you_mean_to_access_the_static_member_2_instead, propName, typeName, Diagnostic.DeferArg(() => typeName.Resolve()! + "." + propName));
         }
         else
         {
             var promisedType = GetPromisedTypeOfPromise(containingType);
             if (promisedType is not null && GetPropertyOfType(promisedType, propEscapedText) is not null)
             {
-                errorInfo = Utilities.ChainDiagnosticMessages(errorInfo, Diagnostics.Property_0_does_not_exist_on_type_1, Utilities.DeclarationNameToString(propNode), TypeToString(containingType));
+                errorInfo = Utilities.ChainDiagnosticMessages(errorInfo, Diagnostics.Property_0_does_not_exist_on_type_1, Utilities.DeclarationNameToString(propNode), Diagnostic.DeferArg(() => TypeToString(containingType)));
                 relatedInfo = Utilities.CreateDiagnosticForNode(propNode, Diagnostics.Did_you_forget_to_use_await);
             }
             else
             {
                 var missingProperty = Utilities.DeclarationNameToString(propNode);
-                var container = TypeToString(containingType);
+                var container = Diagnostic.DeferArg(() => TypeToString(containingType));
                 var libSuggestion = GetSuggestedLibForNonExistentProperty(missingProperty, containingType);
                 if (libSuggestion is not null)
                 {

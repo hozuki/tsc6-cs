@@ -1773,7 +1773,8 @@ internal sealed partial class Checker
                     var i = 0;
                     foreach (var c in candidatesForArgumentError)
                     {
-                        Func<IDiagnosticMessageChain?> chain = () => Utilities.ChainDiagnosticMessages(/*details*/ null, Diagnostics.Overload_0_of_1_2_gave_the_following_error, i + 1, candidates.Count, SignatureToString(c));
+                        // PORT-NOTE (A″): each printer-gated stringifier passed as a diagnostic-message argument here is a memoised wrapper — see Core/Diagnostic.cs's `DiagnosticArgument`.
+                        Func<IDiagnosticMessageChain?> chain = () => Utilities.ChainDiagnosticMessages(/*details*/ null, Diagnostics.Overload_0_of_1_2_gave_the_following_error, i + 1, candidates.Count, Diagnostic.DeferArg(() => SignatureToString(c)));
                         var diags = GetSignatureApplicabilityError(node, args, c, _assignableRelation, CheckMode.Normal, /*reportErrors*/ true, chain);
                         if (diags is not null)
                         {
@@ -2260,6 +2261,7 @@ internal sealed partial class Checker
         // that the user will not add any.
         var callSignatures = GetSignaturesOfType(apparentType, SignatureKind.Call);
         var numConstructSignatures = GetSignaturesOfType(apparentType, SignatureKind.Construct).Count;
+        var funcTypeString = Diagnostic.DeferArg(() => TypeToString(funcType));
 
         // TS 1.0 Spec: 4.12
         // In an untyped function call no TypeArgs are permitted, Args can be any argument list, no contextual
@@ -2281,7 +2283,7 @@ internal sealed partial class Checker
         {
             if (numConstructSignatures != 0)
             {
-                Error(node, Diagnostics.Value_of_type_0_is_not_callable_Did_you_mean_to_include_new, TypeToString(funcType));
+                Error(node, Diagnostics.Value_of_type_0_is_not_callable_Did_you_mean_to_include_new, funcTypeString);
             }
             else
             {
@@ -2320,7 +2322,7 @@ internal sealed partial class Checker
         // If the function is explicitly marked with `@class`, then it must be constructed.
         if (Core.Some(callSignatures, sig => Utilities.IsInJSFile(sig.Declaration) && Utilities.GetJSDocClassTag((Node)sig.Declaration!) is not null))
         {
-            Error(node, Diagnostics.Value_of_type_0_is_not_callable_Did_you_mean_to_include_new, TypeToString(funcType));
+            Error(node, Diagnostics.Value_of_type_0_is_not_callable_Did_you_mean_to_include_new, funcTypeString);
             return ResolveErrorCall(node);
         }
 
@@ -2553,13 +2555,14 @@ internal sealed partial class Checker
                     return true;
                 }
             }
+            var declaringClassString = Diagnostic.DeferArg(() => TypeToString(declaringClass));
             if ((modifiers & ModifierFlags.Private) != 0)
             {
-                Error(node, Diagnostics.Constructor_of_class_0_is_private_and_only_accessible_within_the_class_declaration, TypeToString(declaringClass));
+                Error(node, Diagnostics.Constructor_of_class_0_is_private_and_only_accessible_within_the_class_declaration, declaringClassString);
             }
             if ((modifiers & ModifierFlags.Protected) != 0)
             {
-                Error(node, Diagnostics.Constructor_of_class_0_is_protected_and_only_accessible_within_the_class_declaration, TypeToString(declaringClass));
+                Error(node, Diagnostics.Constructor_of_class_0_is_protected_and_only_accessible_within_the_class_declaration, declaringClassString);
             }
             return false;
         }
@@ -2582,6 +2585,7 @@ internal sealed partial class Checker
         var isCall = kind == SignatureKind.Call;
         var awaitedType = GetAwaitedType(apparentType);
         var maybeMissingAwait = awaitedType is not null && GetSignaturesOfType(awaitedType, kind).Count > 0;
+        var apparentTypeString = Diagnostic.DeferArg(() => TypeToString(apparentType));
         if ((apparentType.Flags & TypeFlags.Union) != 0)
         {
             var types = ((IUnionOrIntersectionType)apparentType).Types!;
@@ -2608,13 +2612,13 @@ internal sealed partial class Checker
                             isCall ?
                                 Diagnostics.Type_0_has_no_call_signatures :
                                 Diagnostics.Type_0_has_no_construct_signatures,
-                            TypeToString(constituent));
+                            Diagnostic.DeferArg(() => TypeToString(constituent)));
                         errorInfo = Utilities.ChainDiagnosticMessages(
                             errorInfo,
                             isCall ?
                                 Diagnostics.Not_all_constituents_of_type_0_are_callable :
                                 Diagnostics.Not_all_constituents_of_type_0_are_constructable,
-                            TypeToString(apparentType));
+                            apparentTypeString);
                     }
                     if (hasSignatures)
                     {
@@ -2630,7 +2634,7 @@ internal sealed partial class Checker
                     isCall ?
                         Diagnostics.No_constituent_of_type_0_is_callable :
                         Diagnostics.No_constituent_of_type_0_is_constructable,
-                    TypeToString(apparentType));
+                    apparentTypeString);
             }
             if (errorInfo is null)
             {
@@ -2639,7 +2643,7 @@ internal sealed partial class Checker
                     isCall ?
                         Diagnostics.Each_member_of_the_union_type_0_has_signatures_but_none_of_those_signatures_are_compatible_with_each_other :
                         Diagnostics.Each_member_of_the_union_type_0_has_construct_signatures_but_none_of_those_signatures_are_compatible_with_each_other,
-                    TypeToString(apparentType));
+                    apparentTypeString);
             }
         }
         else
@@ -2649,7 +2653,7 @@ internal sealed partial class Checker
                 isCall ?
                     Diagnostics.Type_0_has_no_call_signatures :
                     Diagnostics.Type_0_has_no_construct_signatures,
-                TypeToString(apparentType));
+                apparentTypeString);
         }
 
         var headMessage = isCall ? Diagnostics.This_expression_is_not_callable : Diagnostics.This_expression_is_not_constructable;

@@ -840,7 +840,8 @@ internal sealed partial class Checker
             }
             else
             {
-                Error((Node)node, Diagnostics.Circular_definition_of_import_alias_0, SymbolToString(symbol));
+                // PORT-NOTE (A″): printer-gated `SymbolToString`/`TypeToString` arguments below are deferred to the message's first read via `Diagnostic.DeferArg` (Core/Diagnostic.cs); values used eagerly stay unwrapped.
+                Error((Node)node, Diagnostics.Circular_definition_of_import_alias_0, Diagnostic.DeferArg(() => SymbolToString(symbol)));
             }
         }
         else if (ReferenceEquals(links.AliasTarget, _resolvingSymbol))
@@ -1033,7 +1034,7 @@ internal sealed partial class Checker
                     var suggestionForNonexistentModule = GetSuggestedSymbolForNonexistentModule((Identifier)right, ns);
                     if (suggestionForNonexistentModule is not null)
                     {
-                        Error(right, Diagnostics._0_has_no_exported_member_named_1_Did_you_mean_2, namespaceName, declarationName, SymbolToString(suggestionForNonexistentModule));
+                        Error(right, Diagnostics._0_has_no_exported_member_named_1_Did_you_mean_2, namespaceName, declarationName, Diagnostic.DeferArg(() => SymbolToString(suggestionForNonexistentModule)));
                         return null;
                     }
 
@@ -1064,7 +1065,7 @@ internal sealed partial class Checker
                             Error(
                                 ((QualifiedName)name.Parent!).Right,
                                 Diagnostics.Cannot_access_0_1_because_0_is_a_type_but_not_a_namespace_Did_you_mean_to_retrieve_the_type_of_the_property_1_in_0_with_0_1,
-                                SymbolToString(exportedTypeSymbol),
+                                Diagnostic.DeferArg(() => SymbolToString(exportedTypeSymbol)),
                                 Utilities.UnescapeLeadingUnderscores(((QualifiedName)name.Parent!).Right!.EscapedText!)
                             );
                             return null;
@@ -1544,15 +1545,15 @@ internal sealed partial class Checker
             {
                 if (setter is not null && !IsPrivateWithinAmbient(setter))
                 {
-                    ErrorOrSuggestion(_noImplicitAny, setter, Diagnostics.Property_0_implicitly_has_type_any_because_its_set_accessor_lacks_a_parameter_type_annotation, SymbolToString(symbol));
+                    ErrorOrSuggestion(_noImplicitAny, setter, Diagnostics.Property_0_implicitly_has_type_any_because_its_set_accessor_lacks_a_parameter_type_annotation, Diagnostic.DeferArg(() => SymbolToString(symbol)));
                 }
                 else if (getter is not null && !IsPrivateWithinAmbient(getter))
                 {
-                    ErrorOrSuggestion(_noImplicitAny, getter, Diagnostics.Property_0_implicitly_has_type_any_because_its_get_accessor_lacks_a_return_type_annotation, SymbolToString(symbol));
+                    ErrorOrSuggestion(_noImplicitAny, getter, Diagnostics.Property_0_implicitly_has_type_any_because_its_get_accessor_lacks_a_return_type_annotation, Diagnostic.DeferArg(() => SymbolToString(symbol)));
                 }
                 else if (accessor is not null && !IsPrivateWithinAmbient(accessor))
                 {
-                    ErrorOrSuggestion(_noImplicitAny, accessor, Diagnostics.Member_0_implicitly_has_an_1_type, SymbolToString(symbol), "any");
+                    ErrorOrSuggestion(_noImplicitAny, accessor, Diagnostics.Member_0_implicitly_has_an_1_type, Diagnostic.DeferArg(() => SymbolToString(symbol)), "any");
                 }
 
                 type = _anyType;
@@ -1562,19 +1563,19 @@ internal sealed partial class Checker
             {
                 if (GetAnnotatedAccessorTypeNode(getter) is not null)
                 {
-                    Error(getter, Diagnostics._0_is_referenced_directly_or_indirectly_in_its_own_type_annotation, SymbolToString(symbol));
+                    Error(getter, Diagnostics._0_is_referenced_directly_or_indirectly_in_its_own_type_annotation, Diagnostic.DeferArg(() => SymbolToString(symbol)));
                 }
                 else if (GetAnnotatedAccessorTypeNode(setter) is not null)
                 {
-                    Error(setter, Diagnostics._0_is_referenced_directly_or_indirectly_in_its_own_type_annotation, SymbolToString(symbol));
+                    Error(setter, Diagnostics._0_is_referenced_directly_or_indirectly_in_its_own_type_annotation, Diagnostic.DeferArg(() => SymbolToString(symbol)));
                 }
                 else if (GetAnnotatedAccessorTypeNode(accessor) is not null)
                 {
-                    Error(setter, Diagnostics._0_is_referenced_directly_or_indirectly_in_its_own_type_annotation, SymbolToString(symbol));
+                    Error(setter, Diagnostics._0_is_referenced_directly_or_indirectly_in_its_own_type_annotation, Diagnostic.DeferArg(() => SymbolToString(symbol)));
                 }
                 else if (getter is not null && _noImplicitAny)
                 {
-                    Error(getter, Diagnostics._0_implicitly_has_return_type_any_because_it_does_not_have_a_return_type_annotation_and_is_referenced_directly_or_indirectly_in_one_of_its_return_expressions, SymbolToString(symbol));
+                    Error(getter, Diagnostics._0_implicitly_has_return_type_any_because_it_does_not_have_a_return_type_annotation_and_is_referenced_directly_or_indirectly_in_one_of_its_return_expressions, Diagnostic.DeferArg(() => SymbolToString(symbol)));
                 }
 
                 type = _anyType;
@@ -1604,7 +1605,7 @@ internal sealed partial class Checker
             {
                 if (GetAnnotatedAccessorTypeNode(setter) is not null)
                 {
-                    Error(setter, Diagnostics._0_is_referenced_directly_or_indirectly_in_its_own_type_annotation, SymbolToString(symbol));
+                    Error(setter, Diagnostics._0_is_referenced_directly_or_indirectly_in_its_own_type_annotation, Diagnostic.DeferArg(() => SymbolToString(symbol)));
                 }
 
                 writeType = _anyType;
@@ -2039,13 +2040,13 @@ internal sealed partial class Checker
 
             if (!PopTypeResolution())
             {
-                Error((Node?)type.Symbol!.ValueDeclaration, Diagnostics._0_is_referenced_directly_or_indirectly_in_its_own_base_expression, SymbolToString(type.Symbol!));
+                Error((Node?)type.Symbol!.ValueDeclaration, Diagnostics._0_is_referenced_directly_or_indirectly_in_its_own_base_expression, Diagnostic.DeferArg(() => SymbolToString(type.Symbol!)));
                 return type.ResolvedBaseConstructorType ??= _errorType;
             }
 
             if ((baseConstructorType.Flags & TypeFlags.Any) == 0 && !ReferenceEquals(baseConstructorType, _nullWideningType) && !IsConstructorType(baseConstructorType))
             {
-                var err = Error(baseTypeNode.Expression!, Diagnostics.Type_0_is_not_a_constructor_function_type, TypeToString(baseConstructorType));
+                var err = Error(baseTypeNode.Expression!, Diagnostics.Type_0_is_not_a_constructor_function_type, Diagnostic.DeferArg(() => TypeToString(baseConstructorType)));
                 if ((baseConstructorType.Flags & TypeFlags.TypeParameter) != 0)
                 {
                     var constraint = GetConstraintFromTypeParameter((ITypeParameter)baseConstructorType);
@@ -2061,7 +2062,7 @@ internal sealed partial class Checker
 
                     if (baseConstructorType.Symbol!.Declarations is not null)
                     {
-                        Utilities.AddRelatedInfo(err, Utilities.CreateDiagnosticForNode((Node)baseConstructorType.Symbol.Declarations[0], Diagnostics.Did_you_mean_for_0_to_be_constrained_to_type_new_args_Colon_any_1, SymbolToString(baseConstructorType.Symbol), TypeToString(ctorReturn)));
+                        Utilities.AddRelatedInfo(err, Utilities.CreateDiagnosticForNode((Node)baseConstructorType.Symbol.Declarations[0], Diagnostics.Did_you_mean_for_0_to_be_constrained_to_type_new_args_Colon_any_1, Diagnostic.DeferArg(() => SymbolToString(baseConstructorType.Symbol)), Diagnostic.DeferArg(() => TypeToString(ctorReturn))));
                     }
                 }
 
@@ -3075,7 +3076,7 @@ internal sealed partial class Checker
 
                     if (suggestion is not null)
                     {
-                        var suggestionName = SymbolToString(suggestion);
+                        var suggestionName = Diagnostic.DeferArg(() => SymbolToString(suggestion));
                         var isUncheckedJS = IsUncheckedJSSuggestion(errorLocation, suggestion, /*excludeClasses*/ false);
                         var message = meaning == SymbolFlags.Namespace
                             ? Diagnostics.Cannot_find_namespace_0_Did_you_mean_1
@@ -3265,7 +3266,7 @@ internal sealed partial class Checker
                 var constructorType = GetTypeOfSymbol(classSymbol);
                 if (GetPropertyOfType(constructorType, name) is not null)
                 {
-                    Error(errorLocation, Diagnostics.Cannot_find_name_0_Did_you_mean_the_static_member_1_0, DiagnosticName(nameArg), SymbolToString(classSymbol));
+                    Error(errorLocation, Diagnostics.Cannot_find_name_0_Did_you_mean_the_static_member_1_0, DiagnosticName(nameArg), Diagnostic.DeferArg(() => SymbolToString(classSymbol)));
                     return true;
                 }
 
@@ -4139,7 +4140,7 @@ internal sealed partial class Checker
             // environment without `esModuleInterop`, so just error.
             if (!Utilities.GetESModuleInterop(_compilerOptions))
             {
-                Error(((INamedDeclaration)node).Name!, Diagnostics.Module_0_can_only_be_default_imported_using_the_1_flag, SymbolToString(moduleSymbol), "esModuleInterop");
+                Error(((INamedDeclaration)node).Name!, Diagnostics.Module_0_can_only_be_default_imported_using_the_1_flag, Diagnostic.DeferArg(() => SymbolToString(moduleSymbol)), "esModuleInterop");
                 return null;
             }
 
@@ -4165,7 +4166,7 @@ internal sealed partial class Checker
                 var compilerOptionName = _moduleKind >= ModuleKind.ES2015 ? "allowSyntheticDefaultImports" : "esModuleInterop";
                 var exportEqualsSymbol = moduleSymbol.Exports?.GetValueOrDefault(InternalSymbolName.ExportEquals.Value);
                 var exportAssignment = exportEqualsSymbol?.ValueDeclaration;
-                var err = Error(((INamedDeclaration)node).Name!, Diagnostics.Module_0_can_only_be_default_imported_using_the_1_flag, SymbolToString(moduleSymbol), compilerOptionName);
+                var err = Error(((INamedDeclaration)node).Name!, Diagnostics.Module_0_can_only_be_default_imported_using_the_1_flag, Diagnostic.DeferArg(() => SymbolToString(moduleSymbol)), compilerOptionName);
 
                 if (exportAssignment is not null)
                 {
@@ -4213,12 +4214,12 @@ internal sealed partial class Checker
             Error(
                 ((INamedDeclaration)node).Name!,
                 Diagnostics.Module_0_has_no_default_export_Did_you_mean_to_use_import_1_from_0_instead,
-                SymbolToString(moduleSymbol),
-                SymbolToString(nodeSymbol));
+                Diagnostic.DeferArg(() => SymbolToString(moduleSymbol)),
+                Diagnostic.DeferArg(() => SymbolToString(nodeSymbol)));
         }
         else
         {
-            var diagnostic = Error(((INamedDeclaration)node).Name!, Diagnostics.Module_0_has_no_default_export, SymbolToString(moduleSymbol));
+            var diagnostic = Error(((INamedDeclaration)node).Name!, Diagnostics.Module_0_has_no_default_export, Diagnostic.DeferArg(() => SymbolToString(moduleSymbol)));
             var exportStar = moduleSymbol.Exports?.GetValueOrDefault(InternalSymbolName.ExportStar.Value);
             if (exportStar is not null)
             {
@@ -4342,7 +4343,7 @@ internal sealed partial class Checker
         var suggestion = NodeTests.IsIdentifier(name) ? GetSuggestedSymbolForNonexistentModule((Identifier)name, targetSymbol) : null;
         if (suggestion is not null)
         {
-            var suggestionName = SymbolToString(suggestion);
+            var suggestionName = Diagnostic.DeferArg(() => SymbolToString(suggestion));
             var diagnostic = Error(name, Diagnostics._0_has_no_exported_member_named_1_Did_you_mean_2, moduleName, declarationName, suggestionName);
             if (suggestion.ValueDeclaration is not null)
             {
@@ -4398,7 +4399,7 @@ internal sealed partial class Checker
             {
                 var exportedSymbol = exports is not null ? Core.Find(SymbolsToArray(exports), (s, _) => GetSymbolIfSameReference(s, localSymbol) is not null) : null;
                 var diagnostic = exportedSymbol is not null
-                    ? Error(name, Diagnostics.Module_0_declares_1_locally_but_it_is_exported_as_2, moduleName, declarationName, SymbolToString(exportedSymbol))
+                    ? Error(name, Diagnostics.Module_0_declares_1_locally_but_it_is_exported_as_2, moduleName, declarationName, Diagnostic.DeferArg(() => SymbolToString(exportedSymbol)))
                     : Error(name, Diagnostics.Module_0_declares_1_locally_but_it_is_not_exported, moduleName, declarationName);
                 if (localSymbol.Declarations is not null)
                 {

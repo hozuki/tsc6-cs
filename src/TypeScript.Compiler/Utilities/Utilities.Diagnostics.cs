@@ -149,23 +149,18 @@ internal static partial class Utilities
     /// </remarks>
     public static DiagnosticMessageChain ChainDiagnosticMessages(object? details, DiagnosticMessage message, params object?[] args)
     {
-        var text = GetLocaleSpecificMessage(message);
-        if (Core.Some(args))
+        var next = details switch
         {
-            text = FormatStringFromArgs(text, args);
-        }
+            null => null,
+            List<IDiagnosticMessageChain> list => list,
+            IDiagnosticMessageChain chain => [chain],
+            _ => Debug.Fail<List<IDiagnosticMessageChain>>($"chainDiagnosticMessages: unexpected details of type {details.GetType()}"),
+        };
 
-        return new DiagnosticMessageChain(
-            text,
-            message.Category,
-            message.Code,
-            details switch
-            {
-                null => null,
-                List<IDiagnosticMessageChain> list => list,
-                IDiagnosticMessageChain chain => [chain],
-                _ => Debug.Fail<List<IDiagnosticMessageChain>>($"chainDiagnosticMessages: unexpected details of type {details.GetType()}"),
-            });
+        // PORT-NOTE: ruling A″ — the reference formats the message here (utilities.ts:8759-8761); the port defers the
+        // same `getLocaleSpecificMessage` + `formatStringFromArgs` pair to the first read of the chain's message text
+        // (`DiagnosticMessageChain.Deferred`), which is what lets the arguments be `Diagnostic.DeferArg` thunks.
+        return DiagnosticMessageChain.Deferred(message, args, next);
     }
 
     /// <summary>ported from: src/compiler/utilities.ts:8767-8775 — <c>concatenateDiagnosticMessageChains</c>.</summary>

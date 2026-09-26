@@ -403,7 +403,8 @@ internal sealed partial class Checker
                     // a var declatation can't hoist past a lexical declaration and it results in a SyntaxError at runtime
                     if (!namesShareScope)
                     {
-                        var localName = SymbolToString(localDeclarationSymbol);
+                        // PORT-NOTE (A″): the argument is a DiagnosticArgument (Core/Diagnostic.cs) so the printer-gated stringifier runs on the first read of the message text.
+                        var localName = Diagnostic.DeferArg(() => SymbolToString(localDeclarationSymbol));
                         Error(node, Diagnostics.Cannot_initialize_outer_scoped_variable_0_in_the_same_scope_as_block_scoped_declaration_1, localName, localName);
                     }
                 }
@@ -710,8 +711,8 @@ internal sealed partial class Checker
             (Node?)nextDeclarationName,
             message,
             declName,
-            TypeToString(firstType),
-            TypeToString(nextType));
+            Diagnostic.DeferArg(() => TypeToString(firstType)),
+            Diagnostic.DeferArg(() => TypeToString(nextType)));
         if (firstDeclaration is not null)
         {
             Utilities.AddRelatedInfo(err, Utilities.CreateDiagnosticForNode((Node)firstDeclaration, Diagnostics._0_was_also_declared_here, declName));
@@ -1232,7 +1233,7 @@ internal sealed partial class Checker
         // in this case error about missing name is already reported - do not report extra one
         if (ReferenceEquals(rightType, _neverType) || !IsTypeAssignableToKind(rightType, TypeFlags.NonPrimitive | TypeFlags.InstantiableNonPrimitive))
         {
-            Error(node.Expression!, Diagnostics.The_right_hand_side_of_a_for_in_statement_must_be_of_type_any_an_object_type_or_a_type_parameter_but_here_has_type_0, TypeToString(rightType));
+            Error(node.Expression!, Diagnostics.The_right_hand_side_of_a_for_in_statement_must_be_of_type_any_an_object_type_or_a_type_parameter_but_here_has_type_0, Diagnostic.DeferArg(() => TypeToString(rightType)));
         }
 
         CheckSourceElement((Node?)node.Statement);
@@ -1364,7 +1365,7 @@ internal sealed partial class Checker
                     errorNode,
                     maybeMissingAwait && GetAwaitedTypeOfPromise(arrayType) is not null,
                     defaultDiagnostic,
-                    TypeToString(arrayType));
+                    Diagnostic.DeferArg(() => TypeToString(arrayType)));
             }
             return hasStringConstituent
                 ? possibleOutOfBounds ? IncludeUndefinedInIndexSignature(_stringType) : _stringType
@@ -1804,7 +1805,7 @@ internal sealed partial class Checker
                 && ReferenceEquals(((ForOfStatement)errorNode.Parent!).Expression, errorNode)
                 && !ReferenceEquals(GetGlobalAsyncIterableType(/*reportErrors*/ false), _emptyGenericType)
                 && IsTypeAssignableTo(type, CreateTypeFromGenericGlobalType(GetGlobalAsyncIterableType(/*reportErrors*/ false), [_anyType, _anyType, _anyType])));
-        return ErrorAndMaybeSuggestAwait(errorNode, suggestAwait, message, TypeToString(type));
+        return ErrorAndMaybeSuggestAwait(errorNode, suggestAwait, message, Diagnostic.DeferArg(() => TypeToString(type)));
     }
 
     // ---------------------------------------------------------------------------------------------

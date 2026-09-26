@@ -1704,7 +1704,8 @@ internal sealed partial class Checker
 
                             if (valueDeclaration is not null)
                             {
-                                Error((Node)valueDeclaration, Diagnostics.Object_literal_s_property_0_implicitly_has_an_1_type, SymbolToString(p), TypeToString(GetWidenedType(t)));
+                                // PORT-NOTE (A″): printer-gated stringifier arguments are deferred — see Core/Diagnostic.cs's `DiagnosticArgument`.
+                                Error((Node)valueDeclaration, Diagnostics.Object_literal_s_property_0_implicitly_has_an_1_type, Diagnostic.DeferArg(() => SymbolToString(p)), Diagnostic.DeferArg(() => TypeToString(GetWidenedType(t))));
                                 errorReported = true;
                             }
                         }
@@ -1724,7 +1725,7 @@ internal sealed partial class Checker
     /// </remarks>
     internal void ReportImplicitAny(IDeclaration declaration, IType type, WideningKind? wideningKind = null)
     {
-        var typeAsString = TypeToString(GetWidenedType(type));
+        var typeAsString = Diagnostic.DeferArg(() => TypeToString(GetWidenedType(type)));
         if (Utilities.IsInJSFile((Node)declaration) && Utilities.IsCheckJsEnabledForFile(Utilities.GetSourceFileOfNode((Node)declaration)!, _compilerOptions) != true)
         {
             // Only report implicit any errors/suggestions in TS and ts-check JS files

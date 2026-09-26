@@ -1033,7 +1033,8 @@ internal sealed partial class Checker
                 : propType;
             if (!PopTypeResolution())
             {
-                Error(_currentNode, Diagnostics.Type_of_property_0_circularly_references_itself_in_mapped_type_1, SymbolToString(symbol), TypeToString(mappedType));
+                // PORT-NOTE (A″): printer-gated stringifier arguments are deferred — see Core/Diagnostic.cs's `DiagnosticArgument`.
+                Error(_currentNode, Diagnostics.Type_of_property_0_circularly_references_itself_in_mapped_type_1, Diagnostic.DeferArg(() => SymbolToString(symbol)), Diagnostic.DeferArg(() => TypeToString(mappedType)));
                 type = _errorType;
             }
 

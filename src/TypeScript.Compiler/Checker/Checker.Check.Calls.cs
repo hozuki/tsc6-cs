@@ -158,7 +158,7 @@ internal sealed partial class Checker
         {
             var suggestionNode = GetDeprecatedSuggestionNode(node);
             var name = Utilities.TryGetPropertyAccessOrIdentifierToString((Expression)Utilities.GetInvokedExpression(node));
-            AddDeprecatedSuggestionWithSignature(suggestionNode, signature.Declaration, name, SignatureToString(signature));
+            AddDeprecatedSuggestionWithSignature(suggestionNode, signature.Declaration, name, Diagnostic.DeferArg(() => SignatureToString(signature)));
         }
     }
 
@@ -255,7 +255,8 @@ internal sealed partial class Checker
 
         if ((specifierType.Flags & TypeFlags.Undefined) != 0 || (specifierType.Flags & TypeFlags.Null) != 0 || !IsTypeAssignableTo(specifierType, _stringType))
         {
-            Error(specifier, Diagnostics.Dynamic_import_s_specifier_must_be_of_type_string_but_here_has_type_0, TypeToString(specifierType));
+            // PORT-NOTE (A″): each printer-gated stringifier passed as a diagnostic-message argument here is a memoised wrapper — see Core/Diagnostic.cs's `DiagnosticArgument`.
+            Error(specifier, Diagnostics.Dynamic_import_s_specifier_must_be_of_type_string_but_here_has_type_0, Diagnostic.DeferArg(() => TypeToString(specifierType)));
         }
 
         if (optionsType is not null)
@@ -608,7 +609,7 @@ internal sealed partial class Checker
         var errorType = hasSomeApplicableSignature ? nonApplicableType : exprType;
         if (errorType is not null)
         {
-            _diagnostics.Add(Utilities.CreateDiagnosticForNodeArray(Utilities.GetSourceFileOfNode(node)!, ToNodeArray(typeArguments!), Diagnostics.Type_0_has_no_signatures_for_which_the_type_argument_list_is_applicable, TypeToString(errorType)));
+            _diagnostics.Add(Utilities.CreateDiagnosticForNodeArray(Utilities.GetSourceFileOfNode(node)!, ToNodeArray(typeArguments!), Diagnostics.Type_0_has_no_signatures_for_which_the_type_argument_list_is_applicable, Diagnostic.DeferArg(() => TypeToString(errorType))));
         }
         return result;
 

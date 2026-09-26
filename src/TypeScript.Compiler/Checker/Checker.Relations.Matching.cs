@@ -320,7 +320,8 @@ internal sealed partial class Checker
                 {
                     if (reportErrors)
                     {
-                        errorReporter!(Diagnostics.Signature_0_must_be_a_type_predicate, SignatureToString(source, /*enclosingDeclaration*/ null, /*flags*/ null, /*kind*/ null));
+                        // PORT-NOTE (A″): printer-gated stringifier arguments are wrapped in Diagnostic.DeferArg (Core/Diagnostic.cs, DiagnosticArgument) so the M7 gate is reached only by a reader that asks for the message text.
+                        errorReporter!(Diagnostics.Signature_0_must_be_a_type_predicate, Diagnostic.DeferArg(() => SignatureToString(source, /*enclosingDeclaration*/ null, /*flags*/ null, /*kind*/ null)));
                     }
                     return Ternary.False;
                 }
@@ -364,8 +365,8 @@ internal sealed partial class Checker
                 errorReporter!(Diagnostics.A_this_based_type_guard_is_not_compatible_with_a_parameter_based_type_guard);
                 errorReporter!(
                     Diagnostics.Type_predicate_0_is_not_assignable_to_1,
-                    TypePredicateToString(source, /*enclosingDeclaration*/ null, /*flags*/ null),
-                    TypePredicateToString(target, /*enclosingDeclaration*/ null, /*flags*/ null));
+                    Diagnostic.DeferArg(() => TypePredicateToString(source, /*enclosingDeclaration*/ null, /*flags*/ null)),
+                    Diagnostic.DeferArg(() => TypePredicateToString(target, /*enclosingDeclaration*/ null, /*flags*/ null)));
             }
             return Ternary.False;
         }
@@ -382,8 +383,8 @@ internal sealed partial class Checker
                         ((IIdentifierTypePredicate)target).ParameterName);
                     errorReporter!(
                         Diagnostics.Type_predicate_0_is_not_assignable_to_1,
-                        TypePredicateToString(source, /*enclosingDeclaration*/ null, /*flags*/ null),
-                        TypePredicateToString(target, /*enclosingDeclaration*/ null, /*flags*/ null));
+                        Diagnostic.DeferArg(() => TypePredicateToString(source, /*enclosingDeclaration*/ null, /*flags*/ null)),
+                        Diagnostic.DeferArg(() => TypePredicateToString(target, /*enclosingDeclaration*/ null, /*flags*/ null)));
                 }
                 return Ternary.False;
             }
@@ -396,8 +397,8 @@ internal sealed partial class Checker
         {
             errorReporter!(
                 Diagnostics.Type_predicate_0_is_not_assignable_to_1,
-                TypePredicateToString(source, /*enclosingDeclaration*/ null, /*flags*/ null),
-                TypePredicateToString(target, /*enclosingDeclaration*/ null, /*flags*/ null));
+                Diagnostic.DeferArg(() => TypePredicateToString(source, /*enclosingDeclaration*/ null, /*flags*/ null)),
+                Diagnostic.DeferArg(() => TypePredicateToString(target, /*enclosingDeclaration*/ null, /*flags*/ null)));
         }
         return related;
     }
@@ -571,7 +572,7 @@ internal sealed partial class Checker
                         errorReporter(
                             Diagnostics.Property_0_is_missing_in_type_1,
                             Utilities.SymbolName(sourceProperty),
-                            TypeToString(GetDeclaredTypeOfSymbol(targetSymbol), /*enclosingDeclaration*/ null, TypeFormatFlags.UseFullyQualifiedType));
+                            Diagnostic.DeferArg(() => TypeToString(GetDeclaredTypeOfSymbol(targetSymbol), /*enclosingDeclaration*/ null, TypeFormatFlags.UseFullyQualifiedType)));
                     }
                     _enumRelation[id] = RelationComparisonResult.Failed;
                     return false;

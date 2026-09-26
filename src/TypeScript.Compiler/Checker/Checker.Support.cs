@@ -713,7 +713,8 @@ internal sealed partial class Checker
                         var errorNode = GetConstraintDeclaration((ITypeParameter)t);
                         if (errorNode is not null)
                         {
-                            var diagnostic = Error((Node)errorNode, Diagnostics.Type_parameter_0_has_a_circular_constraint, TypeToString(t));
+                            // PORT-NOTE (A″): printer-gated stringifier arguments are deferred — see Core/Diagnostic.cs's `DiagnosticArgument`.
+                            var diagnostic = Error((Node)errorNode, Diagnostics.Type_parameter_0_has_a_circular_constraint, Diagnostic.DeferArg(() => TypeToString(t)));
                             var currentNode = _currentNode;
                             if (currentNode is not null && !Utilities.IsNodeDescendantOf((Node)errorNode, currentNode) && !Utilities.IsNodeDescendantOf(currentNode, (Node)errorNode))
                             {
@@ -1771,13 +1772,28 @@ internal sealed partial class Checker
 
     /// <summary>The <c>node.initializer</c> read of <see cref="IsJSConstructor"/> (checker.ts:37700-37702).</summary>
     /// <remarks>
-    /// PORT-NOTE: TS reads <c>node.initializer</c> off the union its guard narrowed to
-    /// <c>VariableDeclaration | PropertyAssignment</c>; C# names those two faces explicitly, which is that union.
+    /// <para>
+    /// PORT-NOTE: TS reads <c>node.initializer</c> off whatever union its guard narrowed to; C# names those faces
+    /// explicitly here. The union is <c>HasExpressionInitializer</c> (types.ts:1287-1291: VariableDeclaration,
+    /// Parameter, BindingElement, PropertyDeclaration, PropertyAssignment, EnumMember), which is what
+    /// <c>hasOnlyExpressionInitializer</c> (utilitiesPublic.ts, used at checker.ts:11942 and at
+    /// <c>getBindingElementTypeFromParentType</c>) guards for — all six arms are read here.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: the two-armed version this helper started as (VariableDeclaration|PropertyAssignment, the pair
+    /// <see cref="IsJSConstructor"/>'s guard admits) silently answered null for a <c>PropertyDeclaration</c> at
+    /// checker.ts:11942, so every `class C { p = 1 }` fell through to the static-block flow-type arm and got the
+    /// auto-&gt;any type instead of the widened number (and the implicit-any diagnostic that follows from it).
+    /// </para>
     /// </remarks>
     private static Expression? InitializerOfNode(Node node) => node switch
     {
         VariableDeclaration variableDeclaration => variableDeclaration.Initializer,
+        ParameterDeclaration parameter => parameter.Initializer,
+        BindingElement bindingElement => bindingElement.Initializer,
+        PropertyDeclaration propertyDeclaration => propertyDeclaration.Initializer,
         PropertyAssignment propertyAssignment => propertyAssignment.Initializer,
+        EnumMember enumMember => enumMember.Initializer,
         _ => null,
     };
 

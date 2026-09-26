@@ -1447,7 +1447,7 @@ printer 门控的 `TypeToString`/`SymbolToString`/`SignatureToString`/`TypePredi
 
 **四轮收敛总账**：`same` 1,058 → 2,588 → 2,938 → 3,042 → **3,135**；`diverged` 801 → 638 → 295 → 187 → **85**；`port-crash` 4,049 → **2,688**，其中**非门控崩溃已归零**（全语料 `InvalidCastException`/`NullReferenceException` = 0）。
 
-**已授权、尚未落地的一项决定（续做时从这里开始）——实参级延迟：** 参考在调用点就急切算出诊断实参里的 `typeToString(...)`/`symbolToString(...)`（如 `checker.ts:26105` 的 `typeAsString = typeToString(getWidenedType(type))`，`ReportImplicitAny` 一类独占 1,170 个文件；实测 83 条首崩链）。授权把这些实参改为惰性（仅在消息文本真的被读取时才计算）。**实施前提（绑定）**：
+**已授权、尚未落地的一项决定（续做时从这里开始）——实参级延迟：** （**已落地**：见下节「M6-late 第五轮」，前提 1-4 逐条满足、三个测量点已报。） 参考在调用点就急切算出诊断实参里的 `typeToString(...)`/`symbolToString(...)`（如 `checker.ts:26105` 的 `typeAsString = typeToString(getWidenedType(type))`，`ReportImplicitAny` 一类独占 1,170 个文件；实测 83 条首崩链）。授权把这些实参改为惰性（仅在消息文本真的被读取时才计算）。**实施前提（绑定）**：
 
 1. **printer 门控保持响亮**——任何读取消息文本的路径仍须撞上 M7 阻断并**抛出**；不得实现 printer、不得吞异常、不得给占位文本；
 2. 不读文本的路径可观察行为不变；
@@ -1458,6 +1458,65 @@ printer 门控的 `TypeToString`/`SymbolToString`/`SignatureToString`/`TypePredi
 **收益（已实测，非估计）：** 让四个门控临时改**返回 writer** 时全语料为 `same=3774 diverged=1679 port-crash=455` —— 即门控当前掩蔽着约 **1,041 条真实分歧**。
 
 **其余待办（不属本工作流）：** §15.15 的 M7/M8 响亮阻断清单（printer 门控的四个字符串化、`expressionToTypeNode`（M4f）、`moduleSpecifiers` 的两处调用点、`Program.Emit`/`EmitBuildInfo`/`GetDeclarationDiagnostics`/`GetEmitHost`/`GetTsBuildInfoEmitOutputFilePath`、`GetBuildInfo`（M8））、`Model/NodeInterfaces.cs:3526` 的生成器缺陷（`GetIndexInfosOfIndexSymbol`）、以及 §15.15 的残留账与未认领名单。
+
+### M6-late 第五轮：实参级延迟（裁定 A″）落地与三项测量点
+
+**结论：A″ 已落地（253 处调用点 / 24 个 checker 文件 + 3 个机制文件），前提 1-4 逐条满足；收益方向与预期一致（`same` 上升、`diverged` 因显形而变差、崩溃下降），但幅度小于"门控改返回 writer"的上界 —— 原因已实测定位（门控与"平局读文本"相撞，见下）。**
+
+#### 落地内容
+
+| 位置 | 内容 |
+|---|---|
+| `Core/Diagnostic.cs` | `internal sealed class DiagnosticArgument`（记忆化 `Func<string?>` thunk）+ `Diagnostic.DeferArg(...)`；`DiagnosticMessageChain` 新增 `Deferred(message, args)`，其 `MessageText` 与 `Diagnostic.MessageText` 同形（首次读格式化并记忆） |
+| `Utilities/Utilities.Diagnostics.cs` | `ChainDiagnosticMessages` 改走 `DiagnosticMessageChain.Deferred`（A″ 的链级形态；参考 utilities.ts:8751-8765 在构造时就格式化） |
+| `Utilities/Utilities.Parser.cs` | `FormatStringFromArgs` 增加 `DiagnosticArgument` 分支（其值为空时渲染成 `"undefined"`，与既有 null 实参同一文本） |
+| `Checker/*.cs`（24 个文件、253 处） | 四个 printer 门控字符串化**只作诊断消息实参**的调用点改为 `Diagnostic.DeferArg(() => <原调用>)`；同一串喂多个实参时只建一个记忆化 thunk，参考的一次计算仍是一次（`Checker.IndexAccess.cs:996`、`Checker.Inference.cs:9592`） |
+| 跨文件管道（全仓库唯一一处） | `Checker.Diagnostics.cs:227` 的 `AddDeprecatedSuggestionWithSignature` 第 4 参数 `string` → `DiagnosticArgument`，唯一调用点 `Checker.Check.Calls.cs:161` 相应改为 thunk |
+| 测试 | `tests/TypeScript.Compiler.Tests/Core/DeferredDiagnosticArgumentTests.cs` 5 例：未读不求值、文本与急切版一致、链级同样延迟、抛出的 thunk 在读取时仍抛（前提 1）、平局排序**确实**读文本且顺序按文本（前提 4） |
+
+**有意保持急切的站点**（逐条有理由，仍是"读文本即撞门控"的路径）：`Checker.Stringify.cs:578-579`（`GetTypeNamesForErrorDisplay` 要**比较**两串）、`Checker.SymbolSupport.cs:940-941`（`GetFullyQualifiedName` 返回串，调用方还会拼串）、`Checker.Symbols.cs:278`（串作字典键）、`Checker.Relations.Structured.cs:966`（`propName` 交给 `GetSuggestedSymbolForNonexistentJSXAttribute` 查表）、`Checker.Check.Classes.cs:1158-1160`（存进 `notImplementedInfo` 元组供后续诊断）、`NodeBuilder.Members.cs:748`（交给 tracker）、`Checker.Stringify.cs:133/134/185/186/196`（`ErrorSymbolName`/`ErrorModuleName`，M7 发射读的字段）、`Core/Tracing.cs:459`（tracing 自身）。
+
+#### 独立审计（另一个 agent 按五条规则逐 hunk 复核，非自述）
+
+- **1 处真违规（规则 2 可变捕获）**：`Checker.Check.cs:558` 的 thunk 读局部 `member`，而该局部在下方 `member = prop` 之后被改写，参考是在改写**前**取串（checker.ts:33609 对 :33621）——改为把当时的符号钉进 `memberForDiagnostic` 供 thunk 读。
+- 3 处"可变但可证无害"（重赋值落在互斥/不可达分支：`Checker.Check.cs:1769`、`Checker.Relations.Entries.cs:519/641`）按要求登记。
+- 2 处把**非**门控的 `EntityNameToString` 也包了 thunk（无收益、文本相同，保留并登记）。
+- `Checker.Relations.Structured.cs:968` 的 `if (suggestion is not null)` 取代参考的串真值测试，是 A″ **之前**就有的既有偏差，非本轮引入。
+
+#### 三个测量点（同一命令全语料 5,908 文件）
+
+| 点 | 树 | same | diverged | port-crash | 落盘 |
+|---|---|---|---|---|---|
+| (a) | 起树（`8e6ea86` 代码树） | 3,135 | 85 | 2,688 | `artifacts/M6Late5-a` |
+| (b) | 仅落地 A″ | **3,303** | **198** | **2,407** | `artifacts/M6Late5-b` |
+| (c) | 修掉审计违规 + 第一处显形缺陷后 | **3,551** | **160** | **2,197** | `artifacts/M6Late5-c` |
+
+**A″ 第一次显形出来的真缺陷（本轮已修）**：`Checker.Support.cs` 的 `InitializerOfNode` 起初只覆盖 `VariableDeclaration | PropertyAssignment` 两支（它本来只服务 `IsJSConstructor` 的二元 guard），但 `Checker.TypeOfSymbols.cs:587` 把它用在参考 `checker.ts:11942` 的 `hasOnlyExpressionInitializer(declaration) && !!declaration.initializer` 上 —— 那里的并集是 `HasExpressionInitializer` 六个面（types.ts:1287-1291）。于是**每个 `class C { p = 1 }` 的 `p` 都取不到初值**，掉进静态块 flow-type 支，属性类型退成 `autoType`→`any`，并连带多报 implicit-any 错误。实例：`classes/classStaticBlock/classStaticBlock12.ts` 端口多报 `7008`，同一节点的类型记录 `T#3 = any(id=1)` 而参考为 `T#3 = Number(id=15)`（该文件在 (a) 是崩溃、在 (b) 才是分歧，正是被 A″ 解锁的）。修法按参考并集补全六支：**(c) 相对 (b) `same` +248 / `diverged` −38 / `port-crash` −210**（测试仍 1,049/1,049、`AstDiff`/`BindDiff` 不变——两者不经过 checker）。
+
+零回归：build 0 错误 / 0 警告、测试 **1,049/1,049**（1,044 + 新增 5）、`AstDiff` **19,585/19,585**、`BindDiff` **19,230/19,230**。
+
+#### 为什么只有 +168：门控与"平局读文本"相撞（实测定位）
+
+(b) 的崩溃直方图：`TypeToString` 1,856 / `SymbolToString` 439 / `syntacticNodeBuilder` 111。其中 **2,295/2,407 条（95%）的首崩已不在调用点，而在 `DiagnosticCollection.Add` → `Core.InsertSorted` → `BinarySearch` → `Utilities.CompareMessageText`** —— `insertSorted` 用的是参考自己的比较器，而 `compareMessageText`（utilities.ts:8807-8846）**在 file/start/length/code 全等时读两侧的消息文本**。临时插桩统计到 220,138 次文本读取，其中 **210,657 次是同一个"`code=2318`、无 file/start/length"的全局诊断之间的平局**（没有默认库时每个文件都重报同一批 `Cannot find global type`，靠消息文本去重）。
+
+前提 1 要求门控保持响亮 ⇒ 这些文件必然继续崩。**结论：A″ 只能解锁"从不读消息文本"的文件**；§15.16 记下的约 1,041 条被掩蔽分歧仍要等 M7 的 printer 才能取出（那次 `same=3774 diverged=1679` 的上界正是"门控不抛"的产物，不是 A″ 的上界，本节更正）。
+
+#### per-node `!`（查询抛异常）分析：其中一大类**参考自身也抛**
+
+`!` 表示 dump 调 `getSymbolAtLocation`/`getTypeAtLocation` 时该节点抛异常。全语料 2,140 条 = **1,718 `NullReferenceException` + 422 门控 `NotSupportedException`**。NRE 的构成是 1,556 处 `SourceFile`（kind 308）+ 162 处 `ImportClause`（kind 274）。用 `node` 直探参考（`lib/typescript.js` + 单文件 program）证实**参考对这两类节点同样抛**：external module 的 `SourceFile` 走到 `isDeclarationNameOrImportPropertyName` 的 `name.parent.kind`（父为 `undefined`），`import type { … }` 的 `ImportClause` 走到 `getDeclaredTypeOfSymbol(undefined)` 的 `.flags`。两侧同时 give-up 时 dump 行完全相同，**不计分歧** —— 这正是 (b) 里"单侧放弃"只有 73 条的原因。
+
+#### (c) 的 160 条分歧构成（下一轮起点）
+
+| 组 | (b) | (c) | 性质 |
+|---|---|---|---|
+| 单侧放弃（`=!`） | 73 | 74 | 多为门控（M7）；须逐条区分 |
+| 类型标志 / 类型-符号 | 61 | 69 | 含类型 id 对齐（创建顺序）与新显形缺陷 |
+| 记录种类 `diagnostics vs diagnostic` | 55 | 10 | 端口多报/少报诊断；`InitializerOfNode` 那一类已修（55→10） |
+| 记录种类 `diagnostic vs diagnostics` | 8 | 0 | 同上反方向 |
+| 诊断码错配 | 8 | 6 | 例 `es6/destructuring/restElementWithNullInitializer.ts` 端口 2531 对参考 2461（span 也不同） |
+| node vs signature | 1 | 1 | — |
+
+(c) 的 2,197 条崩溃里，按异常类型仍是 `TypeToString` 1,617 / `SymbolToString` 460 / `syntacticNodeBuilder` 114，另有 **6 条 `InvalidCastException`**（非门控，是这次才跑到的新现场，须逐条修）；按首崩机制，(b) 时实测的 `DiagnosticCollection.Add` 平局读文本仍然是主导（前提 1 与参考自己的比较器相撞，M7 才能解除）。
 
 ## 16. `const enum` 成员作类型：typed enum
 

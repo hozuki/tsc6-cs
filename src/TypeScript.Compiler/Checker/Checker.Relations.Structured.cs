@@ -214,7 +214,8 @@ internal sealed partial class Checker
             var message = relationCount <= 0
                 ? Diagnostics.Excessive_complexity_comparing_types_0_and_1
                 : Diagnostics.Excessive_stack_depth_comparing_types_0_and_1;
-            var diag = Error(errorNode ?? _currentNode, message, TypeToString(source), TypeToString(target));
+            // PORT-NOTE (A″): printer-gated stringifier arguments are deferred — see Core/Diagnostic.cs's `DiagnosticArgument`.
+            var diag = Error(errorNode ?? _currentNode, message, Diagnostic.DeferArg(() => TypeToString(source)), Diagnostic.DeferArg(() => TypeToString(target)));
             if (errorOutputContainer is not null)
             {
                 (errorOutputContainer.Errors ??= []).Add(diag);
@@ -524,7 +525,7 @@ internal sealed partial class Checker
                         Diagnostics._0_is_assignable_to_the_constraint_of_type_1_but_1_could_be_instantiated_with_a_different_subtype_of_constraint_2,
                         needsOriginalSource ? sourceType : generalizedSourceType,
                         targetType,
-                        TypeToString(constraint));
+                        Diagnostic.DeferArg(() => TypeToString(constraint)));
                 }
                 else
                 {
@@ -557,7 +558,7 @@ internal sealed partial class Checker
                         var suggestedType = GetSuggestedTypeForNonexistentStringLiteralType((IStringLiteralType)source, (IUnionType)target);
                         if (suggestedType is not null)
                         {
-                            ReportError(Diagnostics.Type_0_is_not_assignable_to_type_1_Did_you_mean_2, generalizedSourceType, targetType, TypeToString(suggestedType));
+                            ReportError(Diagnostics.Type_0_is_not_assignable_to_type_1_Did_you_mean_2, generalizedSourceType, targetType, Diagnostic.DeferArg(() => TypeToString(suggestedType)));
                             return;
                         }
                     }
@@ -579,8 +580,8 @@ internal sealed partial class Checker
         // ported from: src/compiler/checker.ts:22700-22712 — <c>tryElaborateErrorsForPrimitivesAndObjects</c>
         void TryElaborateErrorsForPrimitivesAndObjects(IType source, IType target)
         {
-            var sourceType = SymbolValueDeclarationIsContextSensitive(source.Symbol!) ? TypeToString(source, (Node)source.Symbol!.ValueDeclaration!) : TypeToString(source);
-            var targetType = SymbolValueDeclarationIsContextSensitive(target.Symbol!) ? TypeToString(target, (Node)target.Symbol!.ValueDeclaration!) : TypeToString(target);
+            var sourceType = SymbolValueDeclarationIsContextSensitive(source.Symbol!) ? Diagnostic.DeferArg(() => TypeToString(source, (Node)source.Symbol!.ValueDeclaration!)) : Diagnostic.DeferArg(() => TypeToString(source));
+            var targetType = SymbolValueDeclarationIsContextSensitive(target.Symbol!) ? Diagnostic.DeferArg(() => TypeToString(target, (Node)target.Symbol!.ValueDeclaration!)) : Diagnostic.DeferArg(() => TypeToString(target));
 
             if (
                 (ReferenceEquals(_globalStringType, source) && ReferenceEquals(_stringType, target)) ||
@@ -607,7 +608,7 @@ internal sealed partial class Checker
                 {
                     if (reportErrors)
                     {
-                        ReportError(Diagnostics.The_type_0_is_readonly_and_cannot_be_assigned_to_the_mutable_type_1, TypeToString(source), TypeToString(target));
+                        ReportError(Diagnostics.The_type_0_is_readonly_and_cannot_be_assigned_to_the_mutable_type_1, Diagnostic.DeferArg(() => TypeToString(source)), Diagnostic.DeferArg(() => TypeToString(target)));
                     }
                     return false;
                 }
@@ -617,7 +618,7 @@ internal sealed partial class Checker
             {
                 if (reportErrors)
                 {
-                    ReportError(Diagnostics.The_type_0_is_readonly_and_cannot_be_assigned_to_the_mutable_type_1, TypeToString(source), TypeToString(target));
+                    ReportError(Diagnostics.The_type_0_is_readonly_and_cannot_be_assigned_to_the_mutable_type_1, Diagnostic.DeferArg(() => TypeToString(source)), Diagnostic.DeferArg(() => TypeToString(target)));
                 }
                 return false;
             }
@@ -727,8 +728,8 @@ internal sealed partial class Checker
                 {
                     if (reportErrors)
                     {
-                        var sourceString = TypeToString(originalSource.AliasSymbol is not null ? originalSource : source);
-                        var targetString = TypeToString(originalTarget.AliasSymbol is not null ? originalTarget : target);
+                        var sourceString = Diagnostic.DeferArg(() => TypeToString(originalSource.AliasSymbol is not null ? originalSource : source));
+                        var targetString = Diagnostic.DeferArg(() => TypeToString(originalTarget.AliasSymbol is not null ? originalTarget : target));
                         var calls = GetSignaturesOfType(source, SignatureKind.Call);
                         var constructs = GetSignaturesOfType(source, SignatureKind.Construct);
                         if (
@@ -844,7 +845,7 @@ internal sealed partial class Checker
                 syntheticParam.Constraint = InstantiateType(target, MakeUnaryTypeMapper(source, syntheticParam));
                 if (HasNonCircularBaseConstraint(syntheticParam))
                 {
-                    var targetConstraintString = TypeToString(target, (Node)declarations[0]);
+                    var targetConstraintString = Diagnostic.DeferArg(() => TypeToString(target, (Node)declarations[0]));
                     AssociateRelatedInfo(Utilities.CreateDiagnosticForNode((Node)declarations[0], Diagnostics.This_type_parameter_might_need_an_extends_0_constraint, targetConstraintString));
                 }
             }
@@ -964,14 +965,14 @@ internal sealed partial class Checker
                                 }
                                 var propName = SymbolToString(prop);
                                 var suggestionSymbol = GetSuggestedSymbolForNonexistentJSXAttribute(propName, errorTarget);
-                                var suggestion = suggestionSymbol is not null ? SymbolToString(suggestionSymbol) : null;
+                                var suggestion = suggestionSymbol is not null ? Diagnostic.DeferArg(() => SymbolToString(suggestionSymbol)) : null;
                                 if (suggestion is not null)
                                 {
-                                    ReportError(Diagnostics.Property_0_does_not_exist_on_type_1_Did_you_mean_2, propName, TypeToString(errorTarget), suggestion);
+                                    ReportError(Diagnostics.Property_0_does_not_exist_on_type_1_Did_you_mean_2, propName, Diagnostic.DeferArg(() => TypeToString(errorTarget)), suggestion);
                                 }
                                 else
                                 {
-                                    ReportError(Diagnostics.Property_0_does_not_exist_on_type_1, propName, TypeToString(errorTarget));
+                                    ReportError(Diagnostics.Property_0_does_not_exist_on_type_1, propName, Diagnostic.DeferArg(() => TypeToString(errorTarget)));
                                 }
                             }
                             else
@@ -994,11 +995,11 @@ internal sealed partial class Checker
                                 }
                                 if (suggestion is not null)
                                 {
-                                    ReportParentSkippedError(Diagnostics.Object_literal_may_only_specify_known_properties_but_0_does_not_exist_in_type_1_Did_you_mean_to_write_2, SymbolToString(prop), TypeToString(errorTarget), suggestion);
+                                    ReportParentSkippedError(Diagnostics.Object_literal_may_only_specify_known_properties_but_0_does_not_exist_in_type_1_Did_you_mean_to_write_2, Diagnostic.DeferArg(() => SymbolToString(prop)), Diagnostic.DeferArg(() => TypeToString(errorTarget)), suggestion);
                                 }
                                 else
                                 {
-                                    ReportParentSkippedError(Diagnostics.Object_literal_may_only_specify_known_properties_and_0_does_not_exist_in_type_1, SymbolToString(prop), TypeToString(errorTarget));
+                                    ReportParentSkippedError(Diagnostics.Object_literal_may_only_specify_known_properties_and_0_does_not_exist_in_type_1, Diagnostic.DeferArg(() => SymbolToString(prop)), Diagnostic.DeferArg(() => TypeToString(errorTarget)));
                                 }
                             }
                         }
@@ -1008,7 +1009,7 @@ internal sealed partial class Checker
                     {
                         if (reportErrors)
                         {
-                            ReportIncompatibleError(Diagnostics.Types_of_property_0_are_incompatible, SymbolToString(prop));
+                            ReportIncompatibleError(Diagnostics.Types_of_property_0_are_incompatible, Diagnostic.DeferArg(() => SymbolToString(prop)));
                         }
                         return true;
                     }
@@ -1379,7 +1380,7 @@ internal sealed partial class Checker
                         var message = (entry & RelationComparisonResult.ComplexityOverflow) != 0 ?
                             Diagnostics.Excessive_complexity_comparing_types_0_and_1 :
                             Diagnostics.Excessive_stack_depth_comparing_types_0_and_1;
-                        ReportError(message, TypeToString(source), TypeToString(target));
+                        ReportError(message, Diagnostic.DeferArg(() => TypeToString(source)), Diagnostic.DeferArg(() => TypeToString(target)));
                         overrideNextErrorInfo++;
                     }
                     return (entry & RelationComparisonResult.Succeeded) != 0 ? Ternary.True : Ternary.False;
@@ -2592,11 +2593,11 @@ internal sealed partial class Checker
                     {
                         if ((sourcePropFlags & ModifierFlags.Private) != 0 && (targetPropFlags & ModifierFlags.Private) != 0)
                         {
-                            ReportError(Diagnostics.Types_have_separate_declarations_of_a_private_property_0, SymbolToString(targetProp));
+                            ReportError(Diagnostics.Types_have_separate_declarations_of_a_private_property_0, Diagnostic.DeferArg(() => SymbolToString(targetProp)));
                         }
                         else
                         {
-                            ReportError(Diagnostics.Property_0_is_private_in_type_1_but_not_in_type_2, SymbolToString(targetProp), TypeToString((sourcePropFlags & ModifierFlags.Private) != 0 ? source : target), TypeToString((sourcePropFlags & ModifierFlags.Private) != 0 ? target : source));
+                            ReportError(Diagnostics.Property_0_is_private_in_type_1_but_not_in_type_2, Diagnostic.DeferArg(() => SymbolToString(targetProp)), Diagnostic.DeferArg(() => TypeToString((sourcePropFlags & ModifierFlags.Private) != 0 ? source : target)), Diagnostic.DeferArg(() => TypeToString((sourcePropFlags & ModifierFlags.Private) != 0 ? target : source)));
                         }
                     }
                     return Ternary.False;
@@ -2608,7 +2609,7 @@ internal sealed partial class Checker
                 {
                     if (reportErrors)
                     {
-                        ReportError(Diagnostics.Property_0_is_protected_but_type_1_is_not_a_class_derived_from_2, SymbolToString(targetProp), TypeToString(GetDeclaringClass(sourceProp) ?? source), TypeToString(GetDeclaringClass(targetProp) ?? target));
+                        ReportError(Diagnostics.Property_0_is_protected_but_type_1_is_not_a_class_derived_from_2, Diagnostic.DeferArg(() => SymbolToString(targetProp)), Diagnostic.DeferArg(() => TypeToString(GetDeclaringClass(sourceProp) ?? source)), Diagnostic.DeferArg(() => TypeToString(GetDeclaringClass(targetProp) ?? target)));
                     }
                     return Ternary.False;
                 }
@@ -2617,7 +2618,7 @@ internal sealed partial class Checker
             {
                 if (reportErrors)
                 {
-                    ReportError(Diagnostics.Property_0_is_protected_in_type_1_but_public_in_type_2, SymbolToString(targetProp), TypeToString(source), TypeToString(target));
+                    ReportError(Diagnostics.Property_0_is_protected_in_type_1_but_public_in_type_2, Diagnostic.DeferArg(() => SymbolToString(targetProp)), Diagnostic.DeferArg(() => TypeToString(source)), Diagnostic.DeferArg(() => TypeToString(target)));
                 }
                 return Ternary.False;
             }
@@ -2641,7 +2642,7 @@ internal sealed partial class Checker
             {
                 if (reportErrors)
                 {
-                    ReportIncompatibleError(Diagnostics.Types_of_property_0_are_incompatible, SymbolToString(targetProp));
+                    ReportIncompatibleError(Diagnostics.Types_of_property_0_are_incompatible, Diagnostic.DeferArg(() => SymbolToString(targetProp)));
                 }
                 return Ternary.False;
             }
@@ -2657,7 +2658,7 @@ internal sealed partial class Checker
                 // (N - property in S)
                 if (reportErrors)
                 {
-                    ReportError(Diagnostics.Property_0_is_optional_in_type_1_but_required_in_type_2, SymbolToString(targetProp), TypeToString(source), TypeToString(target));
+                    ReportError(Diagnostics.Property_0_is_optional_in_type_1_but_required_in_type_2, Diagnostic.DeferArg(() => SymbolToString(targetProp)), Diagnostic.DeferArg(() => TypeToString(source)), Diagnostic.DeferArg(() => TypeToString(target)));
                 }
                 return Ternary.False;
             }
@@ -2708,7 +2709,7 @@ internal sealed partial class Checker
             }
             if (props.Count == 1)
             {
-                var propName = SymbolToString(unmatchedProperty, /*enclosingDeclaration*/ null, SymbolFlags.None, SymbolFormatFlags.AllowAnyNodeKind | SymbolFormatFlags.WriteComputedProps);
+                var propName = Diagnostic.DeferArg(() => SymbolToString(unmatchedProperty, /*enclosingDeclaration*/ null, SymbolFlags.None, SymbolFormatFlags.AllowAnyNodeKind | SymbolFormatFlags.WriteComputedProps));
                 var (sourceName, targetName) = GetTypeNamesForErrorDisplay(source, target);
                 ReportError(Diagnostics.Property_0_is_missing_in_type_1_but_required_in_type_2, propName, sourceName, targetName);
                 if (Core.Length(unmatchedProperty.Declarations) != 0)
@@ -2724,11 +2725,11 @@ internal sealed partial class Checker
             {
                 if (props.Count > 5) // arbitrary cutoff for too-long list form
                 {
-                    ReportError(Diagnostics.Type_0_is_missing_the_following_properties_from_type_1_Colon_2_and_3_more, TypeToString(source), TypeToString(target), string.Join(", ", props.Take(4).Select(p => SymbolToString(p))), props.Count - 4);
+                    ReportError(Diagnostics.Type_0_is_missing_the_following_properties_from_type_1_Colon_2_and_3_more, Diagnostic.DeferArg(() => TypeToString(source)), Diagnostic.DeferArg(() => TypeToString(target)), string.Join(", ", props.Take(4).Select(p => SymbolToString(p))), props.Count - 4);
                 }
                 else
                 {
-                    ReportError(Diagnostics.Type_0_is_missing_the_following_properties_from_type_1_Colon_2, TypeToString(source), TypeToString(target), string.Join(", ", props.Select(p => SymbolToString(p))));
+                    ReportError(Diagnostics.Type_0_is_missing_the_following_properties_from_type_1_Colon_2, Diagnostic.DeferArg(() => TypeToString(source)), Diagnostic.DeferArg(() => TypeToString(target)), string.Join(", ", props.Select(p => SymbolToString(p))));
                 }
                 if (shouldSkipElaboration && errorInfo is not null)
                 {
@@ -2892,7 +2893,7 @@ internal sealed partial class Checker
                     {
                         if (reportErrors)
                         {
-                            ReportError(Diagnostics.Property_0_does_not_exist_on_type_1, SymbolToString(sourceProp), TypeToString(target));
+                            ReportError(Diagnostics.Property_0_does_not_exist_on_type_1, Diagnostic.DeferArg(() => SymbolToString(sourceProp)), Diagnostic.DeferArg(() => TypeToString(target)));
                         }
                         return Ternary.False;
                     }
@@ -3047,7 +3048,7 @@ internal sealed partial class Checker
                     (targetSignature.Declaration?.Kind == SyntaxKind.Constructor || sourceSignature.Declaration?.Kind == SyntaxKind.Constructor)
                 )
                 {
-                    string ConstructSignatureToString(ISignature signature) => SignatureToString(signature, /*enclosingDeclaration*/ null, TypeFormatFlags.WriteArrowStyleSignature, kind);
+                    DiagnosticArgument ConstructSignatureToString(ISignature signature) => Diagnostic.DeferArg(() => SignatureToString(signature, /*enclosingDeclaration*/ null, TypeFormatFlags.WriteArrowStyleSignature, kind));
                     ReportError(Diagnostics.Type_0_is_not_assignable_to_type_1, ConstructSignatureToString(sourceSignature), ConstructSignatureToString(targetSignature));
                     ReportError(Diagnostics.Types_of_construct_signatures_are_incompatible);
                     return result;
@@ -3076,7 +3077,7 @@ internal sealed partial class Checker
                     if (matched) continue;
                     if (shouldElaborateErrors)
                     {
-                        ReportError(Diagnostics.Type_0_provides_no_match_for_the_signature_1, TypeToString(source), SignatureToString(t, /*enclosingDeclaration*/ null, /*flags*/ null, kind));
+                        ReportError(Diagnostics.Type_0_provides_no_match_for_the_signature_1, Diagnostic.DeferArg(() => TypeToString(source)), Diagnostic.DeferArg(() => SignatureToString(t, /*enclosingDeclaration*/ null, /*flags*/ null, kind)));
                     }
                     return Ternary.False;
                 }
@@ -3109,9 +3110,9 @@ internal sealed partial class Checker
         {
             if (siga.Parameters!.Count == 0 && sigb.Parameters!.Count == 0)
             {
-                return (source, target) => ReportIncompatibleError(Diagnostics.Call_signatures_with_no_arguments_have_incompatible_return_types_0_and_1, TypeToString(source), TypeToString(target));
+                return (source, target) => ReportIncompatibleError(Diagnostics.Call_signatures_with_no_arguments_have_incompatible_return_types_0_and_1, Diagnostic.DeferArg(() => TypeToString(source)), Diagnostic.DeferArg(() => TypeToString(target)));
             }
-            return (source, target) => ReportIncompatibleError(Diagnostics.Call_signature_return_types_0_and_1_are_incompatible, TypeToString(source), TypeToString(target));
+            return (source, target) => ReportIncompatibleError(Diagnostics.Call_signature_return_types_0_and_1_are_incompatible, Diagnostic.DeferArg(() => TypeToString(source)), Diagnostic.DeferArg(() => TypeToString(target)));
         }
 
         // ported from: src/compiler/checker.ts:24734-24739 — <c>reportIncompatibleConstructSignatureReturn</c>
@@ -3119,9 +3120,9 @@ internal sealed partial class Checker
         {
             if (siga.Parameters!.Count == 0 && sigb.Parameters!.Count == 0)
             {
-                return (source, target) => ReportIncompatibleError(Diagnostics.Construct_signatures_with_no_arguments_have_incompatible_return_types_0_and_1, TypeToString(source), TypeToString(target));
+                return (source, target) => ReportIncompatibleError(Diagnostics.Construct_signatures_with_no_arguments_have_incompatible_return_types_0_and_1, Diagnostic.DeferArg(() => TypeToString(source)), Diagnostic.DeferArg(() => TypeToString(target)));
             }
-            return (source, target) => ReportIncompatibleError(Diagnostics.Construct_signature_return_types_0_and_1_are_incompatible, TypeToString(source), TypeToString(target));
+            return (source, target) => ReportIncompatibleError(Diagnostics.Construct_signature_return_types_0_and_1_are_incompatible, Diagnostic.DeferArg(() => TypeToString(source)), Diagnostic.DeferArg(() => TypeToString(target)));
         }
 
         /// <summary>
@@ -3186,7 +3187,7 @@ internal sealed partial class Checker
                     {
                         if (reportErrors)
                         {
-                            ReportError(Diagnostics.Property_0_is_incompatible_with_index_signature, SymbolToString(prop));
+                            ReportError(Diagnostics.Property_0_is_incompatible_with_index_signature, Diagnostic.DeferArg(() => SymbolToString(prop)));
                         }
                         return Ternary.False;
                     }
@@ -3216,11 +3217,11 @@ internal sealed partial class Checker
             {
                 if (ReferenceEquals(sourceInfo.KeyType, targetInfo.KeyType))
                 {
-                    ReportError(Diagnostics._0_index_signatures_are_incompatible, TypeToString(sourceInfo.KeyType!));
+                    ReportError(Diagnostics._0_index_signatures_are_incompatible, Diagnostic.DeferArg(() => TypeToString(sourceInfo.KeyType!)));
                 }
                 else
                 {
-                    ReportError(Diagnostics._0_and_1_index_signatures_are_incompatible, TypeToString(sourceInfo.KeyType!), TypeToString(targetInfo.KeyType!));
+                    ReportError(Diagnostics._0_and_1_index_signatures_are_incompatible, Diagnostic.DeferArg(() => TypeToString(sourceInfo.KeyType!)), Diagnostic.DeferArg(() => TypeToString(targetInfo.KeyType!)));
                 }
             }
             return related;
@@ -3267,7 +3268,7 @@ internal sealed partial class Checker
             }
             if (reportErrors)
             {
-                ReportError(Diagnostics.Index_signature_for_type_0_is_missing_in_type_1, TypeToString(targetInfo.KeyType!), TypeToString(source));
+                ReportError(Diagnostics.Index_signature_for_type_0_is_missing_in_type_1, Diagnostic.DeferArg(() => TypeToString(targetInfo.KeyType!)), Diagnostic.DeferArg(() => TypeToString(source)));
             }
             return Ternary.False;
         }

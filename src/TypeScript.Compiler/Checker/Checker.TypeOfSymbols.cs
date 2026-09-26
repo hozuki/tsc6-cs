@@ -777,7 +777,8 @@ internal sealed partial class Checker
             var flowType = GetFlowTypeOfProperty(reference, symbol);
             if (_noImplicitAny && (ReferenceEquals(flowType, _autoType) || ReferenceEquals(flowType, _autoArrayType)))
             {
-                Error((Node)symbol.ValueDeclaration!, Diagnostics.Member_0_implicitly_has_an_1_type, SymbolToString(symbol), TypeToString(flowType));
+                // PORT-NOTE (A″): each printer-gated stringifier passed as a diagnostic-message argument here is a memoised wrapper — see Core/Diagnostic.cs's `DiagnosticArgument`.
+                Error((Node)symbol.ValueDeclaration!, Diagnostics.Member_0_implicitly_has_an_1_type, Diagnostic.DeferArg(() => SymbolToString(symbol)), Diagnostic.DeferArg(() => TypeToString(flowType)));
             }
 
             // We don't infer a type if assignments are only null or undefined.
@@ -816,7 +817,7 @@ internal sealed partial class Checker
         var flowType = GetFlowTypeOfProperty(reference, symbol);
         if (_noImplicitAny && (ReferenceEquals(flowType, _autoType) || ReferenceEquals(flowType, _autoArrayType)))
         {
-            Error((Node)symbol.ValueDeclaration!, Diagnostics.Member_0_implicitly_has_an_1_type, SymbolToString(symbol), TypeToString(flowType));
+            Error((Node)symbol.ValueDeclaration!, Diagnostics.Member_0_implicitly_has_an_1_type, Diagnostic.DeferArg(() => SymbolToString(symbol)), Diagnostic.DeferArg(() => TypeToString(flowType)));
         }
 
         // We don't infer a type if assignments are only null or undefined.
@@ -1542,19 +1543,20 @@ internal sealed partial class Checker
     internal IType ReportCircularityError(ISymbol symbol)
     {
         var declaration = symbol.ValueDeclaration is not null ? (Node)symbol.ValueDeclaration : null;
+        var symbolString = Diagnostic.DeferArg(() => SymbolToString(symbol));
         // Check if variable has type annotation that circularly references the variable itself
         if (declaration is not null)
         {
             if (Utilities.GetEffectiveTypeAnnotationNode(declaration) is not null)
             {
-                Error(declaration, Diagnostics._0_is_referenced_directly_or_indirectly_in_its_own_type_annotation, SymbolToString(symbol));
+                Error(declaration, Diagnostics._0_is_referenced_directly_or_indirectly_in_its_own_type_annotation, symbolString);
                 return _errorType;
             }
 
             // Check if variable has initializer that circularly references the variable itself
             if (_noImplicitAny && (declaration.Kind != SyntaxKind.Parameter || ((ParameterDeclaration)declaration).Initializer is not null))
             {
-                Error(declaration, Diagnostics._0_implicitly_has_type_any_because_it_does_not_have_a_type_annotation_and_is_referenced_directly_or_indirectly_in_its_own_initializer, SymbolToString(symbol));
+                Error(declaration, Diagnostics._0_implicitly_has_type_any_because_it_does_not_have_a_type_annotation_and_is_referenced_directly_or_indirectly_in_its_own_initializer, symbolString);
             }
         }
         else if ((symbol.Flags & SymbolFlags.Alias) != 0)
@@ -1562,7 +1564,7 @@ internal sealed partial class Checker
             var node = (Node?)GetDeclarationOfAliasSymbol(symbol);
             if (node is not null)
             {
-                Error(node, Diagnostics.Circular_definition_of_import_alias_0, SymbolToString(symbol));
+                Error(node, Diagnostics.Circular_definition_of_import_alias_0, symbolString);
             }
         }
 

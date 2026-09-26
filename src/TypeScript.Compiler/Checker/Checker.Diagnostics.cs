@@ -218,7 +218,13 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:2626-2631 — <c>addDeprecatedSuggestionWithSignature</c>.</summary>
-    internal Diagnostic AddDeprecatedSuggestionWithSignature(Node location, Node declaration, string? deprecatedEntity, string signatureString)
+    /// <remarks>
+    /// PORT-NOTE (A″): the reference's <c>signatureString: string</c> is computed by the caller
+    /// (<c>checkDeprecatedSignature</c>, checker.ts:37887) with the printer-gated <c>signatureToString</c>, and is used
+    /// here only as a message argument — so the parameter is the port's <see cref="DiagnosticArgument"/> and the
+    /// caller passes a thunk (see <c>Core/Diagnostic.cs</c>).
+    /// </remarks>
+    internal Diagnostic AddDeprecatedSuggestionWithSignature(Node location, Node declaration, string? deprecatedEntity, DiagnosticArgument signatureString)
     {
         var diagnostic = deprecatedEntity is not null
             ? Utilities.CreateDiagnosticForNode(location, Diagnostics.The_signature_0_of_1_is_deprecated, signatureString, deprecatedEntity)

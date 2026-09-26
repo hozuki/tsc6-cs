@@ -249,10 +249,11 @@ internal sealed partial class Checker
             // won't make much sense.
             if (!ReferenceEquals(target, _globalThisSymbol))
             {
+                // PORT-NOTE (A″): printer-gated stringifier arguments are deferred — see Core/Diagnostic.cs's `DiagnosticArgument`.
                 Error(
                     source.Declarations is not null ? (Node?)Utilities.GetNameOfDeclaration((Node)source.Declarations[0]) : null,
                     Diagnostics.Cannot_augment_module_0_with_value_exports_because_it_resolves_to_a_non_module_entity,
-                    SymbolToString(target));
+                    Diagnostic.DeferArg(() => SymbolToString(target)));
             }
         }
         else

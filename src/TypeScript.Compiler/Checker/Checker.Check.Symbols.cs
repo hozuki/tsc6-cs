@@ -719,7 +719,8 @@ internal sealed partial class Checker
             }
             if (errorNode is not null)
             {
-                Error(errorNode, Diagnostics.The_this_context_of_type_0_is_not_assignable_to_method_s_this_of_type_1, TypeToString(type), TypeToString(thisTypeForError!));
+                // PORT-NOTE (A″): the message arguments below are deferred thunks (`Diagnostic.DeferArg` / `DiagnosticArgument` in Core/Diagnostic.cs), so the printer-gated `TypeToString` runs on the first read of the message text.
+                Error(errorNode, Diagnostics.The_this_context_of_type_0_is_not_assignable_to_method_s_this_of_type_1, Diagnostic.DeferArg(() => TypeToString(type)), Diagnostic.DeferArg(() => TypeToString(thisTypeForError!)));
             }
             return null;
         }
@@ -1035,7 +1036,7 @@ internal sealed partial class Checker
                 IDiagnosticMessageChain? chain = null;
                 if (thisTypeForErrorOut.Value is not null)
                 {
-                    chain = Utilities.ChainDiagnosticMessages(chain, Diagnostics.The_this_context_of_type_0_is_not_assignable_to_method_s_this_of_type_1, TypeToString(type), TypeToString(thisTypeForErrorOut.Value));
+                    chain = Utilities.ChainDiagnosticMessages(chain, Diagnostics.The_this_context_of_type_0_is_not_assignable_to_method_s_this_of_type_1, Diagnostic.DeferArg(() => TypeToString(type)), Diagnostic.DeferArg(() => TypeToString(thisTypeForErrorOut.Value)));
                 }
                 chain = Utilities.ChainDiagnosticMessages(chain, diagnosticMessage, args);
                 _diagnostics.Add(Utilities.CreateDiagnosticForNodeFromMessageChain(Utilities.GetSourceFileOfNode(errorNode)!, errorNode, chain));
@@ -1106,7 +1107,7 @@ internal sealed partial class Checker
             {
                 // The promise type was not a valid type reference to the global promise type, so we
                 // report an error and return the unknown type.
-                ReportErrorForInvalidReturnType(Diagnostics.The_return_type_of_an_async_function_or_method_must_be_the_global_Promise_T_type_Did_you_mean_to_write_Promise_0, returnTypeNode, returnTypeErrorLocation, TypeToString(GetAwaitedTypeNoAlias(returnType) ?? _voidType));
+                ReportErrorForInvalidReturnType(Diagnostics.The_return_type_of_an_async_function_or_method_must_be_the_global_Promise_T_type_Did_you_mean_to_write_Promise_0, returnTypeNode, returnTypeErrorLocation, Diagnostic.DeferArg(() => TypeToString(GetAwaitedTypeNoAlias(returnType) ?? _voidType)));
                 return;
             }
         }
@@ -1122,7 +1123,7 @@ internal sealed partial class Checker
             var promiseConstructorName = Utilities.GetEntityNameFromTypeNode(returnTypeNode);
             if (promiseConstructorName is null)
             {
-                ReportErrorForInvalidReturnType(Diagnostics.Type_0_is_not_a_valid_async_function_return_type_in_ES5_because_it_does_not_refer_to_a_Promise_compatible_constructor_value, returnTypeNode, returnTypeErrorLocation, TypeToString(returnType));
+                ReportErrorForInvalidReturnType(Diagnostics.Type_0_is_not_a_valid_async_function_return_type_in_ES5_because_it_does_not_refer_to_a_Promise_compatible_constructor_value, returnTypeNode, returnTypeErrorLocation, Diagnostic.DeferArg(() => TypeToString(returnType)));
                 return;
             }
 
@@ -1136,7 +1137,7 @@ internal sealed partial class Checker
                 }
                 else
                 {
-                    ReportErrorForInvalidReturnType(Diagnostics.Type_0_is_not_a_valid_async_function_return_type_in_ES5_because_it_does_not_refer_to_a_Promise_compatible_constructor_value, returnTypeNode, returnTypeErrorLocation, Utilities.EntityNameToString(promiseConstructorName));
+                    ReportErrorForInvalidReturnType(Diagnostics.Type_0_is_not_a_valid_async_function_return_type_in_ES5_because_it_does_not_refer_to_a_Promise_compatible_constructor_value, returnTypeNode, returnTypeErrorLocation, Diagnostic.DeferArg(() => Utilities.EntityNameToString(promiseConstructorName)));
                 }
                 return;
             }
@@ -1146,7 +1147,7 @@ internal sealed partial class Checker
             {
                 // If we couldn't resolve the global PromiseConstructorLike type we cannot verify
                 // compatibility with __awaiter.
-                ReportErrorForInvalidReturnType(Diagnostics.Type_0_is_not_a_valid_async_function_return_type_in_ES5_because_it_does_not_refer_to_a_Promise_compatible_constructor_value, returnTypeNode, returnTypeErrorLocation, Utilities.EntityNameToString(promiseConstructorName));
+                ReportErrorForInvalidReturnType(Diagnostics.Type_0_is_not_a_valid_async_function_return_type_in_ES5_because_it_does_not_refer_to_a_Promise_compatible_constructor_value, returnTypeNode, returnTypeErrorLocation, Diagnostic.DeferArg(() => Utilities.EntityNameToString(promiseConstructorName)));
                 return;
             }
 
@@ -1171,7 +1172,7 @@ internal sealed partial class Checker
 
         CheckAwaitedType(returnType, /*withAlias*/ false, node, Diagnostics.The_return_type_of_an_async_function_must_either_be_a_valid_promise_or_must_not_contain_a_callable_then_member);
 
-        void ReportErrorForInvalidReturnType(DiagnosticMessage message, ITypeNode declarationReturnTypeNode, ITypeNode declarationReturnTypeErrorLocation, string typeName)
+        void ReportErrorForInvalidReturnType(DiagnosticMessage message, ITypeNode declarationReturnTypeNode, ITypeNode declarationReturnTypeErrorLocation, DiagnosticArgument typeName)
         {
             if (ReferenceEquals(declarationReturnTypeNode, declarationReturnTypeErrorLocation))
             {
@@ -1988,7 +1989,7 @@ internal sealed partial class Checker
                         && (member.Flags & NodeFlags.Ambient) == 0
                     )
                     {
-                        addDiagnostic((Node)member, UnusedKind.Local, Utilities.CreateDiagnosticForNode(((INamedDeclaration)member).Name!, Diagnostics._0_is_declared_but_its_value_is_never_read, SymbolToString(symbol)));
+                        addDiagnostic((Node)member, UnusedKind.Local, Utilities.CreateDiagnosticForNode(((INamedDeclaration)member).Name!, Diagnostics._0_is_declared_but_its_value_is_never_read, Diagnostic.DeferArg(() => SymbolToString(symbol))));
                     }
                     break;
                 case SyntaxKind.Constructor:

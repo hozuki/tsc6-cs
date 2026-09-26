@@ -984,13 +984,14 @@ internal sealed partial class Checker
             var neverProp = Core.Find(GetPropertiesOfUnionOrIntersectionType((UnionOrIntersectionType)type), (ISymbol p, int _) => IsDiscriminantWithNeverType(p));
             if (neverProp is not null)
             {
-                return Utilities.ChainDiagnosticMessages(errorInfo, Diagnostics.The_intersection_0_was_reduced_to_never_because_property_1_has_conflicting_types_in_some_constituents, TypeToString(type, /*enclosingDeclaration*/ null, TypeFormatFlags.NoTypeReduction), SymbolToString(neverProp));
+                // PORT-NOTE (A″): printer-gated stringifier arguments are deferred — see Core/Diagnostic.cs's `DiagnosticArgument`.
+                return Utilities.ChainDiagnosticMessages(errorInfo, Diagnostics.The_intersection_0_was_reduced_to_never_because_property_1_has_conflicting_types_in_some_constituents, Diagnostic.DeferArg(() => TypeToString(type, /*enclosingDeclaration*/ null, TypeFormatFlags.NoTypeReduction)), Diagnostic.DeferArg(() => SymbolToString(neverProp)));
             }
 
             var privateProp = Core.Find(GetPropertiesOfUnionOrIntersectionType((UnionOrIntersectionType)type), (ISymbol p, int _) => IsConflictingPrivateProperty(p));
             if (privateProp is not null)
             {
-                return Utilities.ChainDiagnosticMessages(errorInfo, Diagnostics.The_intersection_0_was_reduced_to_never_because_property_1_exists_in_multiple_constituents_and_is_private_in_some, TypeToString(type, /*enclosingDeclaration*/ null, TypeFormatFlags.NoTypeReduction), SymbolToString(privateProp));
+                return Utilities.ChainDiagnosticMessages(errorInfo, Diagnostics.The_intersection_0_was_reduced_to_never_because_property_1_exists_in_multiple_constituents_and_is_private_in_some, Diagnostic.DeferArg(() => TypeToString(type, /*enclosingDeclaration*/ null, TypeFormatFlags.NoTypeReduction)), Diagnostic.DeferArg(() => SymbolToString(privateProp)));
             }
         }
 

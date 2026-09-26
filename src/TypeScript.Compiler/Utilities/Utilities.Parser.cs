@@ -441,7 +441,16 @@ internal static partial class Utilities
             }
 
             var value = index >= 0 && index < args.Length ? args[index] : null;
-            return value is null ? "undefined" : Convert.ToString(value, CultureInfo.InvariantCulture) ?? "";
+            return value switch
+            {
+                null => "undefined",
+                // PORT-NOTE: ruling A″ — an argument the caller deferred (`Diagnostic.DeferArg`) is resolved here, the
+                // first point at which the message text is really built. `Convert.ToString` would reach the same string
+                // through the object's own `ToString`; this arm states it once instead of probing for `IConvertible`,
+                // and keeps a thunk that answers null rendering as the null argument always has.
+                DiagnosticArgument deferred => deferred.Resolve() ?? "undefined",
+                _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? "",
+            };
         });
 
     [GeneratedRegex(@"\{([0-9]+)\}", RegexOptions.CultureInvariant)]

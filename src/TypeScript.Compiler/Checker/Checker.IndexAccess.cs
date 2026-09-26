@@ -858,7 +858,8 @@ internal sealed partial class Checker
                     MarkPropertyAsReferenced(prop, accessExpression, IsSelfTypeAccess(accessExpression.Expression!, objectType.Symbol));
                     if (IsAssignmentToReadonlyEntity(accessExpression, prop, Utilities.GetAssignmentTargetKind(accessExpression)))
                     {
-                        Error(accessExpression.ArgumentExpression, Diagnostics.Cannot_assign_to_0_because_it_is_a_read_only_property, SymbolToString(prop));
+                        // PORT-NOTE (A″): the argument is a DiagnosticArgument (Core/Diagnostic.cs) so the printer-gated stringifier runs on the first read of the message text.
+                        Error(accessExpression.ArgumentExpression, Diagnostics.Cannot_assign_to_0_because_it_is_a_read_only_property, Diagnostic.DeferArg(() => SymbolToString(prop)));
                         return null;
                     }
                     if ((accessFlags & AccessFlags.CacheSymbol) != 0)
@@ -891,11 +892,11 @@ internal sealed partial class Checker
                             Error(indexNode, Diagnostics.A_tuple_type_cannot_be_indexed_with_a_negative_value);
                             return _undefinedType;
                         }
-                        Error(indexNode, Diagnostics.Tuple_type_0_of_length_1_has_no_element_at_index_2, TypeToString(objectType), GetTypeReferenceArity((ITypeReference)objectType), Utilities.UnescapeLeadingUnderscores(propName));
+                        Error(indexNode, Diagnostics.Tuple_type_0_of_length_1_has_no_element_at_index_2, Diagnostic.DeferArg(() => TypeToString(objectType)), GetTypeReferenceArity((ITypeReference)objectType), Utilities.UnescapeLeadingUnderscores(propName));
                     }
                     else
                     {
-                        Error(indexNode, Diagnostics.Property_0_does_not_exist_on_type_1, Utilities.UnescapeLeadingUnderscores(propName), TypeToString(objectType));
+                        Error(indexNode, Diagnostics.Property_0_does_not_exist_on_type_1, Utilities.UnescapeLeadingUnderscores(propName), Diagnostic.DeferArg(() => TypeToString(objectType)));
                     }
                 }
                 if (index >= 0)
@@ -922,11 +923,11 @@ internal sealed partial class Checker
                     {
                         if ((accessFlags & AccessFlags.Writing) != 0)
                         {
-                            Error(accessExpression, Diagnostics.Type_0_is_generic_and_can_only_be_indexed_for_reading, TypeToString(originalObjectType));
+                            Error(accessExpression, Diagnostics.Type_0_is_generic_and_can_only_be_indexed_for_reading, Diagnostic.DeferArg(() => TypeToString(originalObjectType)));
                         }
                         else
                         {
-                            Error(accessExpression, Diagnostics.Type_0_cannot_be_used_to_index_type_1, TypeToString(indexType), TypeToString(originalObjectType));
+                            Error(accessExpression, Diagnostics.Type_0_cannot_be_used_to_index_type_1, Diagnostic.DeferArg(() => TypeToString(indexType)), Diagnostic.DeferArg(() => TypeToString(originalObjectType)));
                         }
                     }
                     return null;
@@ -934,7 +935,7 @@ internal sealed partial class Checker
                 if (accessNode is not null && ReferenceEquals(indexInfo.KeyType, _stringType) && !IsTypeAssignableToKind(indexType, TypeFlags.String | TypeFlags.Number))
                 {
                     var indexNode = GetIndexNodeForAccessExpression(accessNode);
-                    Error(indexNode, Diagnostics.Type_0_cannot_be_used_as_an_index_type, TypeToString(indexType));
+                    Error(indexNode, Diagnostics.Type_0_cannot_be_used_as_an_index_type, Diagnostic.DeferArg(() => TypeToString(indexType)));
                     return (accessFlags & AccessFlags.IncludeUndefined) != 0 ? GetUnionType([indexInfo.Type!, _missingType]) : indexInfo.Type!;
                 }
                 ErrorIfWritingToReadonlyIndex(indexInfo);
@@ -968,7 +969,7 @@ internal sealed partial class Checker
                 {
                     if (_noImplicitAny && (indexType.Flags & (TypeFlags.StringLiteral | TypeFlags.NumberLiteral)) != 0)
                     {
-                        _diagnostics.Add(Utilities.CreateDiagnosticForNode(accessExpression, Diagnostics.Property_0_does_not_exist_on_type_1, (string)((ILiteralType)indexType).Value!, TypeToString(objectType)));
+                        _diagnostics.Add(Utilities.CreateDiagnosticForNode(accessExpression, Diagnostics.Property_0_does_not_exist_on_type_1, (string)((ILiteralType)indexType).Value!, Diagnostic.DeferArg(() => TypeToString(objectType))));
                         return _undefinedType;
                     }
                     else if ((indexType.Flags & (TypeFlags.Number | TypeFlags.String)) != 0)
@@ -984,14 +985,16 @@ internal sealed partial class Checker
                     && globalThisSymbol.Exports is { } globalThisExports && globalThisExports.TryGetValue(propName, out var globalThisSymbolOfName)
                     && (globalThisSymbolOfName.Flags & SymbolFlags.BlockScoped) != 0)
                 {
-                    Error(accessExpression, Diagnostics.Property_0_does_not_exist_on_type_1, Utilities.UnescapeLeadingUnderscores(propName), TypeToString(objectType));
+                    Error(accessExpression, Diagnostics.Property_0_does_not_exist_on_type_1, Utilities.UnescapeLeadingUnderscores(propName), Diagnostic.DeferArg(() => TypeToString(objectType)));
                 }
                 else if (_noImplicitAny && (accessFlags & AccessFlags.SuppressNoImplicitAnyError) == 0)
                 {
                     if (propName is not null && TypeHasStaticProperty(propName, objectType))
                     {
-                        var typeName = TypeToString(objectType);
-                        Error(accessExpression, Diagnostics.Property_0_does_not_exist_on_type_1_Did_you_mean_to_access_the_static_member_2_instead, propName, typeName, typeName + "[" + Utilities.GetTextOfNode(accessExpression.ArgumentExpression!) + "]");
+                        // PORT-NOTE (A″): one memoised thunk for both arguments, so the reference's single
+                        // `typeToString` call stays single (the second argument builds its text from the first).
+                        var typeName = Diagnostic.DeferArg(() => TypeToString(objectType));
+                        Error(accessExpression, Diagnostics.Property_0_does_not_exist_on_type_1_Did_you_mean_to_access_the_static_member_2_instead, propName, typeName, Diagnostic.DeferArg(() => typeName.Resolve()! + "[" + Utilities.GetTextOfNode(accessExpression.ArgumentExpression!) + "]"));
                     }
                     else if (GetIndexTypeOfType(objectType, _numberType) is not null)
                     {
@@ -1004,7 +1007,7 @@ internal sealed partial class Checker
                         {
                             if (suggestion is not null)
                             {
-                                Error(accessExpression.ArgumentExpression, Diagnostics.Property_0_does_not_exist_on_type_1_Did_you_mean_2, propName, TypeToString(objectType), suggestion);
+                                Error(accessExpression.ArgumentExpression, Diagnostics.Property_0_does_not_exist_on_type_1_Did_you_mean_2, propName, Diagnostic.DeferArg(() => TypeToString(objectType)), suggestion);
                             }
                         }
                         else
@@ -1012,38 +1015,38 @@ internal sealed partial class Checker
                             var indexSuggestion = GetSuggestionForNonexistentIndexSignature(objectType, accessExpression, indexType);
                             if (indexSuggestion is not null)
                             {
-                                Error(accessExpression, Diagnostics.Element_implicitly_has_an_any_type_because_type_0_has_no_index_signature_Did_you_mean_to_call_1, TypeToString(objectType), indexSuggestion);
+                                Error(accessExpression, Diagnostics.Element_implicitly_has_an_any_type_because_type_0_has_no_index_signature_Did_you_mean_to_call_1, Diagnostic.DeferArg(() => TypeToString(objectType)), indexSuggestion);
                             }
                             else
                             {
                                 DiagnosticMessageChain? errorInfo = null;
                                 if ((indexType.Flags & TypeFlags.EnumLiteral) != 0)
                                 {
-                                    errorInfo = Utilities.ChainDiagnosticMessages(/*details*/ null, Diagnostics.Property_0_does_not_exist_on_type_1, "[" + TypeToString(indexType) + "]", TypeToString(objectType));
+                                    errorInfo = Utilities.ChainDiagnosticMessages(/*details*/ null, Diagnostics.Property_0_does_not_exist_on_type_1, Diagnostic.DeferArg(() => "[" + TypeToString(indexType) + "]"), Diagnostic.DeferArg(() => TypeToString(objectType)));
                                 }
                                 else if ((indexType.Flags & TypeFlags.UniqueESSymbol) != 0)
                                 {
                                     var symbolName = GetFullyQualifiedName(((IUniqueESSymbolType)indexType).Symbol!, accessExpression);
-                                    errorInfo = Utilities.ChainDiagnosticMessages(/*details*/ null, Diagnostics.Property_0_does_not_exist_on_type_1, "[" + symbolName + "]", TypeToString(objectType));
+                                    errorInfo = Utilities.ChainDiagnosticMessages(/*details*/ null, Diagnostics.Property_0_does_not_exist_on_type_1, "[" + symbolName + "]", Diagnostic.DeferArg(() => TypeToString(objectType)));
                                 }
                                 else if ((indexType.Flags & TypeFlags.StringLiteral) != 0)
                                 {
-                                    errorInfo = Utilities.ChainDiagnosticMessages(/*details*/ null, Diagnostics.Property_0_does_not_exist_on_type_1, (string)((ILiteralType)indexType).Value!, TypeToString(objectType));
+                                    errorInfo = Utilities.ChainDiagnosticMessages(/*details*/ null, Diagnostics.Property_0_does_not_exist_on_type_1, (string)((ILiteralType)indexType).Value!, Diagnostic.DeferArg(() => TypeToString(objectType)));
                                 }
                                 else if ((indexType.Flags & TypeFlags.NumberLiteral) != 0)
                                 {
-                                    errorInfo = Utilities.ChainDiagnosticMessages(/*details*/ null, Diagnostics.Property_0_does_not_exist_on_type_1, Js.NumberToString((double)((ILiteralType)indexType).Value!), TypeToString(objectType));
+                                    errorInfo = Utilities.ChainDiagnosticMessages(/*details*/ null, Diagnostics.Property_0_does_not_exist_on_type_1, Js.NumberToString((double)((ILiteralType)indexType).Value!), Diagnostic.DeferArg(() => TypeToString(objectType)));
                                 }
                                 else if ((indexType.Flags & (TypeFlags.Number | TypeFlags.String)) != 0)
                                 {
-                                    errorInfo = Utilities.ChainDiagnosticMessages(/*details*/ null, Diagnostics.No_index_signature_with_a_parameter_of_type_0_was_found_on_type_1, TypeToString(indexType), TypeToString(objectType));
+                                    errorInfo = Utilities.ChainDiagnosticMessages(/*details*/ null, Diagnostics.No_index_signature_with_a_parameter_of_type_0_was_found_on_type_1, Diagnostic.DeferArg(() => TypeToString(indexType)), Diagnostic.DeferArg(() => TypeToString(objectType)));
                                 }
 
                                 errorInfo = Utilities.ChainDiagnosticMessages(
                                     errorInfo,
                                     Diagnostics.Element_implicitly_has_an_any_type_because_expression_of_type_0_can_t_be_used_to_index_type_1,
-                                    TypeToString(fullIndexType),
-                                    TypeToString(objectType));
+                                    Diagnostic.DeferArg(() => TypeToString(fullIndexType)),
+                                    Diagnostic.DeferArg(() => TypeToString(objectType)));
                                 _diagnostics.Add(Utilities.CreateDiagnosticForNodeFromMessageChain(Debug.CheckDefined(Utilities.GetSourceFileOfNode(accessExpression)), accessExpression, errorInfo));
                             }
                         }
@@ -1066,15 +1069,15 @@ internal sealed partial class Checker
             if (indexNode.Kind != SyntaxKind.BigIntLiteral && (indexType.Flags & (TypeFlags.StringLiteral | TypeFlags.NumberLiteral)) != 0)
             {
                 var literalValue = ((ILiteralType)indexType).Value;
-                Error(indexNode, Diagnostics.Property_0_does_not_exist_on_type_1, literalValue is double number ? Js.NumberToString(number) : literalValue, TypeToString(objectType));
+                Error(indexNode, Diagnostics.Property_0_does_not_exist_on_type_1, literalValue is double number ? Js.NumberToString(number) : literalValue, Diagnostic.DeferArg(() => TypeToString(objectType)));
             }
             else if ((indexType.Flags & (TypeFlags.String | TypeFlags.Number)) != 0)
             {
-                Error(indexNode, Diagnostics.Type_0_has_no_matching_index_signature_for_type_1, TypeToString(objectType), TypeToString(indexType));
+                Error(indexNode, Diagnostics.Type_0_has_no_matching_index_signature_for_type_1, Diagnostic.DeferArg(() => TypeToString(objectType)), Diagnostic.DeferArg(() => TypeToString(indexType)));
             }
             else
             {
-                var typeString = indexNode.Kind == SyntaxKind.BigIntLiteral ? "bigint" : TypeToString(indexType);
+                object typeString = indexNode.Kind == SyntaxKind.BigIntLiteral ? "bigint" : Diagnostic.DeferArg(() => TypeToString(indexType));
                 Error(indexNode, Diagnostics.Type_0_cannot_be_used_as_an_index_type, typeString);
             }
         }
@@ -1089,7 +1092,7 @@ internal sealed partial class Checker
             if (indexInfo is not null && indexInfo.IsReadonly && accessExpression is not null
                 && (Utilities.IsAssignmentTarget(accessExpression) || Utilities.IsDeleteTarget(accessExpression)))
             {
-                Error(accessExpression, Diagnostics.Index_signature_in_type_0_only_permits_reading, TypeToString(objectType));
+                Error(accessExpression, Diagnostics.Index_signature_in_type_0_only_permits_reading, Diagnostic.DeferArg(() => TypeToString(objectType)));
             }
         }
     }

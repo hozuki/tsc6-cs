@@ -756,7 +756,8 @@ internal sealed partial class Checker
                 type = _errorType;
                 if (((Node)declaration!).Kind == SyntaxKind.JSDocEnumTag)
                 {
-                    Error((Node?)((JSDocEnumTag)declaration!).TypeExpression!.Type, Diagnostics.Type_alias_0_circularly_references_itself, SymbolToString(symbol));
+                    // PORT-NOTE (A″): printer-gated stringifier arguments are deferred — see Core/Diagnostic.cs's `DiagnosticArgument`.
+                    Error((Node?)((JSDocEnumTag)declaration!).TypeExpression!.Type, Diagnostics.Type_alias_0_circularly_references_itself, Diagnostic.DeferArg(() => SymbolToString(symbol)));
                 }
                 else
                 {
@@ -766,7 +767,7 @@ internal sealed partial class Checker
                         errorNode = Utilities.GetNameOfDeclaration(errorNode) as Node ?? errorNode;
                     }
 
-                    Error(errorNode, Diagnostics.Type_alias_0_circularly_references_itself, SymbolToString(symbol));
+                    Error(errorNode, Diagnostics.Type_alias_0_circularly_references_itself, Diagnostic.DeferArg(() => SymbolToString(symbol)));
                 }
             }
 

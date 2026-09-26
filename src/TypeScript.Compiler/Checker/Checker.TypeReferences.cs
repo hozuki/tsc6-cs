@@ -260,12 +260,13 @@ internal sealed partial class Checker
                 type.ResolvedTypeArguments ??= Core.Concatenate<IType>(
                     type.Target!.OuterTypeParameters is null ? [] : [.. type.Target!.OuterTypeParameters.Cast<IType>()],
                     Core.Map(type.Target!.LocalTypeParameters, (_, _) => (IType)_errorType) ?? []) as List<IType> ?? [];
+                // PORT-NOTE (A″): the argument is a DiagnosticArgument (Core/Diagnostic.cs) so the printer-gated stringifier runs on the first read of the message text.
                 Error(
                     type.Node ?? _currentNode,
                     type.Target!.Symbol is not null
                         ? Diagnostics.Type_arguments_for_0_circularly_reference_themselves
                         : Diagnostics.Tuple_type_arguments_circularly_reference_themselves,
-                    type.Target!.Symbol is not null ? SymbolToString(type.Target!.Symbol) : null);
+                    type.Target!.Symbol is not null ? Diagnostic.DeferArg(() => SymbolToString(type.Target!.Symbol)) : null);
             }
         }
         return type.ResolvedTypeArguments!;
@@ -303,7 +304,7 @@ internal sealed partial class Checker
                         ? Diagnostics.Expected_0_1_type_arguments_provide_these_with_an_extends_tag
                         : Diagnostics.Generic_type_0_requires_between_1_and_2_type_arguments;
 
-                var typeStr = TypeToString(type, /*enclosingDeclaration*/ null, TypeFormatFlags.WriteArrayAsGenericType);
+                var typeStr = Diagnostic.DeferArg(() => TypeToString(type, /*enclosingDeclaration*/ null, TypeFormatFlags.WriteArrayAsGenericType));
                 Error(node, diag, typeStr, minTypeArgumentCount, typeParameters.Count);
                 if (!isJs)
                 {
@@ -396,7 +397,7 @@ internal sealed partial class Checker
                     minTypeArgumentCount == typeParameters.Count
                         ? Diagnostics.Generic_type_0_requires_1_type_argument_s
                         : Diagnostics.Generic_type_0_requires_between_1_and_2_type_arguments,
-                    SymbolToString(symbol),
+                    Diagnostic.DeferArg(() => SymbolToString(symbol)),
                     minTypeArgumentCount,
                     typeParameters.Count);
                 return _errorType;
@@ -761,7 +762,7 @@ internal sealed partial class Checker
             Error(
                 node,
                 Diagnostics.Type_0_is_not_generic,
-                symbol is not null ? SymbolToString(symbol) : typeName is not null ? Utilities.DeclarationNameToString(typeName) : _anon);
+                symbol is not null ? Diagnostic.DeferArg(() => SymbolToString(symbol)) : typeName is not null ? Utilities.DeclarationNameToString(typeName) : _anon);
             return false;
         }
         return true;

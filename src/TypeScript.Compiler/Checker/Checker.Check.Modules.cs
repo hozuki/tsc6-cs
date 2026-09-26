@@ -295,7 +295,8 @@ internal sealed partial class Checker
                 var message = node.Kind == SyntaxKind.ExportSpecifier
                     ? Diagnostics.Export_declaration_conflicts_with_exported_declaration_of_0
                     : Diagnostics.Import_declaration_conflicts_with_local_declaration_of_0;
-                Error(node, message, SymbolToString(symbol));
+                // PORT-NOTE (A″): the argument is a DiagnosticArgument (Core/Diagnostic.cs) so the printer-gated stringifier runs on the first read of the message text.
+                Error(node, message, Diagnostic.DeferArg(() => SymbolToString(symbol)));
             }
             else if (node.Kind != SyntaxKind.ExportSpecifier)
             {
@@ -308,7 +309,7 @@ internal sealed partial class Checker
                     Error(
                         node,
                         Diagnostics.Import_0_conflicts_with_local_value_so_must_be_declared_with_a_type_only_import_when_isolatedModules_is_enabled,
-                        SymbolToString(symbol),
+                        Diagnostic.DeferArg(() => SymbolToString(symbol)),
                         _isolatedModulesLikeFlagName);
                 }
             }
@@ -783,7 +784,7 @@ internal sealed partial class Checker
                 var moduleSymbol = ResolveExternalModuleName(node, node.ModuleSpecifier);
                 if (moduleSymbol is not null && HasExportAssignmentSymbol(moduleSymbol))
                 {
-                    Error(node.ModuleSpecifier!, Diagnostics.Module_0_uses_export_and_cannot_be_used_with_export_Asterisk, SymbolToString(moduleSymbol));
+                    Error(node.ModuleSpecifier!, Diagnostics.Module_0_uses_export_and_cannot_be_used_with_export_Asterisk, Diagnostic.DeferArg(() => SymbolToString(moduleSymbol)));
                 }
                 else if (node.ExportClause is not null)
                 {
@@ -1686,12 +1687,12 @@ internal sealed partial class Checker
                     node,
                     diagnostic,
                     token,
-                    TypeToString(
+                    Diagnostic.DeferArg(() => TypeToString(
                         isNonNullable
                             ? type
                             : !(ReferenceEquals(type, _neverType) || ReferenceEquals(type, _voidType))
                                 ? GetUnionType(((JSDocNullableType)node).Postfix ? [type, _undefinedType] : [type, _undefinedType, _nullType])
-                                : type));
+                                : type)));
             }
             else
             {

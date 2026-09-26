@@ -554,7 +554,13 @@ internal sealed partial class Checker
                     }
                     else if (GetIndexInfoOfType(contextualType!, _stringType) is null)
                     {
-                        Error(memberName, Diagnostics.Object_literal_may_only_specify_known_properties_and_0_does_not_exist_in_type_1, SymbolToString(member), TypeToString(contextualType));
+                        // PORT-NOTE (A″): the message arguments below are deferred thunks (`Diagnostic.DeferArg` /
+                        // `DiagnosticArgument` in Core/Diagnostic.cs), so the printer-gated `SymbolToString`/`TypeToString`
+                        // run on the first read of the message text. That read is after `member = prop` below, while the
+                        // reference stringifies `member` as it stands here (checker.ts:33609 vs :33621) — hence the pinned
+                        // copy for the thunk to read.
+                        var memberForDiagnostic = member;
+                        Error(memberName, Diagnostics.Object_literal_may_only_specify_known_properties_and_0_does_not_exist_in_type_1, Diagnostic.DeferArg(() => SymbolToString(memberForDiagnostic)), Diagnostic.DeferArg(() => TypeToString(contextualType)));
                     }
                 }
 
@@ -1683,7 +1689,7 @@ internal sealed partial class Checker
                 // additional error elsewhere.
                 if (errorNode is not null)
                 {
-                    Error(errorNode, Diagnostics.Abstract_method_0_in_class_1_cannot_be_accessed_via_super_expression, SymbolToString(prop), TypeToString(GetDeclaringClass(prop)!));
+                    Error(errorNode, Diagnostics.Abstract_method_0_in_class_1_cannot_be_accessed_via_super_expression, Diagnostic.DeferArg(() => SymbolToString(prop)), Diagnostic.DeferArg(() => TypeToString(GetDeclaringClass(prop)!)));
                 }
                 return false;
             }
@@ -1693,7 +1699,7 @@ internal sealed partial class Checker
             {
                 if (errorNode is not null)
                 {
-                    Error(errorNode, Diagnostics.Class_field_0_defined_by_the_parent_class_is_not_accessible_in_the_child_class_via_super, SymbolToString(prop));
+                    Error(errorNode, Diagnostics.Class_field_0_defined_by_the_parent_class_is_not_accessible_in_the_child_class_via_super, Diagnostic.DeferArg(() => SymbolToString(prop)));
                 }
                 return false;
             }
@@ -1710,7 +1716,7 @@ internal sealed partial class Checker
             {
                 if (errorNode is not null)
                 {
-                    Error(errorNode, Diagnostics.Abstract_property_0_in_class_1_cannot_be_accessed_in_the_constructor, SymbolToString(prop), SymbolToString(parentSymbol));
+                    Error(errorNode, Diagnostics.Abstract_property_0_in_class_1_cannot_be_accessed_in_the_constructor, Diagnostic.DeferArg(() => SymbolToString(prop)), Diagnostic.DeferArg(() => SymbolToString(parentSymbol)));
                 }
                 return false;
             }
@@ -1732,7 +1738,7 @@ internal sealed partial class Checker
             {
                 if (errorNode is not null)
                 {
-                    Error(errorNode, Diagnostics.Property_0_is_private_and_only_accessible_within_class_1, SymbolToString(prop), TypeToString(GetDeclaringClass(prop)!));
+                    Error(errorNode, Diagnostics.Property_0_is_private_and_only_accessible_within_class_1, Diagnostic.DeferArg(() => SymbolToString(prop)), Diagnostic.DeferArg(() => TypeToString(GetDeclaringClass(prop)!)));
                 }
                 return false;
             }
@@ -1765,7 +1771,7 @@ internal sealed partial class Checker
             {
                 if (errorNode is not null)
                 {
-                    Error(errorNode, Diagnostics.Property_0_is_protected_and_only_accessible_within_class_1_and_its_subclasses, SymbolToString(prop), TypeToString(GetDeclaringClass(prop) ?? containingType));
+                    Error(errorNode, Diagnostics.Property_0_is_protected_and_only_accessible_within_class_1_and_its_subclasses, Diagnostic.DeferArg(() => SymbolToString(prop)), Diagnostic.DeferArg(() => TypeToString(GetDeclaringClass(prop) ?? containingType)));
                 }
                 return false;
             }
@@ -1784,7 +1790,7 @@ internal sealed partial class Checker
         {
             if (errorNode is not null)
             {
-                Error(errorNode, Diagnostics.Property_0_is_protected_and_only_accessible_through_an_instance_of_class_1_This_is_an_instance_of_class_2, SymbolToString(prop), TypeToString(enclosingClass), TypeToString(containingType));
+                Error(errorNode, Diagnostics.Property_0_is_protected_and_only_accessible_through_an_instance_of_class_1_This_is_an_instance_of_class_2, Diagnostic.DeferArg(() => SymbolToString(prop)), Diagnostic.DeferArg(() => TypeToString(enclosingClass)), Diagnostic.DeferArg(() => TypeToString(containingType)));
             }
             return false;
         }

@@ -515,7 +515,8 @@ internal sealed partial class Checker
                     var specificSource = next is not null ? CheckExpressionForMutableLocationWithContextualType(next, sourcePropType) : sourcePropType;
                     if (_exactOptionalPropertyTypes == true && IsExactOptionalPropertyMismatch(specificSource, targetPropType))
                     {
-                        var diag = Utilities.CreateDiagnosticForNode(prop, Diagnostics.Type_0_is_not_assignable_to_type_1_with_exactOptionalPropertyTypes_Colon_true_Consider_adding_undefined_to_the_type_of_the_target, TypeToString(specificSource), TypeToString(targetPropType));
+                        // PORT-NOTE (A″): the message arguments below are deferred thunks (`Diagnostic.DeferArg` / `DiagnosticArgument` in Core/Diagnostic.cs), so the printer-gated `TypeToString` runs on the first read of the message text.
+                        var diag = Utilities.CreateDiagnosticForNode(prop, Diagnostics.Type_0_is_not_assignable_to_type_1_with_exactOptionalPropertyTypes_Colon_true_Consider_adding_undefined_to_the_type_of_the_target, Diagnostic.DeferArg(() => TypeToString(specificSource)), Diagnostic.DeferArg(() => TypeToString(targetPropType)));
                         _diagnostics.Add(diag);
                         resultObj.Errors = [diag];
                     }
@@ -561,8 +562,8 @@ internal sealed partial class Checker
                                     Utilities.CreateDiagnosticForNode(
                                         (Node)targetNode,
                                         Diagnostics.The_expected_type_comes_from_property_0_which_is_declared_here_on_type_1,
-                                        Js.IsTruthy(propertyName) && (nameType.Flags & TypeFlags.UniqueESSymbol) == 0 ? Utilities.UnescapeLeadingUnderscores(propertyName!) : TypeToString(nameType),
-                                        TypeToString(target)));
+                                        Js.IsTruthy(propertyName) && (nameType.Flags & TypeFlags.UniqueESSymbol) == 0 ? Utilities.UnescapeLeadingUnderscores(propertyName!) : Diagnostic.DeferArg(() => TypeToString(nameType)),
+                                        Diagnostic.DeferArg(() => TypeToString(target))));
                             }
                         }
                     }
@@ -637,7 +638,7 @@ internal sealed partial class Checker
                     var specificSource = next is not null ? CheckExpressionForMutableLocationWithContextualType(next, sourcePropType) : sourcePropType;
                     if (_exactOptionalPropertyTypes == true && IsExactOptionalPropertyMismatch(specificSource, targetPropType))
                     {
-                        var diag = Utilities.CreateDiagnosticForNode(prop, Diagnostics.Type_0_is_not_assignable_to_type_1_with_exactOptionalPropertyTypes_Colon_true_Consider_adding_undefined_to_the_type_of_the_target, TypeToString(specificSource), TypeToString(targetPropType));
+                        var diag = Utilities.CreateDiagnosticForNode(prop, Diagnostics.Type_0_is_not_assignable_to_type_1_with_exactOptionalPropertyTypes_Colon_true_Consider_adding_undefined_to_the_type_of_the_target, Diagnostic.DeferArg(() => TypeToString(specificSource)), Diagnostic.DeferArg(() => TypeToString(targetPropType)));
                         _diagnostics.Add(diag);
                         resultObj.Errors = [diag];
                     }
@@ -820,7 +821,7 @@ internal sealed partial class Checker
                         containingElement.OpeningElement!.TagName,
                         Diagnostics.This_JSX_tag_s_0_prop_expects_a_single_child_of_type_1_but_multiple_children_were_provided,
                         childrenPropName,
-                        TypeToString(childrenTargetType));
+                        Diagnostic.DeferArg(() => TypeToString(childrenTargetType)));
                     if (errorOutputContainer is not null && errorOutputContainer.SkipLogging == true)
                     {
                         errorOutputContainer.Errors ??= [];
@@ -847,7 +848,7 @@ internal sealed partial class Checker
                         containingElement.OpeningElement!.TagName,
                         Diagnostics.This_JSX_tag_s_0_prop_expects_type_1_which_requires_multiple_children_but_only_a_single_child_was_provided,
                         childrenPropName,
-                        TypeToString(childrenTargetType));
+                        Diagnostic.DeferArg(() => TypeToString(childrenTargetType)));
                     if (errorOutputContainer is not null && errorOutputContainer.SkipLogging == true)
                     {
                         errorOutputContainer.Errors ??= [];
@@ -876,7 +877,7 @@ internal sealed partial class Checker
                     diagnostic.Code,
                     diagnostic.Category,
                     "!!ALREADY FORMATTED!!",
-                    Utilities.FormatMessage(diagnostic, tagNameText, childrenPropName, TypeToString(childrenTargetType)));
+                    Utilities.FormatMessage(diagnostic, tagNameText, childrenPropName, Diagnostic.DeferArg(() => TypeToString(childrenTargetType))));
             }
             return invalidTextDiagnostic;
         }
