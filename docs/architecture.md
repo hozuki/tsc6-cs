@@ -1254,6 +1254,8 @@ Roslyn 只要在任何一处遇到**声明级**错误，就跳过**整个编译*
 
 本轮两个实例：`Program/Program.Verify.cs` 的 `SymlinkCache` CS0246；以及更隐蔽的一个——生成的 `Model/NodeInterfaces.cs` 引用了两个 Program 侧接口（`IFileIncludeReason`/`IFilePreprocessingDiagnostics`，声明在 `Program/Program.ProgramDiagnostics.cs`），所以"排除 `Program/**`"这一常见做法会让那两个 CS0246 变成全编译的声明级错误。它甚至骗过了有经验的切片：`M6Program` 据此报过"我的文件零诊断"，随后在解除掩蔽的运行里撤回，实测约 85 条机械性错误。
 
+**阳性对照（M6ProgUtils 的做法，值得照抄）**：与其从代码集合反推，不如往**快照副本**的目标文件里注入一个故意的体级错误（如 `NoSuchNameInThePort`）再编译——错误被报出来就证明该配置下方法体确实绑定了，于是"我的文件为零"是强读数。最强的一档是让整编译错误数为 0（不存在任何声明级错误可供掩蔽）然后**运行**产物。快照里把 `NodeInterfaces` 引用的那两个类型（`IFilePreprocessingDiagnostics`/`IFileIncludeReason`）用桩顶上，是等 `Program` 整体可编译之前解除掩蔽的可行做法。
+
 **判别法（照此读任何快照日志）**：声明级代码集合（CS0246/0101/0102/0111/0535/1513/1733/1002/1026）为空，**且**文件里有非零的 CS0103/CS1061/CS1593 —— 二者同时成立才说明方法体确实绑定了。反过来，只要有声明级代码，文件里为零就什么都不能说明。**修法（经 M6Conditional 实测修正）**：单独把 `Program.ProgramDiagnostics.cs` 包含回来**无效**——它自己会拉出 9 个声明级 CS0246（它对 `Program` 的兄弟 partial 与 `JsObject` 的引用）。掩蔽只能通过**等整个 Program 切片能编译后整块包含**来解除。在那之前，任何 Checker 切片的诚实证据路径是：文本证据（重复扫描、签名核对、括号配平、`ported from` 范围逐条核对）**加上**一份声明级代码集合为空的日志。
 
 ### 生成器缺口（M6 期间修掉）
