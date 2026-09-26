@@ -329,6 +329,181 @@ public class NodeFactoryFamilyTests
     }
 
     // ---------------------------------------------------------------------------------------------
+    // Functions, classes and declarations
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// A method with no body is TypeScript in its entirety; with a body it aggregates the usual flags, and async adds
+    /// ES2017.
+    /// </summary>
+    [Fact]
+    public void MethodDeclaration_SwitchesOnHavingABody()
+    {
+        var factory = Factory();
+        var async = factory.CreateModifier(SyntaxKind.AsyncKeyword);
+
+        var bodyless = factory.CreateMethodDeclaration(null, null, Id("m"), null, null, null, null, null);
+        var asyncWithBody = factory.CreateMethodDeclaration(
+            [async],
+            null,
+            Id("m"),
+            null,
+            null,
+            null,
+            null,
+            factory.CreateBlock([], true));
+
+        Assert.Equal(TransformFlags.ContainsTypeScript, bodyless.TransformFlags);
+        Assert.NotEqual(TransformFlags.None, asyncWithBody.TransformFlags & TransformFlags.ContainsES2017);
+        Assert.NotEqual(TransformFlags.None, asyncWithBody.TransformFlags & TransformFlags.ContainsES2015);
+    }
+
+    [Fact]
+    public void ArrowFunction_FillsInTheEqualsGreaterThanToken()
+    {
+        var node = Factory().CreateArrowFunction(null, null, null, null, null, Id("body"));
+
+        Assert.Equal(SyntaxKind.EqualsGreaterThanToken, node.EqualsGreaterThanToken!.Kind);
+        Assert.IsType<PunctuationToken>(node.EqualsGreaterThanToken);
+    }
+
+    /// <summary>
+    /// TS accepts the older boolean spelling of the import phase modifier and normalises it in the body.
+    /// </summary>
+    [Fact]
+    public void ImportClause_NormalisesTheBooleanSpelling()
+    {
+        var factory = Factory();
+
+        var typeOnly = factory.CreateImportClause(true, Id("x"), null);
+        var phase = factory.CreateImportClause(SyntaxKind.DeferKeyword, Id("x"), null);
+
+        Assert.True(typeOnly.IsTypeOnly);
+        Assert.Equal(SyntaxKind.TypeKeyword, typeOnly.PhaseModifier);
+        Assert.NotEqual(TransformFlags.None, typeOnly.TransformFlags & TransformFlags.ContainsTypeScript);
+
+        Assert.False(phase.IsTypeOnly);
+        Assert.Equal(SyntaxKind.DeferKeyword, phase.PhaseModifier);
+    }
+
+    [Fact]
+    public void VariableDeclarationList_TakesBlockScopingFromItsFlags()
+    {
+        var factory = Factory();
+
+        var blockScoped = factory.CreateVariableDeclarationList([], NodeFlags.Let);
+        var plain = factory.CreateVariableDeclarationList([], null);
+
+        Assert.NotEqual(TransformFlags.None, blockScoped.TransformFlags & TransformFlags.ContainsES2015);
+        Assert.NotEqual(TransformFlags.None, blockScoped.TransformFlags & TransformFlags.ContainsBlockScopedBinding);
+        Assert.Equal(TransformFlags.None, plain.TransformFlags & TransformFlags.ContainsES2015);
+    }
+
+    [Fact]
+    public void ModuleDeclaration_ClearsTheTopLevelAwaitFlag()
+    {
+        var factory = Factory();
+        var name = factory.CreateIdentifier("M");
+
+        var ambient = factory.CreateModuleDeclaration(
+            [factory.CreateModifier(SyntaxKind.DeclareKeyword)],
+            name,
+            null);
+        var plain = factory.CreateModuleDeclaration(null, name, null);
+
+        Assert.Equal(TransformFlags.ContainsTypeScript, ambient.TransformFlags);
+        Assert.NotEqual(TransformFlags.None, plain.TransformFlags & TransformFlags.ContainsTypeScript);
+    }
+
+    /// <summary>
+    /// An import/export/namespace declaration is always parsed in an await context, so the flag comes off again.
+    /// </summary>
+    [Fact]
+    public void DeclarationsThatCannotContainAwait_HaveTheFlagCleared()
+    {
+        var factory = Factory();
+        var clauses = new List<Node> { factory.CreateEmptyStatement() };
+
+        var declaration = factory.CreateExportDeclaration(null, false, null, null, null);
+
+        Assert.Equal(TransformFlags.None, declaration.TransformFlags & TransformFlags.ContainsPossibleTopLevelAwait);
+        Assert.Equal(TransformFlags.None, declaration.TransformFlags & TransformFlags.ContainsPossibleTopLevelAwait);
+        Assert.NotNull(clauses);
+    }
+
+    [Fact]
+    public void NewExpression_IsES2020AndOptionallyTypescript()
+    {
+        var factory = Factory();
+
+        var plain = factory.CreateNewExpression(Id("C"), null, null);
+        var withTypeArguments = factory.CreateNewExpression(Id("C"), [(ITypeNode)factory.CreateKeywordTypeNode(SyntaxKind.NumberKeyword)], null);
+
+        Assert.NotEqual(TransformFlags.None, plain.TransformFlags & TransformFlags.ContainsES2020);
+        Assert.Equal(TransformFlags.None, plain.TransformFlags & TransformFlags.ContainsTypeScript);
+        Assert.NotEqual(TransformFlags.None, withTypeArguments.TransformFlags & TransformFlags.ContainsTypeScript);
+    }
+
+    [Fact]
+    public void ImmediatelyInvokedFunctionExpression_TakesTheOptionalParameter()
+    {
+        var factory = Factory();
+        var parameter = factory.CreateParameterDeclaration(null, null, "p", null, null, null);
+        var value = Id("v");
+
+        var bare = factory.CreateImmediatelyInvokedFunctionExpression([]);
+        var withArgument = factory.CreateImmediatelyInvokedFunctionExpression([], parameter, value);
+
+        Assert.Empty(bare.Arguments!);
+        Assert.Single(withArgument.Arguments!);
+        Assert.Same(value, withArgument.Arguments![0]);
+        Assert.Single(((FunctionExpression)withArgument.Expression!).Parameters!);
+    }
+
+    [Fact]
+    public void UnionTypeNode_KeepsTheConstituentsItWasGiven()
+    {
+        var factory = Factory();
+        var number = (ITypeNode)factory.CreateKeywordTypeNode(SyntaxKind.NumberKeyword);
+        var text = (ITypeNode)factory.CreateKeywordTypeNode(SyntaxKind.StringKeyword);
+
+        var node = factory.CreateUnionTypeNode([number, text]);
+
+        Assert.Equal(SyntaxKind.UnionType, node.Kind);
+        Assert.Equal(2, node.Types!.Count);
+        Assert.Equal(TransformFlags.ContainsTypeScript, node.TransformFlags);
+    }
+
+    /// <summary>
+    /// TS guards the mirror with <c>node.assertions &amp;&amp; node.assertions.assertClause &amp;&amp; node.attributes</c>, and a
+    /// freshly built node has no <c>assertions</c> container at all — so on this path the mirror is a no-op. Pinning that
+    /// keeps someone from "fixing" it into creating the container.
+    /// </summary>
+    [Fact]
+    public void ImportTypeNode_DoesNotInventTheDeprecatedAssertionsContainer()
+    {
+        var factory = Factory();
+        var argument = (ITypeNode)factory.CreateKeywordTypeNode(SyntaxKind.StringKeyword);
+        var attributes = factory.CreateImportAttributes(null, null, SyntaxKind.WithKeyword);
+
+        var node = factory.CreateImportTypeNode(argument, attributes, null, null, isTypeOf: true);
+
+        Assert.True(node.IsTypeOf);
+        Assert.Same(attributes, node.Attributes);
+        Assert.Null(node.Assertions);
+    }
+
+    [Fact]
+    public void ShorthandPropertyAssignment_ClearsTheGrammarErrorSlots()
+    {
+        var node = Factory().CreateShorthandPropertyAssignment("x", Id("y"));
+
+        Assert.Null(node.EqualsToken);
+        Assert.Null(node.QuestionToken);
+        Assert.NotEqual(TransformFlags.None, node.TransformFlags & TransformFlags.ContainsES2015);
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // The stubs
     // ---------------------------------------------------------------------------------------------
 

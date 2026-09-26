@@ -233,8 +233,18 @@ internal partial class NodeFactory
         // TS's `createToken(token: TKind extends PunctuationSyntaxKind)` answers a `PunctuationToken<TKind>`; the port's
         // token classes carry the kind at run time, so the range is what picks the class (Model/Token.cs).
         _ when token >= SyntaxKind.FirstPunctuation && token <= SyntaxKind.LastPunctuation => new PunctuationToken(token),
+
+        // A keyword that is a type is a `KeywordTypeNode<TKind>` in TS — see KeywordTypeToken for why it needs a class.
+        _ when IsKeywordTypeKind(token) => new KeywordTypeToken(token),
         _ => new Token(token),
     };
+
+    /// <summary>TS's <c>KeywordTypeSyntaxKind</c>: the keywords that are also types.</summary>
+    private static bool IsKeywordTypeKind(SyntaxKind kind) => kind is
+        SyntaxKind.AnyKeyword or SyntaxKind.BigIntKeyword or SyntaxKind.BooleanKeyword
+        or SyntaxKind.IntrinsicKeyword or SyntaxKind.NeverKeyword or SyntaxKind.NumberKeyword
+        or SyntaxKind.ObjectKeyword or SyntaxKind.StringKeyword or SyntaxKind.SymbolKeyword
+        or SyntaxKind.UndefinedKeyword or SyntaxKind.UnknownKeyword or SyntaxKind.VoidKeyword;
 
     /// <summary>ported from: factory/nodeFactory.ts:1459 — the <c>switch (token)</c> that sets transform flags.</summary>
     private static TransformFlags TokenTransformFlagsOf(SyntaxKind token) => token switch

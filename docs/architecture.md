@@ -855,7 +855,10 @@ M4 是约 25,600 行 TS —— Layer 2 的六倍，也远超单轮能保持质�
 
 **针对性单测**（判据 4）：`NodeFactoryFamilyTests` 覆盖手写半里那些"需要决定"而不是"照抄"的行为 —— 模板的 cooked 文本、条件表达式补标点 token、`++x` 只对真标识符置 `ContainsUpdateExpressionForIdentifier`、`update*` 在没变时返回同一实例、source file 的初值与克隆式更新、heritage clause 的 kind → flags、类声明的 ambient 分支、JSDoc 的默认 tag 名与两个布尔位、typedef 从 fullName 派生 name、`use strict` 序言的新行标志。
 
-**测试抓到的一处真 bug**：`NullParenthesizerRules` 的列表成员一律新建 `NodeArray`，把 `createNodeArray` 刚刚设好的文本范围与 `HasTrailingComma` 丢掉了 —— `createArrayLiteralExpression` 的尾随省略元素正是靠那个标志（`[1, 2, ,]` 与 `[1, 2, ]` 的区别）。修法是"入参已经是 `NodeArray` 就原样交回"，四个列表成员一起改。这与 §14.3 记的两处 Scanner bug 同属一类：**规格化/包装函数悄悄改写了入参的身份**。
+**测试抓到的两处真 bug**：
+
+1. `NullParenthesizerRules` 的列表成员一律新建 `NodeArray`，把 `createNodeArray` 刚刚设好的文本范围与 `HasTrailingComma` 丢掉了 —— `createArrayLiteralExpression` 的尾随省略元素正是靠那个标志（`[1, 2, ,]` 与 `[1, 2, ]` 的区别）。修法是"入参已经是 `NodeArray` 就原样交回"，四个列表成员一起改。这与 §14.3 记的两处 Scanner bug 同属一类：**规格化/包装函数悄悄改写了入参的身份**。
+2. keyword 类型节点在 TS 里**没有自己的对象**：`createToken(SyntaxKind.NumberKeyword)` 的静态类型是 `KeywordTypeNode<TKind>`，靠结构兼容 —— 同一个 token 既能当 token、又能当类型节点。C# 的 `Token` 没实现 `IKeywordTypeNode`，于是 `CreateKeywordTypeNode` 出来的东西一放进 `List<ITypeNode>` 就 `InvalidCastException`。修法是新增 `KeywordTypeToken : Token, IKeywordTypeNode<SyntaxKind>`（`Model/Token.cs`），并让 `CreateTokenNode` 对 `KeywordTypeSyntaxKind` 的那 12 个 kind 建它。**不能**把 `ITypeNode` 直接挂在 `KeywordToken` 上：那会让 `export`/`const` 也变成类型节点，而 `ModifierToken` 还是它的子类。
 
 ---
 

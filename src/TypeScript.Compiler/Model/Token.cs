@@ -54,3 +54,18 @@ internal class ModifierToken : KeywordToken
     {
     }
 }
+
+/// <summary>ported from: src/compiler/types.ts — TS: <c>KeywordTypeNode&lt;TKind&gt;</c>.</summary>
+/// <remarks>
+/// PORT-NOTE: a keyword that is also a type (<c>number</c>, <c>string</c>, …) is one runtime object like every other
+/// token — TS only gives it a different <em>type</em>, <c>KeywordTypeNode&lt;TKind&gt;</c>, through structural
+/// compatibility. C# needs a class to say so, and it has to be a class of its own: putting <c>ITypeNode</c> on
+/// <c>KeywordToken</c> would turn `export` and `const` into type nodes too, and <c>ModifierToken</c> derives from it.
+/// </remarks>
+internal class KeywordTypeToken : Token, IKeywordTypeNode<SyntaxKind>
+{
+    public KeywordTypeToken(SyntaxKind kind)
+        : base(kind)
+    {
+    }
+}
