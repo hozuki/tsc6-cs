@@ -2390,22 +2390,6 @@ internal partial class NodeFactory
         throw new NotImplementedException("the port has not reached `updateBinaryExpression` yet");
     }
 
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createClassDeclaration</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateClassDeclaration(List<Node>? modifiers, object? name, List<TypeParameterDeclaration>? typeParameters, List<HeritageClause>? heritageClauses, List<IClassElement>? members)
-    {
-        throw new NotImplementedException("the port has not reached `createClassDeclaration` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateClassDeclaration</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public ClassDeclaration UpdateClassDeclaration(ClassDeclaration? node, List<Node>? modifiers, Identifier? name, List<TypeParameterDeclaration>? typeParameters, List<HeritageClause>? heritageClauses, List<IClassElement>? members)
-    {
-        throw new NotImplementedException("the port has not reached `updateClassDeclaration` yet");
-    }
-
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createModuleDeclaration</c>.</summary>
     /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
     /// it yet (docs/architecture.md §15.7).</remarks>
@@ -2764,22 +2748,6 @@ internal partial class NodeFactory
     public JsxExpression UpdateJsxExpression(JsxExpression? node, Expression? expression)
     {
         throw new NotImplementedException("the port has not reached `updateJsxExpression` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>createHeritageClause</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public object? CreateHeritageClause(SyntaxKind token, List<ExpressionWithTypeArguments>? types)
-    {
-        throw new NotImplementedException("the port has not reached `createHeritageClause` yet");
-    }
-
-    /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updateHeritageClause</c>.</summary>
-    /// <remarks>PORT-NOTE: stub — tools/Gen generates it because the hand-written half does not provide
-    /// it yet (docs/architecture.md §15.7).</remarks>
-    public HeritageClause UpdateHeritageClause(HeritageClause? node, List<ExpressionWithTypeArguments>? types)
-    {
-        throw new NotImplementedException("the port has not reached `updateHeritageClause` yet");
     }
 
     /// <summary>ported from: src/compiler/factory/nodeFactory.ts — <c>updatePropertyAssignment</c>.</summary>

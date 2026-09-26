@@ -2902,4 +2902,102 @@ internal partial class NodeFactory
 
         return FinishUpdateBaseSignatureDeclaration(updated, original);
     }
+
+    //
+    // Classes (the hand-written half)
+    //
+
+    /// <summary>ported from: factory/nodeFactory.ts:4383 — <c>createClassDeclaration</c>.</summary>
+    public ClassDeclaration CreateClassDeclaration(
+        List<Node>? modifiers,
+        object? name,
+        List<TypeParameterDeclaration>? typeParameters,
+        List<HeritageClause>? heritageClauses,
+        List<IClassElement>? members)
+    {
+        var node = CreateBaseDeclaration<ClassDeclaration>(SyntaxKind.ClassDeclaration);
+        node.Modifiers = AsNodeArray(modifiers);
+        node.Name = AsName(name);
+        node.TypeParameters = AsNodeArray(typeParameters);
+        node.HeritageClauses = AsNodeArray(heritageClauses);
+        node.Members = CreateNodeArray(members, null);
+
+        if ((Utilities.ModifiersToFlags(node.Modifiers) & ModifierFlags.Ambient) != 0)
+        {
+            node.TransformFlags = TransformFlags.ContainsTypeScript;
+        }
+        else
+        {
+            node.TransformFlags |= PropagateChildrenFlags(node.Modifiers)
+                | PropagateNameFlags(node.Name)
+                | PropagateChildrenFlags(node.TypeParameters)
+                | PropagateChildrenFlags(node.HeritageClauses)
+                | PropagateChildrenFlags(node.Members)
+                | (node.TypeParameters is not null ? TransformFlags.ContainsTypeScript : TransformFlags.None)
+                | TransformFlags.ContainsES2015;
+
+            // TypeScript-only class syntax anywhere in the class makes the whole declaration TypeScript.
+            if ((node.TransformFlags & TransformFlags.ContainsTypeScriptClassSyntax) != 0)
+            {
+                node.TransformFlags |= TransformFlags.ContainsTypeScript;
+            }
+        }
+
+        node.JsDoc = null; // initialized by parser (JsDocContainer)
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:4419 — <c>updateClassDeclaration</c>.</summary>
+    public ClassDeclaration UpdateClassDeclaration(
+        ClassDeclaration? node,
+        List<Node>? modifiers,
+        Identifier? name,
+        List<TypeParameterDeclaration>? typeParameters,
+        List<HeritageClause>? heritageClauses,
+        List<IClassElement>? members)
+    {
+        return !ReferenceEquals(node!.Modifiers, modifiers)
+            || node!.Name != name
+            || !ReferenceEquals(node!.TypeParameters, typeParameters)
+            || !ReferenceEquals(node!.HeritageClauses, heritageClauses)
+            || !ReferenceEquals(node!.Members, members)
+            ? Update(CreateClassDeclaration(modifiers, name, typeParameters, heritageClauses, members), node)
+            : node!;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5870 — <c>createHeritageClause</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS types the first parameter as <c>HeritageClause["token"]</c> — an indexed access whose two members
+    /// are the switch arms — and it maps to the enum itself.
+    /// </remarks>
+    public HeritageClause CreateHeritageClause(SyntaxKind token, List<ExpressionWithTypeArguments>? types)
+    {
+        var node = CreateBaseNode<HeritageClause>(SyntaxKind.HeritageClause);
+        node.Token = token;
+        node.Types = CreateNodeArray(types, null);
+        node.TransformFlags |= PropagateChildrenFlags(node.Types);
+
+        switch (token)
+        {
+            case SyntaxKind.ExtendsKeyword:
+                node.TransformFlags |= TransformFlags.ContainsES2015;
+                break;
+            case SyntaxKind.ImplementsKeyword:
+                node.TransformFlags |= TransformFlags.ContainsTypeScript;
+                break;
+            default:
+                Debug.AssertNever(token);
+                break;
+        }
+
+        return node;
+    }
+
+    /// <summary>ported from: factory/nodeFactory.ts:5888 — <c>updateHeritageClause</c>.</summary>
+    public HeritageClause UpdateHeritageClause(HeritageClause? node, List<ExpressionWithTypeArguments>? types)
+    {
+        return !ReferenceEquals(node!.Types, types)
+            ? Update(CreateHeritageClause(node!.Token, types), node)
+            : node!;
+    }
 }
