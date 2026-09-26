@@ -1256,6 +1256,16 @@ Roslyn 只要在任何一处遇到**声明级**错误，就跳过**整个编译*
 
 **阳性对照（M6ProgUtils 的做法，值得照抄）**：与其从代码集合反推，不如往**快照副本**的目标文件里注入一个故意的体级错误（如 `NoSuchNameInThePort`）再编译——错误被报出来就证明该配置下方法体确实绑定了，于是"我的文件为零"是强读数。最强的一档是让整编译错误数为 0（不存在任何声明级错误可供掩蔽）然后**运行**产物。快照里把 `NodeInterfaces` 引用的那两个类型（`IFilePreprocessingDiagnostics`/`IFileIncludeReason`）用桩顶上，是等 `Program` 整体可编译之前解除掩蔽的可行做法。
 
+**第二条掩蔽来源：写下一个端口不存在的类型名**（M6NodeBuilder 一般化，我自己也踩过）。生成器把若干 TS 节点**联合**统一放宽成了 `Node`，于是端口里根本没有那个类型名：`EntityName`、`SignatureDeclaration`、`PropertyName`、`BindingName`、`ModuleName`、`HasModifiers`、`HasInferredType`、`EntityNameExpression`、`EntityNameOrEntityNameExpression`、`LateVisibilityPaintedStatement`，以及**裸写的** `Declaration`/`Statement`/`TypeNode`（端口的写法是 `IDeclaration`/`IStatement`/`ITypeNode`）。写错其中任何一个都是 `CS0246` —— **声明级**，于是整个编译的方法体绑定被跳过，所有人的读数一起失真。`BindingPattern` 是同一类：它只是 `ObjectBindingPattern | ArrayBindingPattern` 的联合，没有共同类（M6 期间它作为 `Checker.Types.cs` 的一个状态槽元素类型写下，一次就让全树诊断归零，直到改成 `Node`）。
+
+**写任何类型名之前先跑这一步**：
+
+```
+grep -rn "interface <Name>\b\|class <Name>\b\|enum <Name>\b" src/TypeScript.Compiler/Model
+```
+
+为空就说明该名字在端口里不存在，不要写——用它的 C# 上界（多数是 `Node`／`INode`／`IDeclaration` 等接口），并在需要收窄处按参考实现的分支做模式匹配。
+
 **判别法（照此读任何快照日志）**：声明级代码集合（CS0246/0101/0102/0111/0535/1513/1733/1002/1026）为空，**且**文件里有非零的 CS0103/CS1061/CS1593 —— 二者同时成立才说明方法体确实绑定了。反过来，只要有声明级代码，文件里为零就什么都不能说明。**修法（两轮实测后的最终形态）**：**保留整个 `Program` 切片不排除**，只在快照副本里桩上两个真正无声明的类型 `RedirectInfo` 与 `LibResolution<T>`（`Program/Program.Graph.cs:343/773/817` 用到）——一次编辑即可让声明级集合归零，不需要排除任何文件。注意 `SymlinkCache` **是已移植的**（`Program/Program.ProjectReferences.cs:1450`），所以"排除 `Program.Verify.cs`"这个常见做法是**自己制造**了那个 CS0246；单独包含 `ProgramDiagnostics.cs` 也无效（它自带 9 个）。
 
 **这不是形式主义——修好取证管道直接换回了真 bug**：`M6Generics.M6Conditional` 在第一次真正未掩蔽的运行里，于自己文件发现三个被历次掩蔽运行掩盖的缺陷（两处 CS8604、一处 CS8602），根因是端口把 TS 的两个重载（`ResolveExternalModuleSymbol` 的可空/非空两条）合并成一个返回 `ISymbol?` 的签名，而调用点对应的是非空那条——一行空值断言修好（同 `Checker.Instantiation.cs` 对 `InstantiateType` 的写法）。这印证了上面那句"被掩蔽的零读数是假象"。
