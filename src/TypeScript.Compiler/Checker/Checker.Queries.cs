@@ -435,7 +435,10 @@ internal sealed partial class Checker
     {
         if (declaration.Kind == SyntaxKind.Constructor)
         {
-            return GetDeclaredTypeOfClassOrInterface(GetMergedSymbol(((ClassDeclaration)declaration.Parent!).Symbol)!);
+            // PORT-NOTE: the reference's `declaration.parent as ClassDeclaration` (checker.ts:16513) is an unchecked
+            // assertion; a constructor's parent is a class declaration *or* a class expression, and only `.symbol` is
+            // read, so the cast names <see cref="IClassLikeDeclarationBase"/> — the shape both kinds share.
+            return GetDeclaredTypeOfClassOrInterface(GetMergedSymbol(((IClassLikeDeclarationBase)declaration.Parent!).Symbol)!);
         }
 
         var typeNode = Utilities.GetEffectiveReturnTypeNode(declaration);
@@ -444,7 +447,9 @@ internal sealed partial class Checker
             var root = Utilities.GetJSDocRoot(declaration);
             if (root is not null && NodeTests.IsConstructorDeclaration(root.Parent!) && typeNode is null)
             {
-                return GetDeclaredTypeOfClassOrInterface(GetMergedSymbol(((ClassDeclaration)root.Parent!.Parent!).Symbol)!);
+                // PORT-NOTE: same unchecked `as ClassDeclaration` (checker.ts:16519) as above; a JSDoc-rooted
+                // constructor's parent is a class declaration or class expression.
+                return GetDeclaredTypeOfClassOrInterface(GetMergedSymbol(((IClassLikeDeclarationBase)root.Parent!.Parent!).Symbol)!);
             }
         }
 

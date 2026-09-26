@@ -1837,7 +1837,7 @@ internal sealed partial class Checker
     /// <remarks>PORT-NOTE: TS's parameter is <c>Expression | QualifiedName</c>; the port erases it to
     /// <see cref="Node"/>.</remarks>
     internal IType CheckNonNullExpression(Node node)
-        => CheckNonNullType(CheckExpression((Expression)node, CheckMode.Normal), node);
+        => CheckNonNullType(CheckExpression(node, CheckMode.Normal), node);
 
     /// <summary>ported from: src/compiler/checker.ts:34643-34646 — <c>isNullableType</c>.</summary>
     internal bool IsNullableType(IType type)

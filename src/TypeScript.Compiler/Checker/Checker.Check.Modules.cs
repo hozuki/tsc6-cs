@@ -1822,20 +1822,35 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:49483-49489 — <c>checkDeferredNodes</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS's <c>Set.forEach</c> visits elements added while it runs; .NET refuses to enumerate a
-    /// <c>HashSet&lt;Node&gt;</c> that is being mutated, so the walk is over a copy of the same set — the only
-    /// difference is an element deferred *during* the walk, which the reference would visit in the same pass.
+    /// PORT-NOTE: TS's <c>Set.forEach</c> visits elements added while it runs, and the walk itself adds elements — a
+    /// deferred JSX element discovers its children's deferred nodes (checker.ts:49526-49528) — so walking a snapshot of
+    /// the set silently drops them (which is what this member used to do, and it cost every JSX child its own
+    /// <c>checkJsxPreconditions</c>). The port walks a growing list instead: the model's set stays the reference's own
+    /// de-duplication, and a node the visit deferred is appended as soon as the visit returns, which is where
+    /// <c>Set.forEach</c> would reach it. .NET keeps a <c>HashSet</c>'s insertion order as long as nothing is removed
+    /// from it, and this member only ever adds.
     /// </remarks>
     internal void CheckDeferredNodes(SourceFile context)
     {
         var links = GetNodeLinks(context);
-        if (links.DeferredNodes is not null)
+        var pending = links.DeferredNodes;
+        if (pending is not null)
         {
-            foreach (var deferredNode in links.DeferredNodes.ToList())
+            var deferredNodes = new List<Node>(pending);
+            var visited = new HashSet<Node>(pending);
+            for (var index = 0; index < deferredNodes.Count; index++)
             {
-                CheckDeferredNode(deferredNode);
+                CheckDeferredNode(deferredNodes[index]);
+                foreach (var node in pending)
+                {
+                    if (visited.Add(node))
+                    {
+                        deferredNodes.Add(node);
+                    }
+                }
             }
         }
+
         links.DeferredNodes = null;
     }
 

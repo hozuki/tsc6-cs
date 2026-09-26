@@ -1415,6 +1415,20 @@ printer 门控的 `TypeToString`/`SymbolToString`/`SignatureToString`/`TypePredi
 
 **门控的掩蔽量已被量出（对 M7 后的工作量是硬数据）：** 用一次性构造让四个 printer 门控改**返回 writer 而非抛出**（跑完即回滚、文件逐字节还原），全语料为 `same=3774 diverged=1679 port-crash=455` —— 即实参级延迟能把 `same` 抬升约 836，但同时让 `diverged` **增加约 1,041**：**门控当前正掩蔽着约 1,041 条真实分歧**（例如 2318/2583 类在其中是藏着的）。因此裁定：**保持门控响亮**、**保留 A′**（忠实，且严格更优——三处副本不再强制格式化），而"实参级延迟"（约 200 个调用点、83 条首崩链上引入惰性诊断实参包装）**是一项新偏差，需在 295 条分歧收完之后单独裁定**，以免两种效应混淆。
 
+### M6-late 第三轮：11 处非 printer 崩溃现场全部关闭，剩余崩溃 100% 是里程碑门控
+
+**同一命令、集成点独立复跑：`same=3042 diverged=187 port-crash=2679`（`same` +104 / `diverged` −108）。** 全语料 **`InvalidCastException`/`NullReferenceException` 归零**，`port-crashes.txt` 只剩 M7 门控：`TypeToString` 2,080 / `SymbolToString` 497 / `syntacticNodeBuilder` 102。唯一上升的 +7 崩溃，全部是门控在**新跑通**的检查路径上首次触发（诚实进展，非回归）。
+
+| 现场 | 6.0.3 依据 | 采用的形状（含 Go 端参考） |
+|---|---|---|
+| 7× `JsxAttribute → INamedDeclaration` @ `Checker.Relations.Structured.cs:955` | `checker.ts:22980-23060` 的 `isJsxAttribute(prop.valueDeclaration)` 分支（`:22996`）；`types.ts:3274` 中 `JsxAttribute extends Declaration`（**不是** `NamedDeclaration`），故 `name` 槽只有它 | 转 `JsxAttribute`（`tsc/internal/checker/relater.go` 同为 kind 判别） |
+| `ClassExpression → ClassDeclaration` @ `Checker.Queries.cs:438/:450` | `checker.ts:16512-16514/16519` 的 `declaration.parent as ClassDeclaration` 是无检查断言，且只读 `.symbol` | 转二者共享的 `IClassLikeDeclarationBase`（`Model/NodeInterfaces.cs:170`） |
+| `JSDocNonNullableType → ParenthesizedTypeNode` @ `Checker.Conditional.cs:1381` | `checker.ts:20496-20499` 的联合 `ParenthesizedTypeNode \| JSDocTypeReferencingNode \| …` | 按 kind 读同一个 `ITypeNode? Type` 槽（`checker.go:2553` 式判别） |
+| `TupleTypeNode/TypeReferenceNode → IDeclaration` @ `Checker.Instantiation.cs:432` | `checker.ts:20740-20758`：`allDeclarations` 虽按 `symbol.declarations` 定型，实际装的是类型节点，只当 `Node` 读 | `List<Node>` + `Core.Map(… (Node)d)` —— 用基类/泛型表达形状，不复制按类型退化的辅助函数（§9.x 的泛型反指示） |
+| `QualifiedName → Expression` @ `Checker.Check.cs:1840` | `checker.ts:34639-34641` 参数即 `Expression \| QualifiedName`（`:41753` 同），端口 `CheckExpression` 早收 `Node` 并按 `SyntaxKind.QualifiedName` 分派 | 去掉强转 |
+
+**轮内阶梯**（第三轮起每轮都从 `report.txt` **重新分组**，不沿用前轮结论）：2,942/294/2,672（结构型转换）→ 2,990/246（`IsDeclarationName`）→ 3,028/208（export specifier 的角色）→ 3,042/187/2,679（延迟 drain）。
+
 ## 16. `const enum` 成员作类型：typed enum
 
 ### 16.1 TS 的两条路径

@@ -1971,12 +1971,19 @@ internal sealed class EvaluatorResultValue<T> : IEvaluatorResult<T>
     public static bool IsInJSDoc(Node? node) => node is not null && (node.Flags & NodeFlags.JSDoc) != 0;
 
     /// <summary>ported from: src/compiler/utilities.ts:5073-5076 — <c>isDeclarationName</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>name.parent.name === name</c> is a duck-typed slot read off a <c>Declaration</c>
+    /// (shape reference <c>tsc/internal/ast/utilities.go:1310</c>, where Go reads it through the uniform
+    /// <c>Node.Name()</c> accessor). The port reads the same slot through
+    /// <see cref="GetNamedDeclarationName"/> — a plain <c>is INamedDeclaration</c> test answers false for
+    /// <c>JsxAttribute</c>/<c>NamedTupleMember</c>, whose <c>name</c> types.ts declares without
+    /// <c>extends NamedDeclaration</c>.
+    /// </remarks>
     public static bool IsDeclarationName(Node name)
         => !NodeTests.IsSourceFile(name)
             && !IsBindingPattern(name)
             && IsDeclaration(name.Parent!)
-            && name.Parent is INamedDeclaration { Name: not null } declaration
-            && ReferenceEquals(declaration.Name, name);
+            && ReferenceEquals(GetNamedDeclarationName(name.Parent!), name);
 
     /// <summary>ported from: src/compiler/utilities.ts:3471-3520 — <c>nodeCanBeDecorated</c>.</summary>
     /// <remarks>

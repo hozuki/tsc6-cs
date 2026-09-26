@@ -1378,7 +1378,14 @@ internal sealed partial class Checker
             case SyntaxKind.ParenthesizedType:
             case SyntaxKind.JSDocNonNullableType:
             case SyntaxKind.JSDocTypeExpression:
-                return GetTypeFromTypeNode(((ParenthesizedTypeNode)node).Type);
+                // PORT-NOTE: the reference reads `.type` off the union `ParenthesizedTypeNode |
+                // JSDocTypeReferencingNode | JSDocTypeExpression | NamedTupleMember` (checker.ts:20499); the three kinds
+                // that reach here each declare their own `ITypeNode? Type` slot and share no narrower base, so C# splits
+                // the union read per kind instead of casting to a non-existent common type.
+                return GetTypeFromTypeNode(
+                    node.Kind == SyntaxKind.ParenthesizedType ? ((ParenthesizedTypeNode)node).Type :
+                    node.Kind == SyntaxKind.JSDocNonNullableType ? ((JSDocNonNullableType)node).Type :
+                    ((JSDocTypeExpression)node).Type);
             case SyntaxKind.RestType:
                 return GetTypeFromRestTypeNode((ITypeNode)node);
             case SyntaxKind.JSDocVariadicType:

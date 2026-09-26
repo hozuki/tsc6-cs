@@ -428,9 +428,12 @@ internal sealed partial class Checker
             }
 
             typeParameters = outerTypeParameters ?? [];
+            // PORT-NOTE: TS types `allDeclarations` from `type.symbol.declarations` (`Declaration[]`) and pushes a
+            // `declaration` that is a *type node* for a tuple/reference symbol; only `Node` is read from the list, so the
+            // port declares the element type as <see cref="Node"/> rather than casting the type node to `IDeclaration`.
             var allDeclarations = (objectFlags & (ObjectFlags.Reference | ObjectFlags.InstantiationExpressionType)) != 0
-                ? new List<IDeclaration> { (IDeclaration)declaration }
-                : type.Symbol!.Declarations!;
+                ? new List<Node> { declaration }
+                : Core.Map(type.Symbol!.Declarations!, (d, _) => (Node)d)!;
             if ((target.ObjectFlags & (ObjectFlags.Reference | ObjectFlags.InstantiationExpressionType)) != 0
                 || (target.Symbol!.Flags & SymbolFlags.Method) != 0
                 || (target.Symbol!.Flags & SymbolFlags.TypeLiteral) != 0)
@@ -440,7 +443,7 @@ internal sealed partial class Checker
                     // PORT-NOTE: Core.Filter answers the input instance when nothing is filtered out (as TS's `filter`
                     // does) and the declared element type is IList; the copy makes the checker's List slot hold a List
                     // in both arms.
-                    var filtered = Core.Filter(typeParameters, tp => Core.Some(allDeclarations, d => IsTypeParameterPossiblyReferenced(tp, (Node)d)));
+                    var filtered = Core.Filter(typeParameters, tp => Core.Some(allDeclarations, d => IsTypeParameterPossiblyReferenced(tp, d)));
                     if (filtered is not null)
                     {
                         typeParameters = [.. filtered];

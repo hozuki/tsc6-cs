@@ -952,11 +952,15 @@ internal sealed partial class Checker
                             {
                                 // JsxAttributes has an object-literal flag and undergo same type-assignablity check as normal object-literal.
                                 // However, using an object-literal error message will be very confusing to the users so we give different a message.
-                                if (prop.ValueDeclaration is not null && NodeTests.IsJsxAttribute((Node)prop.ValueDeclaration) && ReferenceEquals(Utilities.GetSourceFileOfNode(errorNode), Utilities.GetSourceFileOfNode((Node)((INamedDeclaration)prop.ValueDeclaration).Name!)))
+                                // PORT-NOTE: TS's `isJsxAttribute` type predicate narrows `prop.valueDeclaration` to
+                                // `JsxAttribute`, whose `name` slot lives on that class alone (release-6.0's
+                                // `JsxAttribute extends Declaration`, not `NamedDeclaration`) — the cast names
+                                // <see cref="JsxAttribute"/>, not <see cref="INamedDeclaration"/>.
+                                if (prop.ValueDeclaration is not null && NodeTests.IsJsxAttribute((Node)prop.ValueDeclaration) && ReferenceEquals(Utilities.GetSourceFileOfNode(errorNode), Utilities.GetSourceFileOfNode(((JsxAttribute)prop.ValueDeclaration).Name!)))
                                 {
                                     // Note that extraneous children (as in `<NoChild>extra</NoChild>`) don't pass this check,
                                     // since `children` is a SyntaxKind.PropertySignature instead of a SyntaxKind.JsxAttribute.
-                                    errorNode = (Node)((INamedDeclaration)prop.ValueDeclaration).Name!;
+                                    errorNode = ((JsxAttribute)prop.ValueDeclaration).Name!;
                                 }
                                 var propName = SymbolToString(prop);
                                 var suggestionSymbol = GetSuggestedSymbolForNonexistentJSXAttribute(propName, errorTarget);

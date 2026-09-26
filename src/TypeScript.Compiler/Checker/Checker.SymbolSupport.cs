@@ -4506,6 +4506,12 @@ internal sealed partial class Checker
     /// faces; <c>moduleExportNameIsDefault</c> is the landed utilities member; <c>node.parent.parent.moduleSpecifier</c>
     /// is the enclosing <c>ExportDeclaration</c>'s slot; the reference's <c>name.kind === StringLiteral ? undefined : …</c>
     /// is the port's conditional over the same kind; and <c>!!dontResolveAlias</c> is <c>Js.IsTruthy</c>.
+    /// <para>
+    /// PORT-NOTE: <c>getExternalModuleMember(node.parent.parent, node, …)</c> passes the *enclosing declaration* first and
+    /// the specifier second (checker.ts:4216); the port had those two roles swapped, so a named re-export resolved its
+    /// module with `node` = the `ExportSpecifier` (whose `specifier` switch answers no name) — silently no resolution,
+    /// no `Cannot find module` and no member lookup.
+    /// </para>
     /// </remarks>
     private ISymbol? GetTargetOfExportSpecifier(IDeclaration node, SymbolFlags meaning, bool? dontResolveAlias = null)
     {
@@ -4520,8 +4526,9 @@ internal sealed partial class Checker
             }
         }
 
-        var resolved = ((ExportDeclaration)((Node)node).Parent!.Parent!).ModuleSpecifier is not null
-            ? GetExternalModuleMember((Node)node, ((ExportDeclaration)((Node)node).Parent!.Parent!).ModuleSpecifier!, Js.IsTruthy(dontResolveAlias))
+        var exportDeclaration = (Node)((Node)node).Parent!.Parent!;
+        var resolved = ((ExportDeclaration)exportDeclaration).ModuleSpecifier is not null
+            ? GetExternalModuleMember(exportDeclaration, (Node)node, Js.IsTruthy(dontResolveAlias))
             : name!.Kind == SyntaxKind.StringLiteral ? null : // Skip for invalid syntax like this: export { "x" }
             ResolveEntityName(name, meaning, /*ignoreErrors*/ false, dontResolveAlias);
         MarkSymbolOfAliasDeclarationIfTypeOnly(node, /*immediateTarget*/ null, resolved, /*overwriteEmpty*/ false);
