@@ -39,7 +39,7 @@ internal partial class UnionOrIntersectionType : Type, IUnionOrIntersectionType,
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public UnionOrIntersectionType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public UnionOrIntersectionType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -155,7 +155,7 @@ internal partial class UnionType : UnionOrIntersectionType
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public UnionType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public UnionType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -170,7 +170,7 @@ internal partial class IntersectionType : UnionOrIntersectionType, IIntersection
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public IntersectionType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public IntersectionType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 

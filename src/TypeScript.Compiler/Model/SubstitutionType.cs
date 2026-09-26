@@ -17,7 +17,7 @@ internal partial class TemplateLiteralType : InstantiableType, ITemplateLiteralT
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public TemplateLiteralType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public TemplateLiteralType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -42,7 +42,7 @@ internal partial class StringMappingType : InstantiableType, IStringMappingType
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public StringMappingType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public StringMappingType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -67,7 +67,7 @@ internal partial class SubstitutionType : InstantiableType, ISubstitutionType
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public SubstitutionType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public SubstitutionType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 

@@ -29,7 +29,7 @@ internal partial class InstantiableType : Type, IInstantiableType
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public InstantiableType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public InstantiableType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -53,7 +53,7 @@ internal partial class TypeParameter : InstantiableType, ITypeParameter
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public TypeParameter(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public TypeParameter(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -87,7 +87,7 @@ internal partial class IndexType : InstantiableType, IIndexType
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public IndexType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public IndexType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -116,7 +116,7 @@ internal partial class IndexedAccessType : InstantiableType, IIndexedAccessType
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public IndexedAccessType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public IndexedAccessType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 

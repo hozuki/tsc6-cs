@@ -23,7 +23,7 @@ internal partial class IntrinsicType : Type, IIntrinsicType, INullableType, IFre
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public IntrinsicType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public IntrinsicType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -77,7 +77,7 @@ internal partial class BooleanLiteralType : IntrinsicType
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public BooleanLiteralType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public BooleanLiteralType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 

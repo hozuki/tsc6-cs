@@ -27,7 +27,7 @@ internal partial class LiteralType : Type, ILiteralType, IFreshableType, IString
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public LiteralType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public LiteralType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -55,7 +55,7 @@ internal partial class StringLiteralType : LiteralType
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public StringLiteralType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public StringLiteralType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -70,7 +70,7 @@ internal partial class NumberLiteralType : LiteralType
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public NumberLiteralType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public NumberLiteralType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -85,7 +85,7 @@ internal partial class BigIntLiteralType : LiteralType
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public BigIntLiteralType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public BigIntLiteralType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 

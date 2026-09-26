@@ -39,7 +39,7 @@ internal partial class ObjectType : UnionOrIntersectionType, IObjectType
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public ObjectType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public ObjectType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -57,7 +57,7 @@ internal partial class ResolvedType : ObjectType, IResolvedType
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public ResolvedType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public ResolvedType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -85,7 +85,7 @@ internal partial class TypeReference : ResolvedType, ITypeReference, IDeferredTy
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public TypeReference(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public TypeReference(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -142,7 +142,7 @@ internal partial class InterfaceType : TypeReference, IInterfaceType
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public InterfaceType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public InterfaceType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -185,7 +185,7 @@ internal partial class InterfaceTypeWithDeclaredMembers : InterfaceType, IInterf
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public InterfaceTypeWithDeclaredMembers(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public InterfaceTypeWithDeclaredMembers(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -212,7 +212,7 @@ internal partial class GenericType : InterfaceTypeWithDeclaredMembers, IGenericT
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public GenericType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public GenericType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -244,7 +244,7 @@ internal partial class TupleType : GenericType, ITupleType
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public TupleType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public TupleType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 

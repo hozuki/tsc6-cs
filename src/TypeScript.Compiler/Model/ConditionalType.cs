@@ -28,7 +28,7 @@ internal partial class ConditionalType : InstantiableType, IConditionalType
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public ConditionalType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public ConditionalType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 

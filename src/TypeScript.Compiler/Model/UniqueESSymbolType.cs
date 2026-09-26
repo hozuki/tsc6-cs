@@ -16,7 +16,7 @@ internal partial class UniqueESSymbolType : Type, IUniqueESSymbolType
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public UniqueESSymbolType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public UniqueESSymbolType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 

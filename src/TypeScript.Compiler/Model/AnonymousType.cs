@@ -25,7 +25,7 @@ internal partial class AnonymousType : TupleType, IAnonymousType
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public AnonymousType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public AnonymousType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -53,7 +53,7 @@ internal partial class MappedType : AnonymousType, IMappedType
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public MappedType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public MappedType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -93,7 +93,7 @@ internal partial class FreshObjectLiteralType : MappedType, IFreshObjectLiteralT
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public FreshObjectLiteralType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public FreshObjectLiteralType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -118,7 +118,7 @@ internal partial class EvolvingArrayType : FreshObjectLiteralType, IEvolvingArra
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public EvolvingArrayType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public EvolvingArrayType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -140,7 +140,7 @@ internal partial class ReverseMappedType : EvolvingArrayType, IReverseMappedType
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public ReverseMappedType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public ReverseMappedType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 
@@ -179,7 +179,7 @@ internal partial class InstantiationExpressionType : ReverseMappedType, IInstant
 {
     /// <summary>ported from: src/compiler/utilities.ts:8489-8495 — TS's one type constructor, forwarded so that the
     /// <c>TypeFlags → class</c> dispatch (M6-2) can construct this class.</summary>
-    public InstantiationExpressionType(ITypeChecker checker, TypeFlags flags) : base(checker, flags)
+    public InstantiationExpressionType(object? checker, TypeFlags flags) : base(checker, flags)
     {
     }
 

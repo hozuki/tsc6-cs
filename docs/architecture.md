@@ -1221,6 +1221,10 @@ SourceFile(0,131) symbol=ValueModule:"/p" locals=[C=Class:C:1,a=BlockScopedVaria
 
 `SymbolTable` 在端口里是 `Dictionary<string, ISymbol>`（**无序**），而 TS 的 `SymbolTable = Map<__String, Symbol>` 按插入序迭代 —— checker 的属性列表、联合归约与显示字符串都从它派生。`tools/BindDiff` 看不见这个差异，因为它的 dump 对 key 排了序。因此 M6-0 必须先把 `SymbolTable` 换成保序形态并迁移全部槽位与调用点，**在 checker 开始写 members 之前**。这条与 M5 的教训同类：缺失/错误的模型槽会晚爆，而这次它连差分都躲得过。
 
+### 生成器缺口（M6 期间修掉）
+
+`MapUnion` 的公共基只看 C# 的**类**链，而对没到达 `Node` 的联合会退化成 `Node`——两处显形：`IProgram.getFileProcessingDiagnostics()` 生成为 `List<Node>?`，`getFileIncludeReasons()` 生成为 `Dictionary<string, List<Node>>`，而端口的值分别是 `List<IFilePreprocessingDiagnostics>` 与 `List<IFileIncludeReason>`（TS 的 `readonly FilePreprocessingDiagnostics[]` 与 `Map<string, FileIncludeReason[]>`）。修法与 M5-0 的 `FlowNode`、M6-0b 的 `SymbolTable` 同一机制：两条 `s_overrides`。容器形状不动（§12.3 的 `Map`→`Dictionary` 本就是对的），`Program` 在边界上构造它。
+
 ### 四项裁定
 
 1. **受 printer 门控的字符串化**（`typeToString`/`symbolToString`/`signatureToString`/`typePredicateToString` 用到 `checker.ts:6194-6264` 的 `createPrinter*`，属 M7）：采用端口既有惯例 —— **显式命名 + 测试钉住的 loud blocker**（先例是 `FactoryUtilities.IsJSDocTypeAssertion`，§15.9），并逐条进本节的残留清单。不使用静默降级：静默的错字符串会污染 `.types` baseline，而 loud blocker 会在 M7 接上时立刻变成绿灯。

@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace TypeScript.Compiler;
 
 // ported from: src/compiler/checker.ts:1486-1600 (the state createTypeChecker opens with)
@@ -158,6 +160,18 @@ internal sealed partial class Checker
     // ---------------------------------------------------------------------------------------------
 
     /// <summary>ported from: src/compiler/checker.ts:1513 — <c>typeCount</c>.</summary>
+    // ported from: src/compiler/checker.ts:1153-1155 — the two module-level constants `createTypeChecker` closes over.
+    // PORT-NOTE: `anon` is `"(anonymous)" as __String & string` and is read by the type-name formatter (three slices
+    // reference it); the port keeps the `_`-prefixed name the readers already use, which is also this class's convention
+    // for the state it closes over.
+    internal const string _anon = "(anonymous)";
+
+    /// <summary>ported from: src/compiler/checker.ts:1153 — <c>ambientModuleSymbolRegex</c>.</summary>
+    /// <remarks>PORT-NOTE: TS writes the literal <c>/^".+"$/</c> and tests it; §9 rule 7 puts the pattern in a
+    /// generated method instead of a runtime-parsed one.</remarks>
+    [GeneratedRegex("^\".+\"$")]
+    private static partial Regex AmbientModuleSymbolRegex();
+
     internal int _typeCount;
 
     /// <summary>ported from: src/compiler/checker.ts:1514 — <c>symbolCount</c>.</summary>

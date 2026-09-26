@@ -47,6 +47,14 @@ internal sealed class TsTypeMapper
         // name the ordered `SymbolTable` (`Model/SymbolTable.cs`) instead (docs/architecture.md §5 rule 17).
         // Checked before alias expansion: the alias must not be expanded to the `Map` it is declared as.
         ["SymbolTable"] = "SymbolTable",
+        // `FilePreprocessingDiagnostics` is a union of diagnostics that never reaches `Node` (types.ts:4689-4691), so
+        // `MapUnion`'s class-only common base collapsed it to `Node` and `IProgram.getFileProcessingDiagnostics`
+        // generated as `List<Node>?` — a type the values never are. The port has one interface for the union, so these
+        // slots name it. (`getFileIncludeReasons` needs no override: its element type is this same union, and the
+        // `Map`/`Dictionary` container shape stays whatever §12.3 maps it to.)
+        ["FilePreprocessingDiagnostics"] = "IFilePreprocessingDiagnostics",
+        // `FileIncludeReason` is the sibling union (types.ts:4653-4687), with the same problem and the same fix.
+        ["FileIncludeReason"] = "IFileIncludeReason",
         // Three unions of type-side interfaces that `MapUnion`'s class-only common base cannot see
         // (TsTypeModel.CommonBase follows C# *class* chains, and every chain it builds ends at `Node`), so they
         // degraded to `Node`/`Node?` — a type the values never are. Each is stated by hand, the same treatment

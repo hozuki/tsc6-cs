@@ -927,7 +927,7 @@ internal partial interface IFilePreprocessingFileExplainingDiagnostic
 {
     object? Kind { get; set; }
     string? File { get; set; }
-    Node? FileProcessingReason { get; set; }
+    IFileIncludeReason? FileProcessingReason { get; set; }
     IDiagnosticMessage? Diagnostic { get; set; }
     List<object?>? Args { get; set; }
 }
@@ -1485,7 +1485,7 @@ internal partial interface IModuleSpecifierResolutionHost
     Dictionary<string, List<string>>? RedirectTargetsMap { get; }
     IResolvedRefAndOutputDts? GetRedirectFromSourceFile(string? fileName);
     bool IsSourceOfProjectReferenceRedirect(string? fileName);
-    Dictionary<string, List<Node>> GetFileIncludeReasons();
+    Dictionary<string, List<IFileIncludeReason>> GetFileIncludeReasons();
     string GetCommonSourceDirectory();
     object? GetDefaultResolutionModeForFile(SourceFile? sourceFile);
     object? GetModeForResolutionAtIndex(SourceFile? file, int index);
@@ -2671,7 +2671,7 @@ internal partial interface IProgram : ITypeCheckerHost, IModuleSpecifierResoluti
     int GetInstantiationCount();
     /// <remarks>PORT-NOTE: TS's anonymous object type has no C# counterpart, so the slot stays <c>object?</c>.</remarks>
     object? GetRelationCacheSizes();
-    List<Node>? GetFileProcessingDiagnostics();
+    List<IFilePreprocessingDiagnostics>? GetFileProcessingDiagnostics();
     List<string> GetAutomaticTypeDirectiveNames();
     ModeAwareCache<IResolvedTypeReferenceDirectiveWithFailedLookupLocations> GetAutomaticTypeDirectiveResolutions();
     bool ShouldTransformImportCall(SourceFile? sourceFile);
