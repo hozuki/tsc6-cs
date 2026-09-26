@@ -1221,6 +1221,16 @@ SourceFile(0,131) symbol=ValueModule:"/p" locals=[C=Class:C:1,a=BlockScopedVaria
 
 `SymbolTable` 在端口里是 `Dictionary<string, ISymbol>`（**无序**），而 TS 的 `SymbolTable = Map<__String, Symbol>` 按插入序迭代 —— checker 的属性列表、联合归约与显示字符串都从它派生。`tools/BindDiff` 看不见这个差异，因为它的 dump 对 key 排了序。因此 M6-0 必须先把 `SymbolTable` 换成保序形态并迁移全部槽位与调用点，**在 checker 开始写 members 之前**。这条与 M5 的教训同类：缺失/错误的模型槽会晚爆，而这次它连差分都躲得过。
 
+### M6 期间路由出、编译器看不见的风险（须在收口时逐条确认）
+
+| 项 | 内容 | 处置 |
+|---|---|---|
+| **AST 形状风险** | `Checker/Checker.TypeOfSymbols.cs` 用 `FactoryUtilities.ParseNodeFactory`（`NoParenthesizerRules`）造节点，而其 PORT-NOTE 声称那就是 TS 的 `factory` —— 参考实现用的是带括号化规则的 `factory`，所以该文件可能产出与真编译器不同的 AST（编译器不会报错） | 收口时改为 `NodeFactory.Factory`（M6-6 的文件用的是它），并与 `nodeFactory.ts:7407` 的 `factory` 对齐 |
+| **生成器缺陷** | `Model/NodeInterfaces.cs:3526` 的 `GetIndexInfosOfIndexSymbol` 生成成了损坏的属性，而参考 `types.ts:5083` 是函数类型 | 已用命名响亮阻断 + 反射测试钉住；生成器修正归 `tools/Gen`（M6 后的housekeeping） |
+| **测试侧缺口** | `FakeTypeCheckerHost` 缺 8 个 `ITypeCheckerHost` 成员 | 集成时由我补齐（切片级报告都指了它） |
+| **工具风险（自动限定器）** | 一次自动化限定把 `// LanguageFeatureMinimumTarget.X` 注释插到闭括号**之前**，`//` 吞掉 `)`，产生 6 处 `CS1026` → 掩蔽全编译 | 两侧已各自修好；后续批量脚本改动前后必须查声明级集合 |
+| **并行构建** | 多个代理同时 `dotnet build` 会在 `obj/` 上互撞 | 配方：`-p:IntermediateOutputPath=obj/<name>/ -p:OutputPath=bin/<name>/`（`BaseIntermediateOutputPath` **不行**，会让默认 `obj/` 不再被排除而撞出 CS0579） |
+
 ### M6→M7 边界（loud blocker 清单，M7 落地时逐条接管）
 
 `Program` 侧由 `Program.EmitNotLanded` 统一抛出（消息里带成员名与 TS 行号）：
