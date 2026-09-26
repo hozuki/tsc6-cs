@@ -504,6 +504,208 @@ public class NodeFactoryFamilyTests
     }
 
     // ---------------------------------------------------------------------------------------------
+    // Emit helpers
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// `createMethodCall` keeps the optionality of its object: if it is already a chain, the method access and the call
+    /// are chains too.
+    /// </summary>
+    [Fact]
+    public void MethodCall_KeepsTheOptionalChain()
+    {
+        var factory = Factory();
+        var chain = factory.CreateCallChain(Id("a"), null, null, null);
+
+        var onChain = factory.CreateMethodCall(chain, "m", []);
+        var onPlain = factory.CreateMethodCall(Id("a"), "m", []);
+
+        Assert.NotEqual(TransformFlags.None, onChain.TransformFlags & TransformFlags.ContainsES2020);
+        Assert.Equal(TransformFlags.None, onPlain.TransformFlags & TransformFlags.ContainsES2020);
+        Assert.Equal(SyntaxKind.CallExpression, onPlain.Kind);
+    }
+
+    [Fact]
+    public void FunctionBindAndCall_PrependTheThisArgument()
+    {
+        var factory = Factory();
+        var thisArg = Id("self");
+        var argument = Id("x");
+
+        var bind = factory.CreateFunctionBindCall(Id("f"), thisArg, [argument]);
+        var apply = factory.CreateFunctionApplyCall(Id("f"), thisArg, argument);
+
+        Assert.Equal(2, bind.Arguments!.Count);
+        Assert.Same(thisArg, bind.Arguments![0]);
+        Assert.Same(argument, bind.Arguments![1]);
+
+        Assert.Equal(2, apply.Arguments!.Count);
+        Assert.Same(argument, apply.Arguments![1]);
+        Assert.Equal("bind", ((Identifier)ReceiverOf(bind).Name!).EscapedText);
+        Assert.Equal("apply", ((Identifier)ReceiverOf(apply).Name!).EscapedText);
+    }
+
+    [Fact]
+    public void GlobalMethodCall_NamesTheGlobalObjectAndOptionallyAddsAReceiver()
+    {
+        var factory = Factory();
+        var target = Id("o");
+        var key = Id("k");
+        var receiver = Id("r");
+
+        var two = factory.CreateReflectGetCall(target, key, null);
+        var three = factory.CreateReflectGetCall(target, key, receiver);
+        var direct = factory.CreateObjectDefinePropertyCall(target, "p", Id("d"));
+
+        Assert.Equal("get", ((Identifier)ReceiverOf(two).Name!).EscapedText);
+        Assert.Equal(2, two.Arguments!.Count);
+        Assert.Equal(3, three.Arguments!.Count);
+        Assert.Equal("defineProperty", ((Identifier)ReceiverOf(direct).Name!).EscapedText);
+        Assert.Equal(
+            "Object",
+            ((Identifier)ReceiverOf(direct).Expression!).EscapedText);
+    }
+
+    [Fact]
+    public void ArraySliceCall_TakesAnOptionalStart()
+    {
+        var factory = Factory();
+
+        Assert.Empty(factory.CreateArraySliceCall(Id("a"), null).Arguments!);
+        Assert.Single(factory.CreateArraySliceCall(Id("a"), 1).Arguments!);
+    }
+
+    /// <summary>
+    /// `tryAddPropertyAssignment` adds a member only when the value is there, which is what splits a descriptor into data
+    /// and accessor members.
+    /// </summary>
+    [Fact]
+    public void PropertyDescriptor_AddsOnlyTheMembersItWasGiven()
+    {
+        var factory = Factory();
+        var attributes = new TestDescriptorAttributes { Enumerable = true, Writable = true, Value = Id("1") };
+
+        var descriptor = factory.CreatePropertyDescriptor(attributes, singleLine: true);
+
+        var names = descriptor.Properties!
+            .Cast<PropertyAssignment>()
+            .Select(assignment => ((Identifier)assignment.Name!).EscapedText)
+            .ToList();
+
+        Assert.Contains("enumerable", names);
+        Assert.Contains("writable", names);
+        Assert.Contains("value", names);
+        Assert.DoesNotContain("get", names);
+        Assert.DoesNotContain("set", names);
+    }
+
+    private static PropertyAccessExpression ReceiverOf(CallExpression call)
+        => (PropertyAccessExpression)call.Expression!;
+
+    private sealed class TestDescriptorAttributes : IPropertyDescriptorAttributes
+    {
+        public object? Enumerable { get; set; }
+
+        public object? Configurable { get; set; }
+
+        public object? Writable { get; set; }
+
+        public Expression? Value { get; set; }
+
+        public Expression? Get { get; set; }
+
+        public Expression? Set { get; set; }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // JSX
+    // ---------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void JsxSelfClosingElement_IsJsxAndOptionallyTypescript()
+    {
+        var factory = Factory();
+        var tagName = Id("Component");
+
+        var plain = factory.CreateJsxSelfClosingElement(tagName, null, new JsxAttributes());
+        var typed = factory.CreateJsxSelfClosingElement(
+            tagName,
+            [factory.CreateKeywordTypeNode(SyntaxKind.StringKeyword)],
+            new JsxAttributes());
+
+        Assert.NotEqual(TransformFlags.None, plain.TransformFlags & TransformFlags.ContainsJsx);
+        Assert.Equal(TransformFlags.None, plain.TransformFlags & TransformFlags.ContainsTypeScript);
+        Assert.NotEqual(TransformFlags.None, typed.TransformFlags & TransformFlags.ContainsTypeScript);
+    }
+
+    [Fact]
+    public void UpdateJsxSelfClosingElement_ReturnsTheSameNodeWhenNothingChanged()
+    {
+        var factory = Factory();
+        var tagName = Id("Component");
+        var attributes = new JsxAttributes();
+        var node = factory.CreateJsxSelfClosingElement(tagName, null, attributes);
+
+        Assert.Same(node, factory.UpdateJsxSelfClosingElement(node, tagName, null, attributes));
+        Assert.NotSame(node, factory.UpdateJsxSelfClosingElement(node, Id("Other"), null, attributes));
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Source files
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// The update path clones the source file and carries over every field it was not asked to change — including the ones
+    /// no parameter mentions, which is what the reflective clone is for.
+    /// </summary>
+    [Fact]
+    public void UpdateSourceFile_ClonesTheFieldsItWasNotAskedToChange()
+    {
+        var factory = Factory();
+        var sourceFile = factory.CreateSourceFile([], (Token)factory.CreateToken(SyntaxKind.EndOfFileToken), NodeFlags.None);
+        sourceFile.FileName = "a.ts";
+        sourceFile.Text = "let a;";
+
+        var updated = factory.UpdateSourceFile(
+            sourceFile,
+            [factory.CreateExpressionStatement(Id("a"))],
+            null,
+            null,
+            null,
+            null,
+            null);
+
+        Assert.Equal("a.ts", updated.FileName);
+        Assert.Equal("let a;", updated.Text);
+        Assert.Equal(sourceFile.Flags, updated.Flags & ~NodeFlags.Synthesized);
+        Assert.Equal("a.ts", sourceFile.FileName);
+    }
+
+    /// <summary>
+    /// This pins the trade-off §15.8 records: TS builds an object that is *not* the target, while the port hands the target
+    /// back with the info attached. A caller reads the target's members either way; only the identity differs.
+    /// </summary>
+    [Fact]
+    public void CreateRedirectedSourceFile_HandsBackTheTargetWithTheInfoAttached()
+    {
+        var factory = Factory();
+        var target = factory.CreateSourceFile([], (Token)factory.CreateToken(SyntaxKind.EndOfFileToken), NodeFlags.None);
+        var info = new TestRedirectInfo { RedirectTarget = target };
+
+        var redirected = factory.CreateRedirectedSourceFile(info);
+
+        Assert.Same(target, redirected);
+        Assert.Same(info, target.RedirectInfo);
+    }
+
+    private sealed class TestRedirectInfo : IRedirectInfo
+    {
+        public SourceFile? RedirectTarget { get; set; }
+
+        public SourceFile? Unredirected => null;
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // The stubs
     // ---------------------------------------------------------------------------------------------
 
