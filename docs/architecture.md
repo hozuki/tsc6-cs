@@ -2925,6 +2925,33 @@ helper 的发射、以及 `host.writeFile` 的**调用序**（参考按文件序
 两条环的端口段：`TypeDiff` 10.6 → **6.72 s**、`EmitDiff` 9.35 → **4.53 s**（Server GC 对"每用例一个 program、
 分配密集"的工具收益最大）。验收：1,521 测试；两环各 clean 5908/5908；全语料语法诊断仍 2,661。
 
+### 18.4n 第三处"JS 里便宜、C# 里贵"的拼接：发射器的输出累积（emit 分配 −57%）
+
+`EmitTextWriter` 的 `_output` 在参考里是 `string` + `+=`（utilities.ts 的 `writeText`/`rawWrite`/`writeLine`），
+端口照搬 ⇒ **每写一段就整串复制**。一个 ~8 KB 的发射文件分 ~200 次写入 ⇒ 前缀复制累计约 687 KB/文件 ⇒
+types 分片的 emit 阶段 844 个文件分配 **580 MiB**（比解析的 109 KB/文件还大 6 倍）。改用 `StringBuilder`
+（`Clear()` 换成 `Clear()`，容量还能被 `PrinterFactory` 的 memoized printer 跨文件复用）：
+
+| | 改前 | 改后 |
+|---|---|---|
+| types 分片 emit 分配 | 580.5 MiB | **250.4 MiB（−57%）** |
+| types 分片 emit 时间 | 0.539 s | **0.431 s（−20%）** |
+| types 分片 semantic 分配 | 1451.8 MiB | **1414.6 MiB（−37 MiB，同一个 writer 也在给类型转字符串/诊断格式化用）** |
+| `TypeDiff` 端口段 | 6.72 s | **3.60 s** |
+| `EmitDiff` 端口段 | 4.53 s | **2.21 s** |
+| 全语料整轮分配 | 5,869 MiB | **5,614 MiB** |
+
+**验收**：1,521 测试；`EmitDiff` 全语料 **clean 5908/5908**（这一处改的是**输出累积**，逐字节相等是最强判据 ✓）；
+`TypeDiff` 亦 clean 5908/5908；全语料语法诊断 2,661、语义 67,030 **均不变**；p2000 total 1.676 s。
+
+**这是同一模式的第三处**（扫描器的二进制数字累积、检查器的类型 id 列表、发射器的输出）。⇒ 写进移植纪律：**凡是
+参考里"在循环/高频路径上用 `+=` 拼字符串"的地方，一律先怀疑二次型**；`grep` 一遍 `+=` 就能列清单（`EmitTextWriter`
+是 grep 时漏掉的那种，因为它藏在 `Utilities/` 而不是 `Emit/`）。
+
+**余量**：emit 现在 250 MiB / 844 文件 = **297 KB/文件**，而一个文件的输出只有 ~8 KB ⇒ 仍有约 290 KB/文件
+的可疑分配（很可能是每文件的 writer/printer 对象重建或映射表），是下一个可拆的点；emit 现在占 types 分片整轮
+12%（3.53 s 里的 0.431 s）。
+
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 
 两个工具的端口半场原来是**按文件串行**跑（每个文件各自建 program），而这正是最适合并行的形状：文件之间零共享。新增 `--parallel <n>`（默认 `Environment.ProcessorCount`，`1` = 串行，用于 A/B），实现是**有界的 `Parallel.For` + 每文件结果槽**，最后按文件序落盘 —— 因此**索引产物与串行运行逐字节相同**（`port-hashes.txt` / `port-crashes.txt` 已实测 `cmp` 一致；`report.txt` 只差 node 侧自报的 `maxRSS` 与端口峰值这两行噪声）。

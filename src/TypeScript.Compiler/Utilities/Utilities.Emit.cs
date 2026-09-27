@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace TypeScript.Compiler;
@@ -33,7 +34,13 @@ namespace TypeScript.Compiler;
 internal sealed class EmitTextWriter : IEmitTextWriter
 {
     private readonly string _newLine;
-    private string _output = "";
+
+    // PORT-NOTE (performance, measured): the reference keeps this as a `string` and appends with `+=`; a JavaScript
+    // string is a rope, a C# string is copied on every append — an emitted file of ~8 KB written in ~200 chunks
+    // therefore allocated hundreds of kilobytes (687 KB per file measured on the template-literal shard, 580 MiB for
+    // the 844 files of its emit phase; docs §18.4n). A buffer also keeps its capacity across files, which the
+    // memoized printers of `PrinterFactory` reuse.
+    private readonly StringBuilder _output = new();
     private int _indent;
     private bool _lineStart = true;
     private int _lineCount;
@@ -69,7 +76,7 @@ internal sealed class EmitTextWriter : IEmitTextWriter
                 _lineStart = false;
             }
 
-            _output += s;
+            _output.Append(s);
             UpdateLineCountAndPosFor(s);
         }
     }
@@ -91,7 +98,7 @@ internal sealed class EmitTextWriter : IEmitTextWriter
     /// <summary>ported from: src/compiler/utilities.ts:6347-6355 — <c>reset</c>.</summary>
     public void Clear()
     {
-        _output = "";
+        _output.Clear();
         _indent = 0;
         _lineStart = true;
         _lineCount = 0;
@@ -104,7 +111,7 @@ internal sealed class EmitTextWriter : IEmitTextWriter
     {
         if (s is not null)
         {
-            _output += s;
+            _output.Append(s);
             UpdateLineCountAndPosFor(s);
             _hasTrailingComment = false;
         }
@@ -124,7 +131,7 @@ internal sealed class EmitTextWriter : IEmitTextWriter
     {
         if (!_lineStart || force == true)
         {
-            _output += _newLine;
+            _output.Append(_newLine);
             _lineCount++;
             _linePos = _output.Length;
             _lineStart = true;
@@ -151,7 +158,7 @@ internal sealed class EmitTextWriter : IEmitTextWriter
     public int GetColumn() => _lineStart ? _indent * IndentSize() : _output.Length - _linePos;
 
     /// <summary>ported from: src/compiler/utilities.ts:6391 — <c>getText</c>.</summary>
-    public string GetText() => _output;
+    public string GetText() => _output.ToString();
 
     /// <summary>ported from: src/compiler/utilities.ts:6392 — <c>isAtStartOfLine</c>.</summary>
     public bool IsAtStartOfLine() => _lineStart;
@@ -160,7 +167,7 @@ internal sealed class EmitTextWriter : IEmitTextWriter
     public bool HasTrailingComment() => _hasTrailingComment;
 
     /// <summary>ported from: src/compiler/utilities.ts:6394 — <c>hasTrailingWhitespace</c>.</summary>
-    public bool HasTrailingWhitespace() => _output.Length != 0 && ScannerUtilities.IsWhiteSpaceLike(_output[^1]);
+    public bool HasTrailingWhitespace() => _output.Length != 0 && ScannerUtilities.IsWhiteSpaceLike(_output[_output.Length - 1]);
 
     // The writeXxx aliases of the reference's literal (utilities.ts:6396-6407); each is `write`, and writeSymbol is
     // `(s, _) => write(s)`.
