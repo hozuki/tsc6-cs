@@ -352,12 +352,34 @@ internal sealed partial class Checker
             {
                 i--;
                 var t = types[i];
-                if ((t.Flags & TypeFlags.StringLiteral) != 0 && Core.Some(templates, template => IsTypeMatchedByTemplateLiteralOrStringMapping(t, template)))
+                if ((t.Flags & TypeFlags.StringLiteral) != 0 && MatchesAnyTemplate(t, templates))
                 {
                     Core.OrderedRemoveItemAt(types, i);
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// The reference's <c>some(templates, template =&gt; isTypeMatchedByTemplateLiteralOrStringMapping(t, template))</c>.
+    /// </summary>
+    /// <remarks>
+    /// PORT-NOTE (performance, measured): the callback captures <c>t</c>, so the reference's shape allocates a closure
+    /// per (string literal × template) pair — and this loop sits in the union-construction path that runs tens of
+    /// millions of times on template-literal-heavy input (docs §18.4i). The loop states the same "any element
+    /// satisfies it" answer with no closure.
+    /// </remarks>
+    private bool MatchesAnyTemplate(IType t, IList<IType> templates)
+    {
+        foreach (var template in templates)
+        {
+            if (IsTypeMatchedByTemplateLiteralOrStringMapping(t, template))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:18233-18237 — <c>isTypeMatchedByTemplateLiteralOrStringMapping</c>.</summary>

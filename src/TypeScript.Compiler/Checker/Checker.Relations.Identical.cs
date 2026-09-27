@@ -2591,12 +2591,104 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:26677-26685 — <c>inferTypesFromTemplateLiteralType</c>.</summary>
     internal List<IType>? InferTypesFromTemplateLiteralType(IType source, ITemplateLiteralType target)
         => (source.Flags & TypeFlags.StringLiteral) != 0
-            ? InferFromLiteralPartsToTemplateLiteral([(string)((ILiteralType)source).Value!], [], target)
+            ? InferFromSingleLiteralPart((string)((ILiteralType)source).Value!, target)
             : (source.Flags & TypeFlags.TemplateLiteral) != 0
                 ? Core.ArrayIsEqualTo(((ITemplateLiteralType)source).Texts, target.Texts)
-                    ? Core.Map(((ITemplateLiteralType)source).Types!, (s, i) => IsTypeAssignableTo(GetBaseConstraintOrType(s), GetBaseConstraintOrType(target.Types![i])) ? s : GetStringLikeTypeForType(s))
+                    ? InferFromMatchingTemplateParts((ITemplateLiteralType)source, target)
                     : InferFromLiteralPartsToTemplateLiteral(((ITemplateLiteralType)source).Texts!, ((ITemplateLiteralType)source).Types!, target)
                 : null;
+
+    /// <summary>
+    /// The reference's <c>inferFromLiteralPartsToTemplateLiteral([value], [], target)</c> — a string literal source.
+    /// </summary>
+    /// <remarks>
+    /// PORT-NOTE (performance, measured): the reference builds a one-element text list and an empty type list for this
+    /// case; the call runs ~27.8M times on template-literal-heavy input and those lists cost 64 B per call, which the
+    /// shard's allocation counter showed as 3.4 GiB of its 4.9 GiB semantic total (docs §18.4i). The body is the
+    /// reference's own single-part path with the list inlined: with one text part <c>lastSourceIndex</c> is 0, so its
+    /// <c>getSourceText</c> answers the trimmed text for every index it can be asked about, its search loop advances
+    /// past that one part only to answer <c>null</c>, and its <c>addMatch</c> always takes the <c>s === seg</c> arm
+    /// (the other arm is what reads <c>sourceTypes</c>, and it needs <c>s !== seg</c>). The guard still answers
+    /// <c>null</c> without allocating. Equivalence was verified by running both implementations side by side over a
+    /// whole shard — it caught one real difference (the reference's <c>addMatch</c> advances its source *position* as
+    /// well as its index, which matters for adjacent empty delimiters) before this landed.
+    /// </remarks>
+    private List<IType>? InferFromSingleLiteralPart(string sourceText, ITemplateLiteralType target)
+    {
+        var targetTexts = target.Texts!;
+        var lastTargetIndex = targetTexts.Count - 1;
+        var targetStartText = targetTexts[0];
+        var targetEndText = targetTexts[lastTargetIndex];
+        if (
+            sourceText.Length < targetStartText.Length + targetEndText.Length ||
+            !Core.StartsWith(sourceText, targetStartText) || !Core.EndsWith(sourceText, targetEndText)
+        )
+        {
+            return null;
+        }
+
+        var remainingEndText = sourceText.Substring(0, sourceText.Length - targetEndText.Length);
+        List<IType>? matches = null;
+        var pos = targetStartText.Length;
+
+        void AddMatch(int p)
+        {
+            matches ??= [];
+            matches.Add(GetStringLiteralType(remainingEndText.Substring(pos, p - pos)));
+            // The reference's `addMatch` advances its source position as well as its index; skipping it turns adjacent
+            // empty delimiters (`` `${A}${B}${C}` ``) into matches the reference never reports.
+            pos = p;
+        }
+
+        for (var i = 1; i < lastTargetIndex; i++)
+        {
+            var delim = targetTexts[i];
+            if (delim.Length > 0)
+            {
+                var p = remainingEndText.IndexOf(delim, pos, StringComparison.Ordinal);
+                if (p < 0)
+                {
+                    return null;
+                }
+
+                AddMatch(p);
+                pos += delim.Length;
+            }
+            else if (pos < remainingEndText.Length)
+            {
+                AddMatch(pos + 1);
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        AddMatch(remainingEndText.Length);
+        return matches ?? [];
+    }
+
+    /// <summary>
+    /// The reference's <c>map(source.types, (s, i) =&gt; isTypeAssignableTo(…) ? s : getStringLikeTypeForType(s))</c>.
+    /// </summary>
+    /// <remarks>
+    /// PORT-NOTE (performance, measured): the reference's callback captures <c>target</c>, so its shape allocates a
+    /// closure — and this is the branch a template-literal source takes tens of millions of times on
+    /// template-literal-heavy input (docs §18.4i). The loop builds the same list with no closure.
+    /// </remarks>
+    private List<IType> InferFromMatchingTemplateParts(ITemplateLiteralType source, ITemplateLiteralType target)
+    {
+        var sourceTypes = source.Types!;
+        var targetTypes = target.Types!;
+        var result = new List<IType>(sourceTypes.Count);
+        for (var i = 0; i < sourceTypes.Count; i++)
+        {
+            var s = sourceTypes[i];
+            result.Add(IsTypeAssignableTo(GetBaseConstraintOrType(s), GetBaseConstraintOrType(targetTypes[i])) ? s : GetStringLikeTypeForType(s));
+        }
+
+        return result;
+    }
 
     /// <summary>ported from: src/compiler/checker.ts:26687-26690 — <c>isTypeMatchedByTemplateLiteralType</c>.</summary>
     internal bool IsTypeMatchedByTemplateLiteralType(IType source, ITemplateLiteralType target)

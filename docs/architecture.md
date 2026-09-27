@@ -2568,6 +2568,38 @@ BindEachChild(node) => ForEachChild(node, Bind, nodes => BindEach(nodes));
 - **本仓已启用**：`Directory.Build.props` 的 `<Features>$(Features);runtime-async=on</Features>`（核实过 `src/tsc` 的 csc 命令行出现 `/features:runtime-async=on`；`src`/`tools` 当前没有 C# async 代码，故今天不改变任何代码生成）。若某构造被拒（`ERR_UnsupportedFeatureInRuntimeAsync`），用 `[RuntimeAsyncMethodGeneration(false)]` 单独退出。
 - **方法论教训（写进纪律）**：perf 对照实验要**逐个变量受控**——同一被调方、只改消费者；这次我一次改了三样（消费者类型、返回类型、是否异步），得出的是错的因果。
 
+### 18.4i 分配的定位与修复：先给候选函数装探针，再动手
+
+**方法**：给候选函数加"**子树分配字节 + 调用次数**"探针（`GC.GetAllocatedBytesForCurrentThread()` 的进入/退出差值，`TSC_CS_PROBE=1` 时才启用），先量后改。三个候选被量掉、一个命中：
+
+| 候选 | 实测 | 结论 |
+|---|---|---|
+| void-walk 回调族（binder 的每节点下钻等） | **139,251 次调用 / 167,857 次访问**（types 分片） | 去间接化上限 = 访问数 × 3.3 ns ≈ **0.6 ms（0.02%）** ⇒ **不做**（原计划的结构体访问者/生成器重写代价远大于此） |
+| `GetTypeListId` 的字符串键（21 处缓存键） | 53,511 次调用 / 359,381 字符 ≈ **0.4 MB** | 否（不是分配来源）。顺带记下：Go 端把它换成了整数 hash，若将来此路径变热可照做 |
+| `Core.Some/Core.Map` 的捕获闭包 | 命中（见下） | 修 |
+| **`InferTypesFromTemplateLiteralType`** | **27,786,283 次调用 × 128 B/次 = 3,392 MiB** | **命中：占 types 分片 semantic 分配（4,857 MiB）的 70%** |
+
+**三处修复**（都是"参考的写法在 C# 里每次分配"，输出不变）：
+
+1. **字符串字面量分支**：参考写 `inferFromLiteralPartsToTemplateLiteral([value], [], target)` —— 两个一次性 List（各 ~32 B，共 64 B/次）。改为单部件特化 `InferFromSingleLiteralPart`：把参考自己那条"单部件"路径的列表内联掉，guard 失败路径（27.8M 次里的绝大多数）**0 分配**。
+2. **模板字面量分支**：参考的 `map(source.types, (s, i) => …)` 回调捕获 `target` ⇒ 每次一个闭包。改为循环 `InferFromMatchingTemplateParts`。
+3. **联合过滤**：`some(templates, template => isTypeMatchedByTemplateLiteralOrStringMapping(t, template))` 在"每个字符串字面量 × 每个模板"上分配一个闭包。改为循环 `MatchesAnyTemplate`。
+
+**等价性这样验的（重要）**：特化上线前先写了一个**双跑对比探针**——在同一个调用点上同时跑"特化版"和"通用版"，逐次比较返回值；它当场抓到一处真实差异：参考的 `addMatch` 会同时推进 source **position**（`sourcePosition = p`），我在特化里只推进了 index，于是相邻空分隔符（`` `${A}${B}${C}` `` 这种没有字面分隔符的模板）会产生**两个假诊断**（`'1.1.1'` 被判为不可赋给 `` `${number}.${number}.${number}` ``）。补上 `pos = p` 后双跑零差异，types 分片诊断数回到 21,584。**这条写进纪律：特化/改写"逐字对应参考"的函数，先做双跑对比，再谈性能。**
+
+**实测（Release，探针已移除）**：
+
+| | types 分片（845 文件） | 混合前缀 p2000（2,000 文件） |
+|---|---|---|
+| semantic 分配 | 4,857 → **1,461 MiB（−70%）** | 326.7 → 322.9 MiB（−1%） |
+| semantic 时间 | 3.29–3.36 → **2.90–2.97 s（−11%）** | 1.405 s（≈持平） |
+| 诊断数 | 21,584（不变） | 12,928（不变） |
+| 峰值工作集 | 343 MiB（不变） | — |
+
+混合前缀几乎不变正合预期：该路径只对**模板字面量密集**的负载热（p2000 上同类调用只有 33 次）。验收：1,521 测试、`tools/TypeDiff` 与 `tools/EmitDiff` 全语料各 clean 5908/5908。
+
+**结论**：用户先前提议的"去间接化"被实测否掉（上限 0.02%），而同一批测量把真正的钱指了出来——**"每次调用的分配"（模板字面量类型推断族）**，改三处即拿到 −70% 分配 / −11% 时间。方法上的收获：**给候选函数装"字节 + 次数"探针**是这台机器上唯一可靠且便宜的定位手段（CPU 采样给不出分配点，而分配字节是逐位确定的）。
+
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 
 两个工具的端口半场原来是**按文件串行**跑（每个文件各自建 program），而这正是最适合并行的形状：文件之间零共享。新增 `--parallel <n>`（默认 `Environment.ProcessorCount`，`1` = 串行，用于 A/B），实现是**有界的 `Parallel.For` + 每文件结果槽**，最后按文件序落盘 —— 因此**索引产物与串行运行逐字节相同**（`port-hashes.txt` / `port-crashes.txt` 已实测 `cmp` 一致；`report.txt` 只差 node 侧自报的 `maxRSS` 与端口峰值这两行噪声）。
