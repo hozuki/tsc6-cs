@@ -2675,7 +2675,7 @@ JS 的字符串是 rope/cons-string，逐字符 `+=` 是摊销 O(1)；C# 的 `st
 
 **两条纪律**：① **JS 里便宜的 `+=` 在 C# 里是 O(n²)**：凡移植"逐字符/逐片段拼字符串"的代码，一律换成缓冲区，否则只在超长输入上爆炸；② **按 B/次看平均会漏掉这类问题**（197 B/次看似"每 token 都有开销"），必须看**每次调用分配量的分布**——17 次占 89% 只有直方图能看出来。这条线到此为止：扫描器剩下的 8.3 MiB 里 5.8 是标识符文本（AST 必须物化），其余是必要开销，**扫描器不再是杠杆**；下一步是结构性项（根文件并行读+解析）与检查侧归因。
 
-#### 检查侧的分配画像（尚未收敛，下一轮的入口）
+#### 检查侧的分配画像（已收敛到调用解析簇）
 
 同一套探针切 semantic 阶段的 322.9 MiB（p2000）：
 
@@ -2689,7 +2689,20 @@ JS 的字符串是 rope/cons-string，逐字符 `+=` 是摊销 O(1)；C# 的 `st
 | 联合创建（`GetUnionType`） | 6.8 MiB | 13,657 | 523 B |
 | 惰性诊断注册（`AddLazyDiagnostic`） | — | 76,684 | 闭包 ≈ 5–7 MiB（估计） |
 
-分桶给出的形状与解析侧**相反**：检查侧不是"少数巨块"，而是**均匀摊在昂贵节点上**——`CheckSourceElement` 的 50,674 次里有 **15,124 次零分配**，而 **10,433 次（≥8K）独占 548 MiB（每次约 52 KB）**。也就是说钱在**少数声明节点的类型解析**里（`GetTypeOfSymbol`/`ResolveStructuredTypeMembers`/`GetResolvedSignature`/实例化缓存那一层），而不是逐节点固定开销；下一轮探针要从 `CheckSourceElementCore` 的分派往里走，按**节点种类**归因。`AddLazyDiagnostic` 的 76,684 个闭包按估计只有 5–7 MiB，**不值得**为此改动注册形状。
+分桶给出的形状与解析侧**相反**：检查侧不是"少数巨块"，而是**均匀摊在昂贵节点上**——`CheckSourceElement` 的 50,674 次里有 **15,124 次零分配**，而 **10,433 次（≥8K）独占 548 MiB（每次约 52 KB）**。也就是说钱在**少数声明节点的类型解析**里（`GetTypeOfSymbol`/`ResolveStructuredTypeMembers`/`GetResolvedSignature`/实例化缓存那一层），而不是逐节点固定开销；`AddLazyDiagnostic` 的 76,684 个闭包按估计只有 5–7 MiB，**不值得**为此改动注册形状。
+
+再往一层（按 `SyntaxKind` 记 `CheckSourceElement` 的账**读不出分划**：`Block`/`VariableStatement`/`ClassDeclaration` 这些容器把子树全算进去了，属包含关系而非划分）。非嵌套入口才是有用信号，且钱集中在**调用解析簇**：
+
+| 入口 | 字节 | 调用数 | 每次 |
+|---|---|---|---|
+| `GetResolvedSignature` | 63.0 MiB | 3,820 | 17.3 KB |
+| `GetTypeOfSymbol` | 62.9 MiB | 86,513 | 761 B |
+| `ResolveStructuredTypeMembers` | 57.0 MiB | 162,457 | 368 B |
+| ├ `ChooseOverload` | 43.4 MiB | 2,502 | 18.2 KB |
+| ├ `GetSignatureApplicabilityError` | 26.2 MiB | 2,850 | 9.7 KB |
+| └ `InferTypeArguments` | 19.4 MiB | **628** | **32.3 KB** |
+
+（这些入口互相包含，不能相加。）结论：检查侧的**单价最高**操作是"解析一次调用"——`InferTypeArguments` 每次 32 KB ⇒ 大量小对象（推断上下文/mapper/候选列表）而不是某个坏写法；下一步要么按"每个推断上下文的对象数"再切一层，要么转去做结构性的并行解析（时间收益更大）。
 
 #### 两处崩溃：`Convert.ToInt32/64` 的窄化（已修，与参考逐字对拍）
 
