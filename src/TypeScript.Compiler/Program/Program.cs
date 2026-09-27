@@ -379,7 +379,12 @@ internal sealed partial class Program
         Tracing.Current?.Push(Tracing.Phase.Program, "processRootFiles", TracingArgs.Of(("count", _rootNames.Count)));
         for (var index = 0; index < _rootNames.Count; index++)
         {
-            ProcessRootFile(_rootNames[index], /*isDefaultLib*/ false, new ReferencedFile { Kind = FileIncludeKind.RootFile, Index = index });
+            // The reason of a root file is its own arm of the union (`RootFile`, types.ts:4605-4612) — the reference
+            // spells it as the object literal `{ kind: FileIncludeKind.RootFile, index }` and dispatches on the kind.
+            // The port dispatches on the reason's *class*, so a root file built as a `ReferencedFile` reached the
+            // "unexpected file include reason kind 0" arm of `FileIncludeReasonToDiagnostics` instead of reporting
+            // "File 'x' not found. The file is in the program because: Root file specified for compilation".
+            ProcessRootFile(_rootNames[index], /*isDefaultLib*/ false, new RootFile { Kind = FileIncludeKind.RootFile, Index = index });
         }
         Tracing.Current?.Pop();
 
@@ -428,7 +433,17 @@ internal sealed partial class Program
             {
                 for (var index = 0; index < _options.Lib.Count; index++)
                 {
-                    ProcessRootFile(PathForLibFile(_options.Lib[index]), /*isDefaultLib*/ true, new LibFile { Kind = FileIncludeKind.LibFile, Index = index });
+                    // `--lib es5` names a *library*, and the file the program asks for is `lib.es5.d.ts`
+                    // (tsgo's `fileloader.go:205-211` resolves the name through the same table before calling
+                    // `pathForLibFile`). Passing the name straight through made the program look for a file called
+                    // `es5`, which is how `--lib es5` ended up reporting "Cannot find global type 'Array'".
+                    if (Utilities.LibMap.TryGetValue(_options.Lib[index].ToLowerInvariant(), out var libFileName))
+                    {
+                        ProcessRootFile(PathForLibFile(libFileName), /*isDefaultLib*/ true, new LibFile { Kind = FileIncludeKind.LibFile, Index = index });
+                    }
+
+                    // An unknown name reports nothing here, exactly as the reference's loop does (tsgo marks it
+                    // `// !!! error on unknown name`).
                 }
             }
         }

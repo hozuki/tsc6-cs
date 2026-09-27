@@ -157,8 +157,12 @@ internal sealed partial class Program
     /// that singleton, so <paramref name="system"/> is required here. The object literal the reference returns is the
     /// <see cref="CompilerHost"/> class (§5 rule 6), which holds the closure's state.
     /// </remarks>
-    internal static CompilerHost CreateCompilerHostWorker(ICompilerOptions options, bool? setParentNodes, ISystem system)
-        => new(options, setParentNodes, system);
+    internal static CompilerHost CreateCompilerHostWorker(
+        ICompilerOptions options,
+        bool? setParentNodes,
+        ISystem system,
+        LibSourceFileRegistry? libSourceFileRegistry = null)
+        => new(options, setParentNodes, system, libSourceFileRegistry);
 
     // ---------------------------------------------------------------------------------------------
     // 3. changeCompilerHostLikeToUseCache (program.ts:520-633)
@@ -434,15 +438,30 @@ internal sealed partial class Program
         private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (SourceFile File, CreateSourceFileOptions Options)> _prefetched =
             new(StringComparer.Ordinal);
 
+        /// <summary>The process-wide library-file cache this host serves from, when a caller attached one (see
+        /// <see cref="LibSourceFileRegistry"/>) — null in every ordinary run, so the reference's behaviour is what
+        /// happens by default.</summary>
+        private readonly LibSourceFileRegistry? _libSourceFileRegistry;
+
+        /// <summary>This host's key into the library cache: every compiler option, read once at construction.</summary>
+        private readonly string? _libSourceFileSignature;
+
         /// <summary>ported from: src/compiler/program.ts:451 — <c>existingDirectories</c>.</summary>
         /// <remarks>PORT-NOTE: TS's <c>Map&lt;string, boolean&gt;</c> is only ever used as a set, so the port keeps a set.</remarks>
         private readonly HashSet<string> _existingDirectories = new(StringComparer.Ordinal);
 
         /// <summary>ported from: src/compiler/program.ts:449-499 — the literal's construction.</summary>
-        public CompilerHost(ICompilerOptions options, bool? setParentNodes, ISystem system)
+        public CompilerHost(
+            ICompilerOptions options,
+            bool? setParentNodes,
+            ISystem system,
+            LibSourceFileRegistry? libSourceFileRegistry = null)
         {
             _system = system;
             _setParentNodes = setParentNodes;
+            _libSourceFileRegistry = libSourceFileRegistry;
+            // The library cache's key for this host: every option, read once (see LibSourceFileRegistry.SignatureFrom).
+            _libSourceFileSignature = libSourceFileRegistry is null ? null : LibSourceFileRegistry.SignatureFrom(options);
             _getCanonicalFileName = Core.CreateGetCanonicalFileName(system.UseCaseSensitiveFileNames);
             _getCurrentDirectory = Core.Memoize(() => _system.GetCurrentDirectory());
             _newLine = Utilities.GetNewLineCharacter(options);
@@ -482,7 +501,22 @@ internal sealed partial class Program
                 return entry.File;
             }
 
-            return _getSourceFile(fileName, languageVersionOrOptions, onError, shouldCreateNewSourceFile);
+            // The process-wide library cache (see LibSourceFileRegistry): a library file this process already parsed
+            // and bound under the same options is handed back as it is, and every other file — including a library
+            // file the cache has not seen — goes through the ordinary path below. A miss costs one dictionary lookup.
+            if (fileName is not null && _libSourceFileRegistry is not null && _libSourceFileSignature is not null
+                && _libSourceFileRegistry.TryGet(fileName, _libSourceFileSignature, out var cachedLibFile))
+            {
+                return cachedLibFile;
+            }
+
+            var file = _getSourceFile(fileName, languageVersionOrOptions, onError, shouldCreateNewSourceFile);
+            if (file is not null && fileName is not null && _libSourceFileRegistry is not null && _libSourceFileSignature is not null)
+            {
+                _libSourceFileRegistry.Add(fileName, _libSourceFileSignature, file);
+            }
+
+            return file;
         }
 
         /// <summary>Whether two per-file parse requests would produce the same <see cref="SourceFile"/>.</summary>
