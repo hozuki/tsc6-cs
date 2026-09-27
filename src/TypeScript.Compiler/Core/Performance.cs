@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace TypeScript.Compiler;
 
 // ported from: src/compiler/performance.ts:23-26
@@ -70,12 +72,17 @@ internal static class Performance
         }
     }
 
-    private static bool s_enabled;
+    private static volatile bool s_enabled;
     private static double s_timeOrigin = PerformanceCore.Timestamp();
 
-    private static readonly Dictionary<string, double> s_marks = new(StringComparer.Ordinal);
-    private static readonly Dictionary<string, int> s_counts = new(StringComparer.Ordinal);
-    private static readonly Dictionary<string, double> s_durations = new(StringComparer.Ordinal);
+    // PORT-NOTE (concurrency): TS's three maps are module-level and written by mark/measure on whichever thread runs
+    // the phase — under the port's parallel phases that is several. They stay as they are in the reference (name →
+    // timestamp / count / accumulated duration), but concurrent, and the two read-modify-write accumulations below go
+    // through AddOrUpdate so a count is incremented once per mark even when two workers mark the same name. Readers
+    // enumerate them directly, which ConcurrentDictionary supports while writers run. See docs/architecture.md §18.
+    private static readonly ConcurrentDictionary<string, double> s_marks = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, int> s_counts = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, double> s_durations = new(StringComparer.Ordinal);
 
     private static IPerformanceHooks? s_perfHooks;
 
@@ -102,7 +109,7 @@ internal static class Performance
     {
         if (!s_enabled) return;
 
-        s_counts[markName] = s_counts.GetValueOrDefault(markName) + 1;
+        s_counts.AddOrUpdate(markName, 1, static (_, count) => count + 1);
         s_marks[markName] = PerformanceCore.Timestamp();
         s_performanceImpl?.Mark(markName);
     }
@@ -121,7 +128,7 @@ internal static class Performance
         var start = (startMarkName is not null && s_marks.TryGetValue(startMarkName, out var startMark) ? startMark : (double?)null)
             ?? s_timeOrigin;
 
-        s_durations[measureName] = s_durations.GetValueOrDefault(measureName) + (end - start);
+        s_durations.AddOrUpdate(measureName, end - start, (_, total) => total + (end - start));
         s_performanceImpl?.Measure(measureName, startMarkName, endMarkName);
     }
 
@@ -148,7 +155,7 @@ internal static class Performance
     // ported from: src/compiler/performance.ts:146-150
     public static void ClearMeasures(string? name = null)
     {
-        if (name is not null) s_durations.Remove(name);
+        if (name is not null) s_durations.TryRemove(name, out _);
         else s_durations.Clear();
 
         s_performanceImpl?.ClearMeasures(name);
@@ -159,8 +166,8 @@ internal static class Performance
     {
         if (name is not null)
         {
-            s_counts.Remove(name);
-            s_marks.Remove(name);
+            s_counts.TryRemove(name, out _);
+            s_marks.TryRemove(name, out _);
         }
         else
         {

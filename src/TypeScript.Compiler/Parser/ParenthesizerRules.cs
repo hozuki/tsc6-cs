@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 
 namespace TypeScript.Compiler;
@@ -29,11 +30,19 @@ internal sealed class ParenthesizerRules : IParenthesizerRules
     /// <remarks>
     /// PORT-NOTE: TS creates this map on first use (<c>binaryLeftOperandParenthesizerCache ||= new Map()</c>) because a
     /// factory that never parenthesizes a binary operand should not pay for it; a lazy field keeps that.
+    /// <para>
+    /// PORT-NOTE (concurrency): the rules object is now one instance per factory and the factory is the process-wide
+    /// <see cref="NodeFactory.Factory"/>, so two workers printing at once fill this memo together — hence
+    /// <see cref="ConcurrentDictionary{TKey,TValue}"/> plus <c>GetOrAdd</c>, which also makes the lazy creation
+    /// unnecessary (the container is empty and cheap; the rule itself is what TS wanted to defer). This was the first
+    /// crash the parallel <c>tools/EmitDiff</c> pass found (3 files, stack at <c>GetParenthesizeLeftSideOfBinaryForOperator</c>);
+    /// see docs/architecture.md §18.
+    /// </para>
     /// </remarks>
-    private Dictionary<SyntaxKind, Func<Expression, Expression>>? _binaryLeftOperandParenthesizerCache;
+    private readonly ConcurrentDictionary<SyntaxKind, Func<Expression, Expression>> _binaryLeftOperandParenthesizerCache = new();
 
     /// <inheritdoc cref="_binaryLeftOperandParenthesizerCache"/>
-    private Dictionary<SyntaxKind, Func<Expression, Expression>>? _binaryRightOperandParenthesizerCache;
+    private readonly ConcurrentDictionary<SyntaxKind, Func<Expression, Expression>> _binaryRightOperandParenthesizerCache = new();
 
     /// <remarks>
     /// PORT-NOTE: TS stashes <c>getLiteralKindOfBinaryPlusOperand</c>'s answer on the node itself
@@ -51,31 +60,15 @@ internal sealed class ParenthesizerRules : IParenthesizerRules
 
     /// <summary>ported from: src/compiler/factory/parenthesizerRules.ts:95 — <c>getParenthesizeLeftSideOfBinaryForOperator</c>.</summary>
     public Func<Expression, Expression> GetParenthesizeLeftSideOfBinaryForOperator(SyntaxKind binaryOperator)
-    {
-        _binaryLeftOperandParenthesizerCache ??= [];
-
-        if (!_binaryLeftOperandParenthesizerCache.TryGetValue(binaryOperator, out var parenthesizerRule))
-        {
-            parenthesizerRule = node => ParenthesizeLeftSideOfBinary(binaryOperator, node);
-            _binaryLeftOperandParenthesizerCache[binaryOperator] = parenthesizerRule;
-        }
-
-        return parenthesizerRule;
-    }
+        => _binaryLeftOperandParenthesizerCache.GetOrAdd(
+            binaryOperator,
+            op => node => ParenthesizeLeftSideOfBinary(op, node));
 
     /// <summary>ported from: src/compiler/factory/parenthesizerRules.ts:105 — <c>getParenthesizeRightSideOfBinaryForOperator</c>.</summary>
     public Func<Expression, Expression> GetParenthesizeRightSideOfBinaryForOperator(SyntaxKind binaryOperator)
-    {
-        _binaryRightOperandParenthesizerCache ??= [];
-
-        if (!_binaryRightOperandParenthesizerCache.TryGetValue(binaryOperator, out var parenthesizerRule))
-        {
-            parenthesizerRule = node => ParenthesizeRightSideOfBinary(binaryOperator, null, node);
-            _binaryRightOperandParenthesizerCache[binaryOperator] = parenthesizerRule;
-        }
-
-        return parenthesizerRule;
-    }
+        => _binaryRightOperandParenthesizerCache.GetOrAdd(
+            binaryOperator,
+            op => node => ParenthesizeRightSideOfBinary(op, null, node));
 
     /// <summary>ported from: src/compiler/factory/parenthesizerRules.ts:115 — <c>mixingBinaryOperatorsRequiresParentheses</c>.</summary>
     /// <remarks>

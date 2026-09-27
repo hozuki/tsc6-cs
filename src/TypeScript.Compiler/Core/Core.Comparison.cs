@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 
 namespace TypeScript.Compiler;
 
@@ -115,17 +115,24 @@ internal static partial class Core
     // "variant", numeric: true })`. C# does not expose numeric collation through StringComparer, so the
     // port uses a culture-aware StringComparer with CompareOptions.StringSort. Ordering for UI display
     // may differ from the JS implementation for strings containing digit runs.
-    private static Comparer<string?>? _uiComparerCaseSensitive;
-    private static string? _uiLocale;
+    // PORT-NOTE (concurrency): the locale is process-wide configuration (harness/CLI) and the comparer is derived from
+    // it, so both live behind one lock; a reader never observes the comparer built from a previous locale. See
+    // docs/architecture.md §18.
+    private static readonly Lock s_uiLock = new();
+    private static Comparer<string?>? s_uiComparerCaseSensitive;
+    private static string? s_uiLocale;
 
-    public static string? GetUILocale() => _uiLocale;
+    public static string? GetUILocale() => Volatile.Read(ref s_uiLocale);
 
     public static void SetUILocale(string? value)
     {
-        if (_uiLocale != value)
+        lock (s_uiLock)
         {
-            _uiLocale = value;
-            _uiComparerCaseSensitive = null;
+            if (s_uiLocale != value)
+            {
+                s_uiLocale = value;
+                Volatile.Write(ref s_uiComparerCaseSensitive, null);
+            }
         }
     }
 
@@ -134,8 +141,16 @@ internal static partial class Core
     /// </summary>
     public static Comparison CompareStringsCaseSensitiveUI(string? a, string? b)
     {
-        _uiComparerCaseSensitive ??= CreateUIStringComparer(_uiLocale);
-        return _uiComparerCaseSensitive(a, b);
+        var comparer = Volatile.Read(ref s_uiComparerCaseSensitive);
+        if (comparer is null)
+        {
+            lock (s_uiLock)
+            {
+                comparer = s_uiComparerCaseSensitive ??= CreateUIStringComparer(s_uiLocale);
+            }
+        }
+
+        return comparer(a, b);
     }
 
     private static Comparer<string?> CreateUIStringComparer(string? locale)

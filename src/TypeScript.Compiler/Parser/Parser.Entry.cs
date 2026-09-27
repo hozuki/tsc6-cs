@@ -1,3 +1,4 @@
+﻿using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 
 namespace TypeScript.Compiler;
@@ -612,19 +613,17 @@ internal sealed partial class Parser
     /// <c>[GeneratedRegex]</c> partial method (§9 rule 7 allows <c>new Regex</c> exactly here). The cache is TS's, kept
     /// so the same argument name is compiled once per process.
     /// </remarks>
-    private static readonly Dictionary<string, Regex> s_namedArgRegExCache = new(StringComparer.Ordinal);
+    /// <remarks>
+    /// PORT-NOTE (concurrency): TS's cache is a plain `Map` filled on first use; the port keeps the memo but through a
+    /// <see cref="ConcurrentDictionary{TKey,TValue}"/>, because two workers can name the same argument at once (a
+    /// duplicate compile would be harmless, a torn dictionary would not). See docs/architecture.md §18.
+    /// </remarks>
+    private static readonly ConcurrentDictionary<string, Regex> s_namedArgRegExCache = new(StringComparer.Ordinal);
 
     private static Regex GetNamedArgRegEx(string name)
-    {
-        if (s_namedArgRegExCache.TryGetValue(name, out var cached))
-        {
-            return cached;
-        }
-
-        var result = new Regex($"(\\s{name}\\s*=\\s*)(?:(?:'([^']*)')|(?:\"([^\"]*)\"))", RegexOptions.IgnoreCase | RegexOptions.Multiline);
-        s_namedArgRegExCache[name] = result;
-        return result;
-    }
+        => s_namedArgRegExCache.GetOrAdd(
+            name,
+            static argName => new Regex($"(\\s{argName}\\s*=\\s*)(?:(?:'([^']*)')|(?:\"([^\"]*)\"))", RegexOptions.IgnoreCase | RegexOptions.Multiline));
 
     /// <summary>ported from: src/compiler/parser.ts:10710 — <c>tripleSlashXMLCommentStartRegEx</c>.</summary>
     [GeneratedRegex("^///\\s*<(\\S+)\\s.*?/>", RegexOptions.Multiline)]

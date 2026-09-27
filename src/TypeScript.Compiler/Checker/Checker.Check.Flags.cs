@@ -1,4 +1,4 @@
-namespace TypeScript.Compiler;
+﻿namespace TypeScript.Compiler;
 
 // ported from: src/compiler/checker.ts:50854-50862 (declaredParameterTypeContainsUndefined)
 // ported from: src/compiler/checker.ts:50864-50883 (requiresAddingImplicitUndefined … isOptionalUninitializedParameterProperty)
@@ -167,12 +167,13 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:50919-50923 — <c>getNodeCheckFlags</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: TS reads <c>node.id || 0</c> (which does not allocate an id) and then bounds-checks the sparse
-    /// <c>nodeLinks</c> array; the port reads the same nullable id slot and pads nothing, so an id past the end of the
-    /// table is the "no links yet" case and answers <see cref="NodeCheckFlags.None"/> exactly as TS's <c>0</c> does.
+    /// <c>nodeLinks</c> array; the port reads the same id slot — <c>0</c> is "unassigned" (see <see cref="Node.Id"/>) —
+    /// and pads nothing, so an id past the end of the table is the "no links yet" case and answers
+    /// <see cref="NodeCheckFlags.None"/> exactly as TS's <c>0</c> does.
     /// </remarks>
     internal NodeCheckFlags GetNodeCheckFlags(Node node)
     {
-        var nodeId = node.Id ?? 0;
+        var nodeId = node.Id;
         if (nodeId < 0 || nodeId >= _nodeLinks.Count)
         {
             return NodeCheckFlags.None;

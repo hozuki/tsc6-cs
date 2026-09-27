@@ -82,7 +82,8 @@ public class NodeModelTests
         Assert.Equal(3, node.Pos);
         Assert.Equal(9, node.End);
         Assert.Null(node.Parent);
-        Assert.Null(node.Id);
+        // `0` is the port's "no id assigned yet" — TS's `id?: NodeId`, whose first id is 1 (see Node.Id).
+        Assert.Equal(0, node.Id);
     }
 
     [Fact]

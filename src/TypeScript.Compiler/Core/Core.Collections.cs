@@ -1,3 +1,5 @@
+﻿using System.Collections.Concurrent;
+
 namespace TypeScript.Compiler;
 
 // ported from: src/compiler/core.ts:1527-1743, 1750-1775, 1266-1321
@@ -251,14 +253,17 @@ internal static partial class Core
     public static Func<A, T> MemoizeOne<A, T>(Func<A, T> callback)
         where A : notnull
     {
-        var map = new Dictionary<string, T>();
+        // PORT-NOTE (concurrency): TS's `memoizeOne` fills a plain `Map` on first use; the port keeps the same
+        // string key (`${typeof arg}:${arg}`, core.ts:1910) but a ConcurrentDictionary, so two workers asking for the
+        // same miss cannot tear the map. See docs/architecture.md §18.
+        var map = new ConcurrentDictionary<string, T>(StringComparer.Ordinal);
         return arg =>
         {
             var key = $"{typeof(A).Name}:{arg}";
             if (!map.TryGetValue(key, out var value))
             {
                 value = callback(arg);
-                map[key] = value;
+                map.TryAdd(key, value);
             }
 
             return value;

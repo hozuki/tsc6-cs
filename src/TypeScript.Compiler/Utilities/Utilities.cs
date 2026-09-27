@@ -1,4 +1,4 @@
-namespace TypeScript.Compiler;
+﻿namespace TypeScript.Compiler;
 
 // ported from: src/compiler/utilitiesPublic.ts:820-846 (isParseTreeNode, getParseTreeNode)
 // ported from: src/compiler/utilities.ts:984-989 (getSourceFileOfNode)
@@ -486,16 +486,25 @@ internal static partial class Utilities
     /// </remarks>
     public static int GetNodeId(Node node)
     {
-        if (node.Id is null)
+        if (node.Id != 0)
         {
-            node.Id = s_nextNodeId;
-            s_nextNodeId++;
+            return node.Id;
         }
 
-        return node.Id.Value;
+        // PORT-NOTE (concurrency): the reference assigns `id ??= nextNodeId++` on one thread, so "assign then
+        // increment" hands out 1, 2, 3, …; several workers can ask for the same node's id at once under the port's
+        // parallel phases (every worker reaches the same library-file nodes), so the counter is atomic and the slot
+        // write is the compare-exchange the Go port wrote (`tsc/internal/ast/utilities.go:21-29`). A loser of the
+        // race burns one id and answers the winner's — exactly Go's "worst case, we burn a few ids" — which keeps the
+        // ids unique without a lock and without a second lookup.
+        var id = Interlocked.Increment(ref s_nextNodeId);
+        var winner = Interlocked.CompareExchange(ref node.IdSlot, id, 0);
+        return winner != 0 ? winner : id;
     }
 
-    private static int s_nextNodeId = 1;
+    // TS starts this at 1 and increments *after* assigning (utilities.ts:1364), so the first id is 1; starting the
+    // atomic counter at 0 makes `Interlocked.Increment` hand out that same 1.
+    private static int s_nextNodeId;
 
     /// <summary>ported from: src/compiler/utilitiesPublic.ts:1431 — <c>skipPartiallyEmittedExpressions</c>.</summary>
     /// <remarks>
@@ -1615,9 +1624,11 @@ internal static partial class Utilities
     /// The union is therefore built once, on first read, by <see cref="CreateNodeCoreModules"/>, which is the reference's
     /// own expression (the unprefixed list, that list prefixed with <c>node:</c>, and the exclusively-prefixed list).
     /// </remarks>
-    public static HashSet<string> NodeCoreModules => s_nodeCoreModules ??= CreateNodeCoreModules();
+    public static HashSet<string> NodeCoreModules => s_nodeCoreModules.Value;
 
-    private static HashSet<string>? s_nodeCoreModules;
+    // PORT-NOTE (concurrency): stays lazy for the static-initializer reason above, but `Lazy<T>` publishes one
+    // instance instead of racing two builders; see docs/architecture.md §18.
+    private static readonly Lazy<HashSet<string>> s_nodeCoreModules = new(CreateNodeCoreModules);
 
     private static HashSet<string> CreateNodeCoreModules()
     {

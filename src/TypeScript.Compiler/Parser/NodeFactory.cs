@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 
 // `Flags` is the instance property below (TS's `factory.flags`), and it shadows the `Core/Flags.cs` helper class
 // inside this type — the same collision the port accepted for the property name.
@@ -49,6 +49,15 @@ internal partial class NodeFactory
     {
         _flags = flags;
         _synthesizedNodes = synthesizedNodes;
+        // PORT-NOTE (concurrency): the reference memoizes these two in a closure per factory; the port used `??=` on
+        // fields, which is a write race on the shared `NodeFactory.Factory` once several workers build nodes. Both are
+        // small and stateless, so they are built once here instead — no lazy check on the hot path either.
+        _parenthesizer = (flags & NodeFactoryFlags.NoParenthesizerRules) != 0
+            ? NullParenthesizerRules.Instance
+            : new ParenthesizerRules(this);
+        _converters = (flags & NodeFactoryFlags.NoNodeConverters) != 0
+            ? NullNodeConverters.Instance
+            : new NodeConverters(this);
     }
 
     /// <summary>How this factory was configured (see <see cref="NodeFactoryFlags"/>).</summary>
@@ -74,24 +83,18 @@ internal partial class NodeFactory
     /// <see cref="NodeFactoryFlags.NoParenthesizerRules"/>. C# has no closure to memoize into, so the memo is a field,
     /// and the flag selects <see cref="NullParenthesizerRules"/> — the same object TS uses for that flag.
     /// </remarks>
-    public IParenthesizerRules Parenthesizer
-        => _parenthesizer ??= (_flags & NodeFactoryFlags.NoParenthesizerRules) != 0
-            ? NullParenthesizerRules.Instance
-            : new ParenthesizerRules(this);
+    public IParenthesizerRules Parenthesizer => _parenthesizer;
 
-    private IParenthesizerRules? _parenthesizer;
+    private readonly IParenthesizerRules _parenthesizer;
 
     /// <summary>ported from: factory/nodeFactory.ts:497-519 — the <c>converters()</c> the factory keeps lazily.</summary>
     /// <remarks>
     /// PORT-NOTE: TS's <c>nullNodeConverters</c> is the <see cref="NodeFactoryFlags.NoNodeConverters"/> answer; the port
     /// keeps that object too, so the flag means here what it means there (every converter throws).
     /// </remarks>
-    public INodeConverters Converters
-        => _converters ??= (_flags & NodeFactoryFlags.NoNodeConverters) != 0
-            ? NullNodeConverters.Instance
-            : new NodeConverters(this);
+    public INodeConverters Converters => _converters;
 
-    private INodeConverters? _converters;
+    private readonly INodeConverters _converters;
 
     //
     // Node creation
@@ -1031,7 +1034,7 @@ internal partial class NodeFactory
             && !Utilities.IsParseTreeNode(node)
             && node.Original is null
             && node.EmitNode is null
-            && node.Id is null)
+            && node.Id == 0)
         {
             if (NodeTests.IsCommaListExpression(node)) return ((CommaListExpression)node).Elements!;
 
@@ -1347,7 +1350,13 @@ internal partial class NodeFactory
     //
 
     /// <summary>TS's module-level <c>rawTextScanner</c>: the scanner <c>getCookedText</c> reuses.</summary>
-    private static Scanner? _rawTextScanner;
+    /// <remarks>
+    /// PORT-NOTE (concurrency): a scanner is one mutable text/position pair, so a shared one would let two workers cook
+    /// each other's template text. Per thread it keeps the reference's shape — allocated once, then reused through
+    /// <c>setText</c> — without the sharing. See docs/architecture.md §18.
+    /// </remarks>
+    [ThreadStatic]
+    private static Scanner? t_rawTextScanner;
 
     /// <summary>TS's <c>invalidValueSentinel</c> — a value no cooked text can be.</summary>
     private static readonly object s_invalidValueSentinel = new();
@@ -1359,33 +1368,33 @@ internal partial class NodeFactory
     /// </remarks>
     private static object GetCookedText(SyntaxKind kind, string rawText)
     {
-        _rawTextScanner ??= Scanner.Create(ScriptTarget.Latest, skipTrivia: false, LanguageVariant.Standard);
+        t_rawTextScanner ??= Scanner.Create(ScriptTarget.Latest, skipTrivia: false, LanguageVariant.Standard);
 
         switch (kind)
         {
             case SyntaxKind.NoSubstitutionTemplateLiteral:
-                _rawTextScanner.SetText("`" + rawText + "`", null, null);
+                t_rawTextScanner.SetText("`" + rawText + "`", null, null);
                 break;
             case SyntaxKind.TemplateHead:
-                _rawTextScanner.SetText("`" + rawText + "${", null, null);
+                t_rawTextScanner.SetText("`" + rawText + "${", null, null);
                 break;
             case SyntaxKind.TemplateMiddle:
-                _rawTextScanner.SetText("}" + rawText + "${", null, null);
+                t_rawTextScanner.SetText("}" + rawText + "${", null, null);
                 break;
             case SyntaxKind.TemplateTail:
-                _rawTextScanner.SetText("}" + rawText + "`", null, null);
+                t_rawTextScanner.SetText("}" + rawText + "`", null, null);
                 break;
         }
 
-        var token = _rawTextScanner.Scan();
+        var token = t_rawTextScanner.Scan();
         if (token == SyntaxKind.CloseBraceToken)
         {
-            token = _rawTextScanner.ReScanTemplateToken(isTaggedTemplate: false);
+            token = t_rawTextScanner.ReScanTemplateToken(isTaggedTemplate: false);
         }
 
-        if (_rawTextScanner.IsUnterminated())
+        if (t_rawTextScanner.IsUnterminated())
         {
-            _rawTextScanner.SetText(null, null, null);
+            t_rawTextScanner.SetText(null, null, null);
             return s_invalidValueSentinel;
         }
 
@@ -1396,17 +1405,17 @@ internal partial class NodeFactory
             case SyntaxKind.TemplateHead:
             case SyntaxKind.TemplateMiddle:
             case SyntaxKind.TemplateTail:
-                tokenValue = _rawTextScanner.GetTokenValue();
+                tokenValue = t_rawTextScanner.GetTokenValue();
                 break;
         }
 
-        if (tokenValue is null || _rawTextScanner.Scan() != SyntaxKind.EndOfFileToken)
+        if (tokenValue is null || t_rawTextScanner.Scan() != SyntaxKind.EndOfFileToken)
         {
-            _rawTextScanner.SetText(null, null, null);
+            t_rawTextScanner.SetText(null, null, null);
             return s_invalidValueSentinel;
         }
 
-        _rawTextScanner.SetText(null, null, null);
+        t_rawTextScanner.SetText(null, null, null);
         return tokenValue;
     }
 
@@ -4467,8 +4476,16 @@ internal partial class NodeFactory
     /// <remarks>
     /// PORT-NOTE: TS keeps the counter in a module-level variable. A static field is the same thing; it is deliberately
     /// not per-factory, because ids must be unique across every factory that hands out generated names.
+    /// <para>
+    /// PORT-NOTE (concurrency): transforms run per file and the port's parallel emit phase can run several at once, so
+    /// ids are handed out with an atomic counter. TS assigns <c>nextAutoGenerateId++</c> (nodeFactory.ts:479 reads it,
+    /// :480 increments), so the first id is <c>0</c>; the increment-then-subtract keeps that sequence.
+    /// </para>
     /// </remarks>
     private static int s_nextAutoGenerateId;
+
+    /// <summary>The next unique <c>AutoGenerateInfo</c> id — see <see cref="s_nextAutoGenerateId"/>.</summary>
+    private static int NextAutoGenerateId() => Interlocked.Increment(ref s_nextAutoGenerateId) - 1;
 
     /// <summary>ported from: factory/nodeFactory.ts:1313 — <c>createBaseGeneratedIdentifier</c>.</summary>
     private Identifier CreateBaseGeneratedIdentifier(
@@ -4478,8 +4495,7 @@ internal partial class NodeFactory
         string? suffix)
     {
         var node = CreateBaseIdentifier(Utilities.EscapeLeadingUnderscores(text));
-        EmitNodes.SetIdentifierAutoGenerate(node, new AutoGenerateInfo(autoGenerateFlags, s_nextAutoGenerateId, prefix, suffix));
-        s_nextAutoGenerateId++;
+        EmitNodes.SetIdentifierAutoGenerate(node, new AutoGenerateInfo(autoGenerateFlags, NextAutoGenerateId(), prefix, suffix));
         return node;
     }
 
@@ -4558,8 +4574,7 @@ internal partial class NodeFactory
         string? suffix)
     {
         var node = CreateBasePrivateIdentifier(Utilities.EscapeLeadingUnderscores(text));
-        EmitNodes.SetIdentifierAutoGenerate(node, new AutoGenerateInfo(autoGenerateFlags, s_nextAutoGenerateId, prefix, suffix));
-        s_nextAutoGenerateId++;
+        EmitNodes.SetIdentifierAutoGenerate(node, new AutoGenerateInfo(autoGenerateFlags, NextAutoGenerateId(), prefix, suffix));
         return node;
     }
 
@@ -5087,7 +5102,7 @@ internal partial class NodeFactory
         // The fresh node TS starts from owns these, so the copy loop never reaches them.
         clone.Pos = -1;
         clone.End = -1;
-        clone.Id = null;
+        clone.Id = 0;
         clone.Parent = null;
         clone.ModifierFlagsCache = ModifierFlags.None;
 

@@ -1,4 +1,4 @@
-namespace TypeScript.Compiler;
+﻿namespace TypeScript.Compiler;
 
 // ported from: src/compiler/moduleNameResolver.ts:1-1492
 //   118-126     trace / isTraceEnabled
@@ -305,13 +305,13 @@ internal static partial class ModuleNameResolver
     // typesVersions
     // ---------------------------------------------------------------------------------------------
 
-    private static Version? s_typeScriptVersion;
+    // PORT-NOTE (concurrency): the compiler's own version never changes, so parsing it once at type load is both
+    // cheaper and thread-safe; the lazy `??=` it replaced was neither needed nor safe. See docs/architecture.md §18.
+    private static readonly Version s_typeScriptVersion = new(VersionInfo.Version);
 
     /// <summary>ported from: src/compiler/moduleNameResolver.ts:461-477 — <c>getPackageJsonTypesVersionsPaths</c>.</summary>
     public static VersionPaths? GetPackageJsonTypesVersionsPaths(Dictionary<string, Dictionary<string, List<string>>> typesVersions)
     {
-        s_typeScriptVersion ??= new Version(VersionInfo.Version);
-
         foreach (var key in Core.GetOwnKeys(typesVersions))
         {
             var keyRange = VersionRange.TryParse(key);

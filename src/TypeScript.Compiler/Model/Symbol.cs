@@ -69,10 +69,33 @@ internal partial class Symbol : ISymbol
     public SymbolTable? GlobalExports { get; set; }
 
     /// <summary>ported from: src/compiler/types.ts:6045 — <c>Symbol.id</c>.</summary>
-    public int Id { get; set; }
+    /// <remarks>
+    /// PORT-NOTE: assigned lazily by <c>Utilities.GetSymbolId</c>, which several workers can reach at once for a
+    /// shared symbol, so the assignment is a compare-exchange (<c>tsc/internal/ast/utilities.go:31-40</c> does the
+    /// same for <c>Symbol.Id</c>). TS's first id is <c>1</c> (<c>utilities.ts:1379</c>'s <c>nextSymbolId = 1</c>), so
+    /// <c>0</c> means "unassigned" here; <see cref="IdSlot"/> is the <c>ref</c> form the CAS needs.
+    /// </remarks>
+    public int Id
+    {
+        get => Volatile.Read(ref _id);
+        set => Volatile.Write(ref _id, value);
+    }
+
+    internal ref int IdSlot => ref _id;
+
+    private int _id;
 
     /// <summary>ported from: src/compiler/types.ts:6046 — <c>Symbol.mergeId</c>.</summary>
-    public int MergeId { get; set; }
+    /// <remarks>PORT-NOTE: same lazy-assignment race as <see cref="Id"/>, so the same <c>ref</c> form.</remarks>
+    public int MergeId
+    {
+        get => Volatile.Read(ref _mergeId);
+        set => Volatile.Write(ref _mergeId, value);
+    }
+
+    internal ref int MergeIdSlot => ref _mergeId;
+
+    private int _mergeId;
 
     /// <summary>ported from: src/compiler/types.ts:6047 — <c>Symbol.parent</c>.</summary>
     public ISymbol? Parent { get; set; }

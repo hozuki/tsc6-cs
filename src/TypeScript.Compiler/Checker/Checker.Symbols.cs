@@ -39,8 +39,10 @@
 internal sealed partial class Checker
 {
     /// <summary>ported from: src/compiler/checker.ts:1171 — <c>nextMergeId</c>.</summary>
-    /// <remarks>PORT-NOTE: module-level (hence shared) in the reference; <c>static</c> here.</remarks>
-    private static int s_nextMergeId = 1;
+    /// <remarks>PORT-NOTE: module-level (hence shared) in the reference; <c>static</c> here, and atomic — see
+    /// <c>RecordMergedSymbol</c>. TS's <c>1</c> is an assign-then-increment first id, so the counter starts at
+    /// <c>0</c>.</remarks>
+    private static int s_nextMergeId;
 
     /// <summary>ported from: src/compiler/checker.ts:2356 — <c>mergedSymbols</c>.</summary>
     /// <remarks>
@@ -127,18 +129,31 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:2674-2680 — <c>recordMergedSymbol</c>.</summary>
     internal void RecordMergedSymbol(ISymbol target, ISymbol source)
     {
-        if (source.MergeId == 0)
+        // PORT-NOTE (concurrency): `source.mergeId ??= nextMergeId++` (checker.ts:2676-2679) assumes one thread; a
+        // merged symbol is reachable from every shard, so the id comes from an atomic counter and the slot write is a
+        // compare-exchange, exactly as <c>Utilities.GetSymbolId</c> does. Each destination symbol's id still indexes
+        // this checker's own <c>_mergedSymbols</c> table, which is why the id must be assigned once, globally.
+        var mergeId = source.MergeId;
+        if (mergeId == 0)
         {
-            source.MergeId = s_nextMergeId;
-            s_nextMergeId++;
+            mergeId = Interlocked.Increment(ref s_nextMergeId);
+            if (source is Symbol concrete)
+            {
+                var winner = Interlocked.CompareExchange(ref concrete.MergeIdSlot, mergeId, 0);
+                if (winner != 0) mergeId = winner;
+            }
+            else
+            {
+                source.MergeId = mergeId;
+            }
         }
 
-        while (_mergedSymbols.Count <= source.MergeId)
+        while (_mergedSymbols.Count <= mergeId)
         {
             _mergedSymbols.Add(null);
         }
 
-        _mergedSymbols[source.MergeId] = target;
+        _mergedSymbols[mergeId] = target;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:2682-2696 — <c>cloneSymbol</c>.</summary>

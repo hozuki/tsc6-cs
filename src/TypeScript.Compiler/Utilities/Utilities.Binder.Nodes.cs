@@ -526,16 +526,29 @@ internal static partial class Utilities
     /// </remarks>
     public static int GetSymbolId(ISymbol symbol)
     {
-        if (symbol.Id == 0)
+        if (symbol.Id != 0)
         {
-            symbol.Id = s_nextSymbolId;
-            s_nextSymbolId++;
+            return symbol.Id;
         }
 
-        return symbol.Id;
+        // PORT-NOTE (concurrency): same shape as <see cref="Utilities.GetNodeId"/> and for the same reason — a
+        // worker can ask for a shared symbol's id at the moment another one does (the reference's
+        // `symbol.id ??= nextSymbolId++`, utilities.ts:1378-1383, assumes one thread). `Symbol` is the assembly's only
+        // <c>ISymbol</c> implementation (plus <c>TransientSymbol</c>), which is what the compare-exchange needs;
+        // anything else answers the plain assignment, as the reference does.
+        var id = Interlocked.Increment(ref s_nextSymbolId);
+        if (symbol is Symbol concrete)
+        {
+            var winner = Interlocked.CompareExchange(ref concrete.IdSlot, id, 0);
+            return winner != 0 ? winner : id;
+        }
+
+        symbol.Id = id;
+        return id;
     }
 
-    private static int s_nextSymbolId = 1;
+    // TS starts this at 1 and increments after assigning (utilities.ts:1379), so the first id is 1.
+    private static int s_nextSymbolId;
 
     /// <summary>ported from: src/compiler/utilities.ts:5584-5586 — <c>isPushOrUnshiftIdentifier</c>.</summary>
     public static bool IsPushOrUnshiftIdentifier(Identifier node)

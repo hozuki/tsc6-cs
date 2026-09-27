@@ -106,26 +106,38 @@ internal sealed class PrintHandlers : IPrintHandlers
 /// PORT-NOTE: TS exports four <c>/* @__PURE__ */ memoize(() =&gt; createPrinter(...))</c> constants; the port states them
 /// as four no-argument static methods (the checker's <c>*ToString</c> gates call them by name) over
 /// <see cref="Core.Memoize{T}"/>, which is the port's <c>memoize</c>.
+/// <para>
+/// PORT-NOTE (concurrency): the reference's four printers are process-wide *stateful* objects — <c>writeNode</c> saves
+/// the writer, prints, resets and restores it (emitter.ts:1335-1345) — which is safe on JS's single thread and not on
+/// the port's parallel ones: the first parallel test run corrupted two of them
+/// (<c>Printer.WriteBase</c> read a writer another test's <c>reset</c> had already cleared). The memo is therefore
+/// per thread (<c>[ThreadStatic]</c>): one printer per kind per worker, built on first use, which is the reference's
+/// cost profile — one allocation per kind, not per call — with no shared mutable state. The Go port builds its printer
+/// per emit context for the same reason. See docs/architecture.md §18.
+/// </para>
 /// </remarks>
 internal static class PrinterFactory
 {
-    private static readonly Func<Printer> s_printerWithDefaults = Core.Memoize(() => new Printer());
+    [ThreadStatic] private static Printer? t_printerWithDefaults;
 
-    private static readonly Func<Printer> s_printerWithRemoveComments = Core.Memoize(() => new Printer(new PrinterOptions { RemoveComments = true }));
+    [ThreadStatic] private static Printer? t_printerWithRemoveComments;
 
-    private static readonly Func<Printer> s_printerWithRemoveCommentsNeverAsciiEscape = Core.Memoize(() => new Printer(new PrinterOptions { RemoveComments = true, NeverAsciiEscape = true }));
+    [ThreadStatic] private static Printer? t_printerWithRemoveCommentsNeverAsciiEscape;
 
-    private static readonly Func<Printer> s_printerWithRemoveCommentsOmitTrailingSemicolon = Core.Memoize(() => new Printer(new PrinterOptions { RemoveComments = true, OmitTrailingSemicolon = true }));
+    [ThreadStatic] private static Printer? t_printerWithRemoveCommentsOmitTrailingSemicolon;
 
     /// <summary>ported from: src/compiler/emitter.ts:1199 — <c>createPrinterWithDefaults</c>.</summary>
-    internal static Printer CreatePrinterWithDefaults() => s_printerWithDefaults();
+    internal static Printer CreatePrinterWithDefaults() => t_printerWithDefaults ??= new Printer();
 
     /// <summary>ported from: src/compiler/emitter.ts:1202 — <c>createPrinterWithRemoveComments</c>.</summary>
-    internal static Printer CreatePrinterWithRemoveComments() => s_printerWithRemoveComments();
+    internal static Printer CreatePrinterWithRemoveComments()
+        => t_printerWithRemoveComments ??= new Printer(new PrinterOptions { RemoveComments = true });
 
     /// <summary>ported from: src/compiler/emitter.ts:1205 — <c>createPrinterWithRemoveCommentsNeverAsciiEscape</c>.</summary>
-    internal static Printer CreatePrinterWithRemoveCommentsNeverAsciiEscape() => s_printerWithRemoveCommentsNeverAsciiEscape();
+    internal static Printer CreatePrinterWithRemoveCommentsNeverAsciiEscape()
+        => t_printerWithRemoveCommentsNeverAsciiEscape ??= new Printer(new PrinterOptions { RemoveComments = true, NeverAsciiEscape = true });
 
     /// <summary>ported from: src/compiler/emitter.ts:1208 — <c>createPrinterWithRemoveCommentsOmitTrailingSemicolon</c>.</summary>
-    internal static Printer CreatePrinterWithRemoveCommentsOmitTrailingSemicolon() => s_printerWithRemoveCommentsOmitTrailingSemicolon();
+    internal static Printer CreatePrinterWithRemoveCommentsOmitTrailingSemicolon()
+        => t_printerWithRemoveCommentsOmitTrailingSemicolon ??= new Printer(new PrinterOptions { RemoveComments = true, OmitTrailingSemicolon = true });
 }

@@ -3624,9 +3624,10 @@ internal sealed partial class Checker
     /// <remarks>
     /// PORT-NOTE: TS declares this counter at module scope next to <c>nextNodeId</c> (checker.ts:1170), so it is
     /// shared by every checker instance. The port states it as a static field for the same reason
-    /// <c>Utilities.GetNodeId</c> does, and keeps TS's initial value of <c>1</c>.
+    /// <c>Utilities.GetNodeId</c> does. TS's initial value of <c>1</c> is an *assign-then-increment* first id, so the
+    /// atomic counter starts at <c>0</c> and <c>Interlocked.Increment</c> hands out the same <c>1</c>.
     /// </remarks>
-    private static int s_nextFlowId = 1;
+    private static int s_nextFlowId;
 
     /// <summary>ported from: src/compiler/types.ts:4259-4267 — <c>IncompleteType</c> and the <c>FlowType</c> union.</summary>
     /// <remarks>
@@ -3667,12 +3668,17 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:28095-28101 — <c>getFlowNodeId</c>.</summary>
     internal int GetFlowNodeId(FlowNode flow)
     {
-        if (flow.Id <= 0)
+        if (flow.Id > 0)
         {
-            flow.Id = s_nextFlowId;
-            s_nextFlowId++;
+            return flow.Id;
         }
-        return flow.Id;
+
+        // PORT-NOTE (concurrency): the reference's `flow.id = nextFlowId++` (checker.ts:1173-1180) is one thread's
+        // "assign then increment"; under the port's parallel check phase two workers can reach the same flow node, so
+        // the counter is atomic and the slot write is a compare-exchange (the shape of `tsc/internal/ast/utilities.go:21-29`).
+        var id = Interlocked.Increment(ref s_nextFlowId);
+        var winner = Interlocked.CompareExchange(ref flow.IdSlot, id, 0);
+        return winner != 0 ? winner : id;
     }
 
     /// <summary>PORT-NOTE: TS's flow caches (checker.ts:2359-2366) are JS arrays written at a flow-node id or at a

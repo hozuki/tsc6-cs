@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace TypeScript.Compiler;
@@ -1753,9 +1753,19 @@ internal sealed class EvaluatorResultValue<T> : IEvaluatorResult<T>
     /// <summary>The single-line writer <c>usingSingleLineStringWriter</c> and the checker's <c>*ToStringWorker</c> pair share.</summary>
     /// <remarks>
     /// PORT-NOTE: TS declares <c>const stringWriter = createSingleLineStringWriter()</c> (utilities.ts:668) as a
-    /// module-level singleton; the port states it as the static field the same closure would capture.
+    /// module-level singleton; the port states it as the field the same closure would capture.
+    /// <para>
+    /// PORT-NOTE (concurrency): that singleton is *stateful* — <see cref="UsingSingleLineStringWriter"/> clears it,
+    /// writes through it and restores the previous text — so two workers stringifying at once would interleave in one
+    /// buffer. It is therefore <c>[ThreadStatic]</c>: one writer per worker, which is the reference's cost profile
+    /// (created once, reused), with no shared mutable state. See docs/architecture.md §18.
+    /// </para>
     /// </remarks>
-    private static readonly IEmitTextWriter s_stringWriter = new SingleLineStringWriter();
+    [ThreadStatic]
+    private static IEmitTextWriter? t_stringWriter;
+
+    /// <summary>The calling thread's single-line writer — see <see cref="t_stringWriter"/>.</summary>
+    private static IEmitTextWriter StringWriter => t_stringWriter ??= new SingleLineStringWriter();
 
     /// <summary>ported from: src/compiler/utilities.ts:670-703 — <c>createSingleLineStringWriter</c>.</summary>
     /// <remarks>
@@ -1775,16 +1785,17 @@ internal sealed class EvaluatorResultValue<T> : IEvaluatorResult<T>
     /// </remarks>
     public static string UsingSingleLineStringWriter(Func<IEmitTextWriter, IEmitTextWriter> action)
     {
-        var oldString = s_stringWriter.GetText();
+        var writer = StringWriter;
+        var oldString = writer.GetText();
         try
         {
-            action(s_stringWriter);
-            return s_stringWriter.GetText();
+            action(writer);
+            return writer.GetText();
         }
         finally
         {
-            s_stringWriter.Clear();
-            s_stringWriter.WriteKeyword(oldString);
+            writer.Clear();
+            writer.WriteKeyword(oldString);
         }
     }
 

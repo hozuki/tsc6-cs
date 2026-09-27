@@ -60,11 +60,30 @@ internal abstract class Node : INode, IReadonlyTextRange, ITextRange
     // ported from: types.ts:946 — `readonly transformFlags: TransformFlags`
     public TransformFlags TransformFlags { get; set; }
 
+    // ported from: types.ts:947 — `id?: NodeId`
     /// <summary>
-    /// Unique id, used to look up <c>NodeLinks</c>. Assigned lazily by the checker, so it stays null until
-    /// something asks for it — the same laziness TS encodes with <c>id?: NodeId</c>.
+    /// Unique id, used to look up <c>NodeLinks</c>. Assigned lazily by the checker, so it stays <c>0</c> until
+    /// something asks for it — the same laziness TS encodes with <c>id?: NodeId</c>, whose first id is <c>1</c>
+    /// (<c>utilities.ts:1364</c>'s <c>nextNodeId = 1</c>), leaving <c>0</c> free as the port's "unassigned".
     /// </summary>
-    public int? Id { get; set; }
+    /// <remarks>
+    /// PORT-NOTE: TS's slot is <c>id?: NodeId</c>, which spells "unassigned" as <c>undefined</c> and is only ever
+    /// assigned one value per node. Under the port's parallel phases several workers can ask for the same node's id
+    /// at once (a shared library file's nodes are reachable from every worker), so the assignment is the CAS the Go
+    /// port wrote (<c>tsc/internal/ast/utilities.go:22-29</c>). That needs a <c>ref</c>-able <c>int</c>, which is why
+    /// the slot is a field pair instead of the <c>int?</c> auto-property this used to be: <c>Volatile</c> reads keep a
+    /// reader from seeing a stale value and <see cref="IdSlot"/> is what <c>Utilities.GetNodeId</c> CASes.
+    /// </remarks>
+    public int Id
+    {
+        get => Volatile.Read(ref _id);
+        set => Volatile.Write(ref _id, value);
+    }
+
+    /// <summary>The <c>ref</c> form <c>Utilities.GetNodeId</c>'s compare-exchange needs; not a public member.</summary>
+    internal ref int IdSlot => ref _id;
+
+    private int _id;
 
     /// <summary>Parent node. Initialized by binding, so it is null until <c>bindSourceFile</c> runs.</summary>
     public Node? Parent { get; set; }

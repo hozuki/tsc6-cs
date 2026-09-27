@@ -1,3 +1,4 @@
+﻿using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 
 namespace TypeScript.Compiler;
@@ -3758,28 +3759,32 @@ internal sealed partial class Scanner
 
     // ---- Unicode property tables, indexed the way the grammar rules above need them. ----
 
-    private static Dictionary<string, string> NonBinaryUnicodeProperties() => s_nonBinaryUnicodeProperties ??= BuildNonBinary();
+    // PORT-NOTE (concurrency): these four tables and the per-property cache below were `??=` on static fields built by
+    // the regular-expression parser's first use — a write race once two workers parse regexes at once. They stay lazy
+    // (each is built from large tables), but `Lazy<T>` publishes one instance and `ConcurrentDictionary` serves the
+    // per-key cache. See docs/architecture.md §18.
+    private static readonly Lazy<Dictionary<string, string>> s_nonBinaryUnicodeProperties = new(BuildNonBinary);
 
-    private static List<string> NonBinaryUnicodePropertyNames() => s_nonBinaryUnicodePropertyNames ??= [.. NonBinaryUnicodeProperties().Keys];
+    private static readonly Lazy<List<string>> s_nonBinaryUnicodePropertyNames = new(() => [.. NonBinaryUnicodeProperties().Keys]);
 
-    private static HashSet<string> BinaryUnicodeProperties() => s_binaryUnicodeProperties ??= [.. ScannerTables.BinaryUnicodeProperties];
+    private static readonly Lazy<HashSet<string>> s_binaryUnicodeProperties = new(() => [.. ScannerTables.BinaryUnicodeProperties]);
 
-    private static HashSet<string> BinaryUnicodePropertiesOfStrings() => s_binaryUnicodePropertiesOfStrings ??= [.. ScannerTables.BinaryUnicodePropertiesOfStrings];
+    private static readonly Lazy<HashSet<string>> s_binaryUnicodePropertiesOfStrings = new(() => [.. ScannerTables.BinaryUnicodePropertiesOfStrings]);
+
+    private static Dictionary<string, string> NonBinaryUnicodeProperties() => s_nonBinaryUnicodeProperties.Value;
+
+    private static List<string> NonBinaryUnicodePropertyNames() => s_nonBinaryUnicodePropertyNames.Value;
+
+    private static HashSet<string> BinaryUnicodeProperties() => s_binaryUnicodeProperties.Value;
+
+    private static HashSet<string> BinaryUnicodePropertiesOfStrings() => s_binaryUnicodePropertiesOfStrings.Value;
 
     private static HashSet<string> UnicodePropertyValues(string property)
     {
-        if (s_unicodePropertyValues.TryGetValue(property, out var cached)) return cached;
-
-        var values = new HashSet<string>(UnicodePropertyValuesOf(property), StringComparer.Ordinal);
-        s_unicodePropertyValues[property] = values;
-        return values;
+        return s_unicodePropertyValues.GetOrAdd(property, static name => new HashSet<string>(UnicodePropertyValuesOf(name), StringComparer.Ordinal));
     }
 
-    private static Dictionary<string, string>? s_nonBinaryUnicodeProperties;
-    private static List<string>? s_nonBinaryUnicodePropertyNames;
-    private static HashSet<string>? s_binaryUnicodeProperties;
-    private static HashSet<string>? s_binaryUnicodePropertiesOfStrings;
-    private static readonly Dictionary<string, HashSet<string>> s_unicodePropertyValues = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, HashSet<string>> s_unicodePropertyValues = new(StringComparer.Ordinal);
 
     private static Dictionary<string, string> BuildNonBinary()
     {

@@ -2317,3 +2317,96 @@ harness 的下划线规则是逐节点的 `nodeIsFullySynthetic(node) = nodeIsSy
 **收尾验证（集成方，冻结树）**：build 0 错误 0 警告、测试 **1,521/1,521**、`tools/TypeDiff` 全语料 **clean 5908/5908**、`tools/EmitDiff` 全语料 **clean 5908/5908**（端口半场 21.9 s，此前 38–46 s）。
 
 **仍未闭合（已登记，未在本轮修）**：整语料单 program 跑通还差一串同族缺陷——`CreateMarkerType`（`Checker.Relations.Identical.cs:360-362`）对"无类型参数/联合类型声明"的泛型仍会抛（`[.. null]` 的 NRE，以及 `UnionType → IGenericType` 的硬转；参考的 `as`/`!` 在运行期都是"不检查"），且改成"传 null"会继续顶到 `GetTypeAliasInstantiation`（`Checker.TypeReferences.cs:352` 的 `GetValueOrDefault(null, …)`）。这一串要达到"整语料一次编完"需按 tsgo 的 `getVariances`/`createMarkerType` 形态逐处对照（属下一轮工作，不在本收尾内）。
+
+---
+
+## 18. 并发：数据结构向 Go 看齐（M8 前置，进行中）
+
+### 18.1 依据与目标
+
+`AGENTS.md`（本会话更新两条）：① **TSGO CLI 就是全局 `tsc`**（实测 `tsc --version` = **7.0.2**，`%APPDATA%\npm\tsc`）——用于同工作负载直接对拍，无需先构建 Go 端；② **.NET 支持多线程 ⇒ 必须考虑多线程与线程安全的数据结构来加速编译器，并争取超过 Go 端**。
+
+实测基线（工作负载同 §17.15：conformance 5,908 根文件 + 93 lib，`noEmit`/`skipLibCheck`/`target=module=esnext`/`allowJs`）：
+
+| | tsgo 7.0.2（`tsc --extendedDiagnostics`） | tsc.js 6.0.3（同） | tsc-cs（项目模式，单线程） |
+|---|---|---|---|
+| 总计 | **1.87 s** | **1.42 s** | 分片求和 64.0 s（扣重复 lib 载入净 ≈41 s） |
+| 内存 | 386 MB | 210 MB | 未测 |
+
+改造前端口**没有任何并行原语**：全程序集只有一个 `lock`（`Core/Debug.Model.cs:189`），`Interlocked`/`Task`/`Parallel`/`Concurrent*`/`Thread` 命中数 **0**。也就是说本节的每一项都是净新增，而不是把已有的并发改好。
+
+### 18.2 审计（一）：Go 端怎么并行 —— 形态参考
+
+来源 `D:/Source/GitHub/TypeScript-Go/tsc/internal/**`（AGENTS.md 指定的静态类型参考）：
+
+| 机制 | Go 位置 | 形状 |
+|---|---|---|
+| 工作分组 | `core/workgroup.go:11-76` | `WorkGroup`；并行实现 **每工作项一个 goroutine（无界）**，单线程实现=互斥保护的闭包切片 |
+| checker 池 | `compiler/checkerpool.go:26-34,308-320` | N 个 checker（**硬编码 4**）+ **每 checker 一把 `sync.Mutex`**；`--checkers`/`--singleThreaded` 可改 |
+| 文件→checker | `checkerpool.go:417-419,480-486` | **静态分区**（FENNEL 均衡图分割，`checkerpool.go:164-229`）：一个文件终身归一个 checker ⇒ checker 内的 `map` 无需同步 |
+| 链接存储 | `core/linkstore.go:7-88` | `LinkStore{entries map[K]*V; Arena[V]}`；**`PagedLinkStore{pageList []*[256]V; pageMap map[uint64]*[256]V}`** |
+| id 分配 | `ast/utilities.go:16-40` | `atomic.Uint64` + `CompareAndSwap`（原注释："worst case, we burn a few ids"） |
+| 诊断 | `ast/diagnostic.go:255-286` | 每 checker 一个按文件路径键的 collection，`Add` 加锁 |
+| emit | `checker/emitresolver.go:49-69` 等约 20 处 | 每次 resolver 调用**重取** checker 的粗锁 |
+
+**Go 端自己记录的短板**（= C# 可以超过它的地方）：checker 数硬编码 4（`checkerpool.go:308`）；静态分区导致长尾（`checkerpool.go:55-62` 自述 MUI docs 四个 checker 收工时间 **0.6 / 2.8 / 15.3 / 19.0 s**）；每个 checker 重复 merge 全部全局符号（`checker.go:1307-1396`）⇒ N× 重复工作；一把粗锁把 emit 也串起来（`emitresolver.go:49`）；无界 goroutine（`workgroup.go:34-41`，`4 builders × 4 checkers × files`）；无 shard 内并行。
+
+### 18.3 审计（二）：端口的共享可变槽，以及本轮已落地的改法
+
+并行阶段的前提是"任意两个 worker 不共享可变状态"。审计逐条列出端口里违反该前提的槽，本轮先消掉与"可重入"直接相关的部分（每条都在代码处留 PORT-NOTE；形状参考 Go）：
+
+| 槽 | 改法 | 依据 / 证据 |
+|---|---|---|
+| 5 个 id 计数器（node/symbol/flow/merge/auto-generate） | `Interlocked.Increment`；**槽位写入改 `CompareExchange`**（`Node.Id`/`Symbol.Id`/`Symbol.MergeId`/`FlowNode.Id` 变为 `Volatile` 属性 + `internal ref int …Slot`） | `tsc/internal/ast/utilities.go:21-40`；`Node.Id` 由 `int?` 改成 `int`（`0` = 未分配；参考首个 id 是 1，utilities.ts:1364）|
+| `Tracing.Current` | `AsyncLocal<TracingEnabled?>`；`StartTracing` **每次 trace 新建实例**；legend/`traceCount` 进程级并加锁 | §15.13 记录的"测试程序集必须串行"的直接成因 |
+| 4 个 memoized `Printer`（`Emit/PrinterFactory.cs`） | `[ThreadStatic]`，每 worker 一份 | printer 是有状态对象（`writeNode`：存 writer→打印→`reset()`→还原）。并行首轮实测的直接证据：`TransformationUtilitiesTests` 打出 `"static {a \n    = x.a, x"`（期望 `"a = x.a, x"`），`ClassThisTests` 在 `Printer.WriteBase`（`Emit/Printer.cs:1575`）空引用——两个测试的打印互相踩 |
+| `Utilities.s_stringWriter`、`NodeFactory.rawTextScanner` | `[ThreadStatic]` | 同上：各是一个可变的写缓冲/扫描游标 |
+| `NodeFactory.Factory` 的 `_parenthesizer`/`_converters` | 构造期 eager（`readonly` 字段） | `??=` 写在共享实例上；惰性检查还在热路径 |
+| `Performance` 的 `marks`/`counts`/`durations` | `ConcurrentDictionary` + `AddOrUpdate`（计数与时长是读-改-写） | 并行实测直接抛 `Dictionary` 撕裂（`Performance.Mark` 与 `ForEachMark` 两处栈） |
+| `getNamedArgRegEx` 缓存、Unicode property values 缓存 | `ConcurrentDictionary` | 首次使用的写竞争 |
+| Unicode 属性表 ×4、`nodeCoreModules`、`scriptTargetFeatures` | `Lazy<T>`（保留惰性：表大；但只发布一份） | 三个"单值惰性"站点原来是 `??=` |
+| `Core.MemoizeOne`（`moduleSpecifiers` 的正则缓存是唯一使用者） | 内部换 `ConcurrentDictionary`，**键形状照参考不变** | core.ts:1907-1918 的 `${typeof arg}:${arg}` |
+| UI comparer + locale（`Core.Comparison`） | 一把锁；比较器经 `Volatile` 发布 | `SetUILocale` 与比较并发 |
+| `typeScriptVersion`（`ModuleNameResolver`） | eager（版本号是常量） | 惰性在这里只有代价 |
+| `ParenthesizerRules` 的两个 operator→规则 memo | `ConcurrentDictionary` + `GetOrAdd`（且不再惰性建容器） | **由工具侧并行实测抓出**（见 18.5）：3 个文件在端口半场崩溃，栈在 `GetParenthesizeLeftSideOfBinaryForOperator`。`ParenthesizerRules` 自 18.3 起是每个 factory 一份、而 factory 是进程级单例，两份 memo 原本是普通 `Dictionary` |
+
+**验收（本轮 oracle 就是测试程序集）**：删掉 `tests/…/AssemblyInfo.cs` 的 `DisableTestParallelization = true`（§15.13 的临时措施），让 xUnit 恢复并行 collection —— 于是"进程级可变槽"变成可观测项。收敛过程（每轮都是并行跑整个程序集 1,521 个用例）：
+
+| 阶段 | 连续几跑的失败数 |
+|---|---|
+| 首轮 | `2 / 0 / 56`（Printer 单例：两个测试的打印互相踩） |
+| 修 `PrinterFactory` 后 | `1 / 0 / 0 / 0`（`Performance.Mark` 的字典撕裂） |
+| 修 `Performance` 后 | `0 / 0 / 0 / **36** / 0 / 0` ⇒ 其后 **20 跑连续全绿** |
+
+**这说明并行测试本身就是并发审计器：改到位的槽立刻从 flake 变成绿灯。**
+
+### 18.4 下一步：数据结构向 Go 看齐（按此顺序）
+
+1. **链接存储 → `PagedLinkStore`**。现状 `Checker.cs` 的 `_nodeLinks`/`_symbolLinks` 是 `List<T?>`，"id 超过表长就 `Add(null)` 补齐"（`Checker.cs:461-473,483-489`）——这是参考的稀疏数组在 C# 里最贵的等价物。Go 的 `PagedLinkStore`（`core/linkstore.go:44-88`）以 256 元素一页、页表按 id 定位：无补齐、无大列表重分配、**每分片各写各的**。这一步同时解决内存与并行两件事。
+2. **`WorkGroup`**：端口版 = 有界 `Parallel.ForEach` + partitioner（Go 的"每项一 goroutine"不能照抄，.NET 会淹在调度里）。
+3. **并行 parse/bind**（`Program.Host.cs:107` 的 `Parser.CreateSourceFile`、binder 的每文件入口互不相干）→ 并行 **emit**（`Program.Emit.cs:495` 每文件）→ 最后 **checker 分片**（`Checker.CheckSourceFile`，`Checker.Check.Source.cs:72`）。
+4. **诊断**：现在是全局 `DiagnosticCollection`（`Utilities/Utilities.Diagnostics.cs:374-419`，读-改-写 + 插入排序）；改为每文件缓冲，在 `Program.GetDiagnosticsHelper`（`Program.DiagnosticsAggregation.cs:96-107`）串行合并——既去掉锁，也保住排序确定性（外环逐字节比对要求确定性）。
+5. **内存与惰性**：`[ThreadStatic]` 的表是"每 worker 一份"（Unicode 表、printer），worker 数一上来必须复核驻留集；`Lazy<T>`/`??=` 的每次读也不是零成本——热路径上能 eager 就 eager（本轮已改 3 处），能共享就共享（并发容器取代每线程副本）。
+6. **验收方式固定**：每一步都用 `tools/ProjectBench`（同工作负载）与全局 `tsc` 7.0.2 对拍，并记录峰值工作集；正确性仍由 §7 的两条外环（`TypeDiff`/`EmitDiff` 全语料 5,908 逐字节）与 1,521 个测试兜底。
+
+### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
+
+两个工具的端口半场原来是**按文件串行**跑（每个文件各自建 program），而这正是最适合并行的形状：文件之间零共享。新增 `--parallel <n>`（默认 `Environment.ProcessorCount`，`1` = 串行，用于 A/B），实现是**有界的 `Parallel.For` + 每文件结果槽**，最后按文件序落盘 —— 因此**索引产物与串行运行逐字节相同**（`port-hashes.txt` / `port-crashes.txt` 已实测 `cmp` 一致；`report.txt` 只差 node 侧自报的 `maxRSS` 与端口峰值这两行噪声）。
+
+同会话 A/B（全语料 5,908 文件，本机 24 逻辑核；`port pass` 即端口半场耗时，峰值工作集取自报告的自报行）：
+
+| 工具 | 串行 | 并行（24） | 加速 | 峰值工作集（串行 → 并行） |
+|---|---|---|---|---|
+| `tools/EmitDiff` | 21.10 / 21.18 / 21.37 s（三跑） | 11.87 / 11.99 s | **≈1.8×** | 128 MiB → 1155–1221 MiB |
+| `tools/TypeDiff` | 18.67 s | 9.15 s | **≈2.0×** | 142 MiB → 1490 MiB |
+
+两条结论：
+
+1. **并行化立刻换来一个真缺陷**：首次并行 `EmitDiff` 有 3 个文件崩溃（`es2019/globalThisAmbientModules.ts`、`expressions/superCalls/superCalls.ts`、`node/nodeModulesConditionalPackageExports.ts`），栈都在 `ParenthesizerRules.GetParenthesizeLeftSideOfBinaryForOperator`（`Dictionary` 撕裂）——即 §18.3 的表里那一行。修好后全语料 `clean 5908/5908`，串行侧零回归。
+2. **加速是次线性的（1.8–2.0×，不是 24×），热点是进程级 id 计数器**：`Utilities.GetNodeId`/`GetSymbolId` 的 `Interlocked` 在任何时刻都打在同一个缓存行上，worker 越多争用越重。Go 端同样是全局原子计数器（`ast/utilities.go:16-40`），所以这里也是"可以超过 Go 端"的位置之一：按 worker 成块预留 id（一次 `Interlocked.Add` 取 1,024 个）、或把 id 存储改成每分片 dense（与 18.4 的 `PagedLinkStore` 同一件事）。这条已登记，先用 profiler 确认争用占比再动。
+
+### 18.6 待办（登记）
+
+- **并行测试仍有低概率 flake**：修完 `Performance` 的那一轮里出现过一次 `失败 36`（其后 20 跑全绿），未捕获到测试名。候选按审计排序：`Program/Program.ProgramDiagnostics.cs:312,382-388`（compute-once + 后写即断言）、`Program/Program.DiagnosticsAggregation.cs:203-204`（惰性 `AdditionalSyntacticDiagnostics`）、`Diagnostic.DeferArg` 在打印期回入 checker（`Checker/Checker.CallResolution.cs:1797-1800`）、`Core/SysWatch.cs` 的轮询静态、`Core/Debug.cs` 的 `CurrentLogLevel`/`IsDebugging`/`LoggingHost`、`Core/SysCore.cs:27`。**并行阶段落地前必须清零**，否则 flake 会淹没外环信号。
+- `TracingTests` 共用 `TraceDir`，并断言 legend 的**相邻两条**是它自己的两次 trace（`TracingTests.cs:155-175`）；legend 现在是进程级共享，该断言在并行 collection 下依赖"别的测试没插进来"。要么放宽为"包含自己的两条"，要么给每个测试独立目录。
+- 性能主线仍是 §17.15 的两条：①先修 `CreateMarkerType` 串（让整语料单 program 可跑）；②按 18.4 的顺序落地并行。

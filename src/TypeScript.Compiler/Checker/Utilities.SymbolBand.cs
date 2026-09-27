@@ -1,4 +1,4 @@
-namespace TypeScript.Compiler;
+﻿namespace TypeScript.Compiler;
 
 /// <summary>
 /// The <see cref="Utilities"/> half of the A3 symbol band: the utilities.ts/utilitiesPublic.ts helpers whose only or
@@ -147,7 +147,11 @@ internal static partial class Utilities
     /// mechanical).
     /// </remarks>
     public static Dictionary<string, Dictionary<string, List<string>>> GetScriptTargetFeatures()
-        => _scriptTargetFeatures ??= new Dictionary<string, Dictionary<string, List<string>>>(StringComparer.Ordinal)
+        => s_scriptTargetFeatures.Value;
+
+    // PORT-NOTE (concurrency): built on first read, published by `Lazy<T>` — the `??=` this replaced raced two
+    // workers into two tables. See docs/architecture.md §18.
+    private static readonly Lazy<Dictionary<string, Dictionary<string, List<string>>>> s_scriptTargetFeatures = new(() => new Dictionary<string, Dictionary<string, List<string>>>(StringComparer.Ordinal)
         {
             ["Array"] = new Dictionary<string, List<string>>(StringComparer.Ordinal)
             {
@@ -425,10 +429,7 @@ internal static partial class Utilities
                 ["dependencies"] = ["strict"],
                 ["dependencies"] = ["strict"],
             },
-        };
-
-    /// <summary>ported from: src/compiler/utilities.ts:1384 — the memoized slot of <c>getScriptTargetFeatures</c>.</summary>
-    private static Dictionary<string, Dictionary<string, List<string>>>? _scriptTargetFeatures;
+        });
 
     /// <summary>ported from: src/compiler/utilities.ts:4402-4404 — <c>shouldRewriteModuleSpecifier</c>.</summary>
     /// <remarks>

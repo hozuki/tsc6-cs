@@ -40,7 +40,21 @@ internal partial class FlowNode : IFlowNodeBase, IFlowArrayMutation, IFlowAssign
     public FlowFlags Flags { get; set; }
 
     /// <summary>ported from: src/compiler/types.ts:4185 — <c>FlowNodeBase.id</c>.</summary>
-    public int Id { get; set; }
+    /// <remarks>
+    /// PORT-NOTE (concurrency): assigned lazily by <c>Checker.GetFlowNodeId</c>, which more than one worker can
+    /// reach for a shared flow node, so the slot carries the same compare-exchange shape as <c>Node.Id</c> /
+    /// <c>Symbol.Id</c>; <see cref="IdSlot"/> is the <c>ref</c> form, and <c>0</c> means "unassigned" (the reference's
+    /// <c>nextFlowId</c> starts at 1, checker.ts:1172).
+    /// </remarks>
+    public int Id
+    {
+        get => Volatile.Read(ref _id);
+        set => Volatile.Write(ref _id, value);
+    }
+
+    internal ref int IdSlot => ref _id;
+
+    private int _id;
 
     /// <summary>ported from: src/compiler/types.ts:4186 — <c>FlowNodeBase.node</c>.</summary>
     /// <remarks>PORT-NOTE: TS's <c>unknown</c> has no C# counterpart, so the slot stays <c>object?</c>.</remarks>

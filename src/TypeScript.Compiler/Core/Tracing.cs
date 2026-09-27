@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 
 namespace TypeScript.Compiler;
@@ -87,8 +87,24 @@ internal static class Tracing
     /// <c>tracing?.</c> guard, so the port keeps a nullable instance rather than a null object: <c>null</c> means
     /// "no trace in progress", which is also what <c>tracing?.recordType(...)</c> and <c>if (!tracing)</c> test.
     /// It is assigned only once the trace file has been opened (tracing.ts:95) and cleared by <c>stopTracing</c>.
+    /// <para>
+    /// PORT-NOTE (concurrency): TS's slot is a module-level variable, i.e. one process-wide stack that every binder and
+    /// checker walk pushes onto. Under the port's parallel phases that is a data race on a shared stack, and it is
+    /// already an observable defect today: it is the reason the test assembly has to run serially
+    /// (docs/architecture.md §15.13 — one test's <c>startTracing</c> made another test's <c>bindSourceFile</c> pop
+    /// *its* event and trip "results are not supported for events with separateBeginAndEnd"). The slot is therefore an
+    /// <see cref="AsyncLocal{T}"/>: identical single-threaded, per-worker once phases run in parallel, and inherited by
+    /// the tasks a phase starts. A parallel trace's events therefore group per worker rather than interleaving in one
+    /// stream — tracing is diagnostic output and is not part of any baseline comparison.
+    /// </para>
     /// </remarks>
-    internal static TracingEnabled? Current { get; set; }
+    internal static TracingEnabled? Current
+    {
+        get => s_current.Value;
+        set => s_current.Value = value;
+    }
+
+    private static readonly AsyncLocal<TracingEnabled?> s_current = new();
 
     // ported from: src/compiler/tracing.ts:366-368 — the module-level alias of `tracingEnabled.startTracing`
     /// <summary>
@@ -102,15 +118,23 @@ internal static class Tracing
     /// PORT-NOTE: TS takes no host — it <c>require("fs")</c>s one. The port's host is an argument (§13.5), and that
     /// also removes TS's <c>tracing requires having fs</c> failure mode: there is no "host unavailable" case, only a
     /// host that cannot write, which surfaces from <see cref="ISystem.WriteFile"/>.
+    /// <para>
+    /// PORT-NOTE (concurrency): this starts a *fresh* tracer per trace rather than reusing one process-wide instance.
+    /// TS's <c>tracingEnabled</c> is a namespace with module-level state and only ever holds one trace at a time; the
+    /// port's parallel phases run several compilations on several workers, and the shared event stack made even
+    /// *serial* tests interfere (the reason <c>tests/…/AssemblyInfo.cs</c> had to disable xUnit parallelism — see
+    /// docs/architecture.md §15.13). What is genuinely process-wide stays shared and locked inside
+    /// <see cref="TracingEnabled"/>: the legend and its record count. See §18.
+    /// </para>
     /// </remarks>
     public static void StartTracing(Mode mode, string traceDir, ISystem system, string? configFilePath = null)
-        => TracingEnabled.Instance.Start(mode, traceDir, system, configFilePath);
+        => new TracingEnabled().Start(mode, traceDir, system, configFilePath);
 
     // ported from: src/compiler/tracing.ts:369-370 — the module-level alias of `tracingEnabled.dumpLegend`
     /// <summary>
     /// Writes <c>legend.json</c>: which trace file belongs to which project. A no-op when tracing never started.
     /// </summary>
-    public static void DumpLegend() => TracingEnabled.Instance.DumpLegend();
+    public static void DumpLegend() => TracingEnabled.DumpLegend();
 }
 
 // ported from: src/compiler/tracing.ts:33-364 — `namespace tracingEnabled`
@@ -123,18 +147,33 @@ internal static class Tracing
 /// project and <c>traceCount</c> keeps counting across a build), there is exactly one instance and it is reachable
 /// through <see cref="Tracing.Current"/> only when a trace is running.
 /// <para>
-/// PORT-NOTE: this subsystem is not thread-safe in TS and is not made so here; a trace belongs to one compilation on
-/// one thread.
+/// PORT-NOTE (concurrency): "exactly one instance" is TS's shape, not the port's — <see cref="Tracing.StartTracing"/>
+/// builds a fresh <see cref="TracingEnabled"/> per trace, because one trace's event stack is worker-owned while the
+/// legend is process-owned. The split is exactly that: <see cref="s_legend"/>, <see cref="s_legendPath"/>,
+/// <see cref="s_traceCount"/> and <see cref="s_legendSystem"/> are static and touched under
+/// <see cref="s_legendLock"/>; everything else — the event stack, the buffered trace text, the type catalog, the mode
+/// — belongs to the instance, i.e. to the trace. See docs/architecture.md §18.
 /// </para>
 /// </remarks>
 internal sealed class TracingEnabled
 {
-    /// <summary>
-    /// The single instance <see cref="Tracing.Current"/> is set to (tracing.ts:95 — <c>tracing = tracingEnabled</c>).
-    /// </summary>
-    public static TracingEnabled Instance { get; } = new();
+    /// <summary>One record per trace started in this process, written out by <see cref="DumpLegend"/>.</summary>
+    private static readonly List<TraceRecord> s_legend = [];
 
-    private TracingEnabled()
+    /// <summary>Where <see cref="DumpLegend"/> writes; set by the first <see cref="Start"/> and kept after it.</summary>
+    private static string? s_legendPath;
+
+    /// <summary>The host <see cref="DumpLegend"/> writes the legend through; set by every <see cref="Start"/>.</summary>
+    private static ISystem? s_legendSystem;
+
+    // ported from: src/compiler/tracing.ts:42 — `let traceCount = 0`
+    /// <summary>How many traces this process has started, used to number build-mode trace files.</summary>
+    private static int s_traceCount;
+
+    /// <summary>Guards the four process-wide members above. Cold: taken once per start and per legend dump.</summary>
+    private static readonly Lock s_legendLock = new();
+
+    public TracingEnabled()
     {
     }
 
@@ -142,9 +181,8 @@ internal sealed class TracingEnabled
     /// <summary>The host the trace is written through; set by <see cref="Start"/>.</summary>
     private ISystem? _system;
 
-    // ported from: src/compiler/tracing.ts:42 — `let traceCount = 0`
-    /// <summary>How many traces this process has started, used to number build-mode trace files.</summary>
-    private int _traceCount;
+    /// <summary>This trace's own legend record, so a stop edits its own rather than "the last one added".</summary>
+    private TraceRecord? _currentRecord;
 
     // ported from: src/compiler/tracing.ts:43 — `let traceFd = 0`
     /// <summary>
@@ -170,12 +208,9 @@ internal sealed class TracingEnabled
     private readonly List<IType> _typeCatalog = [];
 
     // ported from: src/compiler/tracing.ts:49 — `let legendPath: string | undefined`
-    /// <summary>Where <see cref="DumpLegend"/> writes; set by the first <see cref="Start"/> and kept after it.</summary>
-    private string? _legendPath;
-
+    // (moved to the static `s_legendPath` above: the legend outlives one trace)
     // ported from: src/compiler/tracing.ts:50 — `const legend: TraceRecord[] = []`
-    /// <summary>One record per trace started, written out by <see cref="DumpLegend"/>.</summary>
-    private readonly List<TraceRecord> _legend = [];
+    // (moved to the static `s_legend` above: the legend outlives one trace)
 
     // ported from: src/compiler/tracing.ts:146
     /// <summary>The events <see cref="Push"/> opened and <see cref="Pop"/>/<see cref="PopAll"/> close.</summary>
@@ -206,28 +241,36 @@ internal sealed class TracingEnabled
         _mode = tracingMode;
         _typeCatalog.Clear();
 
-        _legendPath ??= Paths.CombinePaths(traceDir, "legend.json");
-
         // Note that writing will fail later on if it exists and is not a directory
         if (!system.DirectoryExists(traceDir))
         {
             Files.EnsureDirectoriesExist(traceDir, system.CreateDirectory, system.DirectoryExists);
         }
 
-        var countPart = _mode == Tracing.Mode.Build ? $".{Environment.ProcessId}-{++_traceCount}"
-            : _mode == Tracing.Mode.Server ? $".{Environment.ProcessId}"
-            : "";
-        var tracePath = Paths.CombinePaths(traceDir, $"trace{countPart}.json");
-        var typesPath = Paths.CombinePaths(traceDir, $"types{countPart}.json");
-
-        _legend.Add(new TraceRecord
+        // The legend and the build-mode counter are process-wide (see the class remarks), so they are read and written
+        // under one lock: two workers starting a trace at once must not number their files the same or race the list.
+        TraceRecord record;
+        lock (s_legendLock)
         {
-            ConfigFilePath = configFilePath,
-            TracePath = tracePath,
-            TypesPath = typesPath,
-        });
+            s_legendPath ??= Paths.CombinePaths(traceDir, "legend.json");
+            var countPart = _mode == Tracing.Mode.Build ? $".{Environment.ProcessId}-{++s_traceCount}"
+                : _mode == Tracing.Mode.Server ? $".{Environment.ProcessId}"
+                : "";
+            var tracePath = Paths.CombinePaths(traceDir, $"trace{countPart}.json");
+            var typesPath = Paths.CombinePaths(traceDir, $"types{countPart}.json");
 
-        _tracePath = tracePath;
+            record = new TraceRecord
+            {
+                ConfigFilePath = configFilePath,
+                TracePath = tracePath,
+                TypesPath = typesPath,
+            };
+            s_legend.Add(record);
+            s_legendSystem = system;
+        }
+
+        _currentRecord = record;
+        _tracePath = record.TracePath;
         _traceOutput = new StringBuilder();
         Tracing.Current = this; // only when traceFd is properly set
 
@@ -276,7 +319,7 @@ internal sealed class TracingEnabled
         {
             // We pre-computed this path for convenience, but clear it
             // now that the file won't be created.
-            _legend[^1].TypesPath = null;
+            _currentRecord!.TypesPath = null;
         }
     }
 
@@ -435,7 +478,7 @@ internal sealed class TracingEnabled
     {
         Performance.Mark("beginDumpTypes");
 
-        var typesPath = _legend[^1].TypesPath!;
+        var typesPath = _currentRecord!.TypesPath!;
         var output = new StringBuilder();
 
         var recursionIdentityMap = new Dictionary<object, int>(ReferenceEqualityComparer.Instance);
@@ -579,23 +622,31 @@ internal sealed class TracingEnabled
 
     // ported from: src/compiler/tracing.ts:351-357 — `dumpLegend`
     /// <summary>Writes the legend. Does nothing when tracing never started (there is no path to write to).</summary>
-    public void DumpLegend()
+    /// <remarks>
+    /// PORT-NOTE (concurrency): process-wide, not per-trace — the legend collects one record per project compiled by
+    /// this process, which is what build mode reads back. The lock keeps a concurrent start's <c>Add</c> out of the
+    /// snapshot this serializes.
+    /// </remarks>
+    public static void DumpLegend()
     {
-        if (_legendPath is null)
+        lock (s_legendLock)
         {
-            return;
-        }
+            if (s_legendPath is null)
+            {
+                return;
+            }
 
-        Debug.Assert(_system is not null);
-        // TS: JSON.stringify(legend) — each record is a literal whose absent members are `undefined`, so they are
-        // dropped; the port builds the same three members in the same order.
-        var entries = _legend.Select(static record => TracingValue.From(new TracingArgs
-        {
-            ["configFilePath"] = record.ConfigFilePath,
-            ["tracePath"] = record.TracePath,
-            ["typesPath"] = record.TypesPath,
-        }));
-        _system.WriteFile(_legendPath, TracingJson.Serialize(TracingValue.Array(entries)));
+            Debug.Assert(s_legendSystem is not null);
+            // TS: JSON.stringify(legend) — each record is a literal whose absent members are `undefined`, so they are
+            // dropped; the port builds the same three members in the same order.
+            var entries = s_legend.Select(static record => TracingValue.From(new TracingArgs
+            {
+                ["configFilePath"] = record.ConfigFilePath,
+                ["tracePath"] = record.TracePath,
+                ["typesPath"] = record.TypesPath,
+            }));
+            s_legendSystem.WriteFile(s_legendPath, TracingJson.Serialize(TracingValue.Array(entries)));
+        }
     }
 
     // NOT ported from TS — it has no counterpart there.
