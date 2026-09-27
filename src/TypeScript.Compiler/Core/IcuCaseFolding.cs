@@ -73,6 +73,15 @@ internal static class IcuCaseFolding
         if (convert is null) return fallback(value);
         if (value.Length == 0) return value;
 
+        // PORT-NOTE (performance): the full mapping is only reachable through ICU, and one call is two P/Invokes plus a
+        // char buffer and a string per call — 32–44% of the corpus samples are the GC that churn feeds (docs §18.8).
+        // ASCII is where the two mappings are *provably* the same: no ASCII character has a full mapping that differs
+        // from its simple mapping (no expansion, no locale-dependent pair), and ICU's root locale is what makes it
+        // locale-independent — the same property .NET's invariant mapping has. So pure-ASCII input (the shape of
+        // identifiers, module specifiers and paths, i.e. what the callers compare) is answered without entering ICU, and
+        // anything else still takes the full path below.
+        if (IsAscii(value)) return fallback(value);
+
         // ICU's root locale is the empty C string, which is what makes this locale-independent like JS's
         // toUpperCase.
         byte rootLocale = 0;
@@ -86,7 +95,14 @@ internal static class IcuCaseFolding
             if (errorCode != BufferOverflowError && errorCode != ZeroError) return fallback(value);
             if (length == 0) return value;
 
-            // ICU writes a terminator, so the buffer gets room for one.
+            // PORT-NOTE (performance, measured): the destination stays a managed `char[]`. The unmanaged alternative —
+            // `NativeMemory.Alloc` with a single call at an estimated capacity, retrying only when ICU reports overflow —
+            // was implemented and measured head-to-head on the `types` shard (4 interleaved pairs): 4.195 s median against
+            // this version's 4.168 s, i.e. no better and 3 of 4 pairs worse. The reason is that this path is only reached
+            // for *non-ASCII* input (the ASCII callers take the fast path above), and for a small short-lived buffer the
+            // runtime's bump allocation plus a gen0 collection is cheaper than `malloc`/`free`. Unmanaged memory would
+            // pay off if the buffer were reused across calls (a thread-local scratch block) — which the same measurement
+            // says is not worth having while the path is this cold. See docs §18.8.
             var buffer = new char[length + 1];
             fixed (char* dest = buffer)
             {
@@ -97,6 +113,27 @@ internal static class IcuCaseFolding
                 return new string(buffer, 0, written);
             }
         }
+    }
+
+    /// <summary>
+    /// Whether every character of <paramref name="value"/> is ASCII — see <see cref="Convert"/>'s fast path.
+    /// </summary>
+    /// <remarks>
+    /// PORT-NOTE (performance): the loop is the point (a `char &lt;= 0x7F` test per character beats two P/Invokes and two
+    /// allocations), so it is written out rather than expressed as a `string.AsSpan().IndexOfAnyExceptInRange(...)`; the
+    /// span overload would be the same scan with extra ceremony at these lengths (identifiers, path segments, specifiers).
+    /// </remarks>
+    private static bool IsAscii(string value)
+    {
+        foreach (var ch in value)
+        {
+            if (ch > 0x7F)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static unsafe bool TryLoad(

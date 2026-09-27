@@ -2476,6 +2476,34 @@ harness 的下划线规则是逐节点的 `nodeIsFullySynthetic(node) = nodeIsSy
 2. **`F`/`fs` 的 flag 差异**（各差一个 bit）：合并路径上的具体缺陷，值得单独修（一旦 oracle 就位，这类问题会一网打尽）。
 3. **整语料单 program 跑通**：在 1/2 落地后再谈；它的价值只是"与 tsgo/tsc 的端到端数字对拍"，而**支持的项目模式测量是逐目录分片**（§17.15 的数字就是那样测的），分片本身是彼此不冲突的连贯 program。
 
+### 18.4g 单线程热路径：采样证据、一处实测收益、以及测量纪律
+
+**工作负载的选择**：`types` 分片（845 文件）是模板字面量密集的**类别**分片，不代表全语料。所以先对**混合前缀**（`artifacts/perf/all.txt` 前 2,000 个文件，覆盖多个目录）采样：`TSC_CS_PARALLEL=1 dotnet-trace collect --profile cpu-sampling` → `dotnet-trace report <trace> topN`。单线程是必须的（并行默认核数时线程池的空等在 topN 里占 90%，把结论稀释掉）。
+
+**实测（独占时间占比）**：
+
+| 混合前缀 2,000 文件 | | `types` 分片 845 文件 | |
+|---|---|---|---|
+| `Thread.<PollGC>`（**GC**） | **44.2%** | `InferFromLiteralPartsToTemplateLiteral` | 11.2%（含 15.6%）|
+| 文件 I/O（`CreateFile*`/`ReadFile`/`GetFileAttributesEx`/`CloseHandle`） | ≈4.6% | `InferTypesFromTemplateLiteralType` | 9.5% |
+| `IcuCaseFolding.Convert` | 1.7% | `IsTypeMatchedByTemplateLiteralType` | 6.1% |
+| `InitHelpers.CallClassConstructor` | 1.7% | `Core.Some` | 3.1%（含 41%）|
+| `RuntimeHelpers.GetHashCode` | 0.9% | `Thread.<PollGC>` | 32% |
+| `Array.Copy`（含 23.5%）/`StringBuilder.ExpandByABlock` | 0.3% / 0.5% | `Core.StartsWith` | 1.9% |
+
+两条结论：①**最大的单项是 GC（32–44%），即分配**，而不是某个热函数；②`types` 分片的模板字面量族是**分片特有**的，全语料优化应先看混合前缀。⇒ 单线程热路径的主线是**减少分配**（§17.15 的方向④），需要 allocation-site 数据（采样剖析只给 GC 占比，不给分配点）。
+
+**本轮落地的一处（有实测收益）**：`IcuCaseFolding.Convert` 的 **ASCII 快路径**（`Core/IcuCaseFolding.cs`）。ICU 的 root locale 完整映射与 .NET 的 invariant 简单映射在**纯 ASCII** 上可证等价（ASCII 没有展开映射、也没有 locale 相关的字母对），而调用方（大小写不敏感比较、路径/说明符比较、标识符）绝大多数是 ASCII，于是这类输入一次扫描即可回答，不再进 ICU（省两次 P/Invoke + `char[]` + 一次 string）。ASCII 之外仍走完整路径。
+
+**测量纪律（本节最重要的教训）**：这台机器上**顺序 A/B 完全不可用**——同一个二进制在同一会话里可以从 4.18 s 漂到 6.30 s（约 ±20%，且呈单调漂移），我因此先得出过"ICP 前后无差异"的误判。改法是**成对交错**：把两个版本各构一份到独立目录，A/B/A/B… 逐对跑，比较成对差值。改用该协议后：
+
+| 版本 | semantic（`types` 分片，3 对交错的中位数） |
+|---|---|
+| 改前 | 4.437 s |
+| ASCII 快路径 | **4.233 s（-4.6%，3/3 对更好）** |
+
+**试过并否决（有数字）**：把 ICU 的目标缓冲改成**非托管内存**（`NativeMemory.Alloc`）并把"测量 + 转换"两次调用压成常态一次（估容量 3n+1，溢出再重试）——4 对交错的中位数 **4.195 s vs 4.168 s**，没有收益、4 对里 3 对更差。原因：该路径只在**非 ASCII** 输入时进入（ASCII 已被上面的快路径接管），而对小的短命缓冲，运行时的 bump 分配 + gen0 回收比 `malloc`/`free` 更便宜；非托管内存要划算，前提是**跨调用复用**缓冲（线程本地暂存），而同一份测量说明这条冷路径还不值得那份复杂度（若将来非 ASCII 输入变成热路径，这条就是现成的结论与方向）。
+
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 
 两个工具的端口半场原来是**按文件串行**跑（每个文件各自建 program），而这正是最适合并行的形状：文件之间零共享。新增 `--parallel <n>`（默认 `Environment.ProcessorCount`，`1` = 串行，用于 A/B），实现是**有界的 `Parallel.For` + 每文件结果槽**，最后按文件序落盘 —— 因此**索引产物与串行运行逐字节相同**（`port-hashes.txt` / `port-crashes.txt` 已实测 `cmp` 一致；`report.txt` 只差 node 侧自报的 `maxRSS` 与端口峰值这两行噪声）。
