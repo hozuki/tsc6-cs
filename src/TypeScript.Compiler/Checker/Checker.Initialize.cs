@@ -485,6 +485,7 @@ internal sealed partial class Checker
     /// </remarks>
     internal void InitializeTypeChecker()
     {
+        using var allocProbe = AllocationProbe.Enter("Checker.InitializeTypeChecker");
         // checker.ts:1559-1568 — the four globals the resolver and the name resolver close over, and globalThisSymbol's
         // publish into `globals`. The reference creates them in createTypeChecker's prologue, just before this member
         // runs (checker.ts:1556-1578); `Checker.cs` declares the four slots and its PORT-NOTEs name that prologue as

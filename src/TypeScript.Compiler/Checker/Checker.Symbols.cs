@@ -367,6 +367,7 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:2829-2855 — <c>mergeSymbolTable</c>.</summary>
     internal void MergeSymbolTable(SymbolTable target, SymbolTable source, bool unidirectional = false, ISymbol? mergedParent = null)
     {
+        using var allocProbe = AllocationProbe.Enter("Checker.MergeSymbolTable");
         source.ForEach((sourceSymbol, id) =>
         {
             var targetSymbol = target.GetValueOrDefault(id);
