@@ -50,14 +50,15 @@ internal static partial class BaselineTypeWriter
         string header,
         IReadOnlyList<(string UnitName, string Content)> allFiles,
         bool hasErrorBaseline,
-        bool isSymbolBaseline)
+        bool isSymbolBaseline,
+        bool underlines = true)
     {
         var fullWalker = new TypeWriterWalker(program, hadErrorBaseline: hasErrorBaseline);
 
         var result = new StringBuilder();
         var perfLines = new List<string>();
         var prePerformanceValues = GetPerformanceBaselineValues(program);
-        foreach (var content in IterateBaseLine(fullWalker, allFiles, isSymbolBaseline))
+        foreach (var content in IterateBaseLine(fullWalker, allFiles, isSymbolBaseline, underlines))
         {
             result.Append(content);
         }
@@ -116,7 +117,8 @@ internal static partial class BaselineTypeWriter
     private static IEnumerable<string> IterateBaseLine(
         TypeWriterWalker walker,
         IReadOnlyList<(string UnitName, string Content)> allFiles,
-        bool isSymbolBaseline)
+        bool isSymbolBaseline,
+        bool underlines)
     {
         foreach (var (unitName, content) in allFiles)
         {
@@ -152,7 +154,7 @@ internal static partial class BaselineTypeWriter
                 var lineText = LineBreakRegExp().Replace(result.SourceText, "");
                 var formattedLine = lineText + " : " + typeOrSymbolString;
                 typeLines.Append('>').Append(formattedLine).Append("\r\n");
-                if (!string.IsNullOrEmpty(result.Underline))
+                if (underlines && !string.IsNullOrEmpty(result.Underline))
                 {
                     typeLines.Append('>').Append(' ', lineText.Length).Append(" : ").Append(result.Underline).Append("\r\n");
                 }

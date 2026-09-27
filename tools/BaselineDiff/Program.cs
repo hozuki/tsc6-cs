@@ -325,13 +325,13 @@ internal static partial class Program
             var hasErrors = result.Diagnostics.Count != 0;
             if (settings.Artifacts.Contains("types"))
             {
-                var types = BaselineTypeWriter.Generate(result.Program, header, allFiles, hasErrors, isSymbolBaseline: false);
+                var types = BaselineTypeWriter.Generate(result.Program, header, allFiles, hasErrors, isSymbolBaseline: false, underlines: settings.TypeUnderlines);
                 produced["types"] = types is null ? BaselineArtifact.None() : BaselineArtifact.From(types);
             }
 
             if (settings.Artifacts.Contains("symbols"))
             {
-                var symbols = BaselineTypeWriter.Generate(result.Program, header, allFiles, hasErrors, isSymbolBaseline: true);
+                var symbols = BaselineTypeWriter.Generate(result.Program, header, allFiles, hasErrors, isSymbolBaseline: true, underlines: settings.TypeUnderlines);
                 produced["symbols"] = symbols is null ? BaselineArtifact.None() : BaselineArtifact.From(symbols);
             }
         }
@@ -958,6 +958,9 @@ internal static partial class Program
         int? limit = null;
         var nodeBatch = 250;
         var nodeParallel = 1;
+        // TS's underline annotations are what the port writes by default; `--types-underlines false` matches the
+        // baselines whose generator does not fill them yet (see Settings.TypeUnderlines).
+        var typeUnderlines = true;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -992,6 +995,16 @@ internal static partial class Program
                     }
 
                     nodeParallel = parallel;
+                    break;
+                case "--types-underlines":
+                    var underlinesRaw = Next(args, ref i);
+                    if (underlinesRaw is not ("true" or "false"))
+                    {
+                        error = "baselinediff: --types-underlines needs 'true' or 'false'\n" + Usage;
+                        return false;
+                    }
+
+                    typeUnderlines = underlinesRaw == "true";
                     break;
                 case "--limit":
                     var raw = Next(args, ref i);
@@ -1076,6 +1089,7 @@ internal static partial class Program
             Node = node ?? "node",
             NodeScript = nodeScript,
             Artifacts = kinds,
+            TypeUnderlines = typeUnderlines,
         };
         return true;
     }
@@ -1358,6 +1372,14 @@ internal static partial class Program
         public required string NodeScript { get; init; }
 
         public required string[] Artifacts { get; init; }
+
+        /// <summary>Whether the <c>.types</c> renderer writes TS's underline annotations. Their absence in tsgo's
+        /// <c>testdata/baselines</c> is an unimplemented feature there, not a format change: its harness reads
+        /// <c>result.underline</c> and prints the line when it is non-empty, while the producer never fills it
+        /// (<c>internal/testutil/tsbaseline/type_symbol_baseline.go</c> lines 403/413 — "!!! TODO: port underline
+        /// printer"). Comparing against those baselines therefore needs the same suppression, which is what
+        /// <c>--types-underlines false</c> is for; the port's own rendering keeps TS's behaviour by default.</summary>
+        public bool TypeUnderlines { get; init; } = true;
 
         /// <summary>src/harness/harnessIO.ts:393 — <c>currentDirectory || harnessSettings.currentDirectory</c>: the
         /// harness's <c>currentDirectory</c> argument is the case's own setting, so the value comes from the settings

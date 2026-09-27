@@ -39,7 +39,13 @@ Options: `--cases` (required), `--baselines` (required), `--filter` (glob over t
 cross `/`, `**` does), `--limit`, `--out` (default `<repo>/artifacts/baselinediff`), `--js`, `--lib` (mounted at `/.ts`,
 default `<workspace>/lib`), `--test-lib` (mounted at `/.lib`, default `<workspace>/tests/lib`), `--workspace`,
 `--node`, `--node-script`, `--node-batch` (default 250), `--node-parallel` (default 1),
-`--artifacts js,errors,types,symbols`, `-h`/`--help`.
+`--artifacts js,errors,types,symbols`, `--types-underlines true|false`, `-h`/`--help`.
+
+`--types-underlines false` renders `.types` the way a baseline set whose generator does not fill the underline
+annotation compares: tsgo's `testdata/baselines` is such a set (its harness prints the line when
+`result.underline` is non-empty, but the producer never sets it — `internal/testutil/tsbaseline/type_symbol_baseline.go`
+lines 403/413, "!!! TODO: port underline printer"). The port's own rendering keeps TS's behaviour by default, so the
+flag exists to compare against those baselines, not to change what the port produces.
 
 ## The three-way comparison
 
