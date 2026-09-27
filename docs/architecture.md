@@ -2999,8 +2999,23 @@ memoized printer 只建一次）：emit 分配 250.4 → **239.6 MiB**，`EmitDi
    父规范化规则；需要再切 `OnEnter/OnLeft/OnOperator/OnRight/OnExit` 五处才能定论。
 3. `Identifier`：`GetTextOfNode(node, false)` 每次一个 Substring（**参考也这样**，必要物化）+ `EmitList`（已修）。
 
-**本轮落地的两处委托缓存**（都是"JS 里函数引用免费、C# 里实例方法组每次新建委托"）：管线五阶段 10.8 MiB +
-列表发射两处 3.7 MiB ⇒ emit 分配 **250.4 → 235.8 MiB**，`EmitDiff` 仍 **clean 5908/5908**。
+**第四轮：再往下切 `BinaryExpression`（49.9 MiB）** ⇒ 全部落在操作数发射助手上：
+
+| 独占项 | 分配 | 次数 | 每次 |
+|---|---|---|---|
+| **`GetPipelinePhase`**（阶段解析，含**发射替换回调** `_handlers.SubstituteNode`） | **42.3 MiB** | 286,613 | **154 B** |
+| `MaybeEmitExpression`（操作数发射助手；上面那项是它的子集） | 44.3 MiB | 8,768 | 5,301 B |
+| `OnOperatorBinaryExpression` | 3.8 MiB | 4,384 | 905 B |
+| `OnEnterBinaryExpression` | 3.4 MiB | 4,384 | 817 B |
+| `OnExitBinaryExpression` | 1.4 MiB | 4,384 | 343 B |
+
+⇒ `BinaryExpression` 的 49.9 MiB 里 **42.3 是 `GetPipelinePhase`**；该类内部已排除的项：按算子的父规范化规则（**已有
+`ConcurrentDictionary` 缓存**）、五阶段委托（已缓存）、`ShouldEmitComments/SourceMaps`（便宜）、`AsParenthesizerRule`
+的闭包（~64 B）。**剩下的唯一嫌疑是发射替换回调**（`_handlers.SubstituteNode`，由 emitter 用 resolver 装配）——
+它是下一轮的探针目标（286,613 次 × 154 B ≈ 一次替换计算）。
+
+**最终划分（emit 236 MiB，types 分片）**：唯一名生成 74.9（固有的 O(N²) 扫描，参考同）→ `GetPipelinePhase`/替换
+回调 42.3 → `Identifier` 20.9（`GetTextOfNode` 的 Substring，参考同）→ 其余 20+ 种各 ≤6 MiB。
 
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 

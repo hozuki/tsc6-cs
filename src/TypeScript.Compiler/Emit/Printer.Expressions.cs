@@ -1,4 +1,4 @@
-namespace TypeScript.Compiler;
+﻿namespace TypeScript.Compiler;
 
 // ported from: src/compiler/emitter.ts:2612-3035 (expressions) and 3877-3993 (JSX) — the printer's expression half.
 //

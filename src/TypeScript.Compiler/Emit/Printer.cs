@@ -1,4 +1,4 @@
-namespace TypeScript.Compiler;
+﻿namespace TypeScript.Compiler;
 
 // ported from: src/compiler/emitter.ts:1211-1446 (createPrinter's closure state — the fields live in
 // Printer.State.cs —, the eight public members, the writer/source-file setters and reset), 1447-1555 (the emit family
