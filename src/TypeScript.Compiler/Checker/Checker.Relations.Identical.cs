@@ -343,10 +343,14 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:25080-25091 — <c>createMarkerType</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: <c>instantiateTypes</c> is generic over its element type in TS
-    /// (<c>&lt;T extends Type&gt;(types: readonly T[], …): T[]</c>); the port's landed <c>InstantiateTypes</c> takes
-    /// <c>List&lt;IType&gt;</c>, so the two <c>typeParameters</c> arguments are spread into a fresh list (the same
-    /// widen-the-element-type move, stated explicitly).
+    /// PORT-NOTE: the reference passes <c>getSymbolLinks(symbol).typeParameters!</c> and
+    /// <c>(type as GenericType).typeParameters</c> straight into <c>instantiateTypes</c>, whose optional overload answers
+    /// <c>undefined</c> for an <c>undefined</c> list (so the second argument reaches <c>getTypeAliasInstantiation</c> /
+    /// <c>createTypeReference</c> as <c>undefined</c>). The port's <see cref="InstantiateTypes"/> has the same nullable
+    /// shape, so the two slots are passed through as they are: the `!` and the collection spread this used to carry were
+    /// the port inventing a check TS does not make, and they threw a <c>NullReferenceException</c> on a generic type whose
+    /// declared type carries no type parameters (`[.. null]`) — the crash that stopped a whole-corpus run (docs §17.17,
+    /// §18.4f).
     /// </remarks>
     internal IType CreateMarkerType(ISymbol symbol, ITypeParameter source, IType target)
     {
@@ -358,11 +362,32 @@ internal sealed partial class Checker
         }
 
         var result = (symbol.Flags & SymbolFlags.TypeAlias) != 0
-            ? GetTypeAliasInstantiation(symbol, InstantiateTypes([.. GetSymbolLinks(symbol).TypeParameters!], mapper))
-            : CreateTypeReference((IGenericType)type, InstantiateTypes([.. ((IGenericType)type).TypeParameters!], mapper));
+            ? GetTypeAliasInstantiation(symbol, InstantiateTypeParameters(GetSymbolLinks(symbol).TypeParameters, mapper))
+            : CreateTypeReference((IGenericType)type, InstantiateTypeParameters(((IGenericType)type).TypeParameters, mapper));
         _markerTypes.Add(GetTypeId(result));
         return result;
     }
+
+    /// <summary>
+    /// <c>instantiateTypes</c> over a type-parameter list — the form the two <c>createMarkerType</c> arguments need.
+    /// </summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference infers <c>T = TypeParameter</c> for its generic <c>instantiateTypes</c> and hands the
+    /// <c>TypeParameter[]</c> it answers straight to a <c>readonly Type[]</c> parameter — its arrays are covariant, so
+    /// nothing moves. <c>List&lt;T&gt;</c> is invariant, so the port widens to <see cref="IType"/> first and instantiates
+    /// after: the same sequence, and the only sound one, because the mapped element is whatever the mapper produces (for
+    /// <c>T := string</c> that is a string literal type, not a type parameter) and an <c>InstantiateList&lt;ITypeParameter&gt;</c>
+    /// would have cast it back.
+    /// <para>
+    /// PORT-NOTE (the crash this closes): the port used to spell the widening as a collection spread over the
+    /// null-forgiven slot (<c>[.. typeParameters!]</c>), which throws on a generic type whose declared type carries no
+    /// type parameters — <c>types/conditional/inferTypes1.ts</c> in the whole-corpus run (docs §18.4f). The reference
+    /// passes the slot through and its optional <c>instantiateTypes</c> overload answers <c>undefined</c> for
+    /// <c>undefined</c>, which is what the null check here states.
+    /// </para>
+    /// </remarks>
+    private List<IType>? InstantiateTypeParameters(List<ITypeParameter>? typeParameters, TypeMapper mapper)
+        => typeParameters is null ? null : InstantiateTypes([.. typeParameters], mapper);
 
     /// <summary>ported from: src/compiler/checker.ts:25093-25095 — <c>isMarkerType</c>.</summary>
     internal bool IsMarkerType(IType type)

@@ -2455,6 +2455,27 @@ harness 的下划线规则是逐节点的 `nodeIsFullySynthetic(node) = nodeIsSy
 - **诊断聚合本来就已经是"每文件收集 + 一次排序去重"**（`GetDiagnosticsHelper` → `_files.SelectMany(getDiagnostics)` → `SortAndDeduplicateDiagnostics`），§18.4 里设想的"每文件缓冲 + 串行合并"在池回退后没有对象——它已经就是那个形状。
 - **绑定**（已在 `929f3b9` 并行）：0.9 s 里的 bind 部分，实测对总时长无可测影响（§18.4b），价值在形状与大项目。
 
+### 18.4f 整语料单 program：`createMarkerType` 串的实测与残留
+
+§17.17 登记的"整语料一次编不完"在 `CreateMarkerType`（`Checker.Relations.Identical.cs`）上复现。定位用的是**前缀二分**（`artifacts/perf/all.txt` 是语料顺序表，按前 N 个文件生成 tsconfig，逐次二分）——决定性证据是"第一次崩溃的前缀 = 5,069 个文件"，触发文件 `types/conditional/inferTypes1.ts`（它单独跑不崩：崩溃依赖前面 5,068 个文件建立的全局作用域）。
+
+**已修（忠实性修复，非加守卫）**：`CreateMarkerType` 把两个 `typeParameters` 槽用 `[.. x!]` 展开，等价于"对 null 做集合展开"⇒ NRE。参考实现是把槽原样交给 `instantiateTypes`，而它的可选重载对 `undefined` 回答 `undefined`，所以两个槽都可能是 `undefined` 且一路传下去（`getTypeAliasInstantiation`/`createTypeReference` 都收受可选实参）。修法：新增 `InstantiateTypeParameters(List<ITypeParameter>?, mapper)`（`List<T>` 是不变的，所以先加宽到 `IType` 再实例化——顺序与参考一致；`InstantiateList<ITypeParameter>` 会把映射结果硬转回去，不成立），null 原样传下去。实测：该 NRE 消失（崩溃点按参考的语义**下移一层**），`types` 分片仍 21,584 诊断 / 4.37 s，1,521 测试与两条外环不变。
+
+**下一个崩溃（未修，已定位到根因）**：`GetTypeAliasInstantiation` 的 `links.Instantiations!.GetValueOrDefault(id)`（`Checker.TypeReferences.cs:352`）收到 null。
+
+按"**先问参考**"的顺序取证（每一步都留了可复现命令）：
+
+1. **参考实现能编完这个输入**：`node D:/Source/GitHub/TypeScript/lib/tsc.js -p <前缀>` 正常结束（输出上万条全局冲突错误，但不崩）⇒ 这是端口的偏离，不是输入的必然。
+2. **插桩读端口的状态**（`CreateMarkerType` 探针）：触发符号 `C` = `BlockScopedVariable|TypeAlias|Transient|Assignment|Module|ExportSupportsDefaultModifier`，**226 个声明**（语料里 226 个不相关文件各自声明 `class C`/`interface C`/`type C`，作为全局脚本合并成一个符号），而它的声明类型是 `InstantiationExpressionType` 且 7 个类型参数。
+3. **向参考要同一符号的答案**（`node artifacts/probe/ts-symbol.cjs`）：参考的 `C` 有 **11 个 flag**（多出 `Function|Class|Interface|ValueModule|NamespaceModule`）。差别关键：`getDeclaredTypeOfSymbol` 先看 `Class|Interface`，参考据此走**类/接口**分支（声明类型没有类型参数 ⇒ `getVariances` 的循环为空 ⇒ 根本不创建 marker 类型）；端口只看到 `TypeAlias`，走**别名**分支（声明类型是实例化表达式 ⇒ 创建 marker 类型 ⇒ `links.Instantiations` 为 null ⇒ 崩）。
+4. **那是不是合并丢了 flag？** 用同一套"端口 dump vs 参考 dump"对比 `_globals` 的全部合并符号：**2,110 / 2,112 个名称的 flag 完全一致**，只有两个不同——`F` 少 128（`ConstEnum`）、`fs` 少 1024（`NamespaceModule`）。`C` 的全局条目**与参考一致** ⇒ 合并本身基本忠实，崩溃处的 `symbol` 是**合并过程中的中间 clone（`Transient`）**，它带着当时的 flag 快照，而参考在那个位置解析到的是最终的合并符号。⇒ 真正的残留是"类型上的 `symbol` 槽解析到中间 clone 而非最终合并符号"（`getMergedSymbol`/`CloneSymbol` 的解析面），只在"上千个相互冲突的全局脚本同处一个 program"时显形。
+
+**登记（按优先级）**：
+
+1. **跨文件合并的 oracle 缺失**：三条差分环的语料全是"一文件一 program"，`BindDiff` 的 dump 对 key 排序，所以**没有任何环能看见跨文件合并**——本次的 `F`/`fs` 两个 flag 差异就是这样漏掉的。应该把上面第 4 步的工具化（端口 `_globals` vs `lib/typescript.js` 的 `getSymbolsInScope`，按名称比 flag）做成常驻检查（候选：`tools/ProjectBench --merged-symbols`）。重建探针的配方写在本节的步骤与 `artifacts/probe/*.cjs`（gitignored，可重建）。
+2. **`F`/`fs` 的 flag 差异**（各差一个 bit）：合并路径上的具体缺陷，值得单独修（一旦 oracle 就位，这类问题会一网打尽）。
+3. **整语料单 program 跑通**：在 1/2 落地后再谈；它的价值只是"与 tsgo/tsc 的端到端数字对拍"，而**支持的项目模式测量是逐目录分片**（§17.15 的数字就是那样测的），分片本身是彼此不冲突的连贯 program。
+
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 
 两个工具的端口半场原来是**按文件串行**跑（每个文件各自建 program），而这正是最适合并行的形状：文件之间零共享。新增 `--parallel <n>`（默认 `Environment.ProcessorCount`，`1` = 串行，用于 A/B），实现是**有界的 `Parallel.For` + 每文件结果槽**，最后按文件序落盘 —— 因此**索引产物与串行运行逐字节相同**（`port-hashes.txt` / `port-crashes.txt` 已实测 `cmp` 一致；`report.txt` 只差 node 侧自报的 `maxRSS` 与端口峰值这两行噪声）。
