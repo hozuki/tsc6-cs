@@ -79,6 +79,7 @@ internal static partial class Program
           --filter <glob>    matches the '/'-separated path relative to --cases;
                              '*' does not cross '/', '**' does (e.g. classes/**)
           --limit <n>        keep the first n files after filtering (sorted by path)
+          --parallel <n>     port-half files checked at once (default: ProcessorCount; 1 = serial)
           --out <dir>        output directory (default: <repo>/artifacts/typediff)
           --js <file>        the reference lib/typescript.js (default: nearest ancestor of
                              --cases that has one, else the sibling TS checkout)
@@ -144,7 +145,7 @@ internal static partial class Program
             File.Delete(stale);
         }
 
-        Console.Error.WriteLine($"typediff: {files.Count} files under {settings.Cases}; checking them with the port");
+        Console.Error.WriteLine($"typediff: {files.Count} files under {settings.Cases}; checking them with the port (parallel={settings.Parallel})");
         var started = Stopwatch.StartNew();
         using (var hashWriter = new StreamWriter(File.Open(paths.PortHashes, FileMode.Create), Utf8NoBom) { AutoFlush = true, NewLine = "\n" })
         using (var crashWriter = new StreamWriter(File.Open(paths.PortCrashes, FileMode.Create), Utf8NoBom) { AutoFlush = true, NewLine = "\n" })
@@ -265,8 +266,15 @@ internal static partial class Program
 
     private static void PortPass(Settings settings, List<CorpusFile> files, TextWriter hashes, TextWriter crashes)
     {
-        foreach (var file in files)
+        // PORT-NOTE (parallelism): one file is one program plus its own checker, so the pass fans out and each worker
+        // writes only its own slots; the slots are flushed in file order afterwards, which is what keeps the index files
+        // byte-identical to a serial run's (they are compared between runs). `--parallel 1` is the serial path.
+        var hashLines = new string?[files.Count];
+        var crashLines = new string?[files.Count];
+        var checkerNotLanded = 0;
+        RunFiles(settings.Parallel, files.Count, i =>
         {
+            var file = files[i];
             string text;
             try
             {
@@ -274,27 +282,62 @@ internal static partial class Program
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                crashes.WriteLine($"{file.Rel}\tread-error: {ex.GetType().Name}: {FirstLine(ex.Message)}");
-                continue;
+                crashLines[i] = $"{file.Rel}\tread-error: {ex.GetType().Name}: {FirstLine(ex.Message)}";
+                return;
             }
 
             try
             {
                 var dump = DumpWithPort(settings, file, text);
-                hashes.WriteLine($"{file.Rel}\t{Hash(dump.Text):x16}\t{dump.Text.Length}");
+                hashLines[i] = $"{file.Rel}\t{Hash(dump.Text):x16}\t{dump.Text.Length}";
             }
             catch (CheckerNotLandedException ex)
             {
-                // Every remaining file would fail the same way, so the pass stops after naming the reason once.
-                Console.Error.WriteLine(ex.Message);
-                crashes.WriteLine($"<checker>\t{FirstLine(ex.Message)}");
-                return;
+                // The pre-flight probe (CheckerNotLanded) rules this out before the pass starts, so this arm is the
+                // belt-and-braces M6-5 left behind: the reason is named once (the first file to hit it), and the pass
+                // does not stop — one file's failure says nothing about the next one's, which is also what the parallel
+                // pass requires. The marker keeps its index slot so the file is written in order.
+                if (Interlocked.Exchange(ref checkerNotLanded, 1) == 0)
+                {
+                    Console.Error.WriteLine(ex.Message);
+                    crashLines[i] = $"<checker>\t{FirstLine(ex.Message)}";
+                }
+                else
+                {
+                    crashLines[i] = $"{file.Rel}\tport-crash: {ex.GetType().Name}: {FirstLine(ex.Message)} @ {FrameNames(ex)}";
+                }
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
-                crashes.WriteLine($"{file.Rel}\tport-crash: {ex.GetType().Name}: {FirstLine(ex.Message)} @ {FrameNames(ex)}");
+                crashLines[i] = $"{file.Rel}\tport-crash: {ex.GetType().Name}: {FirstLine(ex.Message)} @ {FrameNames(ex)}";
             }
+        });
+
+        for (var i = 0; i < files.Count; i++)
+        {
+            if (hashLines[i] is not null) hashes.WriteLine(hashLines[i]);
+            if (crashLines[i] is not null) crashes.WriteLine(crashLines[i]);
         }
+    }
+
+    /// <summary>
+    /// Runs <paramref name="body"/> for every index in <c>[0, count)</c>, at most <paramref name="parallel"/> at a time.
+    /// </summary>
+    /// <remarks>
+    /// PORT-NOTE (parallelism): the Go port fans a work item out as one goroutine (<c>tsc/internal/core/workgroup.go:34-41</c>);
+    /// .NET cannot copy that shape (the thread pool is the scheduler), so the port states the same intent with a bounded
+    /// <see cref="Parallel.For(int, int, ParallelOptions, Action{int})"/> — one worker per core by default, and
+    /// <c>--parallel 1</c> as the sequential path. See docs/architecture.md §18.
+    /// </remarks>
+    private static void RunFiles(int parallel, int count, Action<int> body)
+    {
+        if (parallel <= 1 || count <= 1)
+        {
+            for (var i = 0; i < count; i++) body(i);
+            return;
+        }
+
+        Parallel.For(0, count, new ParallelOptions { MaxDegreeOfParallelism = parallel }, body);
     }
 
     /// <summary>Runs the port's program and checker over one file and dumps what the checker wrote.</summary>
@@ -1136,6 +1179,7 @@ internal static partial class Program
         string? cases = null, filter = null, outDir = null, js = null, node = null, nodeScript = null;
         int? limit = null;
         var nodeBatch = 250;
+        var parallelFiles = Environment.ProcessorCount;
         var strict = false;
         for (var i = 0; i < args.Length; i++)
         {
@@ -1163,6 +1207,16 @@ internal static partial class Program
                     }
 
                     limit = parsed;
+                    break;
+                case "--parallel":
+                    var parallelRaw = Next(args, ref i);
+                    if (parallelRaw is null || !int.TryParse(parallelRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parallel) || parallel <= 0)
+                    {
+                        error = "typediff: --parallel needs a positive integer (1 = serial)\n" + Usage;
+                        return false;
+                    }
+
+                    parallelFiles = parallel;
                     break;
                 case "--out": outDir = Next(args, ref i); break;
                 case "--js": js = Next(args, ref i); break;
@@ -1210,6 +1264,7 @@ internal static partial class Program
             Filter = filter,
             Limit = limit,
             NodeBatch = nodeBatch,
+            Parallel = parallelFiles,
             Out = outDir,
             Js = js,
             Node = node ?? "node",
@@ -1287,6 +1342,18 @@ internal static partial class Program
         /// "the largest batch" (measured, and reported in the run summary) at the cost of one node startup per batch.
         /// </remarks>
         public int NodeBatch { get; init; } = 250;
+
+        /// <summary>
+        /// How many corpus files the port half checks at once (default: <see cref="Environment.ProcessorCount"/>).
+        /// </summary>
+        /// <remarks>
+        /// Every file is an independent program with its own checker, so the pass fans out — which is only possible
+        /// because the compiler became reentrant (docs/architecture.md §18). The index files are still written in file
+        /// order, so a parallel run's artifacts are byte-identical to a serial one's; <c>--parallel 1</c> is that serial
+        /// path, kept for A/B measurement. Memory is the cost: each worker holds one program and its checker state, so
+        /// the peak grows with this number (the checker's link tables dominate).
+        /// </remarks>
+        public int Parallel { get; init; } = Environment.ProcessorCount;
         public required string Out { get; init; }
         public required string Js { get; init; }
         public required string Node { get; init; }

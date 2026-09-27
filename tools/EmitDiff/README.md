@@ -37,9 +37,14 @@ writes one per batch under `<out>/manifests/`, and leaves the full one at `<out>
 file present every file counts as diverged and no dump is written, which is what a reference-only run reports.
 
 Options of the driver: `--cases` (required), `--filter` (glob over the root-relative path, `*` does not cross `/`, `**`
-does), `--limit`, `--out` (default `<repo>/artifacts/emitdiff`), `--js`, `--node`, `--node-script`, `--node-batch`
+does), `--limit`, `--parallel` (port-half files compiled at once, default `ProcessorCount`, `1` = serial), `--out`
+(default `<repo>/artifacts/emitdiff`), `--js`, `--node`, `--node-script`, `--node-batch`
 (default 250), the source-map family `--source-map`, `--inline-source-map`, `--inline-sources`, `--source-root <dir>`,
 `--map-root <dir>`, and `-h`/`--help`.
+
+The port half fans out over the corpus: every file is an independent program, so `--parallel` workers each compile one,
+and the index files are still written in file order — a parallel run's artifacts are byte-identical to a serial one's.
+Peak memory grows with the worker count (each worker holds one program), which the report's own peak line shows.
 
 Both halves are handed the **same option object and the same one-file host** — `target: ESNext`, `module: ESNext`,
 `allowJs: true`, `newLine: LineFeed`, `suppressOutputPathCheck: true` (`Program.cs`'s `PortOptions` and `ts-emit.cjs`'s

@@ -27,10 +27,16 @@ writes one per batch under `<out>/manifests/`. With no `--port-hashes` file pres
 dump is written, which is what a reference-only run reports.
 
 Options of the driver: `--cases` (required), `--filter` (glob over the root-relative path, `*` does not cross `/`, `**`
-does), `--limit`, `--out` (default `<repo>/artifacts/typediff`), `--js`, `--node`, `--node-script`, `--node-batch`
+does), `--limit`, `--parallel` (port-half files checked at once, default `ProcessorCount`, `1` = serial), `--out`
+(default `<repo>/artifacts/typediff`), `--js`, `--node`, `--node-script`, `--node-batch`
 (default 250), `--strict`. Both halves are handed the same options: `target: ESNext`, `allowJs: true`, and `strict`
 under `--strict`; each file is a one-file program with a host that serves that file and nothing else (no default
 library, no module resolution).
+
+The port half fans out over the corpus: every file is an independent program with its own checker, so `--parallel`
+workers each check one, and the index files are still written in file order — a parallel run's artifacts are
+byte-identical to a serial one's. Peak memory grows with the worker count (each worker holds one program and its
+checker's link tables), which the report's own peak line shows.
 
 Outputs, all in `--out`: `port-hashes.txt` / `ts-hashes.txt` (`<rel>\t<16-hex-hash>\t<length>`), `port-crashes.txt` /
 `ts-errors.txt`, `port/<rel>.txt` and `ts/<rel>.txt` (the diverging files' full dumps), `ts-summary.txt` (one line per
