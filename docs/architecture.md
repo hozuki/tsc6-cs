@@ -2554,6 +2554,7 @@ BindEachChild(node) => ForEachChild(node, Bind, nodes => BindEach(nodes));
 - **真挂起这一列反而更差**（185 B/次 对 97–105 B/次，时间也更慢）——本 RC 的这个配置下如此；记录数字，不解释。
 - **因此"把这些回调改成 async"仍然不做，理由换成了实测的**：B 行（缓存委托）是 **0 B / 2.7 ns 每次**；即便 async 零分配，调用协议本身仍要 **6.6 ns（一层）/ 11.7 ns（两层）**每次——比委托贵 2.5–4 倍，而收益（廉价的挂起）在这些**没有挂起点**的 CPU 密集回调上完全用不到，代价是 `async` 顺着递归下降的调用图病毒式上溯（parser/checker 每层签名）与宿主（`ISystem`/`ICompilerHost`）偏离 `sys.ts`/`program.ts` 的同步契约。
 - **async/runtime async 真正该用的地方**：**有真实等待**的路径——M8 的 CLI/host（无缓存 I/O、并发文件加载）与 watch；那里的 I/O 在页缓存已热的混合前缀上实测 4.6%，冷缓存才显著。届时应按本节的探针形状重测，并记得把 `<Features>runtime-async=on</Features>` 写进 **csproj**（写命令行会踩增量编译的坑）。
+- **本仓已打开该开关**：`Directory.Build.props` 里 `<Features>$(Features);runtime-async=on</Features>`（已核实 `src/tsc` 的 csc 命令行出现 `/features:runtime-async=on`；`src`/`tools` 当前**没有**任何 C# async 代码，所以今天不改变任何代码生成，是给 M8 预付的）。将来若某个构造被 runtime async 拒绝（`ERR_UnsupportedFeatureInRuntimeAsync`），用 `[RuntimeAsyncMethodGeneration(false)]` 单独退出即可。
 
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 
