@@ -3118,3 +3118,28 @@ PROBESUBST callback=ImpliedNodeFormatDependentTransformer.OnSubstituteNode
 - **CLI 一致性环**：`artifacts/whalegirl-status/tsc-cli-conformance.cjs` —— 同一批命令行分别喂给 tsgo 与端口 CLI，逐项比对 stdout 与退出码（25 例覆盖：无参数、help/version、未知选项、缺值、坏枚举值、布尔的各种写法、缺输入、`--listFiles`/`--explainFiles`、`-p`、`--noEmit` 等）。**首测 17/25 不一致 → 现在 8/25**，剩下的全是两类：help/version 文本（端口是简化版帮助）与 `--listFiles`/`--explainFiles` 的文件清单输出（未实现）。
 - **对齐时按 tsgo 实测（不是照抄 6.0）的几处**：`ExitStatus`（0/1/2 与"输出是否生成"的区分）；命令行错误的**码与文案**走端口自己的诊断表（TS5023 未知选项、TS6044 缺参数、TS6046 带**值清单**的坏枚举值、TS5058 工程路径不存在）；值清单与**顺序**取自 `tsgo/internal/tsoptions/enummaps.go`；`-p/--p/-project/--project` 都一样收（tsgo 只剥一到两个前导 `-` 再查表，实测如此），但报错用长名；`--flag=value` 只对取值的选项成立（布尔写成 `--strict=false` 是 TS5023）；**`--target es5` → TS5108（tsgo 7.0 移除了 ES5）**。
 - **这一轮从 CLI 侧抓到并修掉的两个编译器真缺陷**（都会被上一条环持续盯住）：①`Program` 给根文件造的 include-reason 用了 `ReferencedFile` 而不是 `RootFile`，于是"文件不存在"走到 `FileIncludeReasonToDiagnostics` 的 `unexpected file include reason kind 0` 直接抛异常（tsgo 报 TS6053 + "Root file specified for compilation"）；②`--lib es5` 把**库名**当**文件名**直接 `PathForLibFile`，于是去找 `lib/es5`，报"找不到全局类型 'Array'"（tsgo 的 `fileloader.go:205-211` 先过 `GetLibFileName`）。两者修好后：`missing.ts` 与 `--lib es5` 与 tsgo 逐字一致，两条外环仍 clean 5908/5908，测试 1521/1521。
+
+### 18.9 验收基线切换到 tsgo 的 `testdata/baselines`（用户裁定方案 B）
+
+**动机**：要拿到 tsgo 级别的性能就必须做 checker 分片，而分片会改变输出字节（联合类型成员顺序、额外诊断，§18.4d 实测）。这在"与 6.0 基线逐字节一致"的口径下不可接受；tsgo 自己就是分片的，它的基线与之自洽 ⇒ 口径换成 tsgo 的基线。
+
+**调用方式**（`tools/BaselineDiff`，四件事缺一不可）：
+
+```
+--cases     <TSGO>/tsc/testdata/tests/cases/conformance     # 或 /compiler
+--baselines <TSGO>/tsc/testdata/baselines/reference/conformance
+--workspace <TSGO>/tsc/testdata        # 决定 `//// [tests/cases/…]` 头部路径
+--lib       <TSGO>/tsc/internal/bundled/libs   --test-lib <TSGO>/tsc/testdata/tests/lib
+--types-underlines false               # 见下
+```
+
+**`--types-underlines false` 的由来（重要）**：tsgo 的 `.types` 基线**不含下划线标注行**，原因是它的产生器还没实现——`internal/testutil/tsbaseline/type_symbol_baseline.go` 读 `result.underline` 并在非空时打印该行，但产生侧写着 `// !!! TODO: port underline printer, memoize` 与 `// underline: underline, // !!! TODO: underline`（第 403/413 行）。**这是 tsgo 的缺口，不是格式约定**，所以端口不跟着砍：默认仍输出 TS 的真实行为，只在比对 tsgo 基线时用该开关抑制该行。
+
+**实测（`es6/Symbols`，95 用例 / 380 次 artifact 比对）**：
+
+| 配置 | js | errors | types | symbols | 合计 |
+|---|---|---|---|---|---|
+| 默认（带下划线） | 94/95 | 92/95 | **1/95** | 93/95 | same 280 / div 100 |
+| `--types-underlines false` | 94/95 | 92/95 | **90/95** | 93/95 | **same 369 / div 11** |
+
+同一分片上**参考半场（tsc 6.0.3）与 tsgo 基线仍有 100 处不一致** ⇒ 端口现在比 tsc 6.0.3 本身更贴近 tsgo；剩余 11 条（js 1 / errors 3 / types 5 / symbols 2）才是真正待查的差异清单。
