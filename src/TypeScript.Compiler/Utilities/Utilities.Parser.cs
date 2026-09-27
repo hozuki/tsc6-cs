@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace TypeScript.Compiler;
@@ -428,10 +429,48 @@ internal static partial class Utilities
     /// Unicode-aware (§10.2), hence the explicit <c>[0-9]</c> character class. An index past the end of <c>args</c> is
     /// JS's <c>undefined</c>, which concatenates as <c>"undefined"</c>.
     /// </remarks>
+    /// <remarks>
+    /// PORT-NOTE (shape, perf): the reference hands the whole job to a global regex (<c>text.replace(/{(\d+)}/g, …)</c>)
+    /// and the tsgo checker does the same with a compiled regexp (internal/diagnostics/diagnostics.go:127-146); the port
+    /// first did it with <c>[GeneratedRegex]</c> plus a match evaluator, which made <c>formatStringFromArgs</c> one of
+    /// the checker's top exclusive-CPU entries (400 ms self + ~350 ms of GC on the 845-file <c>types</c> shard — see
+    /// docs/architecture.md §17.15) because every formatted message allocated a match list and a closure. The scan below
+    /// walks the text left to right and takes the first <c>{digits}</c> at each position, which is exactly the leftmost,
+    /// non-overlapping match sequence a global regex produces, so the returned string is identical for every input —
+    /// including the overflow arm (<c>int.TryParse</c> failure → index <c>-1</c> → <c>"undefined"</c>) and the no-match
+    /// arm (the input instance comes back unchanged). The <c>DiagnosticArgument</c> resolution point and the assertion
+    /// gate are unchanged.
+    /// </remarks>
     public static string FormatStringFromArgs(string text, params object?[] args)
-        => FormatStringFromArgsRegEx().Replace(text, match =>
+    {
+        StringBuilder? builder = null;
+        var start = 0;
+        var i = 0;
+        while (i < text.Length)
         {
-            var index = int.TryParse(match.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed)
+            if (text[i] != '{')
+            {
+                i++;
+                continue;
+            }
+
+            var digitsStart = i + 1;
+            var end = digitsStart;
+            while (end < text.Length && text[end] >= '0' && text[end] <= '9')
+            {
+                end++;
+            }
+
+            if (end == digitsStart || end >= text.Length || text[end] != '}')
+            {
+                i++;
+                continue;
+            }
+
+            builder ??= new StringBuilder(text.Length);
+            builder.Append(text, start, i - start);
+
+            var index = int.TryParse(text.AsSpan(digitsStart, end - digitsStart), NumberStyles.None, CultureInfo.InvariantCulture, out var parsed)
                 ? parsed
                 : -1;
 
@@ -441,7 +480,7 @@ internal static partial class Utilities
             }
 
             var value = index >= 0 && index < args.Length ? args[index] : null;
-            return value switch
+            builder.Append(value switch
             {
                 null => "undefined",
                 // PORT-NOTE: ruling A″ — an argument the caller deferred (`Diagnostic.DeferArg`) is resolved here, the
@@ -450,11 +489,21 @@ internal static partial class Utilities
                 // and keeps a thunk that answers null rendering as the null argument always has.
                 DiagnosticArgument deferred => deferred.Resolve() ?? "undefined",
                 _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? "",
-            };
-        });
+            });
 
-    [GeneratedRegex(@"\{([0-9]+)\}", RegexOptions.CultureInvariant)]
-    private static partial Regex FormatStringFromArgsRegEx();
+            i = end + 1;
+            start = i;
+        }
+
+        // No placeholder: the reference's `replace` hands the input back, so the port does too.
+        if (builder is null)
+        {
+            return text;
+        }
+
+        builder.Append(text, start, text.Length - start);
+        return builder.ToString();
+    }
 
     /// <summary>ported from: src/compiler/utilities.ts:8609 — <c>createDetachedDiagnostic</c>.</summary>
     /// <remarks>

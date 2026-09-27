@@ -2607,7 +2607,7 @@ internal sealed partial class Checker
         var targetEndText = targetTexts[lastTargetIndex];
         if (
             lastSourceIndex == 0 && sourceStartText.Length < targetStartText.Length + targetEndText.Length ||
-            !sourceStartText.StartsWith(targetStartText) || !sourceEndText.EndsWith(targetEndText)
+            !Core.StartsWith(sourceStartText, targetStartText) || !Core.EndsWith(sourceEndText, targetEndText)
         )
         {
             return null;

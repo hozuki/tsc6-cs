@@ -808,7 +808,18 @@ internal sealed partial class Checker
                     {
                         foreach (var member in ((EnumDeclaration)declaration).Members!)
                         {
-                            if (HasBindableName((IDeclaration)member))
+                            // PORT-NOTE: the reference spells this guard `hasBindableName(member)`, which for a
+                            // late-bindable computed name calls the checker (`isLateBindableName` ->
+                            // `checkComputedPropertyName` -> `checkExpression`). Doing that while THIS function is
+                            // still computing the enum's declared type re-enters it for any name whose expression
+                            // resolves to an enum member the loop has not reached yet (a merged enum whose declaration
+                            // lives in another file, or a forward reference), and the reference's own code then
+                            // recurses without bound. tsgo (`tsc` 7) states the guard this loop actually wants — a
+                            // dynamic name never forces an expression check here (`!hasDynamicName(member)`); the
+                            // members it skips are exactly the ones `computeEnumMemberValue` rejects with
+                            // "Computed property names are not allowed in enums", and their declared type is computed
+                            // on demand by `GetDeclaredTypeOfEnumMember` from the finished enum type.
+                            if (!Utilities.HasDynamicName((Node)member))
                             {
                                 var memberSymbol = GetSymbolOfDeclaration((IDeclaration)member);
                                 var value = GetEnumMemberValue(member).Value;

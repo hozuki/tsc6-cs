@@ -1151,9 +1151,11 @@ internal sealed partial class Checker
                 {
                     var importClause = (ImportClause)node;
                     var generatedSpecifier = GetSpecifierForModuleSymbol(target.Parent ?? target, context); // generate specifier (even though we're reusing and existing one) for ambient module reference include side effects
+                    // PORT-NOTE: the reference's `(node as ImportClause).parent.moduleSpecifier` (checker.ts:10516) is an
+                    // unchecked cast; the parent is the JSDocImportTag when the clause came from an `@import` tag.
                     var specifierExpression = context.Bundled
                         ? (Expression)_factory.CreateStringLiteral(generatedSpecifier)
-                        : ((ImportDeclaration)importClause.Parent!).ModuleSpecifier;
+                        : Utilities.GetImportContainerModuleSpecifier(importClause.Parent!);
                     var attributes = NodeTests.IsImportDeclaration(importClause.Parent!) ? ((ImportDeclaration)importClause.Parent!).Attributes : null;
                     var isTypeOnly = NodeTests.IsJSDocImportTag(importClause.Parent!);
                     context.ApproximateLength += 14 + localName.Length + 3 + (isTypeOnly ? 4 : 0); // `import localName from specifier;`, approximate specifier
@@ -1176,11 +1178,18 @@ internal sealed partial class Checker
                 {
                     var namespaceImport = (NamespaceImport)node;
                     var generatedSpecifier = GetSpecifierForModuleSymbol(target.Parent ?? target, context); // generate specifier (even though we're reusing and existing one) for ambient module reference include side effects
-                    var namespaceImportDeclaration = (ImportDeclaration)namespaceImport.Parent!.Parent!;
+                    // PORT-NOTE: the reference's `(node as NamespaceImport).parent.parent.moduleSpecifier` (checker.ts:10537)
+                    // is an unchecked cast; the grandparent is the JSDocImportTag for an `@import * as ns from …` tag.
+                    // The reference's `attributes` for this arm is `(node as ImportClause).parent.attributes`
+                    // (checker.ts:10549), which reads the *clause*'s own `attributes` slot — a slot `ImportClause` does not
+                    // declare — so its value is always `undefined` and the emitted namespace import never carries the
+                    // container's attributes. `importTag15`'s baseline shows both haloes: `import type { I } from './0' with
+                    // { type: "json" };` for the specifier arm and the bare `import type * as foo from './0';` here.
+                    var namespaceImportDeclaration = namespaceImport.Parent!.Parent!;
                     var specifierExpression = context.Bundled
                         ? (Expression)_factory.CreateStringLiteral(generatedSpecifier)
-                        : namespaceImportDeclaration.ModuleSpecifier;
-                    var isTypeOnly = NodeTests.IsJSDocImportTag(namespaceImport.Parent!.Parent!);
+                        : Utilities.GetImportContainerModuleSpecifier(namespaceImportDeclaration);
+                    var isTypeOnly = NodeTests.IsJSDocImportTag(namespaceImportDeclaration);
                     context.ApproximateLength += 19 + localName.Length + 3 + (isTypeOnly ? 4 : 0); // `import * as localName from specifier;`, approximate specifier
                     AddResult(
                         context,
@@ -1193,7 +1202,7 @@ internal sealed partial class Checker
                                 /*name*/ null,
                                 _factory.CreateNamespaceImport(_factory.CreateIdentifier(localName))),
                             specifierExpression,
-                            ((ImportClause)node).Parent is ImportDeclaration outerImport ? outerImport.Attributes : null),
+                            /*attributes*/ null),
                         ModifierFlags.None);
                     break;
                 }
@@ -1215,11 +1224,14 @@ internal sealed partial class Checker
                 {
                     var importSpecifier = (ImportSpecifier)node;
                     var generatedSpecifier = GetSpecifierForModuleSymbol(target.Parent ?? target, context); // generate specifier (even though we're reusing and existing one) for ambient module reference include side effects
-                    var importSpecifierDeclaration = (ImportDeclaration)importSpecifier.Parent!.Parent!.Parent!;
+                    // PORT-NOTE: the reference's `(node as ImportSpecifier).parent.parent.parent` reads (checker.ts:10569,
+                    // :10587) are unchecked casts; the great-grandparent is the JSDocImportTag for an `@import { x } from …`
+                    // tag, and both the specifier and the attributes are read off that container.
+                    var importSpecifierDeclaration = importSpecifier.Parent!.Parent!.Parent!;
                     var specifierExpression = context.Bundled
                         ? (Expression)_factory.CreateStringLiteral(generatedSpecifier)
-                        : importSpecifierDeclaration.ModuleSpecifier;
-                    var isTypeOnly = NodeTests.IsJSDocImportTag(importSpecifier.Parent!.Parent!.Parent!);
+                        : Utilities.GetImportContainerModuleSpecifier(importSpecifierDeclaration);
+                    var isTypeOnly = NodeTests.IsJSDocImportTag(importSpecifierDeclaration);
                     context.ApproximateLength += 19 + localName.Length + 3 + (isTypeOnly ? 4 : 0); // `import { localName } from specifier;`, approximate specifier
                     AddResult(
                         context,
@@ -1237,7 +1249,7 @@ internal sealed partial class Checker
                                         _factory.CreateIdentifier(localName)),
                                 ])),
                             specifierExpression,
-                            importSpecifierDeclaration.Attributes),
+                            Utilities.GetImportContainerAttributes(importSpecifierDeclaration)),
                         ModifierFlags.None);
                     break;
                 }

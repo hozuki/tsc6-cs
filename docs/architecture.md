@@ -2288,3 +2288,32 @@ harness 的下划线规则是逐节点的 `nodeIsFullySynthetic(node) = nodeIsSy
 **该区剩余**：JSDoc 硬转族 5 例（`NamespaceImport → …`、`JSDocImportTag → Import…`，由 `JSDocCastFamily` 切片处理中）、1 例 unmodelled（需要 tsconfig 读入，M8）、以及 121 个用例的发射/类型/JSDoc-注释类分歧。
 
 集成方在同一棵树上复核（含各切片在飞改动）：build 0/0、测试 **1,521/1,521**、`tools/TypeDiff` 全语料 **clean 5908/5908**、`tools/EmitDiff` 全语料 **clean 5908/5908**（端口半场 23.2 s，此前 38–46 s —— 已有切片带来约 40% 提速，详见 §17.17 的性能诊断）。
+
+### 17.17 三个切片的收尾：JSDoc 硬转族清零、项目模式两处崩溃、checker 首轮性能修复
+
+**A. JSDoc/JS 声明面硬转族（`JSDocCastFamily`）** —— 11 处修复，全部是"参考用谓词/unchecked `as`，端口写成 C# 硬转"：
+
+| 文件 | 修复 |
+|---|---|
+| `Checker.Check.Symbols.cs` | `CheckJSDocTypeAliasTag` 按三臂联合（`JSDocTypedefTag`/`JSDocCallbackTag`/`JSDocEnumTag`）走 kind 分支，替代硬转 `JSDocCallbackTag`（checker.ts:44223-44234 + 调用点 49163-49166） |
+| `Utilities.Checker.cs` | `GetEffectiveImplementsTypeNodes` 拓宽到 `Node`（非 JS 走 `HeritageClausesOf`）；新增 `GetImportContainerModuleSpecifier`/`GetImportContainerAttributes`（`ImportDeclaration \| JSDocImportTag` 容器读取） |
+| `Checker.BaseTypes.cs` / `NodeBuilder.Serialize.cs` / `Checker.SymbolSupport.cs` | `getImplementsTypes`、`SerializeAsClass` 的 implements 读取、`ImportClause`/`NamespaceImport`/`ImportSpecifier` 诸臂改按面读取（`NamespaceImport` 臂照参考恒为 undefined） |
+| `SyntacticBuilderResolver.cs` / `Checker.Check.Statements.cs` / `Checker.CallResolution.cs` / `Checker.TypeSupport.cs` / `Checker.Inference.cs` / `Checker.Check.Classes.cs` | 五处联合成员的软转/越界语义（`NodeIsMissing(functionLike?.Body)`、`SignatureDeclaration \| JSDocSignature` 的参形读取、`pop()` 空表 no-op、`arguments[predicate.parameterIndex]` 越界答案等） |
+
+实测（`--filter "jsdoc/**"`，341 文件/397 用例，同命令同基线）：**`port-crash` 464 → 0（116 用例 → 0）**；`same` 1,011 → **1,414**；`diverged` 107 → 166（107 条原样保留，**59 条是原先崩溃的用例现在可比后新露出的**）。该区现有分歧全部是发射/类型/JSDoc-注释类文本差异，无崩溃。
+
+**B. 项目模式（`tools/ProjectBench`）两处跨文件崩溃（`ProjectModeCrashes`）** —— 都不是"缺守卫"，而是 JS 语义在 C# 里的等价物被写成了会抛的形式：
+
+1. `Checker.Members.cs` 的 `GetExpandedParameters` → `associatedNames[i]`：参考读的是可能越界的数组元素，JS 答 `undefined`（falsy ⇒ 回退 `getParameterNameAtPosition`），C# 的 `List[i]` 抛 ⇒ 前缀 2,863 文件（`functions/strictBindCallApply1.ts` 与 `async/es6/asyncWithVarShadowing_es6.ts` 组成的最小对，后者 `fn19([x])` 造的 `[any]` 元组目标与 lib 的 `bind<...[...A, ...B]...>` 归一化后复用，标签表为空）**`ArgumentOutOfRangeException`**。
+2. `Checker.Queries.cs` 的 `GetDeclaredTypeOfEnum` 成员遍历守卫：`HasBindableName(member)` → `!Utilities.HasDynamicName(member)` ⇒ 前缀 5,718 起 **Stack overflow**（`GetDeclaredTypeOfEnum → HasBindableName → HasLateBindableName → IsLateBindableName → CheckComputedPropertyName → … → GetDeclaredTypeOfEnumMember → GetDeclaredTypeOfEnum`，重复 247 层）。
+
+**C. checker 首轮性能修复（`CheckerPerfDiagnosis`，按"优先参考 Go 实现"裁定）** —— `dotnet-trace` 采样（Speedscope 回放校验：`StartsWith` 34.05% / `EndsWith` 29.65% 独占，两条互证）：
+
+| 修复 | 依据 | 实测 |
+|---|---|---|
+| `Checker.Relations.Identical.cs` 的 `InferFromLiteralPartsToTemplateLiteral`：`string.StartsWith/EndsWith(string)` → `Core.StartsWith/EndsWith`（序数比较） | **既是性能修复也是忠实性修复**：JS 的 `String.prototype.startsWith` 与 core.ts 的 helper 都是序数，tsgo 用 `strings.HasPrefix/HasSuffix`（relater.go:2426）；C# 的重载走 CompareInfo/ICU（可折叠软连字符等） | `types` 分片（845 根/938 文件）CPU **15.0–15.8 s → 6.5 s（-57%）**，semantic **14.6–17.0 s → 5.7 s（-61%）**，诊断数不变（21,584）；ICU 独占从 63.7% 降至 0.1%；负对照（1,200 文件前缀）不变 ⇒ 收益集中在模板字面量类型密集文件 |
+| `Utilities.Parser.cs` 的 `FormatStringFromArgs`：`[GeneratedRegex]` 替换 → 单次左到右扫描（输出逐字节相同，含越界/无匹配臂，带 PORT-NOTE） | 降低每次诊断消息的分配（Regex 路径在 GC 样本中可见） | **A/B 未能分辨**（机器噪声 ±5%，效应 ~6% 在解析度边缘）——保留理由：每次消息的工作量严格更少且两条外环干净；属"形状偏离两个参考但可论证"的范畴 |
+
+**收尾验证（集成方，冻结树）**：build 0 错误 0 警告、测试 **1,521/1,521**、`tools/TypeDiff` 全语料 **clean 5908/5908**、`tools/EmitDiff` 全语料 **clean 5908/5908**（端口半场 21.9 s，此前 38–46 s）。
+
+**仍未闭合（已登记，未在本轮修）**：整语料单 program 跑通还差一串同族缺陷——`CreateMarkerType`（`Checker.Relations.Identical.cs:360-362`）对"无类型参数/联合类型声明"的泛型仍会抛（`[.. null]` 的 NRE，以及 `UnionType → IGenericType` 的硬转；参考的 `as`/`!` 在运行期都是"不检查"），且改成"传 null"会继续顶到 `GetTypeAliasInstantiation`（`Checker.TypeReferences.cs:352` 的 `GetValueOrDefault(null, …)`）。这一串要达到"整语料一次编完"需按 tsgo 的 `getVariances`/`createMarkerType` 形态逐处对照（属下一轮工作，不在本收尾内）。

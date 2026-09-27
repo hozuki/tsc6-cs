@@ -3992,42 +3992,29 @@ internal sealed partial class Checker
             ? (PropertyAccessExpression)((VariableDeclaration)node).Initializer!
             : null;
 
-    /// <summary>The <c>moduleSpecifier</c> read of the <c>ImportDeclaration | JSDocImportTag</c> container.</summary>
-    /// <remarks>
-    /// PORT-NOTE: the reference climbs to a clause's container and reads <c>moduleSpecifier</c> through unchecked casts
-    /// (checker.ts:3851 <c>(node.parent as ImportDeclaration)</c>, :3939, :3943-3945, :3980), but a clause declared by a
-    /// JSDoc <c>@import</c> tag hangs off the <c>JSDocImportTag</c> itself (binder.ts:2134-2142), which declares its own
-    /// <c>moduleSpecifier</c> (types.ts:4139-4145). The port reads the two faces' own slots, as
-    /// <c>GetExternalModuleMember</c> and <c>Check.Modules.cs</c>'s <c>checkImportAttributes</c> do.
-    /// </remarks>
-    private static Expression? GetImportContainerModuleSpecifier(Node container) => container switch
-    {
-        ImportDeclaration importDeclaration => importDeclaration.ModuleSpecifier,
-        JSDocImportTag jsDocImportTag => jsDocImportTag.ModuleSpecifier,
-        _ => null,
-    };
-
     /// <summary>ported from: src/compiler/checker.ts:3936-3951 — <c>getModuleSpecifierForImportOrExport</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: TS's parameter is the <c>ImportEqualsDeclaration | ImportClause | NamespaceImport |
     /// ImportOrExportSpecifier</c> union and its <c>default</c> arm is <c>Debug.assertNever(node)</c>; the port takes the
     /// declaration face (which every arm is) and switches on the <c>kind</c>, with <c>null</c> for the arm the reference
     /// can never see. <c>isExternalModuleReference(node.moduleReference)</c> is the kind test the port states inline, and
-    /// the three <c>parent</c> climbs are the reference's own.
+    /// the three <c>parent</c> climbs are the reference's own (each container read goes through
+    /// <see cref="Utilities.GetImportContainerModuleSpecifier"/>, since the reference's casts there are unchecked and a
+    /// JSDoc <c>@import</c> clause hangs off the tag, not off an <c>ImportDeclaration</c>).
     /// </remarks>
     private static Expression? GetModuleSpecifierForImportOrExport(IDeclaration node)
     {
         switch (((Node)node).Kind)
         {
             case SyntaxKind.ImportClause:
-                return GetImportContainerModuleSpecifier(((Node)node).Parent!);
+                return Utilities.GetImportContainerModuleSpecifier(((Node)node).Parent!);
             case SyntaxKind.ImportEqualsDeclaration:
                 var moduleReference = ((ImportEqualsDeclaration)node).ModuleReference;
                 return moduleReference is ExternalModuleReference externalModuleReference ? externalModuleReference.Expression : null;
             case SyntaxKind.NamespaceImport:
-                return GetImportContainerModuleSpecifier(((Node)node).Parent!.Parent!);
+                return Utilities.GetImportContainerModuleSpecifier(((Node)node).Parent!.Parent!);
             case SyntaxKind.ImportSpecifier:
-                return GetImportContainerModuleSpecifier(((Node)node).Parent!.Parent!.Parent!);
+                return Utilities.GetImportContainerModuleSpecifier(((Node)node).Parent!.Parent!.Parent!);
             case SyntaxKind.ExportSpecifier:
                 return ((ExportDeclaration)((Node)node).Parent!.Parent!).ModuleSpecifier;
             default:
@@ -4112,11 +4099,11 @@ internal sealed partial class Checker
     /// <remarks>
     /// PORT-NOTE: the reference reads <c>(node.parent as ImportDeclaration).moduleSpecifier</c>; that cast is unchecked and
     /// the parent of a JSDoc import tag's clause is the <c>JSDocImportTag</c> itself, so the port reads the container's
-    /// own slot through <see cref="GetImportContainerModuleSpecifier"/>.
+    /// own slot through <see cref="Utilities.GetImportContainerModuleSpecifier"/>.
     /// </remarks>
     private ISymbol? GetTargetOfImportClause(IDeclaration node, bool dontResolveAlias)
     {
-        var moduleSymbol = ResolveExternalModuleName((Node)node, GetImportContainerModuleSpecifier(((Node)node).Parent!));
+        var moduleSymbol = ResolveExternalModuleName((Node)node, Utilities.GetImportContainerModuleSpecifier(((Node)node).Parent!));
         if (moduleSymbol is not null)
         {
             return GetTargetofModuleDefault(moduleSymbol, node, dontResolveAlias);
@@ -4267,11 +4254,11 @@ internal sealed partial class Checker
     /// PORT-NOTE: the reference reads <c>(node.parent.parent as ImportDeclaration).moduleSpecifier</c>; the grandparent of
     /// a namespace import is the clause's container, which for a JSDoc import tag is the <c>JSDocImportTag</c> and not an
     /// <c>ImportDeclaration</c>, so the port reads the container's own slot through
-    /// <see cref="GetImportContainerModuleSpecifier"/>.
+    /// <see cref="Utilities.GetImportContainerModuleSpecifier"/>.
     /// </remarks>
     private ISymbol? GetTargetOfNamespaceImport(IDeclaration node, bool dontResolveAlias)
     {
-        var moduleSpecifier = GetImportContainerModuleSpecifier(((Node)node).Parent!.Parent!);
+        var moduleSpecifier = Utilities.GetImportContainerModuleSpecifier(((Node)node).Parent!.Parent!);
         var immediate = ResolveExternalModuleName((Node)node, moduleSpecifier);
         var resolved = ResolveESModuleSymbol(immediate, moduleSpecifier!, dontResolveAlias, /*suppressInteropError*/ false);
         MarkSymbolOfAliasDeclarationIfTypeOnly(node, immediate, resolved, /*overwriteEmpty*/ false);

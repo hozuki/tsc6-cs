@@ -377,9 +377,9 @@ internal static partial class Utilities
     /// <remarks>
     /// PORT-NOTE: TS's parameter is the union <c>ClassLikeDeclaration</c>; the reference's own <c>isInJSFile</c> and
     /// <c>getJSDocImplementsTags</c> accept any <c>Node</c>, and the checker calls the member with every declaration a
-    /// type symbol carries (a function, variable or property-access declaration has JSDoc <c>@implements</c> tags in a JS
-    /// file — checker.ts:13257's unchecked <c>declaration as ClassLikeDeclaration</c>). The port therefore takes
-    /// <see cref="Node"/>, the same widening <see cref="GetEffectiveBaseTypeNode"/> and
+    /// type symbol carries — in a JS file the <c>isInJSFile</c> test sends all of them down the JSDoc tags arm (whether
+    /// or not a tag is present), which is checker.ts:13257's unchecked <c>declaration as ClassLikeDeclaration</c>. The
+    /// port therefore takes <see cref="Node"/>, the same widening <see cref="GetEffectiveBaseTypeNode"/> and
     /// <see cref="GetClassExtendsHeritageElement"/> use, and reads the heritage clauses through
     /// <see cref="HeritageClausesOf"/>. The JS arm returns a mapped array in TS and the heritage clause's own array
     /// otherwise, so the port's return type is <c>IList&lt;ExpressionWithTypeArguments&gt;?</c> — the model's
@@ -396,6 +396,38 @@ internal static partial class Utilities
         var heritageClause = GetHeritageClause(HeritageClausesOf(node), SyntaxKind.ImplementsKeyword);
         return heritageClause?.Types;
     }
+
+    /// <summary>The <c>moduleSpecifier</c> read of an import clause's container.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference climbs from a clause-or-specifier node to its container and reads <c>moduleSpecifier</c>
+    /// through unchecked casts to <c>ImportDeclaration</c> (checker.ts:3851, :3939, :3943-3945, :3980, :10516, :10537,
+    /// :10569), but a clause declared by a JSDoc <c>@import</c> tag hangs off the <c>JSDocImportTag</c> itself
+    /// (binder.ts:2134-2142), which declares its own <c>moduleSpecifier</c> (types.ts:4139-4145). The port names both
+    /// faces and reads each one's own slot — the shape <c>getExternalModuleMember</c> and <c>checkImportAttributes</c>
+    /// already use in this port.
+    /// </remarks>
+    public static Expression? GetImportContainerModuleSpecifier(Node container) => container switch
+    {
+        ImportDeclaration importDeclaration => importDeclaration.ModuleSpecifier,
+        JSDocImportTag jsDocImportTag => jsDocImportTag.ModuleSpecifier,
+        _ => null,
+    };
+
+    /// <summary>The <c>attributes</c> read of an import clause's container.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference reads the container's <c>attributes</c> the same way it reads its <c>moduleSpecifier</c>
+    /// (checker.ts:10517's <c>isImportDeclaration(node.parent) ? node.parent.attributes : undefined</c> and :10587's
+    /// unchecked <c>(node as ImportSpecifier).parent.parent.parent.attributes</c>). The two faces declare the slot, so
+    /// the port reads it per face. It is deliberately not used for <c>serializeAsAlias</c>'s <c>NamespaceImport</c> arm,
+    /// whose reference expression <c>(node as ImportClause).parent.attributes</c> evaluates the *clause*'s own slot,
+    /// which <c>ImportClause</c> does not declare (types.ts:1560-1570) and which is therefore always <c>undefined</c>.
+    /// </remarks>
+    public static ImportAttributes? GetImportContainerAttributes(Node container) => container switch
+    {
+        ImportDeclaration importDeclaration => importDeclaration.Attributes,
+        JSDocImportTag jsDocImportTag => jsDocImportTag.Attributes,
+        _ => null,
+    };
 
     /// <summary>ported from: src/compiler/utilities.ts:5236-5239 — <c>getInterfaceBaseTypeNodes</c>.</summary>
     /// <remarks>

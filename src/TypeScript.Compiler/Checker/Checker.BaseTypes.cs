@@ -201,11 +201,12 @@ internal sealed partial class Checker
     /// <para>
     /// PORT-NOTE: <c>getEffectiveImplementsTypeNodes</c> is a utilities.ts member (utilities.ts:5214) and is declared by
     /// the utilities slice. Its reference parameter, <c>ClassLikeDeclaration</c>, is reached through the unchecked
-    /// <c>declaration as ClassLikeDeclaration</c> on this line, and the declarations it actually receives are every
-    /// declaration of the type symbol (a JSDoc <c>@implements</c> tag is legal on a function, variable or property
-    /// declaration in a JS file, and that is the arm the reference's own <c>isInJSFile</c> test takes); the port
-    /// therefore states the cast as the widened <see cref="Node"/> parameter that member takes, and no cast remains
-    /// here.
+    /// <c>declaration as ClassLikeDeclaration</c> on this line, but the declarations it actually receives are every
+    /// declaration of the type symbol: the member's own <c>isInJSFile(node)</c> test sends each of them down the JSDoc
+    /// tags arm (which simply finds no <c>@implements</c> tag on a function/variable/property declaration), so no
+    /// declaration is guaranteed to be class-like and the cast is never checked — <c>jsdocReadonlyDeclarations.ts</c>'s
+    /// plain function declaration is the measured case. The port therefore states the cast as the widened
+    /// <see cref="Node"/> parameter that member takes, and no cast remains here.
     /// </para>
     /// </remarks>
     internal List<IType> GetImplementsTypes(IInterfaceType type)

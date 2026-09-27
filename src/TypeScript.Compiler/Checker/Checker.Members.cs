@@ -328,7 +328,10 @@ internal sealed partial class Checker
             var restParams = Core.Map<IType, ISymbol>(elementTypes, (t, i) =>
             {
                 // Lookup the label from the individual tuple passed in before falling back to the signature `rest` parameter name
-                var name = associatedNames is not null && associatedNames[i] is not null ? associatedNames[i] : GetParameterNameAtPosition(sig, restIndex + i, restType);
+                // PORT-NOTE: JS's `associatedNames[i]` reads `undefined` past the end of the array; the port states the
+                // bounds test (the tuple's labelled declarations can be an empty list — see `createTupleType`'s
+                // default — while the element list is not).
+                var name = associatedNames is not null && i < associatedNames.Count && associatedNames[i] is not null ? associatedNames[i] : GetParameterNameAtPosition(sig, restIndex + i, restType);
                 var flags = ((ITupleType)restType.Target!).ElementFlags![i];
                 var checkFlags = (flags & ElementFlags.Variable) != 0 ? CheckFlags.RestParameter
                     : (flags & ElementFlags.Optional) != 0 ? CheckFlags.OptionalParameter : CheckFlags.None;
