@@ -26,6 +26,9 @@
     <InternalsVisibleTo Include="BaselineDiff" />
     <!-- tools/ProjectBench 同为集成期工具：单 program 项目模式计时，需要 internal 的 Program/ISystem/选项模型。 -->
     <InternalsVisibleTo Include="ProjectBench" />
+    <!-- src/tsc：产品自己的命令行前端（M8 的第一块）。它与 tools/* 通过同一扇门访问 internal 的
+         Program / ISystem / IFormatDiagnosticsHost / 选项模型——理由与上面几条相同，只是这里的消费者是产品而不是工具。 -->
+    <InternalsVisibleTo Include="tsc" />
   </ItemGroup>
 
 </Project>

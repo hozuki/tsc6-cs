@@ -3073,3 +3073,32 @@ PROBESUBST callback=ImpliedNodeFormatDependentTransformer.OnSubstituteNode
   **验收**：修复后 **52 次**整程序集运行全绿（40 次 `--no-build` + 12 次带构建，1,521/1,521）。此前该失败是 1/60 量级，且**只在带构建的那一轮出现过**（首跑 JIT 让时序窗口打开），所以两种模式都跑了。
 - `TracingTests` 共用 `TraceDir`，并断言 legend 的**相邻两条**是它自己的两次 trace（`TracingTests.cs:155-175`）——该断言要求"没有别的测试插进来"，已由 18.6 的进程级状态集合满足（整类串行）；legend 本身是进程级且加锁的，不需要按测试分目录。
 - **性能主线（按 18.4d/18.4e 的实测重排）**：①先修 `CreateMarkerType` 串（让整语料单 program 可跑）；②**检查器的单线程热路径**——它占 76% 墙钟且不可分片，先例收益是 §17.17 的 -57%；③并行只在解析/绑定/发射之外还有余量时才谈（现测发射仅 8%，见 18.4e）。
+
+### 18.7 对齐 tsgo（TSC 7.0）后的性能实测：每 case 成本分解，与两次被否掉的 lib 预取（2026-09-27）
+
+**对齐目标的变更（本会话裁定）**：行为与验收的参考由 `release-6.0`（tsc 6.0.3）改为 **tsgo 7.0**；差分的第三方由 `lib/typescript.js` 6.0.3 改为**全局 `tsc` 7.0.2**（原生二进制，比 node 快一个量级，这也是旧环"跑不动/跑得慢"的直接原因）。§9.x 中"TSGO 只可作形状参考、不一致处以 6.0.3 为准"的边界随之下调为历史记录。
+
+**单文件 program（1 个 4 行文件 + 93 个默认 lib）的成本分解**（本机中位，Release，全新进程；`tools/ProjectBench` 与 CLI 两处测得的一致）：
+
+| | 端口 | tsgo |
+|---|---|---|
+| 全量（含检查 lib） | **1224 ms** | 257 ms |
+| `--skipLibCheck`（解析+绑定，不检查） | **588 ms** | 117 ms |
+| `--lib es5 --skipLibCheck`（只剩 1 个 lib 文件） | **211 ms** | — |
+| `--noLib`（纯 CLR 启动 + JIT） | **203 ms** | — |
+| tsgo 自报分相 | — | Parse **0.020 s** / Bind **0.007 s** / Check **0.137 s** |
+
+⇒ 端口那 1224 ms = 203（CLR 启动+JIT）+ **≈385（解析+绑定 93 个 lib）** + **≈636（检查 93 个 lib）**；文件 I/O 只占 **~15 ms**（ProjectBench 在 2,093 个文件上实测的 `# perf I/O Read`）⇒ **把 libs 内嵌成程序集资源只值 ~1%**：贵的是解析（tsgo 27 ms，**14×**）与检查（tsgo 137 ms，**4.6×**）。
+
+**实测一（否）：逐层预取 lib 引用。** 在 `processLibReferenceDirectives` 里把一层的 `/// <reference lib="…" />` 解析结果一次性交给已有的宿主预取钩子（`IParallelSourcePrefetchHost`，§18.4k）。插桩显示默认库要走 **46 轮**、其中多数只有 1 个文件（lib 参考图**又深又窄**：每个 `lib.esXXXX.d.ts` 引用的下一层同时被更下一层引用），往返开销抵掉并行收益 —— 分配 137 → **146.3 MiB**、墙钟无变化 ⇒ **回退**。
+
+**实测二（否）：一次性 lib 闭包预取。** 先用**文本扫描**（整行 `///`-注释里的 `lib=`，`[GeneratedRegex]`）把整棵闭包读出来，再作为一个批次交给宿主。`createProgram` 确实降了（p2000：0.733 → **0.590 s，−19%**），但**分配 +105 MiB（213.4 → 318.6 MiB，+49%）**：预取时算出的 `CreateSourceFileOptions` 与走查稍后算出的**不一致**（`GetCreateSourceFileOptions` 读的是模块解析缓存，走查过程中会被填），宿主的 `SameParseOptions` 因此拒收整批并**重新解析**（+105 MiB ≈ 一次 lib 解析的全部成本，实测吻合）。按本仓的口径（分配字节是唯一无噪声的指标，§18.4g），这不是收益 ⇒ **回退**（代码回到改动前，仅保留本节记录）。
+
+⇒ **结论**：lib 的解析必须**每进程只付一次**，而不是每 program 一次。三条路按收益/风险排序：①**宿主级（进程级）已解析 lib `SourceFile` 缓存**——对差分环与同一进程内的重复运行是数量级收益（CLI 单次运行不变），且端口已有 `ChangeCompilerHostLikeToUseCache` 的形状可循；②**预编译/内嵌的 lib 二进制 AST**（省掉那 385 ms 解析，顺带解决"部署时找不到 `lib/`"，即 §13.2 遗留）；③**并行解析 lib**（本节证明逐层与一次性两种接法都不成立，除非同时消除选项漂移）。检查侧的 636 ms（4.6×）则是 §18.4e 已登记的主线：它占 76% 墙钟、不可分片，按 tsgo 的 `checkerpool` 形状（4 分片 + 按文件归属）与分配削减来做。
+
+### 18.8 新验收环：`tsgo` CLI 逐用例差分（端口第一次有了自己的 CLI）
+
+- **`src/tsc`（M8 的第一块）**：`Program.cs`（命令行解析 + `emitFilesAndReportErrors` 的诊断装配 watch.ts:564-613 + `formatDiagnostics` 的纯文本报告）、`DiskSystem.cs`（真实文件系统的 `ISystem`）、`TscCompilerOptions.cs`（进程自己的选项对象）。`tsconfig.json` 读取、`-p`、`--build`、watch 仍未落地（见文件内 PORT-NOTE 的清单）。
+- **差分器**：`artifacts/whalegirl-status/tsgo-case-diff.cjs` —— 对每个用例：按 `// @filename:` 切分单元、把 `// @name: value` 映射成**两边都一样的**命令行、在同目录下跑 `tsc`(tsgo) 与端口 CLI、逐行比对诊断。口径：只比诊断、恒 `--noEmit`（CLI 渲染不了 baseline 文本，那是 `tools/BaselineDiff` 的活）；不认识的指令记为 `unmodelled`，绝不猜。
+- **harness 已知坑**（写下来避免重踩）：npm 的 `tsc` 是 `.cmd`，`spawnSync` 必须经 shell（`cmd /c`）；传给两个 CLI 的路径必须**绝对**（否则临时目录下解析失败，宿主自己的报错文本会被当成"端口输出"从而把所有用例判成 diverged）；`port.status === null` 是 harness 失败，不是判决。
+- **首跑（`es6/Symbols`，95 用例，本机 113 s）**：`same=57 diverged=2 port-crash=36` ⇒ **36 个崩溃待诊**（复现：`node artifacts/whalegirl-status/tsgo-case-diff.cjs --cases D:/Source/GitHub/TypeScript-Go/tsc/testdata/tests/cases/conformance --port src/tsc/bin/Release/net11.0/tsc.dll --lib-dir D:/Source/GitHub/TypeScript-Go/tsc/internal/bundled/libs --filter "es6/Symbols/" --parallel 6`）。
