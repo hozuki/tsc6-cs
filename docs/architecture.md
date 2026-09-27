@@ -2959,8 +2959,26 @@ types 分片的 emit 阶段 844 个文件分配 **580 MiB**（比解析的 109 K
 | `Printer.WriteFile`（打印管线本体） | **214.5 MiB / 844 次 = 254 KB/文件** | ← 余量在这里，未收敛 |
 
 ⇒ 下一个可拆点：在 `Printer.WriteFile` 内按 `Print`/`GetLiteralTextOfNode`/`GetLinesBetweenNodes`/注释发射分
-一层探针（每文件约 3k 节点、~85 B/节点，量级像"逐节点一个小对象"）。emit 现在占 types 分片整轮 12%
-（3.53 s 里的 0.431 s），且对 noEmit 的整语料跑分无影响 ⇒ 优先级排在其他线之后。
+一层探针（每文件约 3k 节点、~85 B/节点，量级像"逐节点一个小对象"）。
+
+**第二轮（叶子层）实测**：
+
+| 叶子 | 分配 | 调用 | 结论 |
+|---|---|---|---|
+| `EmitTrailingCommentsOfPosition` | 7.7 MiB | 58,399 | 小 |
+| `EmitLeadingCommentsOfPosition` | 3.4 MiB | 27,487 | 小 |
+| `GetLinesBetweenNodes` | 3.2 MiB | 23,094 | 小 |
+| `GetLiteralTextOfNode` | 0.4 MiB | 7,964 | 小 |
+| **`GetPipelinePhase` 的实例方法组委托** | **10.8 MiB** | （每节点一次链式解析） | **已修** |
+| 核心逐节点打印（余量） | **≈225 MiB** | — | **未收敛** |
+
+第五行是真修掉的一处：`GetPipelinePhase` 里五个 `return PipelineEmitWithX;` 都是**实例方法组转换**，每次调用都
+新建一个委托（参考里返回的是模块级函数引用，免费）。改为**每个 printer 缓存五个委托**（`PrinterFactory` 的
+memoized printer 只建一次）：emit 分配 250.4 → **239.6 MiB**，`EmitDiff` 仍 **clean 5908/5908**。
+
+余下的 ≈225 MiB 在核心逐节点路径里（844 文件 × 约 250k 节点 ⇒ ≈0.9 KB/节点，量级仍像"每节点一个较大的对象"）；
+本轮的分桶直方图探针自身写崩、且 emit 只占该分片 12%、对 noEmit 的整语料跑分无影响 ⇒ **按性价比收手**，把它
+留给下一轮（入口是 `PipelineEmit` 的下游分派，用分桶直方图判形状）。
 
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 

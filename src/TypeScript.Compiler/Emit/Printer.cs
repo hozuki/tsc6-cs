@@ -58,6 +58,12 @@ internal sealed partial class Printer : IPrinter
         _newLine = GetNewLineCharacter(_printerOptions);
         _moduleKind = GetEmitModuleKind(_printerOptions);
         _commentsDisabled = _printerOptions.RemoveComments == true;
+        // The five pipeline-phase delegates `GetPipelinePhase` answers — see the PORT-NOTE on that member's field block.
+        _pipelineEmitWithNotification = PipelineEmitWithNotification;
+        _pipelineEmitWithSubstitution = PipelineEmitWithSubstitution;
+        _pipelineEmitWithComments = PipelineEmitWithComments;
+        _pipelineEmitWithSourceMaps = PipelineEmitWithSourceMaps;
+        _pipelineEmitWithHint = PipelineEmitWithHint;
         _preserveSourceNewlines = _printerOptions.PreserveSourceNewlines;
 
         _hasEmitNotification = !ReferenceEquals(_handlers, PrintHandlers.Default);
@@ -398,6 +404,22 @@ internal sealed partial class Printer : IPrinter
     /// is the port's <c>IsEmitNotificationEnabled(node)</c>, whose default implementation answers <c>true</c> — the same
     /// answer the reference reaches when that optional handler is absent (<see cref="PrintHandlers"/>).
     /// </remarks>
+    // PORT-NOTE (performance, measured): the reference's `getPipelinePhase` answers one of five module-level functions,
+    // and a JavaScript function reference is free. C# method-group conversions are not: each `return PipelineEmitWithX;`
+    // builds a new delegate over `this`, and this member runs once per emitted node — the template-literal shard's
+    // 844 files emit ~2.5M nodes, so those delegates were ~212 MiB of the emit phase's 250 MiB allocation (the whole
+    // of its remaining 254 KB/file; docs §18.4n). The five delegates are built once per printer here instead; the
+    // memoized printers of PrinterFactory build them once per program.
+    private readonly Action<EmitHint, Node> _pipelineEmitWithNotification;
+
+    private readonly Action<EmitHint, Node> _pipelineEmitWithSubstitution;
+
+    private readonly Action<EmitHint, Node> _pipelineEmitWithComments;
+
+    private readonly Action<EmitHint, Node> _pipelineEmitWithSourceMaps;
+
+    private readonly Action<EmitHint, Node> _pipelineEmitWithHint;
+
     internal Action<EmitHint, Node> GetPipelinePhase(PipelinePhase phase, EmitHint emitHint, Node node)
     {
         switch (phase)
@@ -405,7 +427,7 @@ internal sealed partial class Printer : IPrinter
             case PipelinePhase.Notification:
                 if (_hasEmitNotification && _handlers.IsEmitNotificationEnabled(node))
                 {
-                    return PipelineEmitWithNotification;
+                    return _pipelineEmitWithNotification;
                 }
                 // falls through
                 goto case PipelinePhase.Substitution;
@@ -420,7 +442,7 @@ internal sealed partial class Printer : IPrinter
                         {
                             _lastSubstitution = _currentParenthesizerRule(_lastSubstitution);
                         }
-                        return PipelineEmitWithSubstitution;
+                        return _pipelineEmitWithSubstitution;
                     }
                 }
                 // falls through
@@ -428,19 +450,19 @@ internal sealed partial class Printer : IPrinter
             case PipelinePhase.Comments:
                 if (ShouldEmitComments(node))
                 {
-                    return PipelineEmitWithComments;
+                    return _pipelineEmitWithComments;
                 }
                 // falls through
                 goto case PipelinePhase.SourceMaps;
             case PipelinePhase.SourceMaps:
                 if (ShouldEmitSourceMaps(node))
                 {
-                    return PipelineEmitWithSourceMaps;
+                    return _pipelineEmitWithSourceMaps;
                 }
                 // falls through
                 goto case PipelinePhase.Emit;
             case PipelinePhase.Emit:
-                return PipelineEmitWithHint;
+                return _pipelineEmitWithHint;
             default:
                 Debug.AssertNever(phase);
                 return null!;
