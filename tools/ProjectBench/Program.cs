@@ -103,6 +103,9 @@ internal static class ProjectBench
         Console.WriteLine($"syntactic      {t1.Elapsed.TotalSeconds,8:F3} s   {syntactic.Count} diagnostics");
         Console.WriteLine($"semantic       {t2.Elapsed.TotalSeconds,8:F3} s   {semantic.Count} diagnostics");
         Console.WriteLine($"total          {total.Elapsed.TotalSeconds,8:F3} s   (checked {sourceFiles.Count - libFiles} corpus files)");
+        // The tool reports its own peak — the same self-report tools/EmitDiff, tools/TypeDiff and tools/BindDiff carry,
+        // because the parallel phases trade memory for time and that trade has to be visible in the run's own numbers.
+        Console.WriteLine($"# port peak working set {Process.GetCurrentProcess().PeakWorkingSet64 / (1024 * 1024)} MiB (parallel={Parallelism.Degree})");
         return 0;
     }
 }

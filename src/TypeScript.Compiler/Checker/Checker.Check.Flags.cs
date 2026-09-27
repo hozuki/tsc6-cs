@@ -166,21 +166,13 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:50919-50923 — <c>getNodeCheckFlags</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS reads <c>node.id || 0</c> (which does not allocate an id) and then bounds-checks the sparse
-    /// <c>nodeLinks</c> array; the port reads the same id slot — <c>0</c> is "unassigned" (see <see cref="Node.Id"/>) —
-    /// and pads nothing, so an id past the end of the table is the "no links yet" case and answers
-    /// <see cref="NodeCheckFlags.None"/> exactly as TS's <c>0</c> does.
+    /// PORT-NOTE: TS reads <c>node.id || 0</c> — a read that does <em>not</em> allocate an id — and then bounds-checks
+    /// the sparse <c>nodeLinks</c> array. The port reads the same id slot (<c>0</c> is "unassigned", see
+    /// <see cref="Node.Id"/>) and asks the paged table for it, which allocates nothing and answers "absent" for an id
+    /// whose page was never written: that is TS's <c>0</c> hole, reported as <see cref="NodeCheckFlags.None"/>.
     /// </remarks>
     internal NodeCheckFlags GetNodeCheckFlags(Node node)
-    {
-        var nodeId = node.Id;
-        if (nodeId < 0 || nodeId >= _nodeLinks.Count)
-        {
-            return NodeCheckFlags.None;
-        }
-
-        return _nodeLinks[nodeId]?.Flags ?? NodeCheckFlags.None;
-    }
+        => _nodeLinks.TryGet(node.Id)?.Flags ?? NodeCheckFlags.None;
 
     /// <summary>ported from: src/compiler/checker.ts:50925-50928 — <c>hasNodeCheckFlag</c>.</summary>
     internal bool HasNodeCheckFlag(Node node, NodeCheckFlags flag)

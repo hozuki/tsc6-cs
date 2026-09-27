@@ -442,15 +442,15 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:2357 — <c>symbolLinks</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: TS's <c>SymbolLinks[]</c> is a sparse array grown by assigning past its end, whose holes read as
-    /// <c>undefined</c> (<c>symbolLinks[id] ??= new SymbolLinks()</c>, checker.ts:2935). The port pads a
-    /// <c>List</c> with <c>null</c> up to the id, the same hole-punching <c>Parser/EmitNodes.cs</c> uses for its
-    /// token-keyed table. An entry is null exactly when TS's is a hole.
+    /// <c>undefined</c> (<c>symbolLinks[id] ??= new SymbolLinks()</c>, checker.ts:2935). The port states that with
+    /// <see cref="PagedLinkStore{T}"/> instead of a padded <c>List</c> — see that type's remarks for why (the ids are
+    /// process-global, so the table is sized by every node the program parsed, and a <c>List</c> doubling copies it).
     /// </remarks>
-    private readonly List<SymbolLinks?> _symbolLinks = [];
+    private readonly PagedLinkStore<SymbolLinks> _symbolLinks = new();
 
     /// <summary>ported from: src/compiler/checker.ts:2358 — <c>nodeLinks</c>.</summary>
     /// <remarks>PORT-NOTE: as <see cref="_symbolLinks"/>; TS's element factory is <c>new (NodeLinks as any)()</c>.</remarks>
-    private readonly List<NodeLinks?> _nodeLinks = [];
+    private readonly PagedLinkStore<NodeLinks> _nodeLinks = new();
 
     /// <summary>ported from: src/compiler/checker.ts:2932-2936 — <c>getSymbolLinks</c>.</summary>
     /// <remarks>
@@ -467,12 +467,7 @@ internal sealed partial class Checker
         }
 
         var id = Utilities.GetSymbolId(symbol);
-        while (_symbolLinks.Count <= id)
-        {
-            _symbolLinks.Add(null);
-        }
-
-        return _symbolLinks[id] ??= new SymbolLinks();
+        return _symbolLinks.GetOrAdd(id);
     }
 
     /// <summary>ported from: src/compiler/checker.ts:2938-2941 — <c>getNodeLinks</c>.</summary>
@@ -484,11 +479,6 @@ internal sealed partial class Checker
     internal NodeLinks GetNodeLinks(Node node)
     {
         var nodeId = Utilities.GetNodeId(node);
-        while (_nodeLinks.Count <= nodeId)
-        {
-            _nodeLinks.Add(null);
-        }
-
-        return _nodeLinks[nodeId] ??= new NodeLinks();
+        return _nodeLinks.GetOrAdd(nodeId);
     }
 }

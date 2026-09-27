@@ -2399,6 +2399,21 @@ harness 的下划线规则是逐节点的 `nodeIsFullySynthetic(node) = nodeIsSy
 
 **下一步的设计约束（同批实测）**——单文件 program（`artifacts/perf/one.json`）的 `semantic` = **0.331 s**，845 文件分片 = **4.348 s**，两者之差就是"检查 844 个文件"的成本 ≈ 4.0 s（≈4.7 ms/文件），而每个 program 的固定成本（lib 解析 + checker 初始化/全局合并）≈ **0.25–0.33 s**。检查器分片 K 份的墙钟 ≈ `固定成本 + 4.0/K`，所以分片**是**划算的（固定成本并行付出，只决定下界），这也是 Go 端"每 checker 重复 merge 全局符号"那条短板的量化形式：K 越大，重复的初始化越多，必须实测选 K（Go 硬编码 4）。
 
+### 18.4c 链接表 → `PagedLinkStore`（Go 形状；实测中性，作为分片前置保留）
+
+`Core/PagedLinkStore.cs`（`where T : class, new()`，256 元素一页，`id >> 8` 寻址；形状照 `tsc/internal/core/linkstore.go:38-88`）替换了 checker 的两张链接表 `_symbolLinks`/`_nodeLinks`——它们原来是"id 超过表长就 `Add(null)` 补齐"的 `List<T?>`（`Checker.cs:449-453`、访问器 `:462-492`、读取点 `Checker.Check.Flags.cs:174`）。语义逐条对齐：`GetOrAdd` = 参考的 `links[id] ??= new Links()`；`TryGet` = 读一个洞（**不分配 id、不建页**，正是 `getNodeCheckFlags` 要的 `node.id || 0` 然后越界读）；`id & 0xFF` 定页内偏移。
+
+**实测 A/B（同一会话，845 根/938 文件，各跑两轮）**：
+
+| | semantic | 峰值工作集 |
+|---|---|---|
+| `List<T?>` 补齐（改前） | 4.371 / 4.417 s | 341 MiB |
+| `PagedLinkStore`（改后） | 4.337 / 4.372 s | 339 / 341 MiB |
+
+⇒ **在这份负载上时间与内存都无实质差异**（诊断数 21,584 不变）。保留的理由不是"它更快"，而是两条结构性的：①它是分片的前置（每个 checker 一张表，页式表的增量成本才低到值得每分片一份——Go 为同一目的这么写）；②它去掉 `List` 的倍增拷贝（大 program 上一次扩容要复制整张表）。**没有实测收益的部分不写成收益。**
+
+本步验收：1,521/1,521 测试；`tools/TypeDiff` 与 `tools/EmitDiff` 全语料各 `clean 5908/5908`，且两个工具的 `port-hashes.txt` 与改前基线 **`cmp` 逐字节相同**（11.64 s / 10.06 s 端口半场）。
+
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 
 两个工具的端口半场原来是**按文件串行**跑（每个文件各自建 program），而这正是最适合并行的形状：文件之间零共享。新增 `--parallel <n>`（默认 `Environment.ProcessorCount`，`1` = 串行，用于 A/B），实现是**有界的 `Parallel.For` + 每文件结果槽**，最后按文件序落盘 —— 因此**索引产物与串行运行逐字节相同**（`port-hashes.txt` / `port-crashes.txt` 已实测 `cmp` 一致；`report.txt` 只差 node 侧自报的 `maxRSS` 与端口峰值这两行噪声）。
