@@ -2217,3 +2217,29 @@ harness 的下划线规则是逐节点的 `nodeIsFullySynthetic(node) = nodeIsSy
 ### 17.14.10 裁定：`Utilities.VisitNodes`/`VisitArrayWorker` 的按元素检查式转换保持不动
 
 `Utilities/Utilities.Visitor.cs:354/361` 的 `updated.Add((TNode)(object)visitedNode)` 与 `VisitNode<TNode>` 的 pun 是同一形状（参考在 `visitorPublic.ts:328-376` 里对"访问器答了更宽的元素类型"是**未检查**的），但两者性质不同：`VisitNode` 的 pun 有**实证**（某个真实用例的访问器确实答了更宽的节点，见 §17.14.9 的 slices 说明），而按元素转换至今**没有任何用例**触发。端口对 `Unsafe`/pun 的既有规则是"参考的未检查行为必须可观测才引入 pun"（§15.10 缺陷 7 的四个具名 punning 辅助都带这条论证），因此本条**保持现状**：不加 pun、不改参考语义、不写"可能更宽"的猜测式放宽。若将来某个用例证明参考会静默接受更宽元素，再按同一条规则引入具名 pun 并附读路径论证。
+
+### 17.14.11 新测区域 `jsdoc/**`：JSDoc/JS 声明面是当前最大缺口（实测）
+
+命令：`--filter "jsdoc/**" --node-parallel 8`（341 文件 / 397 用例；`port pass 325s`）：
+
+| artifact | same | diverged | port-crash | unmodelled |
+|---|---|---|---|---|
+| `.js` | 235 | **45** | 116 | 1 |
+| `.errors.txt` | 261 | 19 | 116 | 1 |
+| `.types` | 243 | 36 | 116 | 1 |
+| `.symbols` | 272 | 7 | 116 | 1 |
+| `SUMMARY` | same=1011 | **diverged=107** | **port-crash=464（116 用例，29%）** | 4 |
+
+崩溃按消息聚类（`artifacts/bd-jsdocarea/port-errors.txt`）：
+
+| n | 形状 | 性质 |
+|---|---|---|
+| **74** | `NotSupportedException: GetSpecifierForModuleSymbol`（checker.ts:8638 / `moduleSpecifiers.ts`） | **单一缺失特性**：模块说明符解析（此前登记的"具名阻断"，实测占本区崩溃的 64%） |
+| 11 | `JSDocEnumTag → …` | 引用谓词被写成 C# 硬转 |
+| 10 | `FunctionDeclaration → …`（`jsDeclarations*`） | 同上 |
+| 7 | `JSDocImportTag → …` | 同上 |
+| 2+2+2+2 | `VariableDeclaration → …` / `PropertyAccessExpression → TypeS…` / `Failed to compare two elements in the array`（排序比较器在混合节点上抛）/ `JSDocParameterTag → …` | 同上 + 一处比较器 |
+
+107 条分歧按首差片段聚类：JSDoc/JS 发射（`namespace St…`、`import type …`、注释保留）+ `.types` 下划线 + `errors`（如 `satisfies` 标签）。
+
+**结论**：之前"剩余 5 项"的说法只覆盖了前 600 文件分片；真正的大缺口在 **JSDoc/JS 面**（本区 29% 用例仍失败），其中 **74/116 由模块说明符解析未移植一项造成**。两个切片已派出：`ModuleSpecifiersPort`（`moduleSpecifiers.ts` 1,470 行 + checker.ts:8638 调用点）与 `JSDocCastFamily`（≈35 例硬转 + 107 条分歧的分类）。
