@@ -64,6 +64,8 @@ internal sealed partial class Printer : IPrinter
         _pipelineEmitWithComments = PipelineEmitWithComments;
         _pipelineEmitWithSourceMaps = PipelineEmitWithSourceMaps;
         _pipelineEmitWithHint = PipelineEmitWithHint;
+        _emitNode = Emit;
+        _emitExpressionNode = EmitExpression;
         _preserveSourceNewlines = _printerOptions.PreserveSourceNewlines;
 
         _hasEmitNotification = !ReferenceEquals(_handlers, PrintHandlers.Default);
@@ -419,6 +421,14 @@ internal sealed partial class Printer : IPrinter
     private readonly Action<EmitHint, Node> _pipelineEmitWithSourceMaps;
 
     private readonly Action<EmitHint, Node> _pipelineEmitWithHint;
+
+    // The two emit delegates the list helpers hand to `EmitNodeList` — the same "a JavaScript function reference is
+    // free, a C# instance method group is not" note as the pipeline-phase block above: `EmitList` runs for every list
+    // (including the null-children call in `EmitIdentifier`, once per identifier), so building a delegate per call was
+    // measurable (docs §18.4n).
+    private readonly Action<Node, Func<Node, Node>?> _emitNode;
+
+    private readonly Action<Node, Func<Node, Node>?> _emitExpressionNode;
 
     internal Action<EmitHint, Node> GetPipelinePhase(PipelinePhase phase, EmitHint emitHint, Node node)
     {
@@ -1253,7 +1263,7 @@ internal sealed partial class Printer : IPrinter
     /// </remarks>
     internal void EmitList<T>(Node? parentNode, NodeArray<T>? children, ListFormat format, Func<Node, Node>? parenthesizerRule = null, int? start = null, int? count = null) where T : INode
         => EmitNodeList(
-            Emit,
+            _emitNode,
             parentNode,
             children,
             format | (parentNode is not null && (Utilities.GetEmitFlags(parentNode) & EmitFlags.MultiLine) != 0 ? ListFormat.PreferNewLine : ListFormat.None),
@@ -1266,7 +1276,7 @@ internal sealed partial class Printer : IPrinter
     /// <c>OrdinalParentheizerRuleSelector</c> arm of the fourth parameter (emitter.ts:6351-6353).</summary>
     internal void EmitList<T>(Node? parentNode, NodeArray<T>? children, ListFormat format, OrdinalParenthesizerRuleSelector<T> parenthesizerRuleSelector, int? start = null, int? count = null) where T : INode
         => EmitNodeList(
-            Emit,
+            _emitNode,
             parentNode,
             children,
             format | (parentNode is not null && (Utilities.GetEmitFlags(parentNode) & EmitFlags.MultiLine) != 0 ? ListFormat.PreferNewLine : ListFormat.None),
@@ -1277,11 +1287,11 @@ internal sealed partial class Printer : IPrinter
 
     /// <summary>ported from: src/compiler/emitter.ts:4675-4677 — <c>emitExpressionList</c>.</summary>
     internal void EmitExpressionList<T>(Node? parentNode, NodeArray<T>? children, ListFormat format, Func<Node, Node>? parenthesizerRule = null, int? start = null, int? count = null) where T : INode
-        => EmitNodeList(EmitExpression, parentNode, children, format, parenthesizerRule, /*parenthesizerRuleSelector*/ null, start, count);
+        => EmitNodeList(_emitExpressionNode, parentNode, children, format, parenthesizerRule, /*parenthesizerRuleSelector*/ null, start, count);
 
     /// <summary>ported from: src/compiler/emitter.ts:4675-4677 — <c>emitExpressionList</c>, selector arm.</summary>
     internal void EmitExpressionList<T>(Node? parentNode, NodeArray<T>? children, ListFormat format, OrdinalParenthesizerRuleSelector<T> parenthesizerRuleSelector, int? start = null, int? count = null) where T : INode
-        => EmitNodeList(EmitExpression, parentNode, children, format, /*parenthesizerRule*/ null, parenthesizerRuleSelector, start, count);
+        => EmitNodeList(_emitExpressionNode, parentNode, children, format, /*parenthesizerRule*/ null, parenthesizerRuleSelector, start, count);
 
     /// <summary>ported from: src/compiler/emitter.ts:4679-4727 — <c>emitNodeList</c>.</summary>
     private void EmitNodeList<T>(
