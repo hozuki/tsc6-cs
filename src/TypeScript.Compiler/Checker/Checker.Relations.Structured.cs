@@ -170,7 +170,7 @@ internal sealed partial class Checker
     internal bool CheckTypeRelatedTo(
         IType source,
         IType target,
-        Dictionary<string, RelationComparisonResult> relation,
+        Dictionary<RelationKey, RelationComparisonResult> relation,
         Node? errorNode,
         DiagnosticMessage? headMessage = null,
         Func<IDiagnosticMessageChain?>? containingMessageChain = null,
@@ -178,8 +178,8 @@ internal sealed partial class Checker
     {
         IDiagnosticMessageChain? errorInfo = null;
         List<IDiagnosticRelatedInformation>? relatedInfo = null;
-        List<string>? maybeKeys = null;
-        HashSet<string>? maybeKeysSet = null;
+        List<RelationKey>? maybeKeys = null;
+        HashSet<RelationKey>? maybeKeysSet = null;
         List<IType>? sourceStack = null;
         List<IType>? targetStack = null;
         var maybeCount = 0;
@@ -1409,8 +1409,8 @@ internal sealed partial class Checker
                 // A key that starts with "*" is an indication that we have type references that reference constrained
                 // type parameters. For such keys we also check against the key we would have gotten if all type parameters
                 // were unconstrained.
-                var broadestEquivalentId = id.StartsWith('*') ? GetRelationKey(source, target, intersectionState, relation, /*ignoreConstraints*/ true) : null;
-                if (broadestEquivalentId is not null && maybeKeysSet!.Contains(broadestEquivalentId))
+                var broadestEquivalentId = id.HasConstraintMarker ? GetRelationKey(source, target, intersectionState, relation, /*ignoreConstraints*/ true) : (RelationKey?)null;
+                if (broadestEquivalentId is not null && maybeKeysSet!.Contains(broadestEquivalentId.Value))
                 {
                     return Ternary.Maybe;
                 }

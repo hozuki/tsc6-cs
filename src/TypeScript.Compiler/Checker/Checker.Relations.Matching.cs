@@ -56,7 +56,7 @@ internal sealed partial class Checker
     /// <see cref="IsEnumTypeRelatedTo"/> is its only reader in the whole checker. String keys are compared ordinally,
     /// which is what the JS <c>Map</c> does.
     /// </remarks>
-    internal readonly Dictionary<string, RelationComparisonResult> _enumRelation = new(StringComparer.Ordinal);
+    internal readonly Dictionary<RelationKey, RelationComparisonResult> _enumRelation = new();
 
     /// <summary>ported from: src/compiler/checker.ts:21907 — <c>ErrorReporter</c>.</summary>
     /// <remarks>
@@ -551,8 +551,9 @@ internal sealed partial class Checker
             return false;
         }
 
-        var id = Utilities.GetSymbolId(sourceSymbol).ToString(CultureInfo.InvariantCulture) + ","
-            + Utilities.GetSymbolId(targetSymbol).ToString(CultureInfo.InvariantCulture);
+        // tsgo keys the same cache with a numeric struct (`EnumRelationKey{sourceId, targetId}`, `relater.go:290`);
+        // the reference spells it `sourceSymbol.id + "," + targetSymbol.id`, which is a formatted string per call.
+        var id = new RelationKey(Utilities.GetSymbolId(sourceSymbol), Utilities.GetSymbolId(targetSymbol), 0, null);
         if (_enumRelation.TryGetValue(id, out var entry)
             && !((entry & RelationComparisonResult.Failed) != 0 && errorReporter is not null))
         {
@@ -639,7 +640,7 @@ internal sealed partial class Checker
     /// <c>NumberLiteralType.value</c>, both held in <c>object?</c> slots here) are <c>Core.EquateValues</c> so the
     /// boxed numeric values compare by value rather than by reference.
     /// </remarks>
-    internal bool IsSimpleTypeRelatedTo(IType source, IType target, Dictionary<string, RelationComparisonResult> relation, ErrorReporter? errorReporter = null)
+    internal bool IsSimpleTypeRelatedTo(IType source, IType target, Dictionary<RelationKey, RelationComparisonResult> relation, ErrorReporter? errorReporter = null)
     {
         var s = source.Flags;
         var t = target.Flags;
@@ -700,7 +701,7 @@ internal sealed partial class Checker
     /// <c> !== undefined</c> test, because a <see cref="RelationComparisonResult"/> value is an enum whose default is
     /// <c>None</c> and an absent entry therefore has no distinguishable value of its own.
     /// </remarks>
-    internal bool IsTypeRelatedTo(IType source, IType target, Dictionary<string, RelationComparisonResult> relation)
+    internal bool IsTypeRelatedTo(IType source, IType target, Dictionary<RelationKey, RelationComparisonResult> relation)
     {
         using var allocProbe = AllocationProbe.Enter("Checker.IsTypeRelatedTo");
         if (IsFreshLiteralType(source))

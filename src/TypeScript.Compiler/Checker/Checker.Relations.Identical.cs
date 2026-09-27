@@ -479,17 +479,19 @@ internal sealed partial class Checker
     /// For other cases, the types ids are used.
     /// </summary>
     /// <remarks>ported from: src/compiler/checker.ts:25163-25175 — <c>getRelationKey</c>.</remarks>
-    internal string GetRelationKey(IType source, IType target, IntersectionState intersectionState, Dictionary<string, RelationComparisonResult> relation, bool ignoreConstraints)
+    internal RelationKey GetRelationKey(IType source, IType target, IntersectionState intersectionState, Dictionary<RelationKey, RelationComparisonResult> relation, bool ignoreConstraints)
     {
         if (ReferenceEquals(relation, _identityRelation) && source.Id > target.Id)
         {
             (source, target) = (target, source);
         }
 
-        var postFix = intersectionState != IntersectionState.None ? ":" + (int)intersectionState : "";
+        // The reference builds a string here (`${source.id},${target.id}${postFix}`) and hashes it; the ordinary pair
+        // is two ids and a small state, so it goes into the value key exactly (no formatting, no hashing, no
+        // allocation — see RelationKey). The generic branch keeps the reference's structured string inside the key.
         return IsTypeReferenceWithGenericArguments(source) && IsTypeReferenceWithGenericArguments(target)
-            ? GetGenericTypeReferenceRelationKey((ITypeReference)source, (ITypeReference)target, postFix, ignoreConstraints)
-            : $"{source.Id},{target.Id}{postFix}";
+            ? new RelationKey(0, 0, 0, GetGenericTypeReferenceRelationKey((ITypeReference)source, (ITypeReference)target, intersectionState != IntersectionState.None ? ":" + (int)intersectionState : "", ignoreConstraints))
+            : new RelationKey(source.Id, target.Id, (int)intersectionState, null);
     }
 
     // ---------------------------------------------------------------------------------------------

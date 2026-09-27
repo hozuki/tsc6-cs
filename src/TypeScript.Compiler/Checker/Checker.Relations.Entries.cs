@@ -64,19 +64,19 @@ internal sealed partial class Checker
     /// PORT-NOTE: TS declares all five as <c>var … = new Map&lt;string, RelationComparisonResult&gt;()</c> and only
     /// ever mutates them in place; the port states them <c>readonly</c> so the engine cannot rebind one by mistake.
     /// </remarks>
-    internal readonly Dictionary<string, RelationComparisonResult> _subtypeRelation = new(StringComparer.Ordinal);
+    internal readonly Dictionary<RelationKey, RelationComparisonResult> _subtypeRelation = new();
 
     /// <summary>ported from: src/compiler/checker.ts:2386 — <c>strictSubtypeRelation</c>.</summary>
-    internal readonly Dictionary<string, RelationComparisonResult> _strictSubtypeRelation = new(StringComparer.Ordinal);
+    internal readonly Dictionary<RelationKey, RelationComparisonResult> _strictSubtypeRelation = new();
 
     /// <summary>ported from: src/compiler/checker.ts:2387 — <c>assignableRelation</c>.</summary>
-    internal readonly Dictionary<string, RelationComparisonResult> _assignableRelation = new(StringComparer.Ordinal);
+    internal readonly Dictionary<RelationKey, RelationComparisonResult> _assignableRelation = new();
 
     /// <summary>ported from: src/compiler/checker.ts:2388 — <c>comparableRelation</c>.</summary>
-    internal readonly Dictionary<string, RelationComparisonResult> _comparableRelation = new(StringComparer.Ordinal);
+    internal readonly Dictionary<RelationKey, RelationComparisonResult> _comparableRelation = new();
 
     /// <summary>ported from: src/compiler/checker.ts:2389 — <c>identityRelation</c>.</summary>
-    internal readonly Dictionary<string, RelationComparisonResult> _identityRelation = new(StringComparer.Ordinal);
+    internal readonly Dictionary<RelationKey, RelationComparisonResult> _identityRelation = new();
 
     // ---------------------------------------------------------------------------------------------
     // The relation queries (checker.ts:21271-21336)
@@ -202,7 +202,7 @@ internal sealed partial class Checker
     internal bool CheckTypeRelatedToAndOptionallyElaborate(
         IType source,
         IType target,
-        Dictionary<string, RelationComparisonResult> relation,
+        Dictionary<RelationKey, RelationComparisonResult> relation,
         Node? errorNode,
         Expression? expr,
         DiagnosticMessage? headMessage,
@@ -242,7 +242,7 @@ internal sealed partial class Checker
         Expression? node,
         IType source,
         IType target,
-        Dictionary<string, RelationComparisonResult> relation,
+        Dictionary<RelationKey, RelationComparisonResult> relation,
         DiagnosticMessage? headMessage,
         Func<IDiagnosticMessageChain?>? containingMessageChain,
         IErrorOutputContainer? errorOutputContainer)
@@ -306,7 +306,7 @@ internal sealed partial class Checker
         Expression node,
         IType source,
         IType target,
-        Dictionary<string, RelationComparisonResult> relation,
+        Dictionary<RelationKey, RelationComparisonResult> relation,
         DiagnosticMessage? headMessage,
         Func<IDiagnosticMessageChain?>? containingMessageChain,
         IErrorOutputContainer? errorOutputContainer)
@@ -348,7 +348,7 @@ internal sealed partial class Checker
         ArrowFunction node,
         IType source,
         IType target,
-        Dictionary<string, RelationComparisonResult> relation,
+        Dictionary<RelationKey, RelationComparisonResult> relation,
         Func<IDiagnosticMessageChain?>? containingMessageChain,
         IErrorOutputContainer? errorOutputContainer)
     {
@@ -479,7 +479,7 @@ internal sealed partial class Checker
         IEnumerable<ElaborationElement> iterator,
         IType source,
         IType target,
-        Dictionary<string, RelationComparisonResult> relation,
+        Dictionary<RelationKey, RelationComparisonResult> relation,
         Func<IDiagnosticMessageChain?>? containingMessageChain,
         IErrorOutputContainer? errorOutputContainer)
     {
@@ -588,7 +588,7 @@ internal sealed partial class Checker
         IEnumerable<ElaborationElement> iterator,
         IType source,
         IType target,
-        Dictionary<string, RelationComparisonResult> relation,
+        Dictionary<RelationKey, RelationComparisonResult> relation,
         Func<IDiagnosticMessageChain?>? containingMessageChain,
         IErrorOutputContainer? errorOutputContainer)
     {
@@ -772,7 +772,7 @@ internal sealed partial class Checker
         JsxAttributes node,
         IType source,
         IType target,
-        Dictionary<string, RelationComparisonResult> relation,
+        Dictionary<RelationKey, RelationComparisonResult> relation,
         Func<IDiagnosticMessageChain?>? containingMessageChain,
         IErrorOutputContainer? errorOutputContainer)
     {
@@ -914,7 +914,7 @@ internal sealed partial class Checker
         ArrayLiteralExpression node,
         IType source,
         IType target,
-        Dictionary<string, RelationComparisonResult> relation,
+        Dictionary<RelationKey, RelationComparisonResult> relation,
         Func<IDiagnosticMessageChain?>? containingMessageChain,
         IErrorOutputContainer? errorOutputContainer)
     {
@@ -995,7 +995,7 @@ internal sealed partial class Checker
         ObjectLiteralExpression node,
         IType source,
         IType target,
-        Dictionary<string, RelationComparisonResult> relation,
+        Dictionary<RelationKey, RelationComparisonResult> relation,
         Func<IDiagnosticMessageChain?>? containingMessageChain,
         IErrorOutputContainer? errorOutputContainer)
     {

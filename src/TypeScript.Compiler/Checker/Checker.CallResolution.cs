@@ -785,7 +785,7 @@ internal sealed partial class Checker
     internal bool CheckApplicableSignatureForJsxCallLikeElement(
         Node node,
         ISignature signature,
-        Dictionary<string, RelationComparisonResult> relation,
+        Dictionary<RelationKey, RelationComparisonResult> relation,
         CheckMode checkMode,
         bool reportErrors,
         Func<IDiagnosticMessageChain?>? containingMessageChain,
@@ -950,7 +950,7 @@ internal sealed partial class Checker
         Node node,
         IList<Expression> args,
         ISignature signature,
-        Dictionary<string, RelationComparisonResult> relation,
+        Dictionary<RelationKey, RelationComparisonResult> relation,
         CheckMode checkMode,
         bool reportErrors,
         Func<IDiagnosticMessageChain?>? containingMessageChain)
@@ -1910,7 +1910,7 @@ internal sealed partial class Checker
 
         // PORT-NOTE: the reference's nested chooseOverload; it mutates the three captured candidate slots above.
         // `argCheckMode` is a flags enum, so the reference's `if (argCheckMode)` truthiness is `!= 0`.
-        ISignature? ChooseOverload(List<ISignature> candidates, Dictionary<string, RelationComparisonResult> relation, bool isSingleNonGenericCandidate, bool signatureHelpTrailingComma = false)
+        ISignature? ChooseOverload(List<ISignature> candidates, Dictionary<RelationKey, RelationComparisonResult> relation, bool isSingleNonGenericCandidate, bool signatureHelpTrailingComma = false)
         {
             using var allocProbe = AllocationProbe.Enter("Checker.ChooseOverload");
             candidatesForArgumentError = null;
