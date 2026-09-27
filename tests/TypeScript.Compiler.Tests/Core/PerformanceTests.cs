@@ -1,4 +1,4 @@
-namespace TypeScript.Compiler.Tests;
+﻿namespace TypeScript.Compiler.Tests;
 
 /// <summary>
 /// <c>performance.ts</c>：测量在显式开启前不记录任何东西，计时器按最外层进出对打点。
@@ -7,6 +7,7 @@ namespace TypeScript.Compiler.Tests;
 /// <see cref="Performance"/> 是全局静态状态，所以每个用例都用 try/finally 收尾 ——
 /// xUnit 会并行跑不同的测试类，漏掉清理会污染其他用例。
 /// </remarks>
+[Collection(ProcessWideStateCollection.Name)]
 public class PerformanceTests
 {
     [Fact]

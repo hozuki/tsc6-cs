@@ -1,6 +1,8 @@
-namespace TypeScript.Compiler.Tests;
+﻿namespace TypeScript.Compiler.Tests;
 
 // 对应 src/compiler/core.ts:1937-2485 的比较与字符串工具
+// PORT-NOTE: 比较用例里有用例改写进程级的 UI locale（Core.SetUILocale），故整类串行。
+[Collection(ProcessWideStateCollection.Name)]
 public class CoreComparisonTests
 {
     [Fact]

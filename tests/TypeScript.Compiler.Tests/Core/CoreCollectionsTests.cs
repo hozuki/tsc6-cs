@@ -1,6 +1,9 @@
-namespace TypeScript.Compiler.Tests;
+﻿namespace TypeScript.Compiler.Tests;
 
 // 对应 src/compiler/core.ts:1527-1743 的容器类型
+// PORT-NOTE: 本类里的 DebugLogging_* 用例会改写进程级的日志槽（LoggingHost/CurrentLogLevel/断言级别），
+// 所以整类进 process-wide-state 集合串行跑；其余用例本身无副作用，但一个类只能属于一个集合。
+[Collection(ProcessWideStateCollection.Name)]
 public class CoreCollectionsTests
 {
     [Fact]

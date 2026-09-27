@@ -161,9 +161,19 @@ internal static partial class Debug
     /// <remarks>
     /// PORT-NOTE: TS's cache is keyed by the enum object; here it is keyed by the enum type, since that is what
     /// reflection is asked about. The lock is defensive — TS's <c>Map</c> is only ever touched on one thread, but a
-    /// debug entry point in the port is callable from any.
+    /// debug entry point in the port is callable from any (and now in parallel, docs/architecture.md §18).
     /// </remarks>
     private static readonly Dictionary<System.Type, IList<EnumMember>> s_enumMemberCache = new();
+
+    /// <summary>
+    /// The cache's gate.
+    /// </summary>
+    /// <remarks>
+    /// PORT-NOTE: a dedicated <see cref="Lock"/> rather than locking the dictionary itself — .NET 9 added the type for
+    /// exactly this, and it enters through a <c>ref struct</c> scope instead of a <c>Monitor</c> (no boxed lock object,
+    /// no <c>Monitor</c> bookkeeping), so it is cheaper and it cannot be confused with a lock someone else holds.
+    /// </remarks>
+    private static readonly Lock s_enumMemberCacheLock = new();
 
     /// <summary>ported from: src/compiler/debug.ts:422-442 — <c>getEnumMembers</c>.</summary>
     /// <remarks>
@@ -186,7 +196,7 @@ internal static partial class Debug
     /// </remarks>
     private static IList<EnumMember> GetEnumMembers(System.Type enumType)
     {
-        lock (s_enumMemberCache)
+        lock (s_enumMemberCacheLock)
         {
             if (s_enumMemberCache.TryGetValue(enumType, out var cached))
             {

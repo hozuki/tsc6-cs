@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace TypeScript.Compiler.Tests;
 
@@ -14,6 +14,7 @@ namespace TypeScript.Compiler.Tests;
 /// 换了目录就会写去第一个目录，TS 亦如此。
 /// </para>
 /// </remarks>
+[Collection(ProcessWideStateCollection.Name)]
 public class TracingTests
 {
     private const string TraceDir = "trace";

@@ -2382,6 +2382,8 @@ harness 的下划线规则是逐节点的 `nodeIsFullySynthetic(node) = nodeIsSy
 
 ### 18.4 下一步：数据结构向 Go 看齐（按此顺序）
 
+**状态（2026-09-27）**：第 1 步（`PagedLinkStore`）已落地（§18.4c，实测中性）；第 2 步的 `WorkGroup` 以 `Parallelism.For` 落地并接在 bind 上（§18.4b）；第 3 步的 checker 分片**实测否决并回退**（§18.4d）；第 4 步（诊断每文件缓冲）经复核**已无对象**——端口本来就是每文件收集 + 一次排序去重（§18.4e）；第 5、6 步的结论见 §18.4e。
+
 1. **链接存储 → `PagedLinkStore`**。现状 `Checker.cs` 的 `_nodeLinks`/`_symbolLinks` 是 `List<T?>`，"id 超过表长就 `Add(null)` 补齐"（`Checker.cs:461-473,483-489`）——这是参考的稀疏数组在 C# 里最贵的等价物。Go 的 `PagedLinkStore`（`core/linkstore.go:44-88`）以 256 元素一页、页表按 id 定位：无补齐、无大列表重分配、**每分片各写各的**。这一步同时解决内存与并行两件事。
 2. **`WorkGroup`**：端口版 = 有界 `Parallel.ForEach` + partitioner（Go 的"每项一 goroutine"不能照抄，.NET 会淹在调度里）。
 3. **并行 parse/bind**（`Program.Host.cs:107` 的 `Parser.CreateSourceFile`、binder 的每文件入口互不相干）→ 并行 **emit**（`Program.Emit.cs:495` 每文件）→ 最后 **checker 分片**（`Checker.CheckSourceFile`，`Checker.Check.Source.cs:72`）。
@@ -2414,6 +2416,45 @@ harness 的下划线规则是逐节点的 `nodeIsFullySynthetic(node) = nodeIsSy
 
 本步验收：1,521/1,521 测试；`tools/TypeDiff` 与 `tools/EmitDiff` 全语料各 `clean 5908/5908`，且两个工具的 `port-hashes.txt` 与改前基线 **`cmp` 逐字节相同**（11.64 s / 10.06 s 端口半场）。
 
+### 18.4d checker 池：实测否决（已实现、已测量、已回退）
+
+按 §18.4 的顺序做到第 1 步之后，自然的一步是照 Go 的 `checkerpool.go` 做 checker 池（K 个 checker、文件→checker 固定关联、每分片自己的链接表与诊断集合）。**已实现并测量**，结论是**回退**——不是"还没调好"，而是与移植的正确性判据（逐字节一致）不相容。记录如下，以免后人重复。
+
+实现要点（当时的形态）：`Program.CheckerPool.cs`；K 个 checker（`CheckerCount` 由 `TSC_CS_CHECKERS` 或核数/文件数/上限决定）；文件按**连续分块**关联（Go 用加权图分割）；绑定从 checker 初始化里**上提到 `Program`**（K 个 checker 并发创建会让 binder 的 `if (!file.locals)` 变成 check-then-act 竞争，Go 也把 `BindSourceFiles` 放在池创建之前）；整程序扫描分两阶段——先按分片检查（一个分片只被一个 worker 触碰），再按分片组装；每文件答案 = 自己分片的条目 **∪ 其他分片的条目**（比 Go 更强：Go 只读 owning checker，会丢掉"检查 B 时在 A 上记下的诊断"）。
+
+**验收手段先建**：`tools/ProjectBench --diagnostics <file>` 把项目模式的全部诊断按 `category / code / file / start / length / message`（消息用编译器自己的 `FlattenDiagnosticMessageText`，与 BaselineDiff 写 `.errors.txt` 同一条路径）落盘并排序。判据是**池大小不变性**：不同 `TSC_CS_CHECKERS` 的两次运行必须产出**逐字节相同**的 dump。三条既有外环都看不见这件事（它们的语料全是"一文件一 program"，池大小恒为 1）。
+
+**实测（`artifacts/perf/cpd-types.json`，845 根/938 文件）**：
+
+| K | semantic | 峰值工作集 | 诊断数 |
+|---|---|---|---|
+| 1（参考路径） | 4.32 s | 346 MiB | **21,584** |
+| 2 | 5.12 s | 360 MiB | 21,602 |
+| 4 | 4.62 s | 379 MiB | 21,602 |
+| 8 | 4.89 s | 412 MiB | 21,603 |
+| 16 | 5.59 s | 508 MiB | 21,603 |
+
+1. **不快**：分片没有收益，反而更慢。原因是 §18.4b 量出来的固定成本——每个 checker 重新 merge 全局作用域、重建内建类型，0.25–0.33 s/个，K=4 就是约 1.2 s 的并行固定开销，而可并行的部分（4.0 s）除以 4 之后剩下的收益被吃掉了；内存则随 K 线性涨（346→508 MiB）。
+2. **不忠实，且不止是诊断**：K>1 比 K=1 多 18–19 条诊断，全部是 `Duplicate identifier`/`Cannot redeclare block-scoped variable`（`lib.dom.d.ts` 的 `Node`、`lib.es2015.proxy.d.ts` 的 `Proxy`、`genericTypeReferenceWithoutTypeArgument.d.ts` 整组）——这正是"晚到的跨文件归属"：参考实现的单 checker 在组装文件 i 时只看得到"检查到 i 为止"的集合，晚到的贡献被丢弃；池化后它们全部出现。
+3. **决定性的一条：类型文本本身变了**。同一份语料下 K>1 的 dump 里出现
+   - `Variable 'c' must be of type 'any', but here has type 'number[] | string[]'` ↔ `'string[] | number[]'`
+   - `not assignable to parameter of type '(string & {}) | "-moz-initial"'` ↔ `'"-moz-initial" | (string & {})'`
+   - `{ a: 2; b: 1 | 4; }` ↔ `{ a: 2; b: 4 | 3; }`
+   即**联合类型的成员顺序**变了。联合/属性顺序取决于**类型创建的全局先后**，而 TS 的 checker 恰恰是"一个全局、顺序敏感的类型库"；分片破坏的就是这个不变量。要修好只能让所有分片共享一个并发类型库并复现全局创建顺序——那等于放弃分片本身。
+
+**结论**：回退整个池（`Program.CheckerPool.cs` 已删，`Program`/`Checker`/`DiagnosticCollection` 的调用点已还原）。保留三样副产品：`tools/ProjectBench --diagnostics`（项目模式诊断基线，M8 用得上）、§18.6 的测试集合、`Core/Debug.Model.cs` 的 `Lock` 改写。
+
+**教训（写进纪律）**：并行化一个**顺序敏感的全局**（checker 的类型库、符号合并顺序）不是"加锁/分片"能解决的；Go 端选择分片，是接受它的代价（它自己的 checker 数硬编码 4，且文档记录长尾），而端口的判据是逐字节，代价不可接受。**先建 oracle 再动手**这一步救回了大量时间：`--diagnostics` 在回退前就给出了"类型文本都变了"的证据。
+
+### 18.4e 各阶段占比：并行化的落点在哪
+
+同一负载（845 根/938 文件，`--emit`，单线程参考路径）：`createProgram` 0.90 s（parse+bind+图）、`semantic` 4.18 s、`emit` 0.43 s、总计 5.5 s。
+
+- **检查器占 76%**，但它的状态不可分片（18.4d）⇒ 只剩**单线程热路径优化**这一条路。已有先例且收益巨大：§17.17 的 ICU → 序数比较修复在 `types` 分片上把 semantic 从 15 s 压到 5.7 s（-57%）。**结论：编译器提速的主线是 profiler 驱动的单线程优化，不是并行。**
+- **发射占 8%**：并行发射的上限约 0.35 s（844 文件），而代价是它与 checker 共享状态（Go 的做法是每次 resolver 调用重取粗锁，`emitresolver.go:49`）。按现测**不值**，登记为"等出现发射占比高的大项目再评估"。
+- **诊断聚合本来就已经是"每文件收集 + 一次排序去重"**（`GetDiagnosticsHelper` → `_files.SelectMany(getDiagnostics)` → `SortAndDeduplicateDiagnostics`），§18.4 里设想的"每文件缓冲 + 串行合并"在池回退后没有对象——它已经就是那个形状。
+- **绑定**（已在 `929f3b9` 并行）：0.9 s 里的 bind 部分，实测对总时长无可测影响（§18.4b），价值在形状与大项目。
+
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 
 两个工具的端口半场原来是**按文件串行**跑（每个文件各自建 program），而这正是最适合并行的形状：文件之间零共享。新增 `--parallel <n>`（默认 `Environment.ProcessorCount`，`1` = 串行，用于 A/B），实现是**有界的 `Parallel.For` + 每文件结果槽**，最后按文件序落盘 —— 因此**索引产物与串行运行逐字节相同**（`port-hashes.txt` / `port-crashes.txt` 已实测 `cmp` 一致；`report.txt` 只差 node 侧自报的 `maxRSS` 与端口峰值这两行噪声）。
@@ -2432,6 +2473,10 @@ harness 的下划线规则是逐节点的 `nodeIsFullySynthetic(node) = nodeIsSy
 
 ### 18.6 待办（登记）
 
-- **并行测试仍有低概率 flake**：修完 `Performance` 的那一轮里出现过一次 `失败 36`（其后 20 跑全绿），未捕获到测试名。候选按审计排序：`Program/Program.ProgramDiagnostics.cs:312,382-388`（compute-once + 后写即断言）、`Program/Program.DiagnosticsAggregation.cs:203-204`（惰性 `AdditionalSyntacticDiagnostics`）、`Diagnostic.DeferArg` 在打印期回入 checker（`Checker/Checker.CallResolution.cs:1797-1800`）、`Core/SysWatch.cs` 的轮询静态、`Core/Debug.cs` 的 `CurrentLogLevel`/`IsDebugging`/`LoggingHost`、`Core/SysCore.cs:27`。**并行阶段落地前必须清零**，否则 flake 会淹没外环信号。
-- `TracingTests` 共用 `TraceDir`，并断言 legend 的**相邻两条**是它自己的两次 trace（`TracingTests.cs:155-175`）；legend 现在是进程级共享，该断言在并行 collection 下依赖"别的测试没插进来"。要么放宽为"包含自己的两条"，要么给每个测试独立目录。
-- 性能主线仍是 §17.15 的两条：①先修 `CreateMarkerType` 串（让整语料单 program 可跑）；②按 18.4 的顺序落地并行。
+- **并行测试仍有低概率 flake**（**已修，见下**）：修完 `Performance` 的那一轮里出现过一次 `失败 36`（其后 20 跑全绿），未捕获到测试名。候选按审计排序：`Program/Program.ProgramDiagnostics.cs:312,382-388`（compute-once + 后写即断言）、`Program/Program.DiagnosticsAggregation.cs:203-204`（惰性 `AdditionalSyntacticDiagnostics`）、`Diagnostic.DeferArg` 在打印期回入 checker（`Checker/Checker.CallResolution.cs:1797-1800`）、`Core/SysWatch.cs` 的轮询静态、`Core/Debug.cs` 的 `CurrentLogLevel`/`IsDebugging`/`LoggingHost`、`Core/SysCore.cs:27`。
+
+  **修法**：把"会改写**进程级**状态"的测试类交给 xUnit 自己的机制串行化——`ProcessWideStateCollection`（`DisableParallelization = true`）+ 五个 `[Collection]` 标注：`PerformanceTests`（`Performance.Enable/Disable` 是全局开关）、`CoreCollectionsTests`（`Debug.LoggingHost`/`CurrentLogLevel`/断言级别）、`SysCoreTests`（`SysCore.SetSysLog`）、`CoreComparisonTests`（`Core.SetUILocale`）、`TracingTests`（legend 与 trace 状态）。判定标准写在那个文件里：**类属于该集合，当且仅当它改写进程级槽**；只读编译产物、或者只做单线程语义断言的类不进（否则集合会把并行收益吞回去）。
+
+  **验收**：修复后 **52 次**整程序集运行全绿（40 次 `--no-build` + 12 次带构建，1,521/1,521）。此前该失败是 1/60 量级，且**只在带构建的那一轮出现过**（首跑 JIT 让时序窗口打开），所以两种模式都跑了。
+- `TracingTests` 共用 `TraceDir`，并断言 legend 的**相邻两条**是它自己的两次 trace（`TracingTests.cs:155-175`）——该断言要求"没有别的测试插进来"，已由 18.6 的进程级状态集合满足（整类串行）；legend 本身是进程级且加锁的，不需要按测试分目录。
+- **性能主线（按 18.4d/18.4e 的实测重排）**：①先修 `CreateMarkerType` 串（让整语料单 program 可跑）；②**检查器的单线程热路径**——它占 76% 墙钟且不可分片，先例收益是 §17.17 的 -57%；③并行只在解析/绑定/发射之外还有余量时才谈（现测发射仅 8%，见 18.4e）。

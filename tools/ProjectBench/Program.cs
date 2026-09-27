@@ -1,5 +1,9 @@
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
+// The port's class the driver creates a program with; the alias keeps it apart from this tool's own entry-point class
+// (tools/EmitDiff, tools/TypeDiff and tools/BaselineDiff carry the same one).
+using PortProgram = TypeScript.Compiler.Program;
 
 namespace TypeScript.Compiler.Tools;
 
@@ -25,6 +29,7 @@ internal static class ProjectBench
     private static int Main(string[] args)
     {
         string? filesPath = null;
+        string? diagnosticsPath = null;
         var tsDir = "D:/Source/GitHub/TypeScript";
         var emit = false;
         for (var i = 0; i < args.Length; i++)
@@ -34,8 +39,10 @@ internal static class ProjectBench
                 case "--files": filesPath = i + 1 < args.Length ? args[++i] : null; break;
                 case "--ts": tsDir = i + 1 < args.Length ? args[++i] : tsDir; break;
                 case "--emit": emit = true; break;
+                case "--diagnostics": diagnosticsPath = i + 1 < args.Length ? args[++i] : null; break;
                 case "-h" or "--help":
-                    Console.WriteLine("usage: ProjectBench --files <tsconfig.json with a files[] list> [--ts <TypeScript dir>] [--emit]");
+                    Console.WriteLine("usage: ProjectBench --files <tsconfig.json with a files[] list> [--ts <TypeScript dir>] [--emit] [--diagnostics <file>]");
+                    Console.WriteLine("       TSC_CS_PARALLEL=<n> sets the phase fan-out, TSC_CS_CHECKERS=<n> the checker pool size");
                     return 0;
                 default:
                     Console.Error.WriteLine($"projectbench: unknown argument '{args[i]}'");
@@ -106,7 +113,48 @@ internal static class ProjectBench
         // The tool reports its own peak — the same self-report tools/EmitDiff, tools/TypeDiff and tools/BindDiff carry,
         // because the parallel phases trade memory for time and that trade has to be visible in the run's own numbers.
         Console.WriteLine($"# port peak working set {Process.GetCurrentProcess().PeakWorkingSet64 / (1024 * 1024)} MiB (parallel={Parallelism.Degree})");
+        if (diagnosticsPath is not null)
+        {
+            WriteDiagnostics(diagnosticsPath, syntactic, semantic);
+            Console.WriteLine($"diagnostics   {syntactic.Count + semantic.Count,8}     written to {diagnosticsPath}");
+        }
+
         return 0;
+    }
+
+    /// <summary>
+    /// Writes every diagnostic the run produced, one line each: category, code, file, start, length, message.
+    /// </summary>
+    /// <remarks>
+    /// This is the checker pool's oracle (docs/architecture.md §18.4d). The differential tools all build a *one-file*
+    /// program, so their corpora never reach a pool size above one; a project-mode run does, and nothing else compares
+    /// its diagnostics. Dumping them makes "the pool must not change what a program reports" checkable: two runs that
+    /// differ only in <c>TSC_CS_CHECKERS</c> have to produce the same file, byte for byte. The message text comes from
+    /// the diagnostic's own flattened message, so a deferred argument (`Diagnostic.DeferArg`) is rendered exactly as a
+    /// baseline would render it.
+    /// </remarks>
+    private static void WriteDiagnostics(string path, List<IDiagnosticWithLocation> syntactic, List<IDiagnostic> semantic)
+    {
+        var lines = new List<string>(syntactic.Count + semantic.Count);
+        foreach (var diagnostic in syntactic.Concat(semantic))
+        {
+            // `flattenDiagnosticMessageText` is the compiler's own renderer (program.ts:814-844), the same one
+            // tools/BaselineDiff uses to write `.errors.txt` — so what this file records is what a baseline would say,
+            // chains and deferred arguments included. `Diagnostic.Message` does not exist on the class; the message is
+            // the `MessageText` slot.
+            var message = PortProgram.FlattenDiagnosticMessageText(diagnostic.MessageText, "\n");
+            lines.Add(string.Join(
+                '\t',
+                diagnostic.Category,
+                diagnostic.Code,
+                diagnostic.File?.FileName ?? "<global>",
+                diagnostic.Start,
+                diagnostic.Length,
+                message.Replace('\r', ' ').Replace('\n', ' ')));
+        }
+
+        lines.Sort(StringComparer.Ordinal);
+        File.WriteAllLines(path, lines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
     }
 }
 

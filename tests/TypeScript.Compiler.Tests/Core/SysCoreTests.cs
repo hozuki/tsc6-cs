@@ -1,9 +1,10 @@
-namespace TypeScript.Compiler.Tests;
+﻿namespace TypeScript.Compiler.Tests;
 
 /// <summary>
 /// sys.ts 里与宿主无关的部分。哈希的参考值刻意用 TS 自身算出来再固定在这里，而不是复述一遍算法 ——
 /// 复述只能证明实现和它自己一致。
 /// </summary>
+[Collection(ProcessWideStateCollection.Name)]
 public class SysCoreTests
 {
     [Theory]
