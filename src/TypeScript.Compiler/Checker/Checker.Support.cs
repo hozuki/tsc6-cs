@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 
 namespace TypeScript.Compiler;
 
@@ -1512,36 +1513,53 @@ internal sealed partial class Checker
     /// </remarks>
     internal static string GetTypeListId(List<IType>? types)
     {
-        var result = "";
-        if (types is not null)
+        // PORT-NOTE (performance, measured): the reference assembles this key with `result += …` inside the loop; a
+        // JavaScript string is a rope so that is cheap there, while a C# string is copied on every `+=` — a key for a
+        // union of a thousand id runs therefore allocated hundreds of kilobytes of garbage (docs §18.4m). Same
+        // characters, appended to a buffer.
+        if (types is null)
         {
-            var length = types.Count;
-            var i = 0;
-            while (i < length)
-            {
-                var startId = types[i].Id;
-                var count = 1;
-                while ((i + count) < length && types[i + count].Id == startId + count)
-                {
-                    count++;
-                }
-
-                if (result.Length > 0)
-                {
-                    result += ",";
-                }
-
-                result += startId.ToString(CultureInfo.InvariantCulture);
-                if (count > 1)
-                {
-                    result += ":" + count.ToString(CultureInfo.InvariantCulture);
-                }
-
-                i += count;
-            }
+            return "";
         }
 
-        return result;
+        StringBuilder? result = null;
+        var length = types.Count;
+        var i = 0;
+        while (i < length)
+        {
+            var startId = types[i].Id;
+            var count = 1;
+            while ((i + count) < length && types[i + count].Id == startId + count)
+            {
+                count++;
+            }
+
+            var idText = startId.ToString(CultureInfo.InvariantCulture);
+            if (result is null)
+            {
+                // The first run stays as plain strings — one or two small ones is what the common shape (a single
+                // contiguous id range) costs, so the buffer only appears when a second run shows up.
+                var firstRun = count > 1 ? idText + ":" + count.ToString(CultureInfo.InvariantCulture) : idText;
+                i += count;
+                if (i >= length)
+                {
+                    return firstRun;
+                }
+
+                result = new StringBuilder(firstRun);
+                continue;
+            }
+
+            result.Append(',').Append(idText);
+            if (count > 1)
+            {
+                result.Append(':').Append(count.ToString(CultureInfo.InvariantCulture));
+            }
+
+            i += count;
+        }
+
+        return result?.ToString() ?? "";
     }
 
     /// <summary>ported from: src/compiler/checker.ts:16896-16898 — <c>getAliasId</c>.</summary>

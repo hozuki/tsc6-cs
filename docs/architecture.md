@@ -2835,6 +2835,66 @@ CLI 都抑制语义诊断。可用的 oracle 只有：① 语法诊断（端口 
 验收：1,521 测试；`TypeDiff` 与 `EmitDiff` 全语料各 **clean 5908/5908**（含这两处收敛修复，说明参考能算的所有
 用例逐字节未变）。
 
+### 18.4m 两个方向的收敛：模块解析不是杠杆、检查侧分配是"必要物化"，真正的赢是 GC 模式
+
+#### 方向①：图遍历里的"模块解析"——实测否掉
+
+先前按分配画像推断图遍历（p2000 0.315 s）是"模块解析"的钱。用端口**自带**的 `Performance` 分段
+（`ProjectBench --perf-measures`，与参考 CLI 的 `--extendedDiagnostics` 同源）实测：
+
+```
+# perf Program        483.0 ms   ← createProgram 全部
+# perf Parse          322.7 ms   （并行阶段，同名 mark 会互相竞争 ⇒ 该值仅供量级参考）
+# perf Bind           111.5 ms   （已在 checker 初始化里并行）
+# perf I/O Read        14.7 ms
+# perf ResolveModule   24.1 ms   ← 只占 createProgram 的 5%
+```
+
+宿主调用侧同样排除：`FileExists` 1,856 次 / 9 ms；`ReadFile` 6,314 次 — 但它的 2.49 s 是**并行下墙钟求和的
+假象**（24 线程互相排队，串行实测 53 µs/次）。⇒ **模块解析不是杠杆**；图遍历剩下的 ~0.29 s 是每文件的
+import 收集与入册（`CollectExternalModuleReferences`/`AddFileToFilesByName` 一族），量级不大。
+
+#### 方向②：检查侧 322.8 MiB 的构成——分桶给出"必要物化"的结论
+
+| 入口 | 分配 | 调用 | **零分配占比** | 大块 | 性质 |
+|---|---|---|---|---|---|
+| `GetTypeOfSymbol` | 62.9 MiB | 86,513 | **73%** | 791 次 ≥8K = 36.3 MiB（≈46 KB/次） | 成员表，**常驻** |
+| `ResolveStructuredTypeMembers` | 57.0 MiB | 162,457 | **93%** | 1,229 次 ≥8K = 40 MiB | 同上（命中即零分配） |
+| `InferTypes` | 14.3 MiB | 1,037 | 0 | 70 次 ≥8K = 13.4 MiB | 推断暂存 + 触发的大类型物化 |
+| `InstantiateSignature` | 2.5 MiB | 2,545 | 0 | 均匀 <1K | 小对象 |
+
+⇒ 检查侧的字节**以常驻的成员表/签名表为主**，不是可回收垃圾堆。顺着"可回收"这条线只找到两处，且都属
+"JS 里便宜、C# 里贵"的既定模式：
+
+1. **推断的 `visited` 键**：参考写 `source.id + "," + target.id`（JS 里同样分配，但 C# 多两次 int→string）
+   ⇒ 改成 `Dictionary<(int, int), int>`，键等价（id 唯一、`"1,23" ≠ "12,3"`）。
+2. **`GetTypeListId` 的二次型拼接**：参考在循环里 `result += …`；C# 里每个 `+=` 都复制 ⇒ 多游程的联合键会造
+   出几十 KB 垃圾。改为缓冲，且**延迟分配**：单游程（常见形状）仍走纯字符串，出现第二个游程才转
+   `StringBuilder`（第一版直接用缓冲反而让 p2000 变差 —— 单游程键多了 `StringBuilder` + 其 `char[]`）。
+
+**配对 A/B（同构建，只差这两处）**：types 分片语义分配 **1460.7 → 1452.6 MiB（−8.1，−0.55%）**，p2000
+322.8 → 323.1 MiB（+0.1%，噪声内）；诊断数逐位不变。⇒ 保留（严格更少垃圾、语义等价、带 PORT-NOTE），
+但**记为微收益**：检查侧没有"砍一大刀"的空间。
+
+#### 真正的赢：可执行程序的 Server GC
+
+GC 占混合负载 CPU 的 45%，而分配以常驻为主 ⇒ 先换 GC 模式（零代码、零语义风险）。新增
+`Directory.Build.targets`，只对 `OutputType=Exe` 的项目设 `ServerGarbageCollection=true`（库消费者不受影响；
+放在 targets 是因为 props 在项目属性之前导入，那时 `OutputType` 还没定）：
+
+| workload | workstation | Server GC | 峰值工作集 |
+|---|---|---|---|
+| p2000 semantic | 1.424–1.445 s | **1.199–1.218 s（−15%）** | 264 → 283–307 MiB |
+| types 分片 semantic | 2.81–2.98 s | **2.62–2.73 s（−5…9%）** | 340 → 447 MiB |
+| 全语料 total | 9.96 s | **9.10–9.72 s（−5…9%）** | 953 → 1,137 MiB |
+
+分配字节与诊断数**逐位不变**（`System.GC.Server=true` 出现在可执行程序的 runtimeconfig.json 里，验收时无
+环境变量）。验收：1,521 测试；`TypeDiff`/`EmitDiff` 全语料各 clean 5908/5908；全语料语法诊断仍 2,661。
+
+**纪律（新增）**：GC 占比高时，先改 GC 模式（零风险、立即见效），再谈砍分配；砍分配要按"**常驻 vs 可回收**"
+区分——`InferTypes` 那类"每次 190 KB、70 次占 89%"的直方图尖峰看着可疑，实为触发的大类型物化；而真正可回收的
+是 `+=` 字符串、闭包、`params object?[]` 这类每次调用的固定垃圾。
+
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 
 两个工具的端口半场原来是**按文件串行**跑（每个文件各自建 program），而这正是最适合并行的形状：文件之间零共享。新增 `--parallel <n>`（默认 `Environment.ProcessorCount`，`1` = 串行，用于 A/B），实现是**有界的 `Parallel.For` + 每文件结果槽**，最后按文件序落盘 —— 因此**索引产物与串行运行逐字节相同**（`port-hashes.txt` / `port-crashes.txt` 已实测 `cmp` 一致；`report.txt` 只差 node 侧自报的 `maxRSS` 与端口峰值这两行噪声）。

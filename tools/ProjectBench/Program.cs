@@ -32,6 +32,7 @@ internal static class ProjectBench
         string? diagnosticsPath = null;
         var tsDir = "D:/Source/GitHub/TypeScript";
         var emit = false;
+        var perfMeasures = false;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -39,9 +40,10 @@ internal static class ProjectBench
                 case "--files": filesPath = i + 1 < args.Length ? args[++i] : null; break;
                 case "--ts": tsDir = i + 1 < args.Length ? args[++i] : tsDir; break;
                 case "--emit": emit = true; break;
+                case "--perf-measures": perfMeasures = true; break;
                 case "--diagnostics": diagnosticsPath = i + 1 < args.Length ? args[++i] : null; break;
                 case "-h" or "--help":
-                    Console.WriteLine("usage: ProjectBench --files <tsconfig.json with a files[] list> [--ts <TypeScript dir>] [--emit] [--diagnostics <file>]");
+                    Console.WriteLine("usage: ProjectBench --files <tsconfig.json with a files[] list> [--ts <TypeScript dir>] [--emit] [--diagnostics <file>] [--perf-measures]");
                     Console.WriteLine("       TSC_CS_PARALLEL=<n> sets the phase fan-out, TSC_CS_CHECKERS=<n> the checker pool size");
                     return 0;
                 default:
@@ -70,6 +72,12 @@ internal static class ProjectBench
         };
 
         var system = new DiskSystem(tsDir);
+        if (perfMeasures)
+        {
+            // The reference's CLI enables the performance harness for --extendedDiagnostics; the tool does the same.
+            TypeScript.Compiler.Performance.Enable(system);
+        }
+
         var host = Program.CreateCompilerHostWorker(options, /*setParentNodes*/ false, system);
 
         var total = Stopwatch.StartNew();
@@ -122,6 +130,13 @@ internal static class ProjectBench
         Console.WriteLine($"semantic       {t2.Elapsed.TotalSeconds,8:F3} s   {MiB(allocations[2]),8} MiB   {semantic.Count} diagnostics");
         Console.WriteLine($"allocated      {MiB(GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore),26} MiB   total (all phases)");
         Console.WriteLine($"total          {total.Elapsed.TotalSeconds,8:F3} s   (checked {sourceFiles.Count - libFiles} corpus files)");
+        if (perfMeasures)
+        {
+            Console.WriteLine("# measures (the port's own Performance marks; the reference's CLI enables them for --extendedDiagnostics)");
+            TypeScript.Compiler.Performance.ForEachMeasure((name, duration) =>
+                Console.WriteLine($"# perf {name,-16} {duration,10:F1} ms"));
+        }
+
         // The tool reports its own peak — the same self-report tools/EmitDiff, tools/TypeDiff and tools/BindDiff carry,
         // because the parallel phases trade memory for time and that trade has to be visible in the run's own numbers.
         Console.WriteLine($"# port peak working set {Process.GetCurrentProcess().PeakWorkingSet64 / (1024 * 1024)} MiB (parallel={Parallelism.Degree})");

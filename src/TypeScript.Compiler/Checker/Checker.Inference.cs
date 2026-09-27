@@ -237,7 +237,12 @@ internal sealed partial class Checker
         var bivariant = false;
         IType? propagationType = null;
         var inferencePriority = (int)InferencePriority.MaxValue;
-        Dictionary<string, int>? visited = null;
+        // PORT-NOTE (performance, measured): the reference keys this map by `source.id + "," + target.id`; in
+        // JavaScript that allocates a string per visit, and in C# a string *plus* two int-to-string conversions per
+        // visit — three garbage objects for a two-integer key, which the inference of a large type does tens of
+        // thousands of times (docs §18.4m). The id pair is the same key: ids are unique per type and the reference's
+        // assembled string cannot collide either ("1,23" is not "12,3").
+        Dictionary<(int Source, int Target), int>? visited = null;
         List<IType>? sourceStack = null;
         List<IType>? targetStack = null;
         var expandingFlags = ExpandingFlags.None;
@@ -564,7 +569,7 @@ internal sealed partial class Checker
             where Source : IType
             where Target : IType
         {
-            var key = source.Id + "," + target.Id;
+            var key = (Source: source.Id, Target: target.Id);
             int? status = visited is not null && visited.TryGetValue(key, out var value) ? value : null;
             if (status is not null)
             {
