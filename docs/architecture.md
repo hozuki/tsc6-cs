@@ -2213,3 +2213,7 @@ harness 的下划线规则是逐节点的 `nodeIsFullySynthetic(node) = nodeIsSy
 | `SUMMARY` | same=3139 div=11 crash=56 | **same=3192 div=4 crash=4** |
 
 剩余 4 条分歧全是 `privateNameNestedClass{Accessors,Field,Method}Shadowing`.ts 与 `privateNamesInNestedClasses-1.ts 的 `.types` 下划线**中段缺口**（示例：`(x: Derived) => void` 里参数类型名 `Derived` 的 7 个字符没有下划线），仍属 `nodeIsFullySynthetic` 家族但**不是**工厂未标标志位：插桩显示打印到那里的 `Identifier("Derived")` 是 `flags=Synthesized pos=188`、`original` 指向**语法树节点**的那一个（`getParseTreeNode` 因此非空 ⇒ 非 fully synthetic），而 fully synthetic 的 `pos=-1` 同名节点在同一文件里也确实存在。即：节点构建器在"重用语法树节点 vs 重建合成节点"上的取舍与参考不同 —— 属节点构建器的重用面，需要单独切片，本条只记录证据（`artifacts/bd-wide2/port/privateNameNestedClassFieldShadowing.types` 第 43 行）。剩余 1 条崩溃是已登记的 module specifiers 具名阻断（`privateNamesUnique-2.ts`）。
+
+### 17.14.10 裁定：`Utilities.VisitNodes`/`VisitArrayWorker` 的按元素检查式转换保持不动
+
+`Utilities/Utilities.Visitor.cs:354/361` 的 `updated.Add((TNode)(object)visitedNode)` 与 `VisitNode<TNode>` 的 pun 是同一形状（参考在 `visitorPublic.ts:328-376` 里对"访问器答了更宽的元素类型"是**未检查**的），但两者性质不同：`VisitNode` 的 pun 有**实证**（某个真实用例的访问器确实答了更宽的节点，见 §17.14.9 的 slices 说明），而按元素转换至今**没有任何用例**触发。端口对 `Unsafe`/pun 的既有规则是"参考的未检查行为必须可观测才引入 pun"（§15.10 缺陷 7 的四个具名 punning 辅助都带这条论证），因此本条**保持现状**：不加 pun、不改参考语义、不写"可能更宽"的猜测式放宽。若将来某个用例证明参考会静默接受更宽元素，再按同一条规则引入具名 pun 并附读路径论证。
