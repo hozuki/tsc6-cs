@@ -304,6 +304,7 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:20682-20701 — <c>instantiateSignature</c>.</summary>
     internal ISignature InstantiateSignature(ISignature signature, TypeMapper mapper, bool eraseTypeParameters = false)
     {
+        using var allocProbe = AllocationProbe.Enter("Checker.InstantiateSignature");
         List<ITypeParameter>? freshTypeParameters = null;
         if (signature.TypeParameters is not null && !eraseTypeParameters)
         {

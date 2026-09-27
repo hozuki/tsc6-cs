@@ -616,6 +616,7 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:12952-12982 — <c>getTypeOfSymbol</c>.</summary>
     internal IType GetTypeOfSymbol(ISymbol? symbol)
     {
+        using var allocProbe = AllocationProbe.Enter("Checker.GetTypeOfSymbol");
         var checkFlags = GetCheckFlags(symbol!);
         if ((checkFlags & CheckFlags.DeferredType) != 0)
         {

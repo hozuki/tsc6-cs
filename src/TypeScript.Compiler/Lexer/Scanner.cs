@@ -1215,6 +1215,7 @@ internal sealed partial class Scanner
     /// <summary>Advances to the next token and returns it.</summary>
     public SyntaxKind Scan()
     {
+        using var allocProbe = AllocationProbe.Enter("Scanner.Scan");
         _fullStartPos = _pos;
         _tokenFlags = TokenFlags.None;
         while (true)

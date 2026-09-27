@@ -140,6 +140,15 @@ internal static class ProjectBench
                 Console.WriteLine($"# perf {name,-16} {duration,10:F1} ms"));
         }
 
+        // The allocation probe (TSC_CS_ALLOC_PROBE=1): where each instrumented checker/parser/binder region's
+        // *exclusive* bytes go — the instrument the CPU profiler cannot replace when the cost is many small
+        // allocations rather than one hot function (docs/architecture.md §18.4j/§18.7).
+        if (TypeScript.Compiler.AllocationProbe.Enabled)
+        {
+            Console.WriteLine("# allocation probe (exclusive bytes per region; TSC_CS_ALLOC_PROBE=1)");
+            TypeScript.Compiler.AllocationProbe.Report(line => Console.WriteLine("# " + line));
+        }
+
         // The tool reports its own peak — the same self-report tools/EmitDiff, tools/TypeDiff and tools/BindDiff carry,
         // because the parallel phases trade memory for time and that trade has to be visible in the run's own numbers.
         Console.WriteLine($"# port peak working set {Process.GetCurrentProcess().PeakWorkingSet64 / (1024 * 1024)} MiB (parallel={Parallelism.Degree})");

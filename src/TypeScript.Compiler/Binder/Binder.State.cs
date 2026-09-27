@@ -227,6 +227,7 @@ internal partial class Binder
     /// </remarks>
     public static void BindSourceFile(SourceFile file, ICompilerOptions? options)
     {
+        using var allocProbe = AllocationProbe.Enter("Binder.BindSourceFile");
         Performance.Mark("beforeBind");
         new Binder(file, options).Run();
         Performance.Mark("afterBind");

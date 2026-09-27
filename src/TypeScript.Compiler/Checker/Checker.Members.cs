@@ -855,6 +855,7 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:15022-15055 — <c>resolveStructuredTypeMembers</c>.</summary>
     internal UnionOrIntersectionType ResolveStructuredTypeMembers(UnionOrIntersectionType type)
     {
+        using var allocProbe = AllocationProbe.Enter("Checker.ResolveStructuredTypeMembers");
         if (type.Members is null)
         {
             if ((type.Flags & TypeFlags.Object) != 0)

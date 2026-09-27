@@ -185,6 +185,7 @@ internal sealed partial class Parser
     /// <summary>ported from: src/compiler/parser.ts:1803-1809 — the head of <c>parseSourceFileWorker</c>.</summary>
     private SourceFile ParseSourceFileWorker(bool setParentNodes, Action<SourceFile> setExternalModuleIndicator)
     {
+        using var allocProbe = AllocationProbe.Enter("Parser.ParseSourceFile");
         var isDeclarationFile = IsDeclarationFileName(_fileName);
         if (isDeclarationFile)
         {

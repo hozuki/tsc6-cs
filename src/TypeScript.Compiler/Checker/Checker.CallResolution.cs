@@ -487,6 +487,7 @@ internal sealed partial class Checker
     /// </remarks>
     internal List<IType> InferTypeArguments(Node node, ISignature signature, IList<Expression> args, CheckMode checkMode, IInferenceContext context)
     {
+        using var allocProbe = AllocationProbe.Enter("Checker.InferTypeArguments");
         if (Utilities.IsJsxOpeningLikeElement(node))
         {
             return InferJsxTypeArguments(node, signature, checkMode, context);
@@ -1596,6 +1597,7 @@ internal sealed partial class Checker
     /// </remarks>
     internal ISignature ResolveCall(Node node, IList<ISignature> signatures, List<ISignature>? candidatesOutArray, CheckMode checkMode, SignatureFlags callChainFlags, DiagnosticMessage? headMessage = null)
     {
+        using var allocProbe = AllocationProbe.Enter("Checker.ResolveCall");
         var isTaggedTemplate = node.Kind == SyntaxKind.TaggedTemplateExpression;
         var isDecorator = node.Kind == SyntaxKind.Decorator;
         var isJsxOpeningOrSelfClosingElement = Utilities.IsJsxOpeningLikeElement(node);
@@ -1910,6 +1912,7 @@ internal sealed partial class Checker
         // `argCheckMode` is a flags enum, so the reference's `if (argCheckMode)` truthiness is `!= 0`.
         ISignature? ChooseOverload(List<ISignature> candidates, Dictionary<string, RelationComparisonResult> relation, bool isSingleNonGenericCandidate, bool signatureHelpTrailingComma = false)
         {
+            using var allocProbe = AllocationProbe.Enter("Checker.ChooseOverload");
             candidatesForArgumentError = null;
             candidateForArgumentArityError = null;
             candidateForTypeArgumentError = null;
@@ -3138,6 +3141,7 @@ internal sealed partial class Checker
     /// </remarks>
     internal ISignature GetResolvedSignature(Node node, List<ISignature>? candidatesOutArray = null, CheckMode? checkMode = null)
     {
+        using var allocProbe = AllocationProbe.Enter("Checker.GetResolvedSignature");
         var links = GetNodeLinks(node);
         // If getResolvedSignature has already been called, we will have cached the resolvedSignature.
         // However, it is possible that either candidatesOutArray was not passed in the first time,

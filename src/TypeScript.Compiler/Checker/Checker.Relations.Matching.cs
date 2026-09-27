@@ -702,6 +702,7 @@ internal sealed partial class Checker
     /// </remarks>
     internal bool IsTypeRelatedTo(IType source, IType target, Dictionary<string, RelationComparisonResult> relation)
     {
+        using var allocProbe = AllocationProbe.Enter("Checker.IsTypeRelatedTo");
         if (IsFreshLiteralType(source))
         {
             source = ((IFreshableType)source).RegularType!;

@@ -4864,6 +4864,7 @@ internal sealed partial class Checker
     /// </remarks>
     internal IType GetFlowTypeOfReference(Node reference, IType declaredType, IType? initialType = null, Node? flowContainer = null, FlowNode? flowNode = null)
     {
+        using var allocProbe = AllocationProbe.Enter("Checker.GetFlowTypeOfReference");
         initialType ??= declaredType;
         flowNode ??= Utilities.CanHaveFlowNode(reference) ? ((IFlowContainer)reference).FlowNode : null;
         string? key = null;
