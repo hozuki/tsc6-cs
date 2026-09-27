@@ -2895,6 +2895,36 @@ GC 占混合负载 CPU 的 45%，而分配以常驻为主 ⇒ 先换 GC 模式�
 区分——`InferTypes` 那类"每次 190 KB、70 次占 89%"的直方图尖峰看着可疑，实为触发的大类型物化；而真正可回收的
 是 `+=` 字符串、闭包、`params object?[]` 这类每次调用的固定垃圾。
 
+#### Server GC 之后：新画像与性能线的收尾
+
+工具新增一行固化诊断 `# gc server=…`（测量必须与 GC 模式一起读；p2000/全语料均确认 `server=True`）。
+
+**采样（Server GC 下，p2000，`TSC_CS_PARALLEL=1`）**：`Thread.PollGC` 仍占 45%，但这不是假象——单文件样本里它
+只占 7.4%、其余是 `LowLevelThreadBlocker.TimedWait`（等待）⇒ 45% 是**真实的 GC 协调循环**，即"分配量仍在驱动
+画像"。其余热点被摊平：文件 I/O 四入口（`CreateFilePrivate`/`GetFileAttributesExPrivate`/`ReadFile`/`CloseHandle`）
+合计 ~6.8%、`GetHashCode` 1.5%、`CallClassConstructor` 1.2%、`ForEachChild` 含 8%、其余 <1%。
+
+**③ 图遍历余下时间的归因（原假设被否）**：`CollectExternalModuleReferences` 实测 **0.009 s / 2,093 次**（可忽略），
+`ProcessRootFile` 的 0.708 s 是**嵌套求和**的假象。createProgram 已降到 **0.447 s**（Server GC + 并行预取；本会话
+起点 0.78 s）。剩下的是每文件 `GetCreateSourceFileOptions`（package.json / implied-format 查询、填缓存、顺序敏感）
+⇒ 并行化的守卫会像预取那样频繁拒绝复用，**不做**。
+
+**② 诊断 `params object?[]` 装箱：量了，放弃**。`Checker.Error` 6,068 次 / 12.6 MiB（子树，含惰性诊断冲刷）+
+`CreateDiagnosticForNode` 59,725 次 / 8.7 MiB ≈ **21 MiB（p2000 的 3.9%）**；其中 `params` 数组在**调用点**构造，
+按 ~70k 次 × ~60 B 估 ≈ 4 MiB（**0.8%**）⇒ 为不到 1% 去改 ~100 处调用点的签名，不划算（记录为"已量，放弃"）。
+
+**工具侧唯一还值得的一处**：`DiskSystem.ReadFile` 原本 `File.Exists(full) ? File.ReadAllText(full) : null` ⇒ 每个
+文件两次系统调用（画像里文件系统入口 ~6.8%）；改为单次 `ReadAllText` + 捕获"未找到/无权限"并返回 null（与
+`File.Exists` 的答案一致）。
+
+**剩下最大的结构性杠杆：emit 并行化**。types 分片实测 `emit` **0.539 s / 580 MiB 分配 = 整轮 3.67 s 的 15%**
+（比早先记的 0.43 s 大）。并行化需要先解决：共享 `EmitResolver`/`NodeBuilder` 的惰性缓存（需按锁或按文件隔离）、
+helper 的发射、以及 `host.writeFile` 的**调用序**（参考按文件序写；并发写需要 opt-in host + 逐文件缓冲后按序落盘）。
+
+**本会话累计（p2000）**：total **2.24 → 1.69–1.72 s（−23%）**、整轮分配 600 → 536 MiB、峰值 343 → 283–307 MiB；
+两条环的端口段：`TypeDiff` 10.6 → **6.72 s**、`EmitDiff` 9.35 → **4.53 s**（Server GC 对"每用例一个 program、
+分配密集"的工具收益最大）。验收：1,521 测试；两环各 clean 5908/5908；全语料语法诊断仍 2,661。
+
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 
 两个工具的端口半场原来是**按文件串行**跑（每个文件各自建 program），而这正是最适合并行的形状：文件之间零共享。新增 `--parallel <n>`（默认 `Environment.ProcessorCount`，`1` = 串行，用于 A/B），实现是**有界的 `Parallel.For` + 每文件结果槽**，最后按文件序落盘 —— 因此**索引产物与串行运行逐字节相同**（`port-hashes.txt` / `port-crashes.txt` 已实测 `cmp` 一致；`report.txt` 只差 node 侧自报的 `maxRSS` 与端口峰值这两行噪声）。

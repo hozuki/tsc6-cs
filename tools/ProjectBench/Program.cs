@@ -130,6 +130,9 @@ internal static class ProjectBench
         Console.WriteLine($"semantic       {t2.Elapsed.TotalSeconds,8:F3} s   {MiB(allocations[2]),8} MiB   {semantic.Count} diagnostics");
         Console.WriteLine($"allocated      {MiB(GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore),26} MiB   total (all phases)");
         Console.WriteLine($"total          {total.Elapsed.TotalSeconds,8:F3} s   (checked {sourceFiles.Count - libFiles} corpus files)");
+        // Which collector the run actually used: the executables ask for Server GC (Directory.Build.targets), and a
+        // measurement is only readable next to the mode it was taken in.
+        Console.WriteLine($"# gc server={System.Runtime.GCSettings.IsServerGC} latency={System.Runtime.GCSettings.LatencyMode}");
         if (perfMeasures)
         {
             Console.WriteLine("# measures (the port's own Performance marks; the reference's CLI enables them for --extendedDiagnostics)");
@@ -219,8 +222,18 @@ internal sealed class DiskSystem(string tsDir) : ISystem
 
     public string? ReadFile(string path, string? encoding = null)
     {
-        var full = ToDiskPath(path);
-        return File.Exists(full) ? File.ReadAllText(full) : null;
+        // One syscall per file: the comparison here used to be `File.Exists(full) ? File.ReadAllText(full) : null`,
+        // which asks the filesystem twice for every file the compiler reads (the profile put the four file-system
+        // entry points at ~6.8% of the run's CPU on the mixed prefix — docs §18.4m).
+        try
+        {
+            return File.ReadAllText(ToDiskPath(path));
+        }
+        catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException or UnauthorizedAccessException)
+        {
+            // The same answers `File.Exists` gives: missing, or present but not readable for this process.
+            return null;
+        }
     }
 
     public void WriteFile(string path, string data, bool writeByteOrderMark = false)
