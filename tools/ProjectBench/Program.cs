@@ -74,9 +74,17 @@ internal static class ProjectBench
 
         var total = Stopwatch.StartNew();
 
+        // Allocated bytes per phase, alongside the wall clock. This is the perf line's *noise-free* metric: the machine's
+        // wall clock drifts by ±20% between runs of the same binary (docs/architecture.md §18.4g), while the bytes a phase
+        // allocates are deterministic — so an allocation-reducing change can be judged by this column even when the
+        // timing cannot separate it. `precise: true` asks for the exact accounting counter rather than the cheap one.
+        var allocations = new long[4];
+        var allocatedBefore = GC.GetTotalAllocatedBytes(precise: true);
+
         var t0 = Stopwatch.StartNew();
         var program = Program.CreateProgram(rootNames, options, host);
         t0.Stop();
+        allocations[0] = GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore;
 
         var sourceFiles = program.GetSourceFiles().ToList();
         var libFiles = sourceFiles.Count(f => f.IsDeclarationFile);
@@ -84,10 +92,12 @@ internal static class ProjectBench
         var t1 = Stopwatch.StartNew();
         var syntactic = program.GetSyntacticDiagnostics(/*sourceFile*/ null, /*cancellationToken*/ null);
         t1.Stop();
+        allocations[1] = GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore - allocations[0];
 
         var t2 = Stopwatch.StartNew();
         var semantic = program.GetSemanticDiagnostics(/*sourceFile*/ null, /*cancellationToken*/ null);
         t2.Stop();
+        allocations[2] = GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore - allocations[0] - allocations[1];
 
         double emitSeconds = 0;
         var emittedFiles = 0;
@@ -100,15 +110,17 @@ internal static class ProjectBench
             emittedFiles = system.Writes;
             t3.Stop();
             emitSeconds = t3.Elapsed.TotalSeconds;
+            allocations[3] = GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore - allocations[0] - allocations[1] - allocations[2];
             total.Stop();
-            Console.WriteLine($"emit           {emitSeconds,8:F3} s   files={emittedFiles} skipped={result.EmitSkipped}");
+            Console.WriteLine($"emit           {emitSeconds,8:F3} s   {MiB(allocations[3]),8} MiB   files={emittedFiles} skipped={result.EmitSkipped}");
         }
         total.Stop();
 
         Console.WriteLine($"roots          {rootNames.Count,8}     source files={sourceFiles.Count} (declaration files={libFiles})");
-        Console.WriteLine($"createProgram  {t0.Elapsed.TotalSeconds,8:F3} s   parse + bind + file graph");
-        Console.WriteLine($"syntactic      {t1.Elapsed.TotalSeconds,8:F3} s   {syntactic.Count} diagnostics");
-        Console.WriteLine($"semantic       {t2.Elapsed.TotalSeconds,8:F3} s   {semantic.Count} diagnostics");
+        Console.WriteLine($"createProgram  {t0.Elapsed.TotalSeconds,8:F3} s   {MiB(allocations[0]),8} MiB   parse + bind + file graph");
+        Console.WriteLine($"syntactic      {t1.Elapsed.TotalSeconds,8:F3} s   {MiB(allocations[1]),8} MiB   {syntactic.Count} diagnostics");
+        Console.WriteLine($"semantic       {t2.Elapsed.TotalSeconds,8:F3} s   {MiB(allocations[2]),8} MiB   {semantic.Count} diagnostics");
+        Console.WriteLine($"allocated      {MiB(GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore),26} MiB   total (all phases)");
         Console.WriteLine($"total          {total.Elapsed.TotalSeconds,8:F3} s   (checked {sourceFiles.Count - libFiles} corpus files)");
         // The tool reports its own peak — the same self-report tools/EmitDiff, tools/TypeDiff and tools/BindDiff carry,
         // because the parallel phases trade memory for time and that trade has to be visible in the run's own numbers.
@@ -121,6 +133,9 @@ internal static class ProjectBench
 
         return 0;
     }
+
+    /// <summary>Bytes as a one-decimal MiB figure for the report — see the allocation accounting in <c>Main</c>.</summary>
+    private static double MiB(long bytes) => Math.Round(bytes / (1024.0 * 1024.0), 1);
 
     /// <summary>
     /// Writes every diagnostic the run produced, one line each: category, code, file, start, length, message.

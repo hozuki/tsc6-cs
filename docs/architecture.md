@@ -2504,6 +2504,33 @@ harness 的下划线规则是逐节点的 `nodeIsFullySynthetic(node) = nodeIsSy
 
 **试过并否决（有数字）**：把 ICU 的目标缓冲改成**非托管内存**（`NativeMemory.Alloc`）并把"测量 + 转换"两次调用压成常态一次（估容量 3n+1，溢出再重试）——4 对交错的中位数 **4.195 s vs 4.168 s**，没有收益、4 对里 3 对更差。原因：该路径只在**非 ASCII** 输入时进入（ASCII 已被上面的快路径接管），而对小的短命缓冲，运行时的 bump 分配 + gen0 回收比 `malloc`/`free` 更便宜；非托管内存要划算，前提是**跨调用复用**缓冲（线程本地暂存），而同一份测量说明这条冷路径还不值得那份复杂度（若将来非 ASCII 输入变成热路径，这条就是现成的结论与方向）。
 
+### 18.4h 分配的来源：先有噪声无关的度量，再逐项去掉
+
+**度量**：`tools/ProjectBench` 现在同时报**每阶段分配的字节数**（`GC.GetTotalAllocatedBytes(precise: true)` 的阶段差值），与墙钟并列。这是本机唯一可靠的 A/B 信号：墙钟在两个版本之间可以漂 ±20%（§18.4g），而同一二进制两次运行的分配字节数**逐字节相同**。混合前缀 2,000 文件的基线：
+
+| 阶段 | 墙钟 | 分配 |
+|---|---|---|
+| createProgram（parse + 绑定 + 图） | 0.90 s | **277.5 MiB** |
+| semantic（含惰性绑定 + 检查） | 1.56 s | **330.8 MiB** |
+| 合计 | 2.46 s | **608.3 MiB**（≈304 KiB/文件）|
+
+**结构性来源 1（已修，有实测）**：C# 里**对一个方法组或捕获 lambda 求值就会分配**一个委托/闭包，而 TS 里把模块级函数当回调传是零分配。binder 的每一节点都要走下钻：
+
+```csharp
+// 改前：每个节点两次分配（`Bind` 的方法组 + 捕获 this 的 lambda）
+BindEachChild(node) => ForEachChild(node, Bind, nodes => BindEach(nodes));
+```
+
+改成在 Binder 实例上缓存两个委托（每文件一次，而不是每节点一次）：**semantic 330.8 → 317.7 MiB（−13.1 MiB）**，`createProgram` 不变（绑定发生在 checker 初始化，属 semantic 阶段，所以这 13 MiB 记在 semantic 上——这也说明"分配记在哪个阶段"要按实际调用点读，不能按函数名猜）。验收：1,521 测试、TypeDiff/EmitDiff 全语料各 clean 5908/5908。
+
+**结构性来源 2（已定位，待做）**：`Parser.LookAhead<T>(Func<T>)`（`Parser.cs:576` → `SpeculationHelper`）有 **34 处**调用点，绝大多数传的是**方法组**（`IsTypeMemberStart`、`IsClassMemberStart`、`NextTokenIsStartOfExpression`…），而它在**每个列表元素 / 每个表达式**上被求值 ⇒ 每个元素一次委托分配。解析阶段是最大的单项分配者（277.5 MiB），这里首当其冲。三种修法，代价递增、收益递增：
+
+1. **逐站点缓存**（`private readonly Func<bool> _isTypeMemberStart;` 在构造函数里赋值）：机械、无新概念，34 处 × 2 行。
+2. **每实例谓词表 + 枚举**：`LookAhead(LookAheadPredicate.IsTypeMemberStart)`，表在构造函数建一次（34 个委托/文件），调用点变成零分配、无间接寻址以外的新机制。
+3. **结构性：不再传回调**。TS 的 `forEachChild` 是回调式，端口照搬，于是热路径必须造委托；C# 的零成本形态是**结构体访问者**（`ForEachChild<TVisitor>(node, ref visitor) where TVisitor : struct`）或**枚举器**（`foreach (var child in node.Children())`），把回调从热遍历里彻底拿掉。代价是生成的 `ForEachChildTable` 要改成泛型访问者形态并触及约 40 个调用点——这是"换思路"的那一档，只有在 1/2 的实测收益不够时才值得。
+
+**还没拆开的**：解析阶段余下的分配由"节点对象本身 / `NodeArray` 包装 / `List` 增长 / 字符串"构成，要分开需要 allocation-site 数据；本机现有工具给不出（`dotnet-trace` 的 speedscope 转换只留 CPU 采样帧，不带分配事件负载；PerfView / dotnet-gcdump 未安装）。在拿到该数据前，只做"能由代码结构直接判定"的那几类（上面的委托/闭包就是第一类，且已用字节数印证）。
+
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 
 两个工具的端口半场原来是**按文件串行**跑（每个文件各自建 program），而这正是最适合并行的形状：文件之间零共享。新增 `--parallel <n>`（默认 `Environment.ProcessorCount`，`1` = 串行，用于 A/B），实现是**有界的 `Parallel.For` + 每文件结果槽**，最后按文件序落盘 —— 因此**索引产物与串行运行逐字节相同**（`port-hashes.txt` / `port-crashes.txt` 已实测 `cmp` 一致；`report.txt` 只差 node 侧自报的 `maxRSS` 与端口峰值这两行噪声）。

@@ -198,7 +198,26 @@ internal partial class Binder
         _options = options;
         _languageVersion = Utilities.GetEmitScriptTarget(options);
         _inStrictMode = BindInStrictMode(file, options);
+        // PORT-NOTE (performance, measured): the child walk hands the same two callbacks to `forEachChild` on every node,
+        // and in C# *evaluating* `Bind` (a method group) or `nodes => BindEach(nodes)` (a lambda that captures `this`)
+        // allocates a fresh delegate/closure every time — one or two objects per node of the program. TS pays nothing for
+        // this because `bind`/`bindEach` are stable module-level function references. The two delegates are therefore
+        // built once per file here; see docs/architecture.md §18.4h for the measured bytes.
+        _bind = Bind;
+        _bindEach = BindEachNodes;
     }
+
+    /// <summary>The cached <c>bind</c> callback (<c>binder.ts:1079</c>) — see the constructor's note.</summary>
+    private readonly Action<Node> _bind;
+
+    /// <summary>The cached <c>bindEach</c> callback (<c>binder.ts:1080</c>) — see the constructor's note.</summary>
+    private readonly Action<INodeArray<INode>> _bindEach;
+
+    /// <summary>
+    /// <c>BindEach</c> with the signature <c>forEachChild</c>'s <c>cbNodes</c> takes, so the callback can be a cached
+    /// delegate instead of a lambda capturing <c>this</c>.
+    /// </summary>
+    private void BindEachNodes(INodeArray<INode> nodes) => BindEach(nodes);
 
     /// <summary>ported from: src/compiler/binder.ts:502-507 — <c>bindSourceFile</c>.</summary>
     /// <remarks>

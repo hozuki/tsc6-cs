@@ -57,7 +57,7 @@ internal partial class Binder
             return;
         }
 
-        bindFunction ??= Bind;
+        bindFunction ??= _bind;
         foreach (var node in nodes)
         {
             bindFunction((Node)node);
@@ -67,11 +67,11 @@ internal partial class Binder
     /// <summary>ported from: src/compiler/binder.ts:1092-1094 — <c>bindEachChild</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: TS's <c>forEachChild(node, bind, bindEach)</c> has the two-callback shape; the port's void-callback
-    /// overload (Parser/ForEachChildTable.Overloads.cs) is exactly it. <c>BindEach</c> is passed through a lambda
-    /// rather than as a method group because its own signature takes an optional second parameter, which a method group
-    /// conversion does not carry.
+    /// overload (Parser/ForEachChildTable.Overloads.cs) is exactly it. The two callbacks are the delegates cached on the
+    /// binder (<c>_bind</c>/<c>_bindEach</c>, `Binder.State.cs`), not method groups or lambdas evaluated here: those
+    /// allocate one or two objects per node, which is what the whole-corpus profile's GC share was made of (§18.4h).
     /// </remarks>
-    private void BindEachChild(Node node) => ForEachChildTable.ForEachChild(node, Bind, nodes => BindEach(nodes));
+    private void BindEachChild(Node node) => ForEachChildTable.ForEachChild(node, _bind, _bindEach);
 
     /// <summary>ported from: src/compiler/binder.ts:1096-1240 — <c>bindChildren</c>.</summary>
     private void BindChildren(Node node)
