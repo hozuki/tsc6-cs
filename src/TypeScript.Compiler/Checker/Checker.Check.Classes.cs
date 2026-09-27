@@ -579,7 +579,14 @@ internal sealed partial class Checker
         // concrete class that is a *sibling* of `IntersectionType` under `UnionOrIntersectionType` (a mixin class
         // expression's static side is exactly such an intersection). `IObjectType` is the face both implement, and the
         // value the reference observes is unchanged.
-        var staticType = (IObjectType)GetTypeOfSymbol(symbol);
+        // PORT-NOTE (correctness, measured): TS's `getTypeOfSymbol(symbol) as ObjectType` is an *erased* cast — the
+        // reference carries whatever that call answers (for the JavaScript class/assignment merges this corpus is full
+        // of, an `any`) into the static-side reads below and gets `undefined` off it rather than failing. The port's
+        // cast is a runtime check, so the value is kept as `IType` here: the calls that take `IType` get it, and the
+        // one that needs the object face is skipped when the value is not an object type (docs §18.4l — TS 6.0's own
+        // API dies before this point, so there is no reference behaviour to copy).
+        var staticTypeValue = GetTypeOfSymbol(symbol);
+        var staticType = staticTypeValue as IObjectType;
         CheckTypeParameterListsIdentical(symbol);
         CheckFunctionOrConstructorSymbol(symbol);
         CheckClassForDuplicateDeclarations((Node)node);
@@ -644,11 +651,11 @@ internal sealed partial class Checker
                     else
                     {
                         // Report static side error only when instance type is assignable
-                        CheckTypeAssignableTo(staticType, GetTypeWithoutSignatures(staticBaseType), ((INamedDeclaration)node).Name ?? (Node)node, Diagnostics.Class_static_side_0_incorrectly_extends_base_class_static_side_1);
+                        CheckTypeAssignableTo(staticTypeValue, GetTypeWithoutSignatures(staticBaseType), ((INamedDeclaration)node).Name ?? (Node)node, Diagnostics.Class_static_side_0_incorrectly_extends_base_class_static_side_1);
                     }
                     if ((baseConstructorType.Flags & TypeFlags.TypeVariable) != 0)
                     {
-                        if (!IsMixinConstructorType(staticType))
+                        if (!IsMixinConstructorType(staticTypeValue))
                         {
                             Error(((INamedDeclaration)node).Name ?? (Node)node, Diagnostics.A_mixin_class_must_have_a_constructor_with_a_single_rest_parameter_of_type_any);
                         }
@@ -677,7 +684,10 @@ internal sealed partial class Checker
             }
         }
 
-        CheckMembersForOverrideModifier(node, type, typeWithThis, staticType);
+        if (staticType is not null)
+        {
+            CheckMembersForOverrideModifier(node, type, typeWithThis, staticType);
+        }
 
         var implementedTypeNodes = Utilities.GetEffectiveImplementsTypeNodes((Node)node);
         if (implementedTypeNodes is not null)
@@ -696,7 +706,7 @@ internal sealed partial class Checker
         AddLazyDiagnostic(() =>
         {
             CheckIndexConstraints(type, symbol);
-            CheckIndexConstraints(staticType, symbol, /*isStaticIndex*/ true);
+            CheckIndexConstraints(staticTypeValue, symbol, /*isStaticIndex*/ true);
             CheckTypeForDuplicateIndexSignatures((Node)node);
             CheckPropertyInitialization(node);
         });

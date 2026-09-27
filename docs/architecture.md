@@ -2814,8 +2814,26 @@ tsgo 的 CLI）之所以"干净地"只报 2,589/2,606 条语法诊断，正是 �
 CLI 都抑制语义诊断。可用的 oracle 只有：① 语法诊断（端口 vs tsc/tsgo CLI ✓ 已对齐）；② 用例级 `.types`/发射
 （两外环 5,908/5,908 ✓）；③ 端口自身的串行/并行双跑逐字节一致。语义侧的"对拍"因此只能靠②，而不是整语料数字。
 
-**下一个崩溃（已暴露，同一族）**：`CheckClassLikeDeclaration` 的 `(IObjectType)GetTypeOfSymbol(symbol)` 抛
-`InvalidCastException`（该合并符号的值类型解析成了 `IntrinsicType`）。逐处收敛继续。
+**下一个崩溃（同一族，已修）**：`CheckClassLikeDeclaration` 的 `(IObjectType)GetTypeOfSymbol(symbol)` 抛
+`InvalidCastException`（该合并符号的值类型解析成了 `IntrinsicType`）。这里参考的写法是
+`getTypeOfSymbol(symbol) as ObjectType` —— **`as` 是擦除的**，参考把那个非对象值一路带进静态侧的读取、从它上面
+读到 `undefined` 也不会失败；端口的 `(IObjectType)` 是运行时强转，于是崩。修法是把值保持为 `IType`
+（`staticTypeValue`）：三处取 `IType` 的调用传原值，唯一需要对象面的 `CheckMembersForOverrideModifier` 在值不是
+对象类型时跳过（文档化为偏差——TS 6.0 的 API 在这之前就崩了，此处没有可忠实的行为）。
+
+#### 里程碑：全语料单 program 跑通
+
+`artifacts/perf/tsconfig.json`（5,908 根、6,001 源文件、129 个 .d.ts，2,000+ 文件互相冲突的全局脚本）：
+
+| | 数值 |
+|---|---|
+| 语法诊断 | **2,661** —— 与 `tsc` 6.0 CLI 的 2,661 **逐数相同**（tsgo 2,678） |
+| 语义诊断 | 67,030 |
+| createProgram / semantic / total | 1.03 s / 9.25 s / **10.29 s** |
+| 分配 | 5.87 GiB（parse+bind+check 全阶段） |
+
+验收：1,521 测试；`TypeDiff` 与 `EmitDiff` 全语料各 **clean 5908/5908**（含这两处收敛修复，说明参考能算的所有
+用例逐字节未变）。
 
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 
