@@ -2632,6 +2632,49 @@ BindEachChild(node) => ForEachChild(node, Bind, nodes => BindEach(nodes));
 
 **结论（用于排序后续优化）**：① 解析侧 218.5 MiB 里最大的一块是 **scanner 71.9 MiB / 197 B 每 token**（其中 `Js.NumberToString` 只占 0.3 MiB ⇒ 不是数字转换，是 token 文本/转义/模板路径）；② **lib 与大文件是单价最高的输入**，且 `createProgram` 单线程 + 5.4% CPU 花在文件 I/O 上 ⇒ 根文件"读+解析"是唯一还剩下的大结构杠杆；③ 检查侧 322.8 MiB 尚未归因。
 
+#### 二次型字符串拼接：`ScanBinaryOrOctalDigits`（`Scan` 71.9 → 8.3 MiB）
+
+接着把 `Scan` 的 71.9 MiB 拆子项，结果是**反直觉的**：所有 token 文本路径加起来只有 6.3 MiB——标识符/关键字文本 5.8（154,867 次 × 39 B）、字符串 0.2、数字 0.1、模板 0.1、正则/JSX/转义/注释指令各 0.0。于是给探针加了**每次调用分配量的分桶直方图**，真相立刻出来：
+
+```
+PROBEBUCKET scanner (Scan) 0B=213,685  <64=138,906/4.8MiB  <256=26,380/2.4MiB
+                           <1K=3,222/1.0MiB  <8K=19/0.0MiB  >=8K=17/63.8MiB
+```
+
+**382,229 次调用里 17 次**（0.0045%）带走了 **63.8 MiB（89%）**——不是"每个 token 摊多少"，而是"少数调用各分配约 3.75 MB"。
+
+根因是 **JS↔C# 的字符串拼接语义差异**：参考写的是
+
+```ts
+        while (true) { ...; value += text[pos]; pos++; }        // scanner.ts scanBinaryOrOctalDigits
+```
+
+JS 的字符串是 rope/cons-string，逐字符 `+=` 是摊销 O(1)；C# 的 `string += char` **每次都整体复制** ⇒ O(n²)。语料里的 `binaryIntegerLiteral.ts`（磁盘 9,077 B）含 ~1,900 位的二进制字面量：逐字符累积 = 1,900 次复制 × 平均 ~950 字符 ≈ **3.6 MB / 个**，与 17 次 × 3.75 MiB 精确吻合。修法是同一串数字、按游程 append 到 `StringBuilder`（无分隔符时直接切片源文本，零分配）：
+
+```csharp
+        var start = _pos;
+        StringBuilder? value = null;            // 只在遇到 '_' 时创建
+        ... 遇到 '_': value ??= new StringBuilder(); value.Append(_text, start, _pos - start); _pos++; start = _pos;
+        ... 结束:   if (value is null) return _text[start.._pos];
+                    value.Append(_text, start, _pos - start); return value.ToString();
+```
+
+**输出逐字符不变**（同一序列的数字）。同一轮把 `ScanNumberFragment` 的同类写法（每个分隔符游程一次 `result += _text[start.._pos]`，在游程数上二次）也改成同样的累积器——p2000 没有这种字面量（0.1 MiB），但全语料里有 `1_2_3_…` 这类超长带分隔符字面量，属于同一风险面。
+
+**实测（Release，探针已移除）**：
+
+| | 改前 | 改后 |
+|---|---|---|
+| `Scan` 子树分配 | 71.9 MiB（382,229 次，平均 197 B/次） | **8.3 MiB（平均 22 B/次）** |
+| `createProgram` 分配 | 277.4 MiB | **213.6 MiB（−23%）** |
+| 整轮分配（p2000） | 600.4 MiB | **536.5 MiB（−11%）** |
+| 语义分配 / 诊断数 | 322.8 MiB / 12,928 | 322.9 MiB / 12,928（不变） |
+| `createProgram` 时间 | 0.79–0.90 s | 0.78–0.85 s（噪声内，不计） |
+
+验收：1,521 测试、`TypeDiff` 与 `EmitDiff` 全语料各 clean 5908/5908（EmitDiff 特别关键——数字字面量的 `Text` 会原样发射）。
+
+**两条纪律**：① **JS 里便宜的 `+=` 在 C# 里是 O(n²)**：凡移植"逐字符/逐片段拼字符串"的代码，一律换成缓冲区，否则只在超长输入上爆炸；② **按 B/次看平均会漏掉这类问题**（197 B/次看似"每 token 都有开销"），必须看**每次调用分配量的分布**——17 次占 89% 只有直方图能看出来。这条线到此为止：扫描器剩下的 8.3 MiB 里 5.8 是标识符文本（AST 必须物化），其余是必要开销，**扫描器不再是杠杆**；下一步是结构性项（根文件并行读+解析）与检查侧归因。
+
 #### 两处崩溃：`Convert.ToInt32/64` 的窄化（已修，与参考逐字对拍）
 
 同一轮探针在**语法错误的输入**上抓到两个 `OverflowException`（参考只报诊断）：

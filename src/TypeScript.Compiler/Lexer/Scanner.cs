@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿﻿using System.Collections.Concurrent;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace TypeScript.Compiler;
@@ -250,10 +251,13 @@ internal sealed partial class Scanner
     // ported from: src/compiler/scanner.ts:1171-1211
     private string ScanNumberFragment()
     {
+        // PORT-NOTE (performance): the reference concatenates one `result += text.substring(start, pos)` per separator
+        // run, which a rope makes cheap and a C# string makes quadratic in the number of runs (docs §18.4j). The
+        // accumulator below appends the same runs to the same string.
         var start = _pos;
         var allowSeparator = false;
         var isPreviousTokenSeparator = false;
-        var result = "";
+        StringBuilder? result = null;
         while (true)
         {
             var ch = CharCodeUnchecked(_pos);
@@ -264,7 +268,8 @@ internal sealed partial class Scanner
                 {
                     allowSeparator = false;
                     isPreviousTokenSeparator = true;
-                    result += _text[start.._pos];
+                    result ??= new StringBuilder();
+                    result.Append(_text, start, _pos - start);
                 }
                 else
                 {
@@ -301,7 +306,13 @@ internal sealed partial class Scanner
             Error(Diagnostics.Numeric_separators_are_not_allowed_here, _pos - 1, 1);
         }
 
-        return result + _text[start.._pos];
+        if (result is null)
+        {
+            return _text[start.._pos];
+        }
+
+        result.Append(_text, start, _pos - start);
+        return result.ToString();
     }
 
     // ported from: src/compiler/scanner.ts:1213-1324
@@ -1055,7 +1066,14 @@ internal sealed partial class Scanner
     // ported from: src/compiler/scanner.ts:1830-1867
     private string ScanBinaryOrOctalDigits(int @base)
     {
-        var value = "";
+        // PORT-NOTE (performance, measured): the reference builds its answer with `value += text[pos]`, one character
+        // per digit — cheap there because a JavaScript string is a rope, quadratic here because a C# string is copied
+        // on every `+=`. A 1,900-digit binary literal (the corpus's integer-literal torture files) therefore allocated
+        // ~3.6 MB instead of ~4 KB: 17 `scan` calls carried 63.8 MiB of the 71.9 MiB this whole function was credited
+        // with (docs §18.4j). The accumulator below is the same sequence of digits, appended in runs, so the answer is
+        // character-for-character what the reference produces.
+        var start = _pos;
+        StringBuilder? value = null;
 
         // For counting the number of digits: a valid binaryIntegerLiteral must have at least one binary digit
         // following B or b, and an octalIntegerLiteral at least one octal digit following o or O.
@@ -1084,14 +1102,16 @@ internal sealed partial class Scanner
                     Error(Diagnostics.Numeric_separators_are_not_allowed_here, _pos, 1);
                 }
 
+                value ??= new StringBuilder();
+                value.Append(_text, start, _pos - start);
                 _pos++;
+                start = _pos;
                 continue;
             }
 
             separatorAllowed = true;
             if (!ScannerUtilities.IsDigit(ch) || ch - CharacterCodes._0 >= @base) break;
 
-            value += _text[_pos];
             _pos++;
             isPreviousTokenSeparator = false;
         }
@@ -1102,7 +1122,13 @@ internal sealed partial class Scanner
             Error(Diagnostics.Numeric_separators_are_not_allowed_here, _pos - 1, 1);
         }
 
-        return value;
+        if (value is null)
+        {
+            return _text[start.._pos];
+        }
+
+        value.Append(_text, start, _pos - start);
+        return value.ToString();
     }
 
     // ported from: src/compiler/scanner.ts:1869-1889
