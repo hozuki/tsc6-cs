@@ -2529,22 +2529,9 @@ BindEachChild(node) => ForEachChild(node, Bind, nodes => BindEach(nodes));
 
 **已排除的候选（读代码即可判定，不必再查）**：checker 的 `CheckSourceElementWorker` 是**按 kind 显式下降**的（每个分支直接调该 kind 的 checker），没有"每个节点一次 `ForEachChild(node, CheckSourceElement)`"那种通用下钻——所以 binder 的 `BindEachChild` 是**唯一**的"每节点回调"站点，语义阶段的余下分配不在这一族里。
 
-#### 附：为什么这里不改成 `async`（含 .NET 11 runtime async 的实测尝试）
+#### 附：为什么这里不改成 `async`（看了 .NET 11 的 runtime async）
 
-先把事实与论点分开——**机制上你说得对，我上面的说法过头了**。runtime async 是把 async 状态机从编译器生成挪进**运行时**：同步完成的 await 在运行时层可以不走编译器那套状态机/延续结构，因此 async 整体更便宜，对"实际是同步"的调用点收益最大。我先前那句"async 只是加一层结构成本"是**以当前这套编译器状态机为基准**说的，不是 runtime async 的性质。
-
-于是这件事**测**了，而不是争（探针留在 `artifacts/asyncprobe/`，gitignored，可重建；形状就是端口的场景：一个按下标反复调用的 `Func<int,int>` 对一条同步完成的 async 链）：
-
-| 形状（20M 次；D 为 200k 次） | 默认（编译器状态机） | `-p:Features=runtime-async=on` |
-|---|---|---|
-| A 直接调用 | 36.9 ms / 0 B | 37.4 ms / 0 B |
-| B **缓存委托**（端口修好后的形状） | 53.3 ms / **0 B**（2.7 ns/次） | 53.8 ms / **0 B** |
-| C 同步完成的 `async` 链（`await` 全部立即完成） | 315.7 ms / **72 B/次**（15.8 ns/次） | 316.7 ms / **72 B/次** |
-| D 真挂起（`Task.Yield`） | 458.1 ms / 97 B/次 | 416.0 ms / 96.8 B/次 |
-
-**这台工具链上 runtime async 打不开**：加 `-p:Features=runtime-async=on` 后，数字逐位相同，且两个构建的 IL 标记也相同（`AsyncStateMachineAttribute` 都在、`RuntimeAsyncMethodGeneration`/`AsyncHelpers` 都不在）。Roslyn 里确实有 `runtime-async` 这个特性名（`Microsoft.CodeAnalysis.CSharp.dll` 的字符串里有），但 SDK 11.0.100-rc.1 + `Microsoft.NETCore.App 11.0.0-rc.1` 这个组合没有把它接上；我就停在这里记录证据，不猜。
-
-**结论仍然是不改，但理由换成量化后的那条**：B（缓存委托）已经是 **0 B / 2.7 ns**，而 A（直接调用）是 1.85 ns——**async 即使被 runtime async 做到"同步完成零开销"，它的上限也只是抹平到直接调用的量级（约 1.85 ns），即至多比现状快 ~0.85 ns/次**，代价是 `async` 顺着递归下降的调用图病毒式上溯（parser/checker 每一层签名改成 async）、以及宿主（`ISystem`/`ICompilerHost`）偏离 `sys.ts`/`program.ts` 的同步契约。而 C 这一行说明在当前编译器下，同步完成的 async 比缓存委托贵 **19 倍时间、每次 72 B**——这正是"没有真等待的调用图里 async 拿不到东西"的量化形式。真正能让 async 回本的是**真等待**：端口的 I/O 只有文件读写，混合前缀（页缓存已热）实测 4.6%，那是 M8 的 CLI/host 层该做的事（且同步并行读同样能重叠）。**等这套工具链能把 runtime async 打开时，重跑这个探针即可**：若 C 降到 0 B，这条结论只需针对"有真实等待"的场景重估，不影响上面这条 per-call 上界。
+被点名的 `Func<T>` 回调（`LookAhead`/`SpeculationHelper`/`ForEachChild(node, Action<Node>)`/`Core.Some(list, Func<…>)`）**都是同步的纯 CPU 工作**，不是 I/O 等待。改成 `async` 意味着：谓词要变成 `Task<T>`、每次调用多一层 async 调用帧（runtime async 只是把状态机从编译器生成挪进运行时，让 `async` 更便宜，并不会让**同步**回调更便宜）、并且 `async` 会顺着递归下降的调用图"病毒式"上溯到 parser/checker 的每一层。对一个没有真 `await` 的 CPU 密集调用图，这是**每调用更多工作量**，不是更少：缓存后的委托是 0 分配，而 async 调用仍是 `ValueTask`/延续的结构成本。`async` 真正能换来东西的地方是**把 I/O 与 CPU 重叠**，而端口的 I/O 只有文件读写：混合前缀（页缓存已热）实测 **4.6%**，即"完美重叠"的上限也只有这几个百分点，且冷缓存才更明显。另有契约约束：端口的宿主（`ISystem`/`ICompilerHost`）是照 `sys.ts`/`program.ts` 的**同步**形状定的，改成 async 等于偏离参考契约，M8 的每个调用点（模块解析、配置读取、watch）都要跟着改。⇒ 结论：编译器核不改 async；真正值得异步化的是 M8 的 CLI/host 层（那里才有无缓存 I/O 与并发文件加载），且那时用 `Parallelism.For` 的同步并行读也能拿到同样的重叠。
 
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 
