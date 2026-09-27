@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Numerics;
 
 namespace TypeScript.Compiler;
 
@@ -301,6 +302,70 @@ internal static class Js
         var exponent = n - 1;
         var mantissa = k == 1 ? digits : digits[..1] + "." + digits[1..];
         return mantissa + "e" + (exponent < 0 ? "-" : "+") + Math.Abs(exponent).ToString(CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Formats a number the way JavaScript's <c>Number.prototype.toString(radix)</c> does, for an integral value.
+    /// </summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference calls <c>(+tokenValue).toString(8)</c> and lets the JavaScript engine do it; the port
+    /// has to implement it. The only consumer is scanner.ts:1258's legacy-octal error message, whose argument is
+    /// <c>parseInt</c>'s result — an integral number. For an integral value and a power-of-two radix the digits are
+    /// exact, so this renders the value's own mantissa/exponent decomposition instead of running a
+    /// shortest-round-trip search; a value that is not finite keeps its <see cref="NumberToString"/> spelling
+    /// (<c>Infinity</c>), which the engine also answers for a radix.
+    /// </remarks>
+    public static string NumberToStringRadix(double value, int radix)
+    {
+        Debug.Assert(radix is >= 2 and <= 36, $"radix {radix} out of range");
+        if (!double.IsFinite(value)) return NumberToString(value);
+        if (value == 0d) return "0";
+
+        var negative = value < 0d;
+        if (negative) value = -value;
+
+        string digits;
+        if (value <= 9007199254740992d)
+        {
+            // Every integer up to 2^53 is exact, so this loop is the exact representation.
+            var integer = (ulong)value;
+            var buffer = new char[64]; // 2^53 needs 53 digits in base 2
+            var index = buffer.Length;
+            do
+            {
+                buffer[--index] = DigitCharacter((int)(integer % (ulong)radix));
+                integer /= (ulong)radix;
+            }
+            while (integer != 0);
+
+            digits = new string(buffer, index, buffer.Length - index);
+        }
+        else
+        {
+            // Above 2^53 the value is still integral, and its exact value is mantissa × 2^(exponent - 1075).
+            var bits = BitConverter.DoubleToInt64Bits(value);
+            var mantissa = (bits & 0xF_FFFF_FFFF_FFFFL) | (1L << 52);
+            var shift = (int)((bits >> 52) & 0x7FF) - 1075;
+            digits = new string(DigitsOf(new BigInteger((ulong)mantissa) << shift, radix));
+        }
+
+        return negative ? "-" + digits : digits;
+    }
+
+    private static char DigitCharacter(int digit) => (char)(digit < 10 ? '0' + digit : 'a' + digit - 10);
+
+    private static char[] DigitsOf(BigInteger value, int radix)
+    {
+        var buffer = new char[1100]; // 2^1024 needs 1025 digits in base 2
+        var index = buffer.Length;
+        var divisor = new BigInteger(radix);
+        while (!value.IsZero)
+        {
+            value = BigInteger.DivRem(value, divisor, out var remainder);
+            buffer[--index] = DigitCharacter((int)remainder);
+        }
+
+        return buffer[index..];
     }
 
     /// <summary>

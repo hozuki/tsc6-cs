@@ -2600,6 +2600,53 @@ BindEachChild(node) => ForEachChild(node, Bind, nodes => BindEach(nodes));
 
 **结论**：用户先前提议的"去间接化"被实测否掉（上限 0.02%），而同一批测量把真正的钱指了出来——**"每次调用的分配"（模板字面量类型推断族）**，改三处即拿到 −70% 分配 / −11% 时间。方法上的收获：**给候选函数装"字节 + 次数"探针**是这台机器上唯一可靠且便宜的定位手段（CPU 采样给不出分配点，而分配字节是逐位确定的）。
 
+### 18.4j 分配画像（逐函数探针）与两处 `OverflowException` 崩溃修复
+
+#### 探针方法
+
+给候选函数包一层"进入/退出 `GC.GetAllocatedBytesForCurrentThread()` 差值 + 调用计数"，`TSC_CS_PROBE=1` 时启用，`ProjectBench` 结束时打印（**子树**口径：函数自身加上其间被调用的所有东西）。探针是临时的，量完即摘；下列数字都是 Release、混合前缀 `artifacts/bisect/p2000.json`（2,000 文件 + 93 个 lib/d.ts，共 2,093 次解析）。
+
+| 段 | 字节 | 调用数 | 每次 |
+|---|---|---|---|
+| `createProgram` | 277.5 MiB (0.82–0.90 s) | — | 109–133 KB/文件 |
+| ├ parse（`CreateSourceFile`） | **218.5 MiB** | 2,093 | 109 KB |
+| │ ├ **scanner（`Scan`）** | **71.9 MiB** | 382,229 | **197 B/token** |
+| │ ├ 节点对象（`CreateBaseNode`） | 30.2 MiB | 270,148 | 117 B |
+| │ ├ JSDoc 子树（`ParseJSDocComment`） | 21.6 MiB | 7,675 | 2.9 KB |
+| │ ├ 数组对象（`CreateNodeArray`） | 5.3 MiB | 124,640 | 44 B |
+| │ └ 其余（解析器自有：列表/闭包/诊断/字符串） | ~89 MiB | — | — |
+| ├ bind（`BindSourceFile`） | 50.2 MiB | 2,093 | 25 KB |
+| └ 文件图（读文件/路径） | 8.9 MiB | — | ≈ 源文本本身 |
+| semantic | 322.8 MiB (1.41 s) | — | — |
+
+按文件看（同一次运行，`PROBEFILE` 口径）：
+
+| 文件 | 解析分配 | 磁盘大小 | 比值 |
+|---|---|---|---|
+| `lib.dom.d.ts` | **67.7 MiB** | ~1 MB | ~34 B/源字节 |
+| `binaryIntegerLiteral.ts` | **31.2 MiB** | **9,077 B** | **≈ 3,600 B/源字节** |
+| `binaryIntegerLiteralES6.ts` | 31.2 MiB | 9,071 B | 同上 |
+| `lib.es5.d.ts` | 7.5 MiB | ~250 KB | ~30 B/源字节 |
+
+⇒ 两个 9 KB 的"数字字面量酷刑"测试文件吃掉整个解析分配的 **28%**，`lib.dom.d.ts` 一个文件吃掉 **31%**。这两个方向（大 lib 的单线程解析、数字字面量路径的每次字面量开销）比"节点对象"这条线大一个数量级——探针把注意力从猜想的节点/数组搬到了这两处。
+
+**结论（用于排序后续优化）**：① 解析侧 218.5 MiB 里最大的一块是 **scanner 71.9 MiB / 197 B 每 token**（其中 `Js.NumberToString` 只占 0.3 MiB ⇒ 不是数字转换，是 token 文本/转义/模板路径）；② **lib 与大文件是单价最高的输入**，且 `createProgram` 单线程 + 5.4% CPU 花在文件 I/O 上 ⇒ 根文件"读+解析"是唯一还剩下的大结构杠杆；③ 检查侧 322.8 MiB 尚未归因。
+
+#### 两处崩溃：`Convert.ToInt32/64` 的窄化（已修，与参考逐字对拍）
+
+同一轮探针在**语法错误的输入**上抓到两个 `OverflowException`（参考只报诊断）：
+
+| 输入 | 参考 | 端口（修前） | 端口（修后） |
+|---|---|---|---|
+| `var a = 0777777777777777777777;`（22 位 legacy octal） | TS1121 + 发射 `9223372036854776000` | **`OverflowException ... UInt32`**（`Convert.ToInt32(_tokenValue, 8)`） | TS1121 `'0o1000000000000000000000'` ✓ 逐字一致 |
+| `var s = "\u{FFFFFFFFFFFFFFFFFFFF}";`（20 位十六进制） | TS1198 | **`OverflowException ... UInt64`**（`Convert.ToInt64(escapedValueString, 16)`） | TS1198 ✓ |
+
+修法都是**回到参考的 double 语义**：`Scanner.ScanNumber` 的 legacy-octal 分支改 `Js.ParseInt(digits, 8)` + `Js.NumberToString` + 新增的 `Js.NumberToStringRadix(value, 8)`（`(+tokenValue).toString(8)` 的端口实现：整数值精确，≤2^53 走 `ulong` 循环、以上走 `BigInteger` 的 `mantissa << shift` 精确分解）；`ScanExtendedUnicodeEscape`/`PeekExtendedUnicodeEscape` 改 `Js.ParseInt(text, 16)`（double，永不溢出）。验证：8–44 位 legacy octal 扫描 37 个用例，与参考 CLI 的**消息多重集合逐字相同 37/37**（含 >2^53 double 的精确八进制位）；`\u{...}` 用例的语法/语义诊断与参考 API 相同。验收：1,521 测试、`TypeDiff` 与 `EmitDiff` 全语料各 clean 5908/5908。
+
+#### 口径：端口诊断 = 参考 **API**，不等于参考 **CLI** 的打印集
+
+探针期间发现的一个**必须记住的对拍口径**（不是端口缺陷）：参考的 `tsc` CLI 在 `esc.ts` 上打印 6 条，而参考自己的 `program.getSemanticDiagnostics()` 是 7 条——多出的一条 `TS7031` 与一条 `TS1005` **同位置**（offset 107）。端口（`ProjectBench --diagnostics`）与参考 **API** 逐条一致（含 `'(Missing)'` 那个名字），与参考 **CLI** 差那一条。参考 CLI 侧的抑制/去重是它自己的报告策略（`hasParseDiagnostics` 只对 `grammarErrorOn*` 族生效，端口这四族守卫都已忠实移植 ✓）。⇒ 全语料诊断对拍应对准**参考 API**，或等端口自己的 CLI（M8）就绪后做 CLI↔CLI；直接拿 `tsc` 的 stdout 当 oracle 会在这类同位置诊断上产生假分歧。
+
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 
 两个工具的端口半场原来是**按文件串行**跑（每个文件各自建 program），而这正是最适合并行的形状：文件之间零共享。新增 `--parallel <n>`（默认 `Environment.ProcessorCount`，`1` = 串行，用于 A/B），实现是**有界的 `Parallel.For` + 每文件结果槽**，最后按文件序落盘 —— 因此**索引产物与串行运行逐字节相同**（`port-hashes.txt` / `port-crashes.txt` 已实测 `cmp` 一致；`report.txt` 只差 node 侧自报的 `maxRSS` 与端口峰值这两行噪声）。

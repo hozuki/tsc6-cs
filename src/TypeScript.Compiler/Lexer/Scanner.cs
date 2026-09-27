@@ -348,10 +348,17 @@ internal sealed partial class Scanner
             else
             {
                 // LegacyOctalIntegerLiteral
-                _tokenValue = Convert.ToInt32(_tokenValue, 8).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                // PORT-NOTE (correctness, measured): the reference's `tokenValue = "" + parseInt(tokenValue, 8)` and
+                // its `(+tokenValue).toString(8)` message argument are the JS number algorithms; the port's
+                // `Js.ParseInt` / `Js.NumberToString` / `Js.NumberToStringRadix` stand in for them. The narrowing pair
+                // `Convert.ToInt32` that used to sit here threw `OverflowException` on any literal past 2^31 — a
+                // 22-digit legacy octal crashed the port during CreateProgram where the reference reports TS1121 and
+                // emits the value (found by a differential probe, docs §18.4j).
+                var value = Js.ParseInt(_tokenValue ?? "", 8);
+                _tokenValue = Js.NumberToString(value);
                 _tokenFlags |= TokenFlags.Octal;
                 var withMinus = _token == SyntaxKind.MinusToken;
-                var literal = (withMinus ? "-" : "") + "0o" + Convert.ToString(Convert.ToInt32(_tokenValue), 8);
+                var literal = (withMinus ? "-" : "") + "0o" + Js.NumberToStringRadix(value, 8);
                 if (withMinus) start--;
                 Error(Diagnostics.Octal_literals_are_not_allowed_Use_the_syntax_0, start, _pos - start, literal);
                 return SyntaxKind.NumericLiteral;
@@ -890,10 +897,12 @@ internal sealed partial class Scanner
         var escapedStart = _pos;
         var escapedValueString = ScanMinimumNumberOfHexDigits(1, canHaveSeparators: false);
         // PORT-NOTE: TS writes `parseInt(escapedValueString, 16)`, a *double* that never overflows — `\u{FFFFFFFF}`
-        // answers 4294967295 and takes the > 0x10FFFF branch below. An earlier revision used Convert.ToInt32, which
-        // throws or answers -1 past 0x7FFFFFFF, so the scanner reported "Hexadecimal digit expected" (1125) instead of
-        // the range diagnostic (1198) — 2 corpus files. Eight hex digits fit a long.
-        var escapedValue = Js.IsTruthy(escapedValueString) ? Convert.ToInt64(escapedValueString, 16) : -1L;
+        // answers 4294967295 and takes the > 0x10FFFF branch below. Two earlier revisions narrowed instead: the first
+        // `Convert.ToInt32` threw or answered -1 past 0x7FFFFFFF (2 corpus files saw 1125 where the range diagnostic
+        // 1198 belongs), the second `Convert.ToInt64` moved the cliff to 16 hex digits — `\u{FFFFFFFFFFFFFFFFFFFF}`
+        // still threw `OverflowException` where the reference reports 1198 (found by a differential probe, docs
+        // §18.4j). The double is what the reference has, so the whole range is covered.
+        var escapedValue = Js.IsTruthy(escapedValueString) ? Js.ParseInt(escapedValueString, 16) : -1d;
         var isInvalidExtendedEscape = false;
 
         // Validate the value of the digit
@@ -965,12 +974,13 @@ internal sealed partial class Scanner
             var start = _pos;
             _pos += 3;
             var escapedValueString = ScanMinimumNumberOfHexDigits(1, canHaveSeparators: false);
-            var escapedValue = escapedValueString.Length != 0 ? Convert.ToInt64(escapedValueString, 16) : -1L;
+            var escapedValue = escapedValueString.Length != 0 ? Js.ParseInt(escapedValueString, 16) : -1d;
             _pos = start;
-            // PORT-NOTE: TS answers `parseInt(escapedValueString, 16)`, a double that can hold anything 8 hex digits
+            // PORT-NOTE: TS answers `parseInt(escapedValueString, 16)`, a double that can hold anything the digits
             // make. Every caller of this member only asks whether the answer is an identifier (start) character, and no
             // code point above 0x10FFFF is one — so the port answers -1 for those instead of wrapping into the negative
-            // range through a narrowing cast.
+            // range through a narrowing cast. `Convert.ToInt64` also threw `OverflowException` past 16 hex digits
+            // (docs §18.4j); the double is what the reference has.
             return escapedValue is >= 0 and <= 0x10FFFF ? (int)escapedValue : -1;
         }
 
