@@ -2704,6 +2704,21 @@ JS 的字符串是 rope/cons-string，逐字符 `+=` 是摊销 O(1)；C# 的 `st
 
 （这些入口互相包含，不能相加。）结论：检查侧的**单价最高**操作是"解析一次调用"——`InferTypeArguments` 每次 32 KB ⇒ 大量小对象（推断上下文/mapper/候选列表）而不是某个坏写法；下一步要么按"每个推断上下文的对象数"再切一层，要么转去做结构性的并行解析（时间收益更大）。
 
+#### `struct`/CRTP 评估：按类型记账后的结论（不做）
+
+问题：能否把一些小类型改成 `struct`（必要时用 CRTP `IIntf<TSelf>` 避免装箱）来省分配？答案由**按类型的分配量**决定，实测（p2000，整轮 536 MiB）：
+
+| 类型（现为 `class`） | 分配 | 调用数 | 每次 | struct 可行性 |
+|---|---|---|---|---|
+| `TextSpan`（`GetErrorSpanForNode` 口径） | 1.5 MiB | 62,455 | 25 B | 可，但收益 0.3% |
+| `CommentRange` | 1.2 MiB | 12,168 | ~100 B | 可，但它与 `Node` 同为 `IReadonlyTextRange` 成员 |
+| `FlowNode` | 1.1 MiB | 29,143 | ~38 B | **不可**：实体语义 + 11 个接口 + 可变流程图节点 |
+| `InferenceContext` / `InferenceInfo` | 1.0 / 0.1 MiB | 650 / 957 | — | 存放于 `List<IInferenceInfo>`（接口）⇒ 转 struct 即装箱 |
+| `Diagnostic`（`CreateDiagnosticForNode`） | 8.7 MiB | 59,725 | 153 B | 有身份、被缓存与复制 ⇒ 不宜 |
+| `TypeMapper` | 多态判别记录（`Kind` + 5 种变体） | — | — | **CRTP 不适用**：调用点选的是运行时 kind，无静态类型 |
+
+合计 ≈ **13 MiB / 536 MiB（2.4%）**，而代价是把 Layer 0–1 的 `ITextSpan`/`ICommentRange`/`ITypeMapper` 改写成 `IXxx<TSelf>` 并对全仓调用点做泛型化。**决定：不做。** 判据（写进纪律）：CRTP/struct 只在"**调用点静态已知类型 + 非实体语义 + 高次数**"三条同时成立时才划算；本移植里恰好是**多样态判别记录**（`TypeMapper`、`InferenceInfo`、`IReadonlyTextRange`），转 struct 只会把"堆对象"换成"装箱对象"，分配量不变甚至更多。真正剩下的分配大头（解析侧节点/字符串/JSDoc 物化 213 MiB、检查侧调用解析簇 43 MiB、bind 50 MiB）都是**必须物化的对象图**，不在值类型这一侧。
+
 #### 两处崩溃：`Convert.ToInt32/64` 的窄化（已修，与参考逐字对拍）
 
 同一轮探针在**语法错误的输入**上抓到两个 `OverflowException`（参考只报诊断）：
