@@ -369,6 +369,7 @@ internal sealed partial class Parser
     private NodeArray<T> CreateNodeArray<T>(IList<T> elements, int pos, int? end = null, bool? hasTrailingComma = null)
         where T : INode
     {
+        using var allocProbe = AllocationProbe.Enter("Parser.CreateNodeArray");
         var array = _factory.CreateNodeArray(elements, hasTrailingComma);
         Utilities.SetTextRangePosEnd(array, pos, end ?? _scanner.GetTokenFullStart());
         return array;
@@ -386,6 +387,7 @@ internal sealed partial class Parser
     private T FinishNode<T>(T node, int pos, int? end = null)
         where T : Node
     {
+        using var allocProbe = AllocationProbe.Enter("Parser.FinishNode");
         Utilities.SetTextRangePosEnd(node, pos, end ?? _scanner.GetTokenFullStart());
         if (_contextFlags != NodeFlags.None)
         {
