@@ -146,6 +146,14 @@ internal static partial class Program
         }
 
         Console.Error.WriteLine($"typediff: {files.Count} files under {settings.Cases}; checking them with the port (parallel={settings.Parallel})");
+        // PORT-NOTE (nesting): with the outer fan-out on, the compiler's own fan-out is pinned to one worker — a bind
+        // fan-out inside each of N workers would put N × cores tasks on the pool for no gain (§18.5). With
+        // `--parallel 1` the caller is running one file at a time and the compiler's degree is left alone, which is the
+        // mode that exercises the compiler-side phases (and whose artifacts still compare byte for byte).
+        if (settings.Parallel > 1)
+        {
+            Parallelism.Degree = 1;
+        }
         var started = Stopwatch.StartNew();
         using (var hashWriter = new StreamWriter(File.Open(paths.PortHashes, FileMode.Create), Utf8NoBom) { AutoFlush = true, NewLine = "\n" })
         using (var crashWriter = new StreamWriter(File.Open(paths.PortCrashes, FileMode.Create), Utf8NoBom) { AutoFlush = true, NewLine = "\n" })

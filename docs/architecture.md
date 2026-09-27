@@ -2389,6 +2389,16 @@ harness 的下划线规则是逐节点的 `nodeIsFullySynthetic(node) = nodeIsSy
 5. **内存与惰性**：`[ThreadStatic]` 的表是"每 worker 一份"（Unicode 表、printer），worker 数一上来必须复核驻留集；`Lazy<T>`/`??=` 的每次读也不是零成本——热路径上能 eager 就 eager（本轮已改 3 处），能共享就共享（并发容器取代每线程副本）。
 6. **验收方式固定**：每一步都用 `tools/ProjectBench`（同工作负载）与全局 `tsc` 7.0.2 对拍，并记录峰值工作集；正确性仍由 §7 的两条外环（`TypeDiff`/`EmitDiff` 全语料 5,908 逐字节）与 1,521 个测试兜底。
 
+### 18.4b 编译器侧已落地的第一个阶段：bind（含固定成本实测）
+
+`Core/Parallelism.cs`（**非参考成员**，见其 PORT-NOTE）：`Degree` 从 `TSC_CS_PARALLEL` 读一次（默认 `ProcessorCount`，`1` = 全串行，Go 端同样用环境变量暴露它自己的开关 `TS_TEST_PROGRAM_SINGLE_THREADED`），`For(count, body)` 是有界 `Parallel.For`。第一个接上它的阶段是 checker 初始化里的绑定循环（`Checker/Checker.Initialize.cs:503-512`）——每个文件一个 `Binder` 实例、只写自己文件的 AST，紧随其后的 merge 循环保持串行（它写共享的 `_globals`/`_diagnostics`，且顺序有意义）。Go 的对应物是 `BindSourceFiles`（`program.go:578`）。
+
+**验收**：`tools/TypeDiff --parallel 1`（外层串行、内层默认）跑全语料 5,908 文件 ⇒ `VERDICT clean same=5908/5908`，且 `port-hashes.txt` 与完全串行运行 **`cmp` 逐字节相同**；1,521 个测试并行 collection 连续 3 跑全绿。
+
+**实测（`tools/ProjectBench`，`artifacts/perf/cpd-types.json` = 845 根/938 文件）**：`TSC_CS_PARALLEL=1` → semantic 4.377 s（21,584 条诊断）；默认 24 → 4.364 s（同 21,584）。**即 bind 在这份工作负载里不是瓶颈**（诊断数一致、时间无差），它的价值在于形状与"大项目/多文件时不再串行"。
+
+**下一步的设计约束（同批实测）**——单文件 program（`artifacts/perf/one.json`）的 `semantic` = **0.331 s**，845 文件分片 = **4.348 s**，两者之差就是"检查 844 个文件"的成本 ≈ 4.0 s（≈4.7 ms/文件），而每个 program 的固定成本（lib 解析 + checker 初始化/全局合并）≈ **0.25–0.33 s**。检查器分片 K 份的墙钟 ≈ `固定成本 + 4.0/K`，所以分片**是**划算的（固定成本并行付出，只决定下界），这也是 Go 端"每 checker 重复 merge 全局符号"那条短板的量化形式：K 越大，重复的初始化越多，必须实测选 K（Go 硬编码 4）。
+
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 
 两个工具的端口半场原来是**按文件串行**跑（每个文件各自建 program），而这正是最适合并行的形状：文件之间零共享。新增 `--parallel <n>`（默认 `Environment.ProcessorCount`，`1` = 串行，用于 A/B），实现是**有界的 `Parallel.For` + 每文件结果槽**，最后按文件序落盘 —— 因此**索引产物与串行运行逐字节相同**（`port-hashes.txt` / `port-crashes.txt` 已实测 `cmp` 一致；`report.txt` 只差 node 侧自报的 `maxRSS` 与端口峰值这两行噪声）。

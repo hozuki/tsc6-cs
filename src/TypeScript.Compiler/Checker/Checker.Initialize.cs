@@ -501,10 +501,15 @@ internal sealed partial class Checker
         _requireSymbol = CreateSymbol(SymbolFlags.Property, "require");
 
         // Bind all source files and propagate errors
-        foreach (var file in _host.GetSourceFiles())
-        {
-            Binder.BindSourceFile(file, _compilerOptions);
-        }
+        // PORT-NOTE (concurrency): one file's bind is independent of every other file's — each gets its own `Binder`
+        // instance (`Binder/State.cs:209`) and writes only into its own file's AST (parents, `symbol`, `locals`,
+        // `flowNode`), which is exactly what the reference's loop relies on when it runs it one file at a time. Every
+        // process-wide slot the binder touches is reentrant now (§18.3: atomic ids, `AsyncLocal` tracing, atomic
+        // performance counters), so the loop fans out; the merge loop right below stays sequential, because it writes
+        // the checker's shared `_globals`/`_diagnostics` in file order. Go does the same thing in parallel
+        // (`tsc/internal/compiler/program.go:578`, `BindSourceFiles`).
+        var filesToBind = _host.GetSourceFiles();
+        Parallelism.For(filesToBind.Count, i => Binder.BindSourceFile(filesToBind[i], _compilerOptions));
 
         _amalgamatedDuplicates = new Dictionary<string, DuplicateInfoForFiles>(StringComparer.Ordinal);
 
