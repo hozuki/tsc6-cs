@@ -1,4 +1,4 @@
-namespace TypeScript.Compiler;
+﻿namespace TypeScript.Compiler;
 
 // ported from: src/compiler/program.ts:1499-1515 (the createProgram overloads)
 // ported from: src/compiler/program.ts:1516-1875 (the body of createProgram)
@@ -117,6 +117,7 @@ internal sealed partial class Program
         Tracing.Current?.Pop();
         if (_structureIsReused != StructureIsReused.Completely)
         {
+            PrefetchRootSourceFiles();
             CreateFileGraph();
         }
 
@@ -292,6 +293,39 @@ internal sealed partial class Program
     /// <see cref="GetCommonSourceDirectoryOfConfig"/>) because the program needs it before M7 lands, the second is
     /// called on M7's own member.
     /// </remarks>
+    /// <summary>
+    /// NOT ported from TS — hands the roots to a host that can parse them ahead of the walk (see
+    /// <see cref="IParallelSourcePrefetchHost"/>).
+    /// </summary>
+    /// <remarks>
+    /// The options are computed here, on the walking thread, through the very member the walk uses
+    /// (<see cref="GetCreateSourceFileOptions"/>) and in root order, so a host that prefetches sees exactly the
+    /// requests the walk would have made, in the same order; a host that does not prefetch never sees this method's
+    /// work at all. A root whose options cannot be computed here is simply left to the walk.
+    /// </remarks>
+    private void PrefetchRootSourceFiles()
+    {
+        if (_host is not IParallelSourcePrefetchHost prefetchHost || !Parallelism.Enabled || _rootNames.Count <= 1)
+        {
+            return;
+        }
+
+        var requests = new List<SourceFileRequest>(_rootNames.Count);
+        foreach (var rootName in _rootNames)
+        {
+            try
+            {
+                requests.Add(new SourceFileRequest(rootName, GetCreateSourceFileOptions(rootName, _moduleResolutionCache)));
+            }
+            catch (Exception)
+            {
+                // The walk computes and reports this one itself.
+            }
+        }
+
+        prefetchHost.PrefetchSourceFiles(requests, Parallelism.Degree);
+    }
+
     private void CreateFileGraph()
     {
         _processingDefaultLibFiles = [];

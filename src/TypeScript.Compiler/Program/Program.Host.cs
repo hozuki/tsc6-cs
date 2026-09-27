@@ -389,13 +389,50 @@ internal sealed partial class Program
     /// "no realpath" from "identity realpath" and always installs one.
     /// </para>
     /// </remarks>
-    internal sealed class CompilerHost : ICompilerHost
+    /// <summary>One file the program asks a host to parse ahead of the file graph walk.</summary>
+    /// <remarks>
+    /// PORT-NOTE: nothing in TS — the reference parses each file inside its own <c>getSourceFile</c> call, on the
+    /// single thread that drives <c>createProgram</c> (see <see cref="IParallelSourcePrefetchHost"/>).
+    /// </remarks>
+    internal readonly record struct SourceFileRequest(string FileName, CreateSourceFileOptions Options);
+
+    /// <summary>
+    /// NOT ported from TS — an optional host hook the program uses to overlap the per-file read-and-parse that would
+    /// otherwise run one file at a time inside <see cref="ICompilerHost.GetSourceFile"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Why this lives on the host and not in the program: producing a <c>SourceFile</c> from a file name is
+    /// <c>getSourceFile</c>'s contract, and only the host knows how it is fulfilled (a host may answer from memory, or
+    /// not parse at all), so the program cannot parse files behind its host's back. What the program <em>can</em> do is
+    /// say which files it is about to ask for and with which options — which is this hook, and it is optional: a host
+    /// that does not implement it keeps the reference's behaviour exactly, one file at a time.
+    /// </para>
+    /// <para>
+    /// A host that does implement it is promising two things: its reads and lookups are safe to call from several
+    /// threads, and answering <c>getSourceFile</c> from what it prefetched produces the same file it would have
+    /// produced without the prefetch. The order in which the program <em>asks</em> is unchanged, so the file graph, the
+    /// file list, the diagnostic order and the emitted output are the same either way; only the wall clock moves.
+    /// </para>
+    /// </remarks>
+    internal interface IParallelSourcePrefetchHost
+    {
+        /// <summary>Parses the given files ahead of the walk, at most <paramref name="degree"/> at a time.</summary>
+        void PrefetchSourceFiles(IReadOnlyList<SourceFileRequest> requests, int degree);
+    }
+
+    internal sealed class CompilerHost : ICompilerHost, IParallelSourcePrefetchHost
     {
         private readonly ISystem _system;
         private readonly Core.GetCanonicalFileName _getCanonicalFileName;
         private readonly Func<string> _getCurrentDirectory;
         private readonly string _newLine;
         private readonly Func<string?, object?, Action<string>?, bool?, SourceFile?> _getSourceFile;
+        private readonly bool? _setParentNodes;
+
+        /// <summary>The files <see cref="PrefetchSourceFiles"/> already produced, keyed the way the program asks.</summary>
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (SourceFile File, CreateSourceFileOptions Options)> _prefetched =
+            new(StringComparer.Ordinal);
 
         /// <summary>ported from: src/compiler/program.ts:451 — <c>existingDirectories</c>.</summary>
         /// <remarks>PORT-NOTE: TS's <c>Map&lt;string, boolean&gt;</c> is only ever used as a set, so the port keeps a set.</remarks>
@@ -405,6 +442,7 @@ internal sealed partial class Program
         public CompilerHost(ICompilerOptions options, bool? setParentNodes, ISystem system)
         {
             _system = system;
+            _setParentNodes = setParentNodes;
             _getCanonicalFileName = Core.CreateGetCanonicalFileName(system.UseCaseSensitiveFileNames);
             _getCurrentDirectory = Core.Memoize(() => _system.GetCurrentDirectory());
             _newLine = Utilities.GetNewLineCharacter(options);
@@ -424,8 +462,102 @@ internal sealed partial class Program
         // ---- The members the reference's literal defines (program.ts:452-498). ----
 
         /// <summary>ported from: src/compiler/program.ts:452 — <c>getSourceFile</c>.</summary>
+        /// <remarks>
+        /// PORT-NOTE: the prefetch arm is the only deviation, and it is deliberately narrow. A prefetched file is
+        /// reused only when the options the walk computed are the ones the prefetch parsed with: the implied node
+        /// format and the package.json locations a file's parse depends on are read through the module-resolution
+        /// caches, which the walk fills as it goes, so a file whose answer moves between the two points is parsed
+        /// again here rather than served from the prefetch. (That is not hypothetical: computing every root's options
+        /// up front and trusting them diverged on 123 of the conformance corpus's 5,908 files before this comparison
+        /// — the emitted JavaScript of files whose `package.json` resolution had moved.)
+        /// </remarks>
         public SourceFile? GetSourceFile(string? fileName, object? languageVersionOrOptions, Action<string>? onError, bool? shouldCreateNewSourceFile)
-            => _getSourceFile(fileName, languageVersionOrOptions, onError, shouldCreateNewSourceFile);
+        {
+            if (fileName is not null && languageVersionOrOptions is CreateSourceFileOptions options
+                && _prefetched.TryRemove(fileName, out var entry) && SameParseOptions(entry.Options, options))
+            {
+                // What the prefetch produced is what the call below would have produced: the same text and the same
+                // options. A read that failed while prefetching is not cached, so the normal path still reports it,
+                // and so is a file whose options moved between the two requests (see SameParseOptions).
+                return entry.File;
+            }
+
+            return _getSourceFile(fileName, languageVersionOrOptions, onError, shouldCreateNewSourceFile);
+        }
+
+        /// <summary>Whether two per-file parse requests would produce the same <see cref="SourceFile"/>.</summary>
+        /// <remarks>
+        /// Every field of <see cref="CreateSourceFileOptions"/> is compared. <c>PackageJsonScope</c> and
+        /// <c>ImpliedNodeFormat</c> are compared by <see cref="object.Equals(object?, object?)"/> and the lists by
+        /// content; anything the comparison cannot prove equal counts as different, because the cost of being wrong
+        /// here is a wrong parse and the cost of re-parsing is one file.
+        /// </remarks>
+        private static bool SameParseOptions(CreateSourceFileOptions a, CreateSourceFileOptions b)
+            => a.LanguageVersion == b.LanguageVersion
+                && a.JsDocParsingMode == b.JsDocParsingMode
+                && Equals(a.ImpliedNodeFormat, b.ImpliedNodeFormat)
+                && Equals(a.PackageJsonScope, b.PackageJsonScope)
+                // PORT-NOTE: the indicator is *not* compared by identity: `getSetExternalModuleIndicator` builds a new
+                // callback on every call (the reference carries the same `TODO: Should this callback be cached?`,
+                // utilities.ts:8981), so identity is never equal and comparing it rejected every prefetched file.
+                // Within one program the callback is a pure function of that program's options, which both requests
+                // read, so presence is the whole of what can differ between them.
+                && (a.SetExternalModuleIndicator is null) == (b.SetExternalModuleIndicator is null)
+                && SameStrings(a.PackageJsonLocations, b.PackageJsonLocations);
+
+        private static bool SameStrings(List<string>? a, List<string>? b)
+        {
+            if (ReferenceEquals(a, b))
+            {
+                return true;
+            }
+
+            if (a is null || b is null || a.Count != b.Count)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < a.Count; i++)
+            {
+                if (!string.Equals(a[i], b[i], StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>The optional prefetch hook — see <see cref="IParallelSourcePrefetchHost"/>.</summary>
+        public void PrefetchSourceFiles(IReadOnlyList<SourceFileRequest> requests, int degree)
+        {
+            if (degree <= 1 || requests.Count <= 1)
+            {
+                return;
+            }
+
+            var setParentNodes = _setParentNodes ?? false;
+            Parallelism.For(requests.Count, i =>
+            {
+                var request = requests[i];
+                try
+                {
+                    var text = ReadFile(request.FileName);
+                    if (text is null)
+                    {
+                        return; // not cached: the walk's own read reports the failure
+                    }
+
+                    _prefetched[request.FileName] = (
+                        Parser.CreateSourceFile(request.FileName, text, request.Options, setParentNodes),
+                        request.Options);
+                }
+                catch (Exception)
+                {
+                    // Any failure here is the walk's to report; leaving the entry out is the whole recovery.
+                }
+            });
+        }
 
         /// <summary>ported from: src/compiler/program.ts:453 — <c>getDefaultLibLocation</c>.</summary>
         public string GetDefaultLibLocation()

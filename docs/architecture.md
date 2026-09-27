@@ -2734,6 +2734,40 @@ JS 的字符串是 rope/cons-string，逐字符 `+=` 是摊销 O(1)；C# 的 `st
 
 探针期间发现的一个**必须记住的对拍口径**（不是端口缺陷）：参考的 `tsc` CLI 在 `esc.ts` 上打印 6 条，而参考自己的 `program.getSemanticDiagnostics()` 是 7 条——多出的一条 `TS7031` 与一条 `TS1005` **同位置**（offset 107）。端口（`ProjectBench --diagnostics`）与参考 **API** 逐条一致（含 `'(Missing)'` 那个名字），与参考 **CLI** 差那一条。参考 CLI 侧的抑制/去重是它自己的报告策略（`hasParseDiagnostics` 只对 `grammarErrorOn*` 族生效，端口这四族守卫都已忠实移植 ✓）。⇒ 全语料诊断对拍应对准**参考 API**，或等端口自己的 CLI（M8）就绪后做 CLI↔CLI；直接拿 `tsc` 的 stdout 当 oracle 会在这类同位置诊断上产生假分歧。
 
+### 18.4k 宿主侧并行"读+解析"（`createProgram` −31%，整轮 −12%）
+
+**为什么在宿主侧而不是编译器核心**：从文件名产出 `SourceFile` 是 `getSourceFile` 的契约，只有宿主知道怎么兑现（宿主可能从内存作答、甚至不解析），所以程序**不能**背着宿主自己解析。程序能做的只是"告诉宿主我接下来要问哪些文件、用什么选项"——这就是新加的可选钩子 `Program.IParallelSourcePrefetchHost`（实现它的只有端口自己的 `CompilerHost`，第三方宿主零影响，且 `TSC_CS_PARALLEL=1` 时整个预取被跳过 ⇒ 天然 A/B 开关）：
+
+```csharp
+    internal interface IParallelSourcePrefetchHost
+    {
+        void PrefetchSourceFiles(IReadOnlyList<SourceFileRequest> requests, int degree);
+    }
+    internal readonly record struct SourceFileRequest(string FileName, CreateSourceFileOptions Options);
+```
+
+程序在走图前用**走图同一个成员**（`GetCreateSourceFileOptions`）按根文件顺序算出请求；宿主用一个"每文件读+解析"的 `Parallelism.For` 填缓存，`getSourceFile` 命中即返回。**提问顺序不变**⇒文件图、文件列表、诊断顺序、发射输出都不变，只有墙钟动。
+
+**第一个坑（真被发现）**：走图时算出的选项会被**走图进度影响**（模块解析/package.json 缓存是边走边填的），把根文件选项提前一次算完并信任，会改变部分文件的解析结果——**EmitDiff 当场报出 5,908 个用例里 123 个发射不同的 JavaScript**（`TSC_CS_PARALLEL=1` 关掉预取后同一环 clean ⇒ 因果确认）。修法：宿主把预取时的选项与走图时的选项**逐字段比较**，不相等就丢弃预取、让正常路径重解析（`SameParseOptions`）。
+
+**第二个坑（自己抓的）**：`SameParseOptions` 最初用 `ReferenceEquals` 比 `SetExternalModuleIndicator`，而 `getSetExternalModuleIndicator` **每次调用新建一个 lambda**（参考里也有同样的 `TODO: Should this callback be cached?`，utilities.ts:8981）⇒ 比较恒假，**每个预取文件都被拒绝**（实测 `reused=0 rejected=2000`）。改为比较"非空性"并写明理由：同一个 program 内该回调是那份 options 的纯函数，两个请求读的是同一个 program 的 options。修好后 `reused=2000 rejected=0`。
+
+**实测（Release，探针已移除）**：
+
+| | 串行（`TSC_CS_PARALLEL=1`） | 并行预取 | |
+|---|---|---|---|
+| p2000 `createProgram` | 0.812 s | **0.556 s** | −31% |
+| p2000 整轮 | 2.335 s | **2.055 s** | −12% |
+| types 分片 `createProgram` | 0.730 s | **0.521 s** | −29% |
+| types 分片整轮 | 3.725 s | **3.488 s** | −6% |
+| p2000 峰值工作集 | 343 MiB | **263 MiB** | −23% |
+
+解析段自身：串行 0.52 s → 预取墙钟 **0.146 s**（2,093 文件、24 核，近线性）。
+
+**验收**：1,521 测试；`TypeDiff` 与 `EmitDiff` 全语料各 clean 5908/5908（环走的就是带预取的宿主，且命中率高）；**p2000 的完整诊断列表在"串行 vs 复用 2000 文件"两条路径下逐字节相同**（13,211 行，`cmp` 无差异）。
+
+**剩下的瓶颈**：`createProgram` 现在是 0.52 s，其中 **文件图遍历（含 bind）0.315 s**、预取 0.146 s。图遍历里主要是**模块解析**（每文件导出/import 解析、`fileExists`/`readFile`、package.json 查找），它**顺序敏感**（缓存边走边填）且目前串行——那是下一个大杠杆，也是比"再省几 MiB 分配"更值钱的方向。
+
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 
 两个工具的端口半场原来是**按文件串行**跑（每个文件各自建 program），而这正是最适合并行的形状：文件之间零共享。新增 `--parallel <n>`（默认 `Environment.ProcessorCount`，`1` = 串行，用于 A/B），实现是**有界的 `Parallel.For` + 每文件结果槽**，最后按文件序落盘 —— 因此**索引产物与串行运行逐字节相同**（`port-hashes.txt` / `port-crashes.txt` 已实测 `cmp` 一致；`report.txt` 只差 node 侧自报的 `maxRSS` 与端口峰值这两行噪声）。

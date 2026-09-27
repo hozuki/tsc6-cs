@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 // The port's class the driver creates a program with; the alias keeps it apart from this tool's own entry-point class
