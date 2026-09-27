@@ -3143,3 +3143,41 @@ PROBESUBST callback=ImpliedNodeFormatDependentTransformer.OnSubstituteNode
 | `--types-underlines false` | 94/95 | 92/95 | **90/95** | 93/95 | **same 369 / div 11** |
 
 同一分片上**参考半场（tsc 6.0.3）与 tsgo 基线仍有 100 处不一致** ⇒ 端口现在比 tsc 6.0.3 本身更贴近 tsgo；剩余 11 条（js 1 / errors 3 / types 5 / symbols 2）才是真正待查的差异清单。
+
+### 18.10 评审："按 tsc-6 的形态写 ⇒ 对静态类型不友好"的位置（以 tsgo 为准）
+
+**tsgo 的节点表示（`tsc/internal/ast/ast.go` + `core/arena.go`，实读）**：每个 kind 一个 **arena**
+（`core.Arena[T]` = 一块会增长的 `[]T`，`New()` 做 bump 分配并返回 `*T`），节点载荷是 struct 并**内嵌 Node 基座**
+（`newNode` 里 `n := data.AsNode()`，即 `Identifier` 内部就含那个 `Node`）⇒ **每个节点一次 bump 分配、无额外间接层、GC 只看见大块数组**：
+
+```go
+type Node struct { Kind Kind; Flags NodeFlags; Loc core.TextRange; id atomic.Uint64; Parent *Node; data nodeData }
+type Identifier struct { PrimaryExpressionBase; FlowNodeBase; Text string }
+func (f *NodeFactory) NewIdentifier(text string) *Node { data := f.identifierArena.New(); … }
+```
+
+**能不能在 C# 也这么干？** 不能整体照搬：C# 的 struct 不能参与继承，端口那套 350 个类 +
+散落全树的 `Node`/`Identifier?` 引用槽（Model/Parser/Binder/Checker/Emit ≈ 15 万行）必须改成
+"kind + arena 下标 / ref"的访问形态才是同一个东西——那是重写，而且会丢掉现在来自类层级的字段类型安全
+（`D001`）。**结论：不动节点模型**；可搬的只有下面三条（都不需要动模型）。
+
+**按实测影响排序的三条可搬形态**：
+
+| # | 端口现状（tsc-6 形态） | tsgo 形态 | 影响（p2000 实测） |
+|---|---|---|---|
+| 1 | `NodeArray<T> : List<T>`（`Model/NodeArray.cs:31`）—— 每个子节点列表 = 包装对象 + 后备数组**两个**堆对象 | `NodeArray` 是**值形态**：`{ Nodes []*Node; HasTrailingComma bool; … }`，切片头内联在结构里，只有后备数组一次分配 | 解析 140 MiB 里相当一部分（百万级节点、几十万列表） |
+| 2 | 关系缓存的键是**每次检查现造的字符串**：`$"{source.Id},{target.Id}{postFix}"`（`Checker.Relations.Identical.cs:490`）与泛型分支的 `result += "-" + t.Id` 循环（同文件 470 附近） | **`CacheHashKey` = xxh3 128 位**，由 `keyBuilder` 在 **192 字节的栈内缓冲**上算出来（`checker.go:17695-17707`、`getRelationKey` `:17947`）——**零分配** | `Checker.IsTypeRelatedTo` 7.8 MiB/42,303 次；identical/strict 关系同族 |
+| 3 | 热路径上的 LINQ/委托（`Checker` 31 处 `.Select/.Where/.Any/.ToList`；`Core.Some` 等） | Go 全是显式循环 | 弥散但真实（每次调用一个闭包/枚举器） |
+
+**明确判定为"不是问题"的（避免照着"我觉得 C# 该怎样"去改）**：
+
+- **符号表用字符串键是 tsgo 自己的形态**（`type SymbolTable map[string]*Symbol`，`ast/symbol.go:45`）。端口的
+  `SymbolTable : OrderedDictionary<string, ISymbol>(Ordinal)` 与之同形；用有序字典换来的确定性顺序是逐字节
+  输出需要的，**保留**。
+- **模型里的可空值类型槽只有约 20 个**（`int?`/`bool?`，多为 JSDoc/正则相关），量级可忽略。
+- **诊断的 `params object?[]` 装箱**：已量（21 MiB / 3.9%），§18.4m 裁定不做。
+
+**第 1 条的落地形态**（最接近 tsgo 且不需要改模型）：`NodeArray<T>` 不再继承 `List<T>`，而是"只持有 `T[]` +
+`HasTrailingComma`/`TransformFlags`"的引用类型（一个包装 + 一个数组，与今天相同）——**要真正省掉包装，得把它
+变成 struct 槽位**，那就触及 `INodeArray<T>` 的所有使用者。⇒ 先做**第 2 条**（收益清晰、改动局部、可用探针
+与两条环直接验收），第 1 条随后单独评估。
