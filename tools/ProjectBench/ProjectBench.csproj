@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>ProjectBench</AssemblyName>
+    <RootNamespace>TypeScript.Compiler.Tools</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\TypeScript.Compiler\TypeScript.Compiler.csproj" />
+  </ItemGroup>
+
+</Project>

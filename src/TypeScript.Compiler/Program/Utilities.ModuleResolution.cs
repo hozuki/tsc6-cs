@@ -56,8 +56,23 @@ internal static partial class Utilities
             _ => false,
         };
 
+    /// <summary>ported from: src/compiler/utilities.ts:6483-6485 — <c>hostUsesCaseSensitiveFileNames</c>, the <c>ModuleSpecifierResolutionHost</c> arm.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS states the parameter as the union <c>ModuleResolutionHost | ModuleSpecifierResolutionHost</c>; the
+    /// port's two roles are separate nominal interfaces with no structural compatibility, so the module-specifier host
+    /// (whose member is the function TS's <c>host.useCaseSensitiveFileNames</c> name also allows,
+    /// <c>types.ts:9991-9999</c>) gets this overload — the treatment the ancestor walk records
+    /// (<c>Program/ModuleNameResolver.NodeModules.cs:124-127</c>).
+    /// </remarks>
+    public static bool HostUsesCaseSensitiveFileNames(IModuleSpecifierResolutionHost host)
+        => host.UseCaseSensitiveFileNames();
+
     /// <summary>ported from: src/compiler/utilities.ts:6488-6490 — <c>hostGetCanonicalFileName</c>.</summary>
     public static Core.GetCanonicalFileName HostGetCanonicalFileName(IModuleResolutionHost host)
+        => Core.CreateGetCanonicalFileName(HostUsesCaseSensitiveFileNames(host));
+
+    /// <inheritdoc cref="HostGetCanonicalFileName(IModuleResolutionHost)"/>
+    public static Core.GetCanonicalFileName HostGetCanonicalFileName(IModuleSpecifierResolutionHost host)
         => Core.CreateGetCanonicalFileName(HostUsesCaseSensitiveFileNames(host));
 
     /// <summary>ported from: src/compiler/utilities.ts:7819-7822 — <c>directoryProbablyExists</c>.</summary>
@@ -81,9 +96,19 @@ internal static partial class Utilities
 
     /// <summary>ported from: src/compiler/utilities.ts:6609-6612 — <c>getPathsBasePath</c>.</summary>
     public static string? GetPathsBasePath(ICompilerOptions options, IModuleResolutionHost host)
+        => GetPathsBasePathWorker(options, host.GetCurrentDirectory());
+
+    /// <inheritdoc cref="GetPathsBasePath(ICompilerOptions, IModuleResolutionHost)"/>
+    /// <remarks>PORT-NOTE: TS types the host as the one-member <c>{ getCurrentDirectory?(): string }</c>; the
+    /// module-specifier host spells that member as a method too, so it gets this overload.</remarks>
+    public static string? GetPathsBasePath(ICompilerOptions options, IModuleSpecifierResolutionHost host)
+        => GetPathsBasePathWorker(options, host.GetCurrentDirectory());
+
+    /// <inheritdoc cref="GetPathsBasePath(ICompilerOptions, IModuleResolutionHost)"/>
+    private static string? GetPathsBasePathWorker(ICompilerOptions options, string currentDirectory)
         => Js.IsTruthy(options.Paths)
             ? options.BaseUrl ?? Debug.CheckDefined(
-                options.PathsBasePath ?? host.GetCurrentDirectory(),
+                options.PathsBasePath ?? currentDirectory,
                 "Encountered 'paths' without a 'baseUrl', config file, or host 'getCurrentDirectory'.")
             : null;
 

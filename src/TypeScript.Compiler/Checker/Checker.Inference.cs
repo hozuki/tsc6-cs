@@ -4653,11 +4653,20 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:28833-28839 — <c>getTypePredicateArgument</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: TS's <c>callExpression.arguments[predicate.parameterIndex]</c> answers <c>undefined</c> when the index is
+    /// past the end of the argument list (the predicate comes from the callee's declaration, so its index is not
+    /// guaranteed to be within this call's arguments — a JSDoc-annotated function reached through an alias is the
+    /// reachable case, see <c>returnTagTypeGuard.ts</c>); C#'s indexer throws, so the reference's own out-of-range answer is
+    /// stated as the same bound test the port already uses at <c>IsReachableFlowNodeWorker</c>'s
+    /// <c>NarrowTypeByAssertion</c> sibling (Checker.Inference.cs:5143).
+    /// </remarks>
     private Node? GetTypePredicateArgument(ITypePredicateBase predicate, CallExpression callExpression)
     {
         if (predicate.Kind is TypePredicateKind.Identifier or TypePredicateKind.AssertsIdentifier)
         {
-            return callExpression.Arguments![((IIdentifierTypePredicate)predicate).ParameterIndex];
+            var parameterIndex = ((IIdentifierTypePredicate)predicate).ParameterIndex;
+            return parameterIndex >= 0 && parameterIndex < callExpression.Arguments!.Count ? callExpression.Arguments[parameterIndex] : null;
         }
         var invokedExpression = Utilities.SkipParentheses(callExpression.Expression!, /*excludeJSDocTypeAssertions*/ false);
         return Utilities.IsAccessExpression(invokedExpression) ? Utilities.SkipParentheses(GetAccessExpressionOperand(invokedExpression), /*excludeJSDocTypeAssertions*/ false) : null;

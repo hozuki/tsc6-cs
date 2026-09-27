@@ -679,7 +679,7 @@ internal sealed partial class Checker
 
         CheckMembersForOverrideModifier(node, type, typeWithThis, staticType);
 
-        var implementedTypeNodes = Utilities.GetEffectiveImplementsTypeNodes(node);
+        var implementedTypeNodes = Utilities.GetEffectiveImplementsTypeNodes((Node)node);
         if (implementedTypeNodes is not null)
         {
             foreach (var typeRefNode in implementedTypeNodes)

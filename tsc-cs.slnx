@@ -11,6 +11,7 @@
     <Project Path="tools/BaselineDiff/BaselineDiff.csproj" />
     <Project Path="tools/BindDiff/BindDiff.csproj" />
     <Project Path="tools/EmitDiff/EmitDiff.csproj" />
+    <Project Path="tools/ProjectBench/ProjectBench.csproj" />
     <Project Path="tools/TypeDiff/TypeDiff.csproj" />
     <Project Path="tools/Gen/Gen.csproj" />
   </Folder>

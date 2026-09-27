@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 
 namespace TypeScript.Compiler;
 
@@ -93,6 +93,10 @@ internal sealed partial class Checker
     /// through <see cref="Core.StableSort{T}"/> (the BCL's <c>List&lt;T&gt;.Sort</c> is unstable) and adapts the
     /// reference's plain number to the port's <see cref="Comparison"/> through <c>Core.CompareValues</c>.
     /// </para>
+    /// <para>
+    /// PORT-NOTE: <c>sortByBestName</c>'s <c>countPathComponents</c> (checker.ts:8535) is
+    /// <see cref="ModuleSpecifiers.CountPathComponents"/>, ported with <c>moduleSpecifiers.ts</c>.
+    /// </para>
     /// </remarks>
     internal List<ISymbol> LookupSymbolChainWorker(ISymbol symbol, NodeBuilderContext context, SymbolFlags meaning, bool yieldModuleSymbol)
     {
@@ -182,7 +186,7 @@ internal sealed partial class Checker
                     if (Paths.PathIsRelative(specifierA) == isBRelative)
                     {
                         // Both relative or both non-relative, sort by number of parts
-                        return CountPathComponents(specifierA) - CountPathComponents(specifierB);
+                        return ModuleSpecifiers.CountPathComponents(specifierA) - ModuleSpecifiers.CountPathComponents(specifierB);
                     }
                     if (isBRelative)
                     {
@@ -194,15 +198,6 @@ internal sealed partial class Checker
                 }
                 return 0;
             }
-
-            // PORT-NOTE: loud, named blocker. `moduleSpecifiers.countPathComponents` (checker.ts:8534) lives in
-            // `moduleSpecifiers.ts` (1,470 lines), which is deliberately not pulled in (ruling 2, M6-late/M8); the path
-            // component count is what decides the order of a module's parents, so guessing it would silently reorder
-            // generated qualified names. The reference's `sortByBestName` is otherwise ported in full, which is why the
-            // comparison above routes through this member. It is a local function so that its parameter list (and so the
-            // call shape) stays the reference's.
-            int CountPathComponents(string path) => throw new NotSupportedException(
-                "getSymbolChain.sortByBestName: moduleSpecifiers.countPathComponents (checker.ts:8535, moduleSpecifiers.ts) is M6-late/M8 — not ported");
         }
     }
 
@@ -304,10 +299,8 @@ internal sealed partial class Checker
     /// <summary>ported from: src/compiler/checker.ts:8597-8657 — <c>getSpecifierForModuleSymbol</c>.</summary>
     /// <remarks>
     /// <para>
-    /// PORT-NOTE: loud, named blocker. The specifier itself comes from <c>moduleSpecifiers.getModuleSpecifiers</c>
-    /// (checker.ts:8638), which is not ported (ruling 2: <c>moduleSpecifiers.ts</c>, 1,470 lines, is M6-late/M8). Every
-    /// other line of the reference is ported: the amd-name test, the ambient-module fallback, the "no resolver host"
-    /// fallback, the resolution-mode computation, the cache lookup and the bundle branch.
+    /// PORT-NOTE: the specifier itself comes from <c>moduleSpecifiers.getModuleSpecifiers</c> (checker.ts:8638), the
+    /// member this call site was blocked on; it is <see cref="ModuleSpecifiers.GetModuleSpecifiers"/>.
     /// </para>
     /// <para>
     /// PORT-NOTE: TS's <c>{ ...compilerOptions, baseUrl: … }</c> for the bundle case cannot be written over an interface
@@ -318,6 +311,11 @@ internal sealed partial class Checker
     /// PORT-NOTE: <c>createModeAwareCacheKey</c> (utilities.ts) is landed as
     /// <c>ModuleNameResolver.CreateModeAwareCacheKey</c>, and <c>links.specifierCache</c> is the landed
     /// <c>SymbolLinks.SpecifierCache</c> (<c>Dictionary&lt;object, string&gt;?</c>), so both stay real calls/reads.
+    /// </para>
+    /// <para>
+    /// PORT-NOTE: TS's two preference objects are <c>ModuleSpecifiers.UserPreferences</c> (the generated
+    /// <c>IUserPreferences</c> is get-only, so <c>ModuleSpecifiers.cs</c> carries its implementation) and
+    /// <c>ModuleSpecifiers.ModuleSpecifierOptions</c>; TS's <c>first(…)</c> is <c>Core.First</c>.
     /// </para>
     /// <para>
     /// PORT-NOTE: TS's <c>||</c> between the three resolution-mode sources is truthiness over
@@ -385,37 +383,28 @@ internal sealed partial class Checker
             // using the `baseUrl` compiler option (which we would otherwise never use in declaration emit) and a non-relative
             // specifier preference
             var moduleResolverHost = context.Tracker!.ModuleResolverHost!;
-            specifier = GetModuleSpecifiers(
+            var specifierCompilerOptions = isBundle
+                ? new CompilerOptions(_compilerOptions) { BaseUrl = moduleResolverHost.GetCommonSourceDirectory() }
+                : _compilerOptions;
+            specifier = Core.First(ModuleSpecifiers.GetModuleSpecifiers(
                 symbol,
                 this,
-                isBundle
-                    ? new CompilerOptions(_compilerOptions) { BaseUrl = moduleResolverHost.GetCommonSourceDirectory() }
-                    : _compilerOptions,
+                specifierCompilerOptions,
                 contextFile,
                 moduleResolverHost,
-                isBundle,
-                resolutionMode,
-                overrideImportMode);
+                new ModuleSpecifiers.UserPreferences
+                {
+                    ImportModuleSpecifierPreference = isBundle ? "non-relative" : "project-relative",
+                    ImportModuleSpecifierEnding = isBundle
+                        ? "minimal"
+                        : resolutionMode == ModuleKind.ESNext ? "js" : null,
+                },
+                new ModuleSpecifiers.ModuleSpecifierOptions { OverrideMode = overrideImportMode }));
+            links.SpecifierCache ??= [];
+            links.SpecifierCache[cacheKey] = specifier;
         }
-        return specifier!;
 
-        // PORT-NOTE: the reference's `first(moduleSpecifiers.getModuleSpecifiers(symbol, checker,
-        // specifierCompilerOptions, contextFile, moduleResolverHost, { importModuleSpecifierPreference: isBundle ?
-        // "non-relative" : "project-relative", importModuleSpecifierEnding: isBundle ? "minimal" :
-        // resolutionMode === ModuleKind.ESNext ? "js" : undefined }, { overrideImportMode }))`. Only the two preference
-        // objects are dropped: `ModuleSpecifierPreferences` and `ModuleSpecifierEnding` are declared in
-        // `moduleSpecifiers.ts`, which is not ported, so they have no C# type; the two preference values are carried as
-        // `isBundle`/`resolutionMode` instead and the blocker names the member, its line and its owner.
-        string GetModuleSpecifiers(
-            ISymbol symbol,
-            ITypeChecker checker,
-            ICompilerOptions options,
-            SourceFile? contextFile,
-            IModuleSpecifierResolutionHost moduleResolverHost,
-            bool isBundle,
-            ModuleKind? resolutionMode,
-            ModuleKind? overrideImportMode) => throw new NotSupportedException(
-                "GetSpecifierForModuleSymbol: moduleSpecifiers.getModuleSpecifiers (checker.ts:8638, moduleSpecifiers.ts) is M6-late/M8 — not ported");
+        return specifier!;
     }
 
     /// <summary>ported from: src/compiler/checker.ts:8658-8662 — <c>symbolToEntityNameNode</c>.</summary>

@@ -130,7 +130,7 @@ internal sealed class SyntacticBuilderResolver : ISyntacticTypeNodeBuilderResolv
         }
         var addUndefinedForParameter = node is not null
             && (NodeTests.IsParameter((Node)node) || NodeTests.IsJSDocParameterTag((Node)node))
-            && _checker.RequiresAddingImplicitUndefined((ParameterDeclaration)node, nodeBuilderContext.EnclosingDeclaration);
+            && _checker.RequiresAddingImplicitUndefined((Node)node, nodeBuilderContext.EnclosingDeclaration);
         if (addUndefinedForParameter)
         {
             type = _checker.GetOptionalType(type!);

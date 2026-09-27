@@ -125,9 +125,9 @@ internal static partial class ModuleNameResolver
     /// </para>
     /// <para>
     /// PORT-NOTE: TS's host parameter is <c>ModuleResolutionHost | ModuleSpecifierResolutionHost</c> and only
-    /// <c>getGlobalTypingsCacheLocation</c> is read from it; every call site in this file passes a
-    /// <c>ModuleResolutionHost</c>, so that is the declared type (C# has no structural typing — M6-late's
-    /// <c>moduleSpecifiers.ts</c> caller can add the overload when it lands).
+    /// <c>getGlobalTypingsCacheLocation</c> is read from it. The two roles are separate nominal interfaces in the port,
+    /// so each gets its own overload over the shared walk; the module-specifier one is what
+    /// <c>ModuleSpecifiers.ForEachFileNameOfModule</c> and <c>getNearestAncestorDirectoryWithPackageJson</c> call.
     /// </para>
     /// </remarks>
     public static T? ForEachAncestorDirectoryStoppingAtGlobalCache<T>(
@@ -135,8 +135,23 @@ internal static partial class ModuleNameResolver
         string directory,
         Func<string, T?> callback)
         where T : class
+        => ForEachAncestorDirectoryStoppingAtGlobalCacheWorker(host.GetGlobalTypingsCacheLocation(), directory, callback);
+
+    /// <inheritdoc cref="ForEachAncestorDirectoryStoppingAtGlobalCache{T}(IModuleResolutionHost, string, Func{string, T?})"/>
+    public static T? ForEachAncestorDirectoryStoppingAtGlobalCache<T>(
+        IModuleSpecifierResolutionHost host,
+        string directory,
+        Func<string, T?> callback)
+        where T : class
+        => ForEachAncestorDirectoryStoppingAtGlobalCacheWorker(host.GetGlobalTypingsCacheLocation(), directory, callback);
+
+    /// <inheritdoc cref="ForEachAncestorDirectoryStoppingAtGlobalCache{T}(IModuleResolutionHost, string, Func{string, T?})"/>
+    private static T? ForEachAncestorDirectoryStoppingAtGlobalCacheWorker<T>(
+        string? globalCache,
+        string directory,
+        Func<string, T?> callback)
+        where T : class
     {
-        var globalCache = host.GetGlobalTypingsCacheLocation();
         var result = Paths.ForEachAncestorDirectory<object>(directory, ancestorDirectory =>
         {
             var callbackResult = callback(ancestorDirectory);

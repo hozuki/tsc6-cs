@@ -3992,6 +3992,21 @@ internal sealed partial class Checker
             ? (PropertyAccessExpression)((VariableDeclaration)node).Initializer!
             : null;
 
+    /// <summary>The <c>moduleSpecifier</c> read of the <c>ImportDeclaration | JSDocImportTag</c> container.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference climbs to a clause's container and reads <c>moduleSpecifier</c> through unchecked casts
+    /// (checker.ts:3851 <c>(node.parent as ImportDeclaration)</c>, :3939, :3943-3945, :3980), but a clause declared by a
+    /// JSDoc <c>@import</c> tag hangs off the <c>JSDocImportTag</c> itself (binder.ts:2134-2142), which declares its own
+    /// <c>moduleSpecifier</c> (types.ts:4139-4145). The port reads the two faces' own slots, as
+    /// <c>GetExternalModuleMember</c> and <c>Check.Modules.cs</c>'s <c>checkImportAttributes</c> do.
+    /// </remarks>
+    private static Expression? GetImportContainerModuleSpecifier(Node container) => container switch
+    {
+        ImportDeclaration importDeclaration => importDeclaration.ModuleSpecifier,
+        JSDocImportTag jsDocImportTag => jsDocImportTag.ModuleSpecifier,
+        _ => null,
+    };
+
     /// <summary>ported from: src/compiler/checker.ts:3936-3951 — <c>getModuleSpecifierForImportOrExport</c>.</summary>
     /// <remarks>
     /// PORT-NOTE: TS's parameter is the <c>ImportEqualsDeclaration | ImportClause | NamespaceImport |
@@ -4005,14 +4020,14 @@ internal sealed partial class Checker
         switch (((Node)node).Kind)
         {
             case SyntaxKind.ImportClause:
-                return ((ImportDeclaration)((Node)node).Parent!).ModuleSpecifier;
+                return GetImportContainerModuleSpecifier(((Node)node).Parent!);
             case SyntaxKind.ImportEqualsDeclaration:
                 var moduleReference = ((ImportEqualsDeclaration)node).ModuleReference;
                 return moduleReference is ExternalModuleReference externalModuleReference ? externalModuleReference.Expression : null;
             case SyntaxKind.NamespaceImport:
-                return ((ImportDeclaration)((Node)node).Parent!.Parent!).ModuleSpecifier;
+                return GetImportContainerModuleSpecifier(((Node)node).Parent!.Parent!);
             case SyntaxKind.ImportSpecifier:
-                return ((ImportDeclaration)((Node)node).Parent!.Parent!.Parent!).ModuleSpecifier;
+                return GetImportContainerModuleSpecifier(((Node)node).Parent!.Parent!.Parent!);
             case SyntaxKind.ExportSpecifier:
                 return ((ExportDeclaration)((Node)node).Parent!.Parent!).ModuleSpecifier;
             default:
@@ -4094,9 +4109,14 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:3850-3855 — <c>getTargetOfImportClause</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference reads <c>(node.parent as ImportDeclaration).moduleSpecifier</c>; that cast is unchecked and
+    /// the parent of a JSDoc import tag's clause is the <c>JSDocImportTag</c> itself, so the port reads the container's
+    /// own slot through <see cref="GetImportContainerModuleSpecifier"/>.
+    /// </remarks>
     private ISymbol? GetTargetOfImportClause(IDeclaration node, bool dontResolveAlias)
     {
-        var moduleSymbol = ResolveExternalModuleName((Node)node, ((ImportDeclaration)((Node)node).Parent!).ModuleSpecifier);
+        var moduleSymbol = ResolveExternalModuleName((Node)node, GetImportContainerModuleSpecifier(((Node)node).Parent!));
         if (moduleSymbol is not null)
         {
             return GetTargetofModuleDefault(moduleSymbol, node, dontResolveAlias);
@@ -4243,9 +4263,15 @@ internal sealed partial class Checker
     }
 
     /// <summary>ported from: src/compiler/checker.ts:3979-3985 — <c>getTargetOfNamespaceImport</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference reads <c>(node.parent.parent as ImportDeclaration).moduleSpecifier</c>; the grandparent of
+    /// a namespace import is the clause's container, which for a JSDoc import tag is the <c>JSDocImportTag</c> and not an
+    /// <c>ImportDeclaration</c>, so the port reads the container's own slot through
+    /// <see cref="GetImportContainerModuleSpecifier"/>.
+    /// </remarks>
     private ISymbol? GetTargetOfNamespaceImport(IDeclaration node, bool dontResolveAlias)
     {
-        var moduleSpecifier = ((ImportDeclaration)((Node)node).Parent!.Parent!).ModuleSpecifier;
+        var moduleSpecifier = GetImportContainerModuleSpecifier(((Node)node).Parent!.Parent!);
         var immediate = ResolveExternalModuleName((Node)node, moduleSpecifier);
         var resolved = ResolveESModuleSymbol(immediate, moduleSpecifier!, dontResolveAlias, /*suppressInteropError*/ false);
         MarkSymbolOfAliasDeclarationIfTypeOnly(node, immediate, resolved, /*overwriteEmpty*/ false);
@@ -4674,6 +4700,13 @@ internal sealed partial class Checker
     /// (<c>null</c> is <c>"quit"</c>), and <c>getSymbolOfDeclaration(host.expression.left)</c> reads the same declaration
     /// face the rest of this file does; <c>getJSDocHost</c>/<c>getEffectiveJSDocHost</c> are the landed
     /// <c>Utilities</c> members of those names.
+    /// <para>
+    /// PORT-NOTE: the three <c>if (symbol)</c> guards are the reference's own (checker.ts:4656, :4663, :4674):
+    /// <c>getSymbolOfDeclaration</c> answers <c>undefined</c> for a declaration the binder left unbound (see that
+    /// member's note), and each guard falls through to the next branch rather than answering — the port states each of
+    /// those three fall-throughs, since <c>getDeclarationOfJSPrototypeContainer</c> dereferences <c>symbol.parent</c>
+    /// (checker.ts:4686).
+    /// </para>
     /// </remarks>
     internal Node? GetAssignmentDeclarationLocation(TypeReferenceNode node)
     {
@@ -4688,14 +4721,20 @@ internal sealed partial class Checker
         {
             // /** @param {K} p */ X.prototype.m = function () { } <-- look for K on X's declaration
             var symbol = GetSymbolOfDeclaration((IDeclaration)((BinaryExpression)((ExpressionStatement)host).Expression!).Left!);
-            return GetDeclarationOfJSPrototypeContainer(symbol);
+            if (symbol is not null)
+            {
+                return GetDeclarationOfJSPrototypeContainer(symbol);
+            }
         }
 
         if (host is not null && NodeTests.IsFunctionExpression(host) && Utilities.IsPrototypePropertyAssignment(host.Parent!) && NodeTests.IsExpressionStatement(host.Parent!.Parent!))
         {
             // X.prototype.m = /** @param {K} p */ function () { } <-- look for K on X's declaration
             var symbol = GetSymbolOfDeclaration((IDeclaration)((BinaryExpression)host.Parent!).Left!);
-            return GetDeclarationOfJSPrototypeContainer(symbol);
+            if (symbol is not null)
+            {
+                return GetDeclarationOfJSPrototypeContainer(symbol);
+            }
         }
 
         if (
@@ -4706,7 +4745,10 @@ internal sealed partial class Checker
         {
             // X.prototype = { /** @param {K} p */m() { } } <-- look for K on X's declaration
             var symbol = GetSymbolOfDeclaration((IDeclaration)((BinaryExpression)host.Parent!.Parent!).Left!);
-            return GetDeclarationOfJSPrototypeContainer(symbol);
+            if (symbol is not null)
+            {
+                return GetDeclarationOfJSPrototypeContainer(symbol);
+            }
         }
 
         var sig = Utilities.GetEffectiveJSDocHost((Node)node);

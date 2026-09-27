@@ -1711,7 +1711,13 @@ internal sealed partial class Checker
         if (lastParamVariadicType is not null)
         {
             // Replace the last parameter with a rest parameter.
-            parameters.RemoveAt(parameters.Count - 1);
+            // PORT-NOTE: TS's `parameters.pop()` answers `undefined` on an empty array; C#'s `RemoveAt(count - 1)` throws
+            // an ArgumentOutOfRangeException there instead. The empty case is the very case this helper exists for (a JS
+            // function with no parameters but an `@param {...} x` tag), so the reference's own no-op is stated.
+            if (parameters.Count > 0)
+            {
+                parameters.RemoveAt(parameters.Count - 1);
+            }
         }
 
         parameters.Add(syntheticArgsSymbol);

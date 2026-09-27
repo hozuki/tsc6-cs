@@ -817,7 +817,7 @@ internal sealed partial class Checker
         }
         var classType = (InterfaceType)GetTypeWithThisArgument(GetDeclaredTypeOfClassOrInterface(symbol));
         var baseTypes = GetBaseTypes(classType);
-        var originalImplements = originalDecl is not null ? Utilities.GetEffectiveImplementsTypeNodes((IClassLikeDeclarationBase)originalDecl) : null;
+        var originalImplements = originalDecl is not null ? Utilities.GetEffectiveImplementsTypeNodes((Node)originalDecl) : null;
         IList<ExpressionWithTypeArguments>? implementsExpressions = originalImplements is not null ? SanitizeJSDocImplements(originalImplements, context) : null;
         implementsExpressions ??= Core.MapDefined(GetImplementsTypes(classType), (t, _) => SerializeImplementedType(t, context));
         var staticType = GetTypeOfSymbol(symbol);

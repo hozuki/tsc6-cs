@@ -199,12 +199,13 @@ internal sealed partial class Checker
     /// unmutated. The port's <c>[]</c> is already a per-call mutable list, so the two arms collapse into one
     /// <c>Add</c> with the same contents.
     /// <para>
-    /// PORT-NOTE: <c>getEffectiveImplementsTypeNodes</c> is a utilities.ts member (utilities.ts:5214) and is declared
-    /// by the utilities slice, not here (it is declared nowhere in the port yet). Its reference parameter is
-    /// <c>ClassLikeDeclaration</c> — the union <c>ClassDeclaration | ClassExpression</c>, whose port face is
-    /// <see cref="IClassLikeDeclarationBase"/> (the same choice <c>Utilities.Binder.cs</c> makes for the reference's
-    /// class-like parameters), so the reference's <c>declaration as ClassLikeDeclaration</c> cast is stated against
-    /// that face.
+    /// PORT-NOTE: <c>getEffectiveImplementsTypeNodes</c> is a utilities.ts member (utilities.ts:5214) and is declared by
+    /// the utilities slice. Its reference parameter, <c>ClassLikeDeclaration</c>, is reached through the unchecked
+    /// <c>declaration as ClassLikeDeclaration</c> on this line, and the declarations it actually receives are every
+    /// declaration of the type symbol (a JSDoc <c>@implements</c> tag is legal on a function, variable or property
+    /// declaration in a JS file, and that is the arm the reference's own <c>isInJSFile</c> test takes); the port
+    /// therefore states the cast as the widened <see cref="Node"/> parameter that member takes, and no cast remains
+    /// here.
     /// </para>
     /// </remarks>
     internal List<IType> GetImplementsTypes(IInterfaceType type)
@@ -214,7 +215,7 @@ internal sealed partial class Checker
         {
             foreach (var declaration in type.Symbol!.Declarations)
             {
-                var implementsTypeNodes = Utilities.GetEffectiveImplementsTypeNodes((IClassLikeDeclarationBase)declaration);
+                var implementsTypeNodes = Utilities.GetEffectiveImplementsTypeNodes((Node)declaration);
                 if (implementsTypeNodes is null) continue;
                 foreach (var node in implementsTypeNodes)
                 {

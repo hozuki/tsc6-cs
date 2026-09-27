@@ -375,20 +375,25 @@ internal static partial class Utilities
 
     /// <summary>ported from: src/compiler/utilities.ts:5214-5223 — <c>getEffectiveImplementsTypeNodes</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS's parameter is the union <c>ClassLikeDeclaration</c>, stated as the port's
-    /// <c>IClassLikeDeclarationBase</c> face (its one landed caller casts to it). The JS arm returns a mapped array in TS
-    /// and the heritage clause's own array otherwise, so the port's return type is
-    /// <c>IList&lt;ExpressionWithTypeArguments&gt;?</c> — the model's <c>NodeArray&lt;T&gt;</c> is an <c>IList&lt;T&gt;</c>,
-    /// so the non-JS arm still hands back the declaration's array by identity.
+    /// PORT-NOTE: TS's parameter is the union <c>ClassLikeDeclaration</c>; the reference's own <c>isInJSFile</c> and
+    /// <c>getJSDocImplementsTags</c> accept any <c>Node</c>, and the checker calls the member with every declaration a
+    /// type symbol carries (a function, variable or property-access declaration has JSDoc <c>@implements</c> tags in a JS
+    /// file — checker.ts:13257's unchecked <c>declaration as ClassLikeDeclaration</c>). The port therefore takes
+    /// <see cref="Node"/>, the same widening <see cref="GetEffectiveBaseTypeNode"/> and
+    /// <see cref="GetClassExtendsHeritageElement"/> use, and reads the heritage clauses through
+    /// <see cref="HeritageClausesOf"/>. The JS arm returns a mapped array in TS and the heritage clause's own array
+    /// otherwise, so the port's return type is <c>IList&lt;ExpressionWithTypeArguments&gt;?</c> — the model's
+    /// <c>NodeArray&lt;T&gt;</c> is an <c>IList&lt;T&gt;</c>, so the non-JS arm still hands back the declaration's array by
+    /// identity.
     /// </remarks>
-    public static IList<ExpressionWithTypeArguments>? GetEffectiveImplementsTypeNodes(IClassLikeDeclarationBase node)
+    public static IList<ExpressionWithTypeArguments>? GetEffectiveImplementsTypeNodes(Node node)
     {
-        if (IsInJSFile((Node)node))
+        if (IsInJSFile(node))
         {
-            return [.. GetJSDocImplementsTags((Node)node).Select(tag => tag.Class!)];
+            return [.. GetJSDocImplementsTags(node).Select(tag => tag.Class!)];
         }
 
-        var heritageClause = GetHeritageClause(node.HeritageClauses, SyntaxKind.ImplementsKeyword);
+        var heritageClause = GetHeritageClause(HeritageClausesOf(node), SyntaxKind.ImplementsKeyword);
         return heritageClause?.Types;
     }
 

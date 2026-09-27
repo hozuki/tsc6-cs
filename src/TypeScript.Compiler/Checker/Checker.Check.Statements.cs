@@ -71,18 +71,27 @@ internal sealed partial class Checker
     // ---------------------------------------------------------------------------------------------
 
     /// <summary>ported from: src/compiler/checker.ts:44781-44792 — <c>checkCollisionWithArgumentsInGeneratedCode</c>.</summary>
+    /// <remarks>
+    /// PORT-NOTE: the reference's <c>nodeIsMissing((node as FunctionLikeDeclaration).body)</c> is an unchecked cast: the
+    /// parameter is the <c>SignatureDeclaration</c> union, which includes the body-less <c>MethodSignature</c> and
+    /// <c>JSDocFunctionType</c> kinds that reach this member from <c>checkSignatureDeclaration</c>. Their <c>body</c> is
+    /// <c>undefined</c>, so <c>nodeIsMissing</c> answers <c>true</c> and the check returns before touching
+    /// <c>parameters</c>; the port states that as the soft cast and <see cref="Utilities.NodeIsMissing"/>'s own
+    /// <c>null</c> arm, which is <c>true</c> as well.
+    /// </remarks>
     internal void CheckCollisionWithArgumentsInGeneratedCode(Node node)
     {
         // no rest parameters \ declaration context \ overload - no codegen impact
+        var functionLike = node as IFunctionLikeDeclarationBase;
         if (_languageVersion >= ScriptTarget.ES2015
             || !Utilities.HasRestParameter(node)
             || (node.Flags & NodeFlags.Ambient) != 0
-            || Utilities.NodeIsMissing(((IFunctionLikeDeclarationBase)node).Body))
+            || Utilities.NodeIsMissing(functionLike?.Body))
         {
             return;
         }
 
-        foreach (var p in ((IFunctionLikeDeclarationBase)node).Parameters!)
+        foreach (var p in functionLike!.Parameters!)
         {
             if (p.Name is not null && !Utilities.IsBindingPattern(p.Name) && ((Identifier)p.Name).EscapedText == _argumentsSymbol!.EscapedName)
             {

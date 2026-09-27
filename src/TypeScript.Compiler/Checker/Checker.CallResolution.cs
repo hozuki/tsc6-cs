@@ -1444,14 +1444,32 @@ internal sealed partial class Checker
             {
                 diagnostic = GetDiagnosticForCallNode(node, error, parameterRange, args.Count);
             }
-            var parameters = closestSignature?.Declaration is not null ? ((ISignatureDeclarationBase)closestSignature.Declaration).Parameters : null;
+            // PORT-NOTE: TS reads `closestSignature?.declaration?.parameters[closestSignature.thisParameter ? args.length + 1 : args.length]`
+            // off the `SignatureDeclaration | JSDocSignature` union, whose arms declare different parameter element types
+            // (a JSDoc signature's are JSDocParameterTags); the port reads each arm's own list and keeps the reference's
+            // out-of-range read as an explicit bound test, exactly as the `thisParameter` index above is stated.
             var parameterIndex = closestSignature?.ThisParameter is not null ? args.Count + 1 : args.Count;
-            var parameter = parameters is not null && parameterIndex < parameters.Count ? parameters[parameterIndex] : null;
+            Node? parameter = closestSignature?.Declaration switch
+            {
+                ISignatureDeclarationBase declaration when declaration.Parameters is not null && parameterIndex < declaration.Parameters.Count
+                    => declaration.Parameters[parameterIndex],
+                JSDocSignature jsDocSignature when jsDocSignature.Parameters is not null && parameterIndex < jsDocSignature.Parameters.Count
+                    => jsDocSignature.Parameters[parameterIndex],
+                _ => null,
+            };
             if (parameter is not null)
             {
-                object?[] messageAndArgs = Utilities.IsBindingPattern(parameter.Name) ? [Diagnostics.An_argument_matching_this_binding_pattern_was_not_provided]
-                    : Utilities.IsRestParameter(parameter) ? [Diagnostics.Arguments_for_the_rest_parameter_0_were_not_provided, Utilities.IdText(Utilities.GetFirstIdentifier(parameter.Name!))]
-                    : [Diagnostics.An_argument_for_0_was_not_provided, parameter.Name is null ? args.Count : Utilities.IdText(Utilities.GetFirstIdentifier(parameter.Name))];
+                // PORT-NOTE: the reference reads `parameter.name` off that same union; the port names its two arms (a JSDoc
+                // parameter tag is a JSDocPropertyLikeTag), since neither common base declares the slot.
+                var parameterName = parameter switch
+                {
+                    ParameterDeclaration parameterDeclaration => parameterDeclaration.Name,
+                    JSDocPropertyLikeTag propertyLikeTag => propertyLikeTag.Name,
+                    _ => null,
+                };
+                object?[] messageAndArgs = Utilities.IsBindingPattern(parameterName) ? [Diagnostics.An_argument_matching_this_binding_pattern_was_not_provided]
+                    : Utilities.IsRestParameter(parameter) ? [Diagnostics.Arguments_for_the_rest_parameter_0_were_not_provided, Utilities.IdText(Utilities.GetFirstIdentifier(parameterName!))]
+                    : [Diagnostics.An_argument_for_0_was_not_provided, parameterName is null ? args.Count : Utilities.IdText(Utilities.GetFirstIdentifier(parameterName))];
                 var parameterError = Utilities.CreateDiagnosticForNode(parameter, (DiagnosticMessage)messageAndArgs[0]!, messageAndArgs[1..]);
                 return Utilities.AddRelatedInfo(diagnostic, parameterError);
             }

@@ -24,6 +24,8 @@
     <!-- tools/BaselineDiff（基线差分，M7-C 的最后一环）同样直接调用 internal 的 Program / Checker / 类型模型
          与 Printer / PrintHandlers / EmitTextWriter（类型写入器的下划线打印机）。 -->
     <InternalsVisibleTo Include="BaselineDiff" />
+    <!-- tools/ProjectBench 同为集成期工具：单 program 项目模式计时，需要 internal 的 Program/ISystem/选项模型。 -->
+    <InternalsVisibleTo Include="ProjectBench" />
   </ItemGroup>
 
 </Project>

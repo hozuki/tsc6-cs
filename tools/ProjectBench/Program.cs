@@ -1,0 +1,195 @@
+using System.Diagnostics;
+using System.Text.Json;
+
+namespace TypeScript.Compiler.Tools;
+
+/// <summary>
+/// The port's **project mode**: one <see cref="Program"/> over a list of files, so the port can be timed the way
+/// <c>tsc</c> is timed (<c>tsc -p tsconfig.json</c>) instead of the per-file model the three differential tools use.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Why this exists: the acceptance rings build a *fresh* program per corpus file (a per-case host, real libs re-parsed
+/// each time), which measures the harness model rather than the compiler. tsgo and the JS reference compile the same
+/// 5,908 conformance files as **one** project in ~1.5 s and ~1.1 s respectively; without a project mode the port had no
+/// comparable number (docs/architecture.md §17.15).
+/// </para>
+/// <para>
+/// Phases are timed separately (program construction = parse + bind + file graph, syntactic diagnostics, semantic
+/// diagnostics, emit) so a slow phase is visible instead of a single wall-clock number. The diagnostic count printed at
+/// the end is the sanity check that the run did the same work as <c>tsc</c> (~2,670 errors on this corpus).
+/// </para>
+/// </remarks>
+internal static class ProjectBench
+{
+    private static int Main(string[] args)
+    {
+        string? filesPath = null;
+        var tsDir = "D:/Source/GitHub/TypeScript";
+        var emit = false;
+        for (var i = 0; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--files": filesPath = i + 1 < args.Length ? args[++i] : null; break;
+                case "--ts": tsDir = i + 1 < args.Length ? args[++i] : tsDir; break;
+                case "--emit": emit = true; break;
+                case "-h" or "--help":
+                    Console.WriteLine("usage: ProjectBench --files <tsconfig.json with a files[] list> [--ts <TypeScript dir>] [--emit]");
+                    return 0;
+                default:
+                    Console.Error.WriteLine($"projectbench: unknown argument '{args[i]}'");
+                    return 2;
+            }
+        }
+        if (filesPath is null || !File.Exists(filesPath))
+        {
+            Console.Error.WriteLine("projectbench: --files <tsconfig.json> is required (a tsconfig whose \"files\" lists the roots)");
+            return 2;
+        }
+
+        var tsconfig = JsonDocument.Parse(File.ReadAllText(filesPath));
+        var rootNames = tsconfig.RootElement.GetProperty("files").EnumerateArray().Select(e => e.GetString()!).ToList();
+
+        var options = new BenchCompilerOptions
+        {
+            Target = ScriptTarget.ESNext,
+            Module = ModuleKind.ESNext,
+            AllowJs = true,
+            CheckJs = false,
+            NoEmit = !emit,
+            SkipLibCheck = true,
+            Types = [],
+        };
+
+        var system = new DiskSystem(tsDir);
+        var host = Program.CreateCompilerHostWorker(options, /*setParentNodes*/ false, system);
+
+        var total = Stopwatch.StartNew();
+
+        var t0 = Stopwatch.StartNew();
+        var program = Program.CreateProgram(rootNames, options, host);
+        t0.Stop();
+
+        var sourceFiles = program.GetSourceFiles().ToList();
+        var libFiles = sourceFiles.Count(f => f.IsDeclarationFile);
+
+        var t1 = Stopwatch.StartNew();
+        var syntactic = program.GetSyntacticDiagnostics(/*sourceFile*/ null, /*cancellationToken*/ null);
+        t1.Stop();
+
+        var t2 = Stopwatch.StartNew();
+        var semantic = program.GetSemanticDiagnostics(/*sourceFile*/ null, /*cancellationToken*/ null);
+        t2.Stop();
+
+        double emitSeconds = 0;
+        var emittedFiles = 0;
+        if (emit)
+        {
+            var t3 = Stopwatch.StartNew();
+            system.CountWrites = true;
+            var result = program.Emit();
+            system.CountWrites = false;
+            emittedFiles = system.Writes;
+            t3.Stop();
+            emitSeconds = t3.Elapsed.TotalSeconds;
+            total.Stop();
+            Console.WriteLine($"emit           {emitSeconds,8:F3} s   files={emittedFiles} skipped={result.EmitSkipped}");
+        }
+        total.Stop();
+
+        Console.WriteLine($"roots          {rootNames.Count,8}     source files={sourceFiles.Count} (declaration files={libFiles})");
+        Console.WriteLine($"createProgram  {t0.Elapsed.TotalSeconds,8:F3} s   parse + bind + file graph");
+        Console.WriteLine($"syntactic      {t1.Elapsed.TotalSeconds,8:F3} s   {syntactic.Count} diagnostics");
+        Console.WriteLine($"semantic       {t2.Elapsed.TotalSeconds,8:F3} s   {semantic.Count} diagnostics");
+        Console.WriteLine($"total          {total.Elapsed.TotalSeconds,8:F3} s   (checked {sourceFiles.Count - libFiles} corpus files)");
+        return 0;
+    }
+}
+
+/// <summary>
+/// The disk-backed <see cref="ISystem"/> a project-mode run needs: the three differential tools each supply a host for
+/// their own virtual file set, and this one reads the real file system so the roots, their imports and the default
+/// library all resolve the way <c>tsc</c> resolves them.
+/// </summary>
+/// <remarks>
+/// PORT-NOTE: the port has no <c>sys</c> singleton and no concrete <see cref="ISystem"/> under <c>src/</c> (§13.5), so
+/// every program-creating tool states its own. Only the members a program-construction run reads are implemented; the
+/// optional members keep their interface defaults (no watching, no modified times).
+/// </remarks>
+internal sealed class DiskSystem(string tsDir) : ISystem
+{
+    /// <summary>The directory the default library is resolved from: <c>getDefaultLibLocation()</c> is the directory of
+    /// the executing file, and the reference's is its <c>lib/</c>.</summary>
+    private readonly string _libDir = Paths.NormalizePath(tsDir) + "/lib";
+
+    /// <summary>Counts <see cref="WriteFile"/> calls when a run wants the emitted-file count.</summary>
+    public bool CountWrites { get; set; }
+
+    public int Writes { get; private set; }
+
+    public IList<string> Args => [];
+
+    public string NewLine => "\n";
+
+    public bool UseCaseSensitiveFileNames => false;
+
+    public void Write(string s) => Console.Out.Write(s);
+
+    public string? ReadFile(string path, string? encoding = null)
+    {
+        var full = ToDiskPath(path);
+        return File.Exists(full) ? File.ReadAllText(full) : null;
+    }
+
+    public void WriteFile(string path, string data, bool writeByteOrderMark = false)
+    {
+        if (CountWrites) Writes++;
+    }
+
+    public string ResolvePath(string path) => Paths.NormalizePath(ToDiskPath(path)).Replace('\\', '/');
+
+    public bool FileExists(string path) => File.Exists(ToDiskPath(path));
+
+    public bool DirectoryExists(string path) => Directory.Exists(ToDiskPath(path));
+
+    public void CreateDirectory(string path)
+    {
+    }
+
+    public string GetExecutingFilePath() => _libDir + "/tsc.js";
+
+    public string GetCurrentDirectory() => Paths.NormalizePath(tsDir) + "/";
+
+    public IList<string> GetDirectories(string path)
+        => Directory.Exists(ToDiskPath(path))
+            ? Directory.GetDirectories(ToDiskPath(path)).Select(d => Paths.NormalizePath(d)).ToList()
+            : [];
+
+    public IList<string> ReadDirectory(
+        string path,
+        IList<string>? extensions = null,
+        IList<string>? exclude = null,
+        IList<string>? include = null,
+        int? depth = null)
+        => Directory.Exists(ToDiskPath(path))
+            ? Directory.GetFiles(ToDiskPath(path))
+                .Where(f => extensions is null || extensions.Contains(Path.GetExtension(f), StringComparer.OrdinalIgnoreCase))
+                .Select(f => Paths.NormalizePath(f))
+                .ToList()
+            : [];
+
+    public void Exit(int exitCode = 0)
+    {
+    }
+
+    public string? GetEnvironmentVariable(string name) => Environment.GetEnvironmentVariable(name);
+
+    /// <summary>The interface's optional member has a default; a project-mode run reports the real modified time so an
+    /// incremental host could use it (the benchmark itself does not).</summary>
+    public DateTimeOffset? GetModifiedTime(string path)
+        => File.Exists(ToDiskPath(path)) ? File.GetLastWriteTimeUtc(ToDiskPath(path)) : null;
+
+    /// <summary>Maps the program's normalized (forward-slash) path onto a path the CLR can open.</summary>
+    private static string ToDiskPath(string path) => path.Replace('/', Path.DirectorySeparatorChar);
+}

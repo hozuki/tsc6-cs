@@ -1457,7 +1457,7 @@ printer 门控的 `TypeToString`/`SymbolToString`/`SignatureToString`/`TypePredi
 
 **收益（已实测，非估计）：** 让四个门控临时改**返回 writer** 时全语料为 `same=3774 diverged=1679 port-crash=455` —— 即门控当前掩蔽着约 **1,041 条真实分歧**。
 
-**其余待办（不属本工作流）：** §15.15 的 M7/M8 响亮阻断清单（printer 门控的四个字符串化、`expressionToTypeNode`（M4f）、`moduleSpecifiers` 的两处调用点、`Program.Emit`/`EmitBuildInfo`/`GetDeclarationDiagnostics`/`GetEmitHost`/`GetTsBuildInfoEmitOutputFilePath`、`GetBuildInfo`（M8））、`Model/NodeInterfaces.cs:3526` 的生成器缺陷（`GetIndexInfosOfIndexSymbol`）、以及 §15.15 的残留账与未认领名单。
+**其余待办（不属本工作流）：** §15.15 的 M7/M8 响亮阻断清单（printer 门控的四个字符串化、`expressionToTypeNode`（M4f）、~~`moduleSpecifiers` 的两处调用点~~（**已落地**：`src/TypeScript.Compiler/ModuleSpecifiers.cs` + `Checker/NodeBuilder.Names.cs` 的 `getSpecifierForModuleSymbol` 调用点与 `sortByBestName` 的 `countPathComponents`；见 §17.14.11 末）、`Program.Emit`/`EmitBuildInfo`/`GetDeclarationDiagnostics`/`GetEmitHost`/`GetTsBuildInfoEmitOutputFilePath`、`GetBuildInfo`（M8））、`Model/NodeInterfaces.cs:3526` 的生成器缺陷（`GetIndexInfosOfIndexSymbol`）、以及 §15.15 的残留账与未认领名单。
 
 ### M6-late 第五轮：实参级延迟（裁定 A″）落地与三项测量点
 
@@ -2243,3 +2243,26 @@ harness 的下划线规则是逐节点的 `nodeIsFullySynthetic(node) = nodeIsSy
 107 条分歧按首差片段聚类：JSDoc/JS 发射（`namespace St…`、`import type …`、注释保留）+ `.types` 下划线 + `errors`（如 `satisfies` 标签）。
 
 **结论**：之前"剩余 5 项"的说法只覆盖了前 600 文件分片；真正的大缺口在 **JSDoc/JS 面**（本区 29% 用例仍失败），其中 **74/116 由模块说明符解析未移植一项造成**。两个切片已派出：`ModuleSpecifiersPort`（`moduleSpecifiers.ts` 1,470 行 + checker.ts:8638 调用点）与 `JSDocCastFamily`（≈35 例硬转 + 107 条分歧的分类）。
+
+### 17.15 项目模式（单 program）计时：`tools/ProjectBench`，以及与 tsgo / JS 实现的对比
+
+**动机**：三条差分环都是**每文件新建 program**（每用例重解析 lib），量的是 harness 模型而不是编译器；tsgo 与 JS 实现都是"一个 program 编整个项目"。为此新增 `tools/ProjectBench`（`--files <tsconfig.json>`，读真实文件系统、加载真实 lib、按阶段计时：createProgram=parse+bind+图 / syntactic / semantic / emit），使端口第一次有与 `tsc -p` 同形的数字。
+
+**同一工作负载**（conformance 全语料 5,908 个根文件 + 93 个 lib 声明文件，`noEmit`、`skipLibCheck`、`target/module=esnext`、`allowJs`）：
+
+| | tsgo 7.0.2（全局 `tsc`） | tsc.js 6.0.3 | tsc-cs（项目模式，单线程） |
+|---|---|---|---|
+| 总计 | **1.87 s**（`--extendedDiagnostics`） | **1.42 s**（同） | 单目录分片求和 **64.0 s**（扣掉 52 次重复 lib 载入 ≈23 s ⇒ **净 ~41 s**）；**整语料一次跑不完**（见下） |
+| parse | 0.127 s | 0.54 s | 分片求和约 0.6–0.9 s/区（844 文件的 `types` 区 parse+bind 0.94 s） |
+| bind/check | 其余 ~1.7 s（并行） | bind 0.32 s，check ≈0.78 s | `semantic` 是热点：`types` 区 **17.6 s / 21,584 条诊断**，`classes` 0.90 s / 3,942 条，`parser` 0.93 s / 2,894 条 |
+| 内存 | 386 MB / 8.6M allocs | 210 MB | —（未测） |
+| 每语料文件 | **0.25 ms** | **0.19 ms** | **7–11 ms**（净） |
+
+⇒ **单核量级差距 ~5–10×（parse+bind），type-relation 密集处 ~50–100×（`types` 区 20.8 ms/文件 对 JS 实现全语料 check 0.78 s/5,908 ≈ 0.13 ms/文件）**；再加端口单线程，整项目差距约 **30–50×**。用户判断成立：差距不是"模型"能解释完的，**瓶颈在 checker（类型关系/实例化/链接查询），不在解析**。
+
+**项目模式还暴露两个单文件模型看不见的健壮性缺陷**（都阻断"整语料一次编完"）：
+
+1. **`ArgumentOutOfRangeException`**：前缀 2,862 文件正常，加入第 2,863 个（`functions/strictBindCallApply1.ts`）即抛（该文件单独跑正常 ⇒ 跨文件交互）。二分脚本：`artifacts/perf/`（`all.txt` + `shard.json`，`ProjectBench --files shard.json`）。
+2. **`Stack overflow`**：5,908 文件全量时无限递归，栈为 `GetDeclaredTypeOfEnumMember → GetTypeOfEnumMember → GetTypeOfSymbol → GetNarrowedTypeOfSymbol → CheckIdentifier → CheckExpressionWorker → CheckExpression → CheckComputedPropertyName → …`（重复 247 层）—— 参考在同类输入下不递归（checker.ts:13589-13598 的 `getDeclaredTypeOfEnumMember` 靠 enum 侧 `links.declaredType` 先置位断链），端口缺同一道断链。
+
+**性能工作的方向（依用户裁定：优先参考 Go 实现，其次 TS）**：①先修上述两处崩溃使整语料可跑；②用 profiler（`dotnet-trace`/采样）定位 `Checker.Relations.*` 的热点，对照 tsgo 的 checker 结构（符号链接用字段而非字典、类型 interning 用 id→数组、无闭包访问器、按文件并行）逐项对照；③并行化（tsgo 的主要优势之一，端口当前单线程）；④减少分配（`NodeArray`/闭包/字典）。

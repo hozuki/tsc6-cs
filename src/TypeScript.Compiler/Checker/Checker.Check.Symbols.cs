@@ -1573,25 +1573,28 @@ internal sealed partial class Checker
 
     /// <summary>ported from: src/compiler/checker.ts:44223-44234 — <c>checkJSDocTypeAliasTag</c>.</summary>
     /// <remarks>
-    /// PORT-NOTE: TS's parameter is the <c>JSDocTypedefTag | JSDocCallbackTag</c> union, whose two arms declare
-    /// <c>typeExpression</c> with different types and <c>name</c> alike; the port names both classes and takes each one's
-    /// own slots (the treatment <c>Checker.Queries.cs</c> gives the <c>JSDocTypeAlias</c> union).
+    /// PORT-NOTE: TS's call site (checker.ts:49163-49166) dispatches the three kinds <c>JSDocTypedefTag</c>,
+    /// <c>JSDocCallbackTag</c> and <c>JSDocEnumTag</c> to this member with the unchecked <c>node as JSDocTypedefTag</c>,
+    /// so the callee's declared <c>JSDocTypedefTag | JSDocCallbackTag</c> parameter holds a <c>JSDocEnumTag</c> too; that
+    /// arm declares <c>typeExpression</c> and no <c>name</c> at all (types.ts:4039-4043), so the reference's
+    /// <c>if (node.name)</c> is false for it. The port names the union's three classes and reads each one's own slot (the
+    /// treatment <c>Checker.Queries.cs</c> gives the same union in <c>getDeclaredTypeOfTypeAlias</c>).
     /// </remarks>
     internal void CheckJSDocTypeAliasTag(Node node)
     {
-        Node? typeExpression;
-        Identifier? name;
-        if (node is JSDocTypedefTag typedefTag)
+        var typeExpression = node switch
         {
-            typeExpression = typedefTag.TypeExpression;
-            name = typedefTag.Name;
-        }
-        else
+            JSDocTypedefTag typedefTag => (Node?)typedefTag.TypeExpression,
+            JSDocCallbackTag callbackTag => callbackTag.TypeExpression,
+            JSDocEnumTag enumTag => enumTag.TypeExpression,
+            _ => null,
+        };
+        var name = node switch
         {
-            var callbackTag = (JSDocCallbackTag)node;
-            typeExpression = callbackTag.TypeExpression;
-            name = callbackTag.Name;
-        }
+            JSDocTypedefTag typedefTag => typedefTag.Name,
+            JSDocCallbackTag callbackTag => callbackTag.Name,
+            _ => null,
+        };
 
         if (typeExpression is null)
         {
