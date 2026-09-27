@@ -2523,13 +2523,13 @@ BindEachChild(node) => ForEachChild(node, Bind, nodes => BindEach(nodes));
 
 改成在 Binder 实例上缓存两个委托（每文件一次，而不是每节点一次）：**semantic 330.8 → 317.7 MiB（−13.1 MiB）**，`createProgram` 不变（绑定发生在 checker 初始化，属 semantic 阶段，所以这 13 MiB 记在 semantic 上——这也说明"分配记在哪个阶段"要按实际调用点读，不能按函数名猜）。验收：1,521 测试、TypeDiff/EmitDiff 全语料各 clean 5908/5908。
 
-**结构性来源 2（已定位，待做）**：`Parser.LookAhead<T>(Func<T>)`（`Parser.cs:576` → `SpeculationHelper`）有 **34 处**调用点，绝大多数传的是**方法组**（`IsTypeMemberStart`、`IsClassMemberStart`、`NextTokenIsStartOfExpression`…），而它在**每个列表元素 / 每个表达式**上被求值 ⇒ 每个元素一次委托分配。解析阶段是最大的单项分配者（277.5 MiB），这里首当其冲。三种修法，代价递增、收益递增：
+**结构性来源 2（已测量，判定为不重要，已回退）**：`Parser.LookAhead<T>(Func<T>)`（`Parser.cs:576` → `SpeculationHelper`）确有 34 处调用点传方法组，且每个列表元素/表达式都会求值，看起来与 binder 同族。**实测把它否掉了**：把其中最热的 8 个谓词（`IsTypeMemberStart`、`IsClassMemberStart`、`NextTokenIsStartOfExpression`、`NextTokenIsOpenParenOrLessThanOrDot`、`NextTokenIsIdentifierOrKeywordOnSameLine`、`NextTokenIsBindingIdentifierOrStartOfDestructuring`、`NextTokenIsEqualsOrSemicolonOrColonToken`）缓存成每实例委托后，解析阶段 **277.5 → 277.3 MiB（−0.2 MiB，占 0.03%）**——即这些站点的调用量很小，与 binder 的"每节点"完全不是一个量级。改动的 8 个字段为此保留不划算，**已回退**（源码回到 277.5 / 317.7 / 595.2 MiB）。
 
-1. **逐站点缓存**（`private readonly Func<bool> _isTypeMemberStart;` 在构造函数里赋值）：机械、无新概念，34 处 × 2 行。
-2. **每实例谓词表 + 枚举**：`LookAhead(LookAheadPredicate.IsTypeMemberStart)`，表在构造函数建一次（34 个委托/文件），调用点变成零分配、无间接寻址以外的新机制。
-3. **结构性：不再传回调**。TS 的 `forEachChild` 是回调式，端口照搬，于是热路径必须造委托；C# 的零成本形态是**结构体访问者**（`ForEachChild<TVisitor>(node, ref visitor) where TVisitor : struct`）或**枚举器**（`foreach (var child in node.Children())`），把回调从热遍历里彻底拿掉。代价是生成的 `ForEachChildTable` 要改成泛型访问者形态并触及约 40 个调用点——这是"换思路"的那一档，只有在 1/2 的实测收益不够时才值得。
+这条的教训与上一条并列写在纪律里：**"同族的分配模式"不等于"同量级的分配量"，每一处都要用字节数验一次**。剩下 595 MiB 的主体（解析 277.5 + 检查 317.7）是**节点对象 / `NodeArray` 包装 / `List` 增长 / 字符串**，要分开需要 allocation-site 数据；本机现有工具给不出（`dotnet-trace` 的 speedscope 转换只留 CPU 采样帧，不带分配事件负载；PerfView / dotnet-gcdump 未安装）。在拿到该数据前只做"能由代码结构直接判定、且字节数能印证"的那几类。
 
-**还没拆开的**：解析阶段余下的分配由"节点对象本身 / `NodeArray` 包装 / `List` 增长 / 字符串"构成，要分开需要 allocation-site 数据；本机现有工具给不出（`dotnet-trace` 的 speedscope 转换只留 CPU 采样帧，不带分配事件负载；PerfView / dotnet-gcdump 未安装）。在拿到该数据前，只做"能由代码结构直接判定"的那几类（上面的委托/闭包就是第一类，且已用字节数印证）。
+#### 附：为什么这里不改成 `async`（看了 .NET 11 的 runtime async）
+
+被点名的 `Func<T>` 回调（`LookAhead`/`SpeculationHelper`/`ForEachChild(node, Action<Node>)`/`Core.Some(list, Func<…>)`）**都是同步的纯 CPU 工作**，不是 I/O 等待。改成 `async` 意味着：谓词要变成 `Task<T>`、每次调用多一层 async 调用帧（runtime async 只是把状态机从编译器生成挪进运行时，让 `async` 更便宜，并不会让**同步**回调更便宜）、并且 `async` 会顺着递归下降的调用图"病毒式"上溯到 parser/checker 的每一层。对一个没有真 `await` 的 CPU 密集调用图，这是**每调用更多工作量**，不是更少：缓存后的委托是 0 分配，而 async 调用仍是 `ValueTask`/延续的结构成本。`async` 真正能换来东西的地方是**把 I/O 与 CPU 重叠**，而端口的 I/O 只有文件读写：混合前缀（页缓存已热）实测 **4.6%**，即"完美重叠"的上限也只有这几个百分点，且冷缓存才更明显。另有契约约束：端口的宿主（`ISystem`/`ICompilerHost`）是照 `sys.ts`/`program.ts` 的**同步**形状定的，改成 async 等于偏离参考契约，M8 的每个调用点（模块解析、配置读取、watch）都要跟着改。⇒ 结论：编译器核不改 async；真正值得异步化的是 M8 的 CLI/host 层（那里才有无缓存 I/O 与并发文件加载），且那时用 `Parallelism.For` 的同步并行读也能拿到同样的重叠。
 
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 
