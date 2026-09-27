@@ -347,9 +347,24 @@ internal sealed partial class Checker
             }
         }
         var links = GetSymbolLinks(symbol);
+        // PORT-NOTE (correctness, measured): the reference relies on `links.instantiations` and `links.typeParameters`
+        // being initialized by `getDeclaredTypeOfTypeAlias` before anything can ask for an instantiation. A symbol that
+        // a *JavaScript* class/assignment merge turned into a transient carrying both declaration kinds can get its
+        // `declaredType` stamped by `getDeclaredTypeOfClassOrInterface` first (that arm assigns to the original's links
+        // *and* to the merged clone's), after which the alias arm's `if (!links.declaredType)` guard skips the
+        // initialization for good — and the variance machinery's `createMarkerType` then dereferences the null
+        // dictionary (`types/conditional/inferTypes1.ts` in the whole-corpus run, docs §18.4f). Both slots are
+        // initialized here the way the alias arm would have, so the state the reference relies on holds whatever
+        // ordered the two arms.
+        if (links.TypeParameters is null)
+        {
+            links.TypeParameters = GetLocalTypeParametersOfClassOrInterfaceOrTypeAlias(symbol);
+        }
+
+        links.Instantiations ??= new Dictionary<string, IType>(StringComparer.Ordinal);
         var typeParameters = links.TypeParameters!;
         var id = GetTypeListId(typeArguments) + GetAliasId(aliasSymbol, aliasTypeArguments);
-        var instantiation = links.Instantiations!.GetValueOrDefault(id);
+        var instantiation = links.Instantiations.GetValueOrDefault(id);
         if (instantiation is null)
         {
             instantiation = InstantiateTypeWithAlias(

@@ -2768,6 +2768,55 @@ JS 的字符串是 rope/cons-string，逐字符 `+=` 是摊销 O(1)；C# 的 `st
 
 **剩下的瓶颈**：`createProgram` 现在是 0.52 s，其中 **文件图遍历（含 bind）0.315 s**、预取 0.146 s。图遍历里主要是**模块解析**（每文件导出/import 解析、`fileExists`/`readFile`、package.json 查找），它**顺序敏感**（缓存边走边填）且目前串行——那是下一个大杠杆，也是比"再省几 MiB 分配"更值钱的方向。
 
+### 18.4l 全语料崩溃收敛之一：`GetTypeAliasInstantiation` —— 与 TS 6.0 **共有**的缺陷
+
+**现场**（`artifacts/bisect/p5069.json`，5,069 文件对抗性前缀）：`ArgumentNullException` in
+`Checker.GetTypeAliasInstantiation`（`links.Instantiations!` 为 null）← `CreateMarkerType` ← `GetVariancesWorker`
+← `GetVariances` ← `StructuredTypeRelatedToWorker`。
+
+**根因（逐层取证）**：
+
+1. 崩溃符号是 `'C'`（id 5803）：**226 个声明**、`flags = BlockScopedVariable, ExportSupportsDefaultModifier,
+   Module, TypeAlias, Transient, Assignment` ⇒ 是 **JS 类/赋值合并**（`MergeJSSymbols`，`Assignment` 位）产生的
+   **transient 克隆**。
+2. 它的 `DeclaredType` 已被盖上：`GetDeclaredTypeOfClassOrInterface` 那条"双写"（
+   `originalLinks.DeclaredType = links.DeclaredType = createObjectType(...)`，`MergeJSSymbols` 会换符号、`links`
+   随之指向合并后的克隆）先跑了 ⇒ 别名分支 `GetDeclaredTypeOfTypeAlias` 的 `if (links.DeclaredType is null)`
+   守卫**永久跳过** ⇒ `links.TypeParameters` / `links.Instantiations` **永不初始化**。
+3. `GetVariances → CreateMarkerType`（`symbol.flags & SymbolFlags.TypeAlias` 为真）⇒ `GetTypeAliasInstantiation`
+   解引用空字典。参考的实现里这一处是 `links.instantiations!.get(id)`，**同样假设它已存在**。
+
+**关键取证：这个缺陷参考自己也有。** 用参考 **API** 在同一个前缀上跑 `program.getSemanticDiagnostics()`：
+
+```
+TypeError: Cannot read properties of undefined (reading 'get')
+    at recursiveTypeRelatedTo … isRelatedTo … compareSignaturesRelated
+```
+
+即 `links.instantiations.get(id)` 的 `undefined.get` —— **与端口同一个缺陷、同一条调用链**。参考 **CLI**（以及
+tsgo 的 CLI）之所以"干净地"只报 2,589/2,606 条语法诊断，正是 §18.4j 记下的那道闸门（文件有语法错误时不计算
+语义诊断）；**语义诊断一旦真的算，参考自己就崩**。⇒ 端口此前那次崩溃**原本是忠实的**。
+
+**决定与修法**：全语料跑通是本项目的目标之一，而参考在这条输入上**给不出语义结果**（没有可忠实的对象），
+因此端口在这一处**不再复刻参考的缺陷**，而是按参考在别处（`getSignatureInstantiation`）用过的惰性初始化写法
+补上它依赖的不变式：
+
+```csharp
+        if (links.TypeParameters is null) links.TypeParameters = GetLocalTypeParametersOfClassOrInterfaceOrTypeAlias(symbol);
+        links.Instantiations ??= new Dictionary<string, IType>(StringComparer.Ordinal);
+```
+
+**验收**：前缀从"崩溃"变为跑通——**语法诊断 2,589 条与参考 CLI 逐数相同**（tsgo 亦 2,606 行、`TS1005` 计数
+1429 = 端口 1429）；1,521 测试；`TypeDiff` 与 `EmitDiff` 全语料各 clean 5908/5908（修复只影响参考会崩的那类输入，
+所有参考能算的用例逐字节不变）。
+
+**全语料对拍的口径结论**：语义诊断在 5,000+ 文件的对抗性输入上**没有 oracle**——tsc 6.0 的 API 崩、tsc/tsgo 的
+CLI 都抑制语义诊断。可用的 oracle 只有：① 语法诊断（端口 vs tsc/tsgo CLI ✓ 已对齐）；② 用例级 `.types`/发射
+（两外环 5,908/5,908 ✓）；③ 端口自身的串行/并行双跑逐字节一致。语义侧的"对拍"因此只能靠②，而不是整语料数字。
+
+**下一个崩溃（已暴露，同一族）**：`CheckClassLikeDeclaration` 的 `(IObjectType)GetTypeOfSymbol(symbol)` 抛
+`InvalidCastException`（该合并符号的值类型解析成了 `IntrinsicType`）。逐处收敛继续。
+
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 
 两个工具的端口半场原来是**按文件串行**跑（每个文件各自建 program），而这正是最适合并行的形状：文件之间零共享。新增 `--parallel <n>`（默认 `Environment.ProcessorCount`，`1` = 串行，用于 A/B），实现是**有界的 `Parallel.For` + 每文件结果槽**，最后按文件序落盘 —— 因此**索引产物与串行运行逐字节相同**（`port-hashes.txt` / `port-crashes.txt` 已实测 `cmp` 一致；`report.txt` 只差 node 侧自报的 `maxRSS` 与端口峰值这两行噪声）。
