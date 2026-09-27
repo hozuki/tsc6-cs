@@ -2266,3 +2266,25 @@ harness 的下划线规则是逐节点的 `nodeIsFullySynthetic(node) = nodeIsSy
 2. **`Stack overflow`**：5,908 文件全量时无限递归，栈为 `GetDeclaredTypeOfEnumMember → GetTypeOfEnumMember → GetTypeOfSymbol → GetNarrowedTypeOfSymbol → CheckIdentifier → CheckExpressionWorker → CheckExpression → CheckComputedPropertyName → …`（重复 247 层）—— 参考在同类输入下不递归（checker.ts:13589-13598 的 `getDeclaredTypeOfEnumMember` 靠 enum 侧 `links.declaredType` 先置位断链），端口缺同一道断链。
 
 **性能工作的方向（依用户裁定：优先参考 Go 实现，其次 TS）**：①先修上述两处崩溃使整语料可跑；②用 profiler（`dotnet-trace`/采样）定位 `Checker.Relations.*` 的热点，对照 tsgo 的 checker 结构（符号链接用字段而非字典、类型 interning 用 id→数组、无闭包访问器、按文件并行）逐项对照；③并行化（tsgo 的主要优势之一，端口当前单线程）；④减少分配（`NodeArray`/闭包/字典）。
+
+### 17.16 `moduleSpecifiers.ts` 落地：JSDoc 面最大的单一崩溃源清零（切片交付，集成方复核）
+
+`src/TypeScript.Compiler/ModuleSpecifiers.cs` **2,570 行 / 67 处 `ported from:`**（`moduleSpecifiers.ts` 全量：缓存、`node_modules` 包名、`exports`/`imports`、`rootDirs`、`typesVersions`、结尾偏好、prefix/suffix、大小写与 realpath 等），并替换两处具名阻断：
+
+1. `Checker/NodeBuilder.Names.cs` 的 `GetModuleSpecifiers` 局部桩 → 真正的 `ModuleSpecifiers.GetModuleSpecifiers(...)`（含参考里被丢掉的 `links.SpecifierCache` 回写）；
+2. **同族的第二处**：`sortByBestName` 的 `countPathComponents` 局部桩 → `ModuleSpecifiers.CountPathComponents` —— 这正是此前"排序比较器在混合节点上抛 `Failed to compare two elements`"的来源（它其实是该阻断被包了一层）。
+
+支撑改动：`Program/ModuleNameResolver.NodeModules.cs` 新增 `IModuleSpecifierResolutionHost` 版 `ForEachAncestorDirectoryStoppingAtGlobalCache`（原 `IModuleResolutionHost` 版改为转发），`Program/Utilities.ModuleResolution.cs` 新增三个 host 重载并抽出 `GetPathsBasePathWorker`（参考的 host 参数是 TS 联合/Pick，端口的两种宿主角色是各自独立的 nominal 接口）。
+
+**实测（`tools/BaselineDiff`，`--filter "jsdoc/**"`，341 文件 / 397 用例）**：
+
+| | 前 | 后 |
+|---|---|---|
+| 崩溃记录 / 崩溃用例 | 464 / 116 | **6 / 6**（`GetSpecifierForModuleSymbol` 74 例 → **0**） |
+| 端口 vs 参考一致行（1,588 行） | 1,011 | **1,401** |
+
+单例复核（各跑一次，`VERDICT clean exit=0`）：`callbackCrossModule.ts`、`privateNamesUnique-2.ts`、`node/nodeModules*Specifier*.ts`（16/16，含只有本切片能合成的 specifier 基线，如 `nodeModulesExportsSpecifierGenerationDirectory(module=node16)` 的 `import("inner/other.js").Thing`）、`moduleResolution/allowImportingTsExtension*.ts`。
+
+**该区剩余**：JSDoc 硬转族 5 例（`NamespaceImport → …`、`JSDocImportTag → Import…`，由 `JSDocCastFamily` 切片处理中）、1 例 unmodelled（需要 tsconfig 读入，M8）、以及 121 个用例的发射/类型/JSDoc-注释类分歧。
+
+集成方在同一棵树上复核（含各切片在飞改动）：build 0/0、测试 **1,521/1,521**、`tools/TypeDiff` 全语料 **clean 5908/5908**、`tools/EmitDiff` 全语料 **clean 5908/5908**（端口半场 23.2 s，此前 38–46 s —— 已有切片带来约 40% 提速，详见 §17.17 的性能诊断）。
