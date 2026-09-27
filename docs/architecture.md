@@ -2529,32 +2529,44 @@ BindEachChild(node) => ForEachChild(node, Bind, nodes => BindEach(nodes));
 
 **已排除的候选（读代码即可判定，不必再查）**：checker 的 `CheckSourceElementWorker` 是**按 kind 显式下降**的（每个分支直接调该 kind 的 checker），没有"每个节点一次 `ForEachChild(node, CheckSourceElement)`"那种通用下钻——所以 binder 的 `BindEachChild` 是**唯一**的"每节点回调"站点，语义阶段的余下分配不在这一族里。
 
-#### 附：这些回调为什么不改成 `async`（含 runtime async 的两列实测）
+#### 附：runtime async 的三次更正与最终结论（含被人指出的对照组缺陷）
 
-**先更正两处我自己的错误结论**（据用户提示实测得出，前一版结论已由本节的测量取代）：
+**先更正我自己前面三处错误结论**（都被实测推翻，前一版文字已由本节替代）：
 
-1. 我曾断言"这台工具链上 runtime async 打不开"。**错**：把 `<Features>runtime-async=on</Features>` 写进 **csproj** 即可启用（`TargetFramework=net11.0` + `LangVersion=preview`）。判据是 IL：启用后 `AsyncStateMachineAttribute` **消失**、`AsyncHelpers` **出现**。我先前的 `-p:Features=runtime-async=on` 试验之所以"毫无变化"，是因为 **MSBuild 的增量编译只看输入/输出文件、不看属性变化**——那次根本没有重新编译，我比较的是上一份二进制（"IL 标记相同"是假象）。
-2. 我曾说"async 只是多一层结构成本"。**过头**：runtime async 确实把状态机挪进运行时，对同步完成的调用点有真实收益（下表的 C 行时间 −16%）。
+1. "这台工具链上 runtime async 打不开"——**错**：`<Features>runtime-async=on</Features>` 写进 **csproj** 即可启用（`net11.0` + `LangVersion=preview`）。判据是 IL：启用后 `AsyncStateMachineAttribute` 消失。先用 `-p:Features=…` 之所以"毫无变化"，是 **MSBuild 增量编译只看输入/输出文件、不看属性变化**——那次根本没重编译。
+2. "async 只是多一层结构成本"——**过头**（见下表的 A/B 行）。
+3. **最关键的一处**："`Task<int>` 那 72 B/次是 Task 对象本身、去不掉；即便零分配，async 调用协议也比委托贵 2.5–4 倍"——**错在对照组**：我那支探针的所有被测形状都是用**非 async 消费者**（`GetAwaiter().GetResult()`）驱动的，而**非 async 消费者会强制把 `Task` 实体化**。换成 async 消费者（两端都在运行时协议上）后，结论完全反过来。
 
-**实测（探针 `artifacts/asyncprobe/`，gitignored，可重建；每次 `-t:Rebuild` 排除增量陷阱；20M 次，D 行 200k 次）**：
+**对照实验（我的探针，同一被调方、只改消费者；20M 次；每次 `-t:Rebuild`）**：
 
 | 形状 | `runtime-async` 关 | 开 |
 |---|---|---|
-| A 直接调用 | 36.9 ms / 0 B（1.85 ns） | 37.2 ms / 0 B |
-| B **缓存委托**（端口修好后的形状） | 54.5 ms / 0 B（**2.7 ns**） | 52.9 ms / 0 B |
-| C `async Task<int>` 同步完成（两层 await） | 317.2 ms / **72 B/次** | 266.0 ms / **72 B/次** |
-| C2 `async ValueTask<int>` 同步完成（两层） | 269.7 ms / **0 B** | **234.1 ms / 0 B** |
-| C3 `async ValueTask<int>` 同步完成（一层） | 134.1 ms / 0 B（6.7 ns） | 132.5 ms / 0 B（**6.6 ns**） |
-| D `async Task<int>` 真挂起（`Task.Yield`） | 452.8 ms / 96.9 B | 579.6 ms / **185.4 B** |
-| D2 `async ValueTask<int>` 真挂起 | 425.7 ms / 104.8 B | 524.8 ms / **185.0 B** |
+| A 直接调用 | 36.9 ms / 0 B（1.85 ns） | 37.0 ms / 0 B |
+| B 缓存委托（端口现状） | 55.0 ms / 0 B（2.75 ns） | 57.0 ms / 0 B |
+| E2b 同一被调方 + **非 async 消费者** | 252.9 ms / **72 B/次** | 239.6 ms / **72 B/次** |
+| E2b 同一被调方 + **async 消费者**（async→async） | 208.7 ms / **72 B/次** | **7.2 ms / 0 B（0.36 ns/次）** |
 
-读法与结论：
+**旁证：`hez2010` 的基准**（`artifacts/asyncbench/`，原样下载运行；100M 次；两列同为 `-t:Rebuild`）
 
-- **"同步完成的 async 零分配"不是 runtime async 独有的**：C2 在两列都是 0 B——编译器对"`ValueTask` 返回 + 同步完成"的状态机本来就不装箱，runtime async 的作用是**时间**（C 行 −16%，C2 行 −13%）。而对 `Task<int>` 返回的方法，那 72 B/次是 **`Task` 对象本身**（方法的契约），不是状态机，runtime async 不会去掉它。
-- **真挂起这一列反而更差**（185 B/次 对 97–105 B/次，时间也更慢）——本 RC 的这个配置下如此；记录数字，不解释。
-- **因此"把这些回调改成 async"仍然不做，理由换成了实测的**：B 行（缓存委托）是 **0 B / 2.7 ns 每次**；即便 async 零分配，调用协议本身仍要 **6.6 ns（一层）/ 11.7 ns（两层）**每次——比委托贵 2.5–4 倍，而收益（廉价的挂起）在这些**没有挂起点**的 CPU 密集回调上完全用不到，代价是 `async` 顺着递归下降的调用图病毒式上溯（parser/checker 每层签名）与宿主（`ISystem`/`ICompilerHost`）偏离 `sys.ts`/`program.ts` 的同步契约。
-- **async/runtime async 真正该用的地方**：**有真实等待**的路径——M8 的 CLI/host（无缓存 I/O、并发文件加载）与 watch；那里的 I/O 在页缓存已热的混合前缀上实测 4.6%，冷缓存才显著。届时应按本节的探针形状重测，并记得把 `<Features>runtime-async=on</Features>` 写进 **csproj**（写命令行会踩增量编译的坑）。
-- **本仓已打开该开关**：`Directory.Build.props` 里 `<Features>$(Features);runtime-async=on</Features>`（已核实 `src/tsc` 的 csc 命令行出现 `/features:runtime-async=on`；`src`/`tools` 当前**没有**任何 C# async 代码，所以今天不改变任何代码生成，是给 M8 预付的）。将来若某个构造被 runtime async 拒绝（`ERR_UnsupportedFeatureInRuntimeAsync`），用 `[RuntimeAsyncMethodGeneration(false)]` 单独退出即可。
+| 用例 | 关 | 开 |
+|---|---|---|
+| 同步基线 | 0.41 ns / 0 B | 0.38 ns / 0 B |
+| **async 方法、无挂起** | 6.83 ns / **72 B** | **0.41 ns / 0 B** |
+| await 已完成 Task | 3.95 ns / 72 B | 0.35 ns / 0 B |
+| await 已完成 ValueTask | 0.82 ns / 0 B | 0.35 ns / 0 B |
+| `Task.Yield` 挂起 | 29.58 ns / 0 B | 34.91 ns / 0 B |
+| ThreadPool 延续 | 92.38 ns / 152 B | 105.60 ns / 152 B |
+| TaskCompletionSource 延续 | 93.10 ns / 160 B | 114.11 ns / 160 B |
+| async 状态机链（含一次真挂起） | 285.40 ns / **324 B** | 84.97 ns / **168 B** |
+
+**由此得到的正确结论**：
+
+- **runtime async 打开后，两端都是 async 的"同步完成"调用链是 0 分配、且与同步调用同速**（我的探针 0.36 ns/次 vs 直接调用 1.85 ns/次；他的基准 0.41 vs 0.38 ns）。`Task` 并未"实体化"——运行时的协议让同步完成的返回值直接穿过，不必造 Task。**这是我先前判错的那一点。**
+- 非 async 消费者（`GetAwaiter().GetResult()`，或任何只认 `Task` 的 API）**会**强制实体化：两列都是 72 B/次。所以"是否零分配"取决于**两端是否都在运行时协议上**，与返回值大小无关（我先前"≤8 就走缓存"的结论只解释了 *非 async 消费者* 的那一列的假象：`Task.FromResult` 对 ≤8 有缓存）。
+- 真挂起仍是唯一有代价的路径（`Task.Yield` 29.6→34.9 ns；本 RC 下挂起分支的分配反而更多）。
+- **因此"把回调改成 async"的性能理由不复存在**：改与不改的差别不在每次调用的成本，而在**结构**——`async` 会顺递归下降的调用图病毒式上溯到 parser/checker 每层签名、把这些 API 的调用点全部变成 `await`，而宿主（`ISystem`/`ICompilerHost`）是照 `sys.ts`/`program.ts` 的**同步**形状定的（改 async 等于偏离参考契约，M8 的每个调用点都要跟着改）；且这些站点**现在已经是 0 B / 2.7 ns**，没有可换取的收益。**结论：不改；但如果将来这些路径真出现挂起点（M8 的 I/O / watch），runtime async 是零成本的选择——本仓已打开该开关。**
+- **本仓已启用**：`Directory.Build.props` 的 `<Features>$(Features);runtime-async=on</Features>`（核实过 `src/tsc` 的 csc 命令行出现 `/features:runtime-async=on`；`src`/`tools` 当前没有 C# async 代码，故今天不改变任何代码生成）。若某构造被拒（`ERR_UnsupportedFeatureInRuntimeAsync`），用 `[RuntimeAsyncMethodGeneration(false)]` 单独退出。
+- **方法论教训（写进纪律）**：perf 对照实验要**逐个变量受控**——同一被调方、只改消费者；这次我一次改了三样（消费者类型、返回类型、是否异步），得出的是错的因果。
 
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 
