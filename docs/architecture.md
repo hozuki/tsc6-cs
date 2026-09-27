@@ -2949,8 +2949,18 @@ types 分片的 emit 阶段 844 个文件分配 **580 MiB**（比解析的 109 K
 是 grep 时漏掉的那种，因为它藏在 `Utilities/` 而不是 `Emit/`）。
 
 **余量**：emit 现在 250 MiB / 844 文件 = **297 KB/文件**，而一个文件的输出只有 ~8 KB ⇒ 仍有约 290 KB/文件
-的可疑分配（很可能是每文件的 writer/printer 对象重建或映射表），是下一个可拆的点；emit 现在占 types 分片整轮
-12%（3.53 s 里的 0.431 s）。
+的可疑分配。已按顺序排除（都有实测）：
+
+| 假设 | 实测 | 结论 |
+|---|---|---|
+| 注释文本切片 | `removeComments: true` 后 emit 仍是 **249.9 MiB**（vs 250.4） | ✗ 与注释无关 |
+| 标点文本现造字符串 | `ScannerUtilities.TokenToString` 是**静态查表** | ✗ 零分配 |
+| `WriteTokenText(token, Action<string>)` 的实例方法组委托 | 21,562 次调用 / **1.6 MiB** | ✗ 只占 0.6% |
+| `Printer.WriteFile`（打印管线本体） | **214.5 MiB / 844 次 = 254 KB/文件** | ← 余量在这里，未收敛 |
+
+⇒ 下一个可拆点：在 `Printer.WriteFile` 内按 `Print`/`GetLiteralTextOfNode`/`GetLinesBetweenNodes`/注释发射分
+一层探针（每文件约 3k 节点、~85 B/节点，量级像"逐节点一个小对象"）。emit 现在占 types 分片整轮 12%
+（3.53 s 里的 0.431 s），且对 noEmit 的整语料跑分无影响 ⇒ 优先级排在其他线之后。
 
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 
