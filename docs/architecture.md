@@ -3014,8 +3014,39 @@ memoized printer 只建一次）：emit 分配 250.4 → **239.6 MiB**，`EmitDi
 的闭包（~64 B）。**剩下的唯一嫌疑是发射替换回调**（`_handlers.SubstituteNode`，由 emitter 用 resolver 装配）——
 它是下一轮的探针目标（286,613 次 × 154 B ≈ 一次替换计算）。
 
-**最终划分（emit 236 MiB，types 分片）**：唯一名生成 74.9（固有的 O(N²) 扫描，参考同）→ `GetPipelinePhase`/替换
-回调 42.3 → `Identifier` 20.9（`GetTextOfNode` 的 Substring，参考同）→ 其余 20+ 种各 ≤6 MiB。
+**第五轮：`GetPipelinePhase` 归零，42.3 MiB 落在替换回调上**（先把探针**校准**：给"绝不可能分配"的
+`Utilities.GetEmitFlags` 装同一套探针 ⇒ 615,595 次调用 **0 B/次** ⇒ 仪器无每次开销偏差，此前的读数可信）。
+
+```
+PROBEXCL transform SubstituteNode (TransformationResult)   42.3 MiB / 102,858 次 = 430 B/次
+PROBEXCL pipeline phase lookup (GetPipelinePhase)            0.0 MiB / 286,613 次 =   0 B/次
+PROBEXCL CALIBRATION getEmitFlags                            0.0 MiB / 615,595 次 =   0 B/次
+PROBEXCL predicate ShouldEmitComments / ShouldEmitSourceMaps  0.0 MiB（各 ~183k 次）
+PROBEXCL handler SubstituteNode (EmitPrintHandlers)          0.0 MiB（转发）
+```
+
+替换回调的身份（探针打印）：
+
+```
+PROBESUBST callback=ImpliedNodeFormatDependentTransformer.OnSubstituteNode
+  enabledKinds=Identifier, PropertyAccessExpression, ElementAccessExpression, CallExpression,
+               TaggedTemplateExpression, BinaryExpression, ShorthandPropertyAssignment, SourceFile
+```
+
+⇒ 是**模块格式（ESM/CJS）变换的替换**：它对 102,858 个模块引用**逐个创建重写节点**（`require("x").y` 一类）。
+参考跑的是同一个变换 ⇒ **固有成本**，非移植缺陷。
+
+**最终结论（回答"剩下的分配在哪"）**：emit 236 MiB =
+
+| 项 | 分配 | 性质 |
+|---|---|---|
+| 唯一名生成的候选扫描 | 74.9 MiB | 固有（参考同算法，对抗语料上 O(N²)） |
+| 模块格式替换回调（逐引用建节点） | 42.3 MiB | 固有（参考同一变换） |
+| `Identifier` 的 `GetTextOfNode` Substring | 20.9 MiB | 固有（参考同） |
+| 其余 20+ 种节点 | 各 ≤6 MiB | 分散，无单点 | 
+
+**三项全部是"参考也这么干"的成本**——移植侧真正的缺陷是本轮之前修掉的三处（输出累积的二次型 −57%、两批
+"实例方法组委托"合计 −14.6 MiB），emit 分配已从 **580 MiB 降到 236 MiB**。
 
 ### 18.5 工具侧并行：`tools/TypeDiff` 与 `tools/EmitDiff`
 
