@@ -3096,6 +3096,18 @@ PROBESUBST callback=ImpliedNodeFormatDependentTransformer.OnSubstituteNode
 
 ⇒ **结论**：lib 的解析必须**每进程只付一次**，而不是每 program 一次。三条路按收益/风险排序：①**宿主级（进程级）已解析 lib `SourceFile` 缓存**——对差分环与同一进程内的重复运行是数量级收益（CLI 单次运行不变），且端口已有 `ChangeCompilerHostLikeToUseCache` 的形状可循；②**预编译/内嵌的 lib 二进制 AST**（省掉那 385 ms 解析，顺带解决"部署时找不到 `lib/`"，即 §13.2 遗留）；③**并行解析 lib**（本节证明逐层与一次性两种接法都不成立，除非同时消除选项漂移）。检查侧的 636 ms（4.6×）则是 §18.4e 已登记的主线：它占 76% 墙钟、不可分片，按 tsgo 的 `checkerpool` 形状（4 分片 + 按文件归属）与分配削减来做。
 
+**补记（同日，lib 并行的三次实测——全部否决，代码已回退）**：
+
+| 形态 | 结果（`ProjectBench`，one.json = 1 文件 + 93 lib；中位） | 判定 |
+|---|---|---|
+| 逐层预取（`processLibReferenceDirectives` 一层一批） | 插桩：默认库要 **46 轮**、多数 1 文件；分配 137 → 146.3 MiB，墙钟不变 | 否（往返 > 并行收益） |
+| 一次性闭包预取（全文扫描闭包 → 一批） | `createProgram` **−19%**，但分配 **+105 MiB**（选项漂移 → `SameParseOptions` 拒收 → 整库重解析） | 否（分配是唯一无噪声指标） |
+| 闭包预取 + lib 选项记忆化 + 只扫前导 trivia | `createProgram` 0.365→**0.316 s（−11%）**、total 0.623→**0.578（−7%）**，分配仍 **+13.6 MiB**（≈12 个文件被重解析，键/选项均已归一仍存在） | 否（收益换分配，且 p2000 上 A/B 完全无差：ON 1.653 / OFF 1.644 s 中位） |
+
+⇒ lib 这条线到此为止：**并行解析走不通**（默认库的闭包又深又窄、且最大的 `lib.dom.d.ts` 本来就在关键路径上），能动的只剩 ②（预编译/内嵌 lib AST）与"把解析本身的分配降下来"。
+
+**p2000（2,000 文件 + 93 lib，单线程）的采样画像**：`Thread.PollGC` **40.9%**、文件 I/O 五入口合计 **≈8%**（CreateFilePrivate 3.4 / CloseHandle 1.7 / ReadFile 1.2 / GetFileAttributesEx 0.4 / GetFileType 0.3 + PathHelper 1.0）、`CallClassConstructor` 1.7%、`RuntimeHelpers.GetHashCode` 1.1%、`Array.Copy`（含）18.5%；**除 GC 外没有任何函数独占超过 1%**（checker 侧最大的 `CheckExpressionWorker` 0.57% 独占 / 24% 含）。⇒ 这一阶段的对手是**累计分配**（GC 40–50%）与**每文件多次系统调用**，不是某个热点函数；要按 tsgo 的形状改的是数据结构（字符串键的字典、委托式遍历、逐节点对象），而不是单点微优化。
+
 ### 18.8 新验收环：`tsgo` CLI 逐用例差分（端口第一次有了自己的 CLI）
 
 - **`src/tsc`（M8 的第一块）**：`Program.cs`（命令行解析 + `emitFilesAndReportErrors` 的诊断装配 watch.ts:564-613 + `formatDiagnostics` 的纯文本报告）、`DiskSystem.cs`（真实文件系统的 `ISystem`）、`TscCompilerOptions.cs`（进程自己的选项对象）。`tsconfig.json` 读取、`-p`、`--build`、watch 仍未落地（见文件内 PORT-NOTE 的清单）。
